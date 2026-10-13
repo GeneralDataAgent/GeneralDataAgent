@@ -9,6 +9,7 @@ from generaldataagent.api.app import create_app
 from generaldataagent.artifacts import LocalArtifactStore
 from generaldataagent.catalog import InMemoryMetricCatalog, MetricDefinition
 from generaldataagent.contracts import ActorContext, MetricQuery
+from generaldataagent.llm import Narrative
 from generaldataagent.observability import JsonlAuditSink
 from generaldataagent.orchestration import MetricAnalysisRuntime
 from generaldataagent.tools import SQLiteReadOnlyExecutor
@@ -46,6 +47,16 @@ def build_runtime(tmp_path) -> MetricAnalysisRuntime:
     )
 
 
+class FakeNarrator:
+    def generate(self, evidence) -> Narrative:
+        return Narrative(
+            summary=f"The query returned {evidence['row_count']} segments.",
+            insights=("Web has more orders than store.",),
+            limitations=("This is descriptive only.",),
+            model="fake-model",
+        )
+
+
 def query() -> MetricQuery:
     return MetricQuery(
         metric_name="order_count",
@@ -80,6 +91,17 @@ def test_metric_analysis_runs_end_to_end(tmp_path) -> None:
         "analysis.finished",
         "policy.decision",
     }
+
+
+def test_metric_analysis_preserves_model_narrative_as_evidence(tmp_path) -> None:
+    runtime = build_runtime(tmp_path)
+    runtime.narrator = FakeNarrator()
+    result = runtime.run(query(), actor(), thread_id="metric-narrative")
+
+    delivery = result["delivery_package"]
+    assert delivery["narrative_model"] == "fake-model"
+    assert delivery["summary"] == "The query returned 2 segments."
+    assert len(delivery["evidence"]) == 2
 
 
 def test_metric_analysis_rejects_uncertified_dimension(tmp_path) -> None:

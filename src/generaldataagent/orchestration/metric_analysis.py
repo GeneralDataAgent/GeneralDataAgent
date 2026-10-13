@@ -1,6 +1,7 @@
 """Certified metric analysis wired through the phase-one LangGraph."""
 
-from typing import Any
+from collections.abc import Mapping
+from typing import Any, Protocol
 from uuid import uuid4
 
 from langgraph.checkpoint.memory import InMemorySaver
@@ -24,6 +25,10 @@ from generaldataagent.policy import PolicyEngine
 from generaldataagent.tools import SqlGuard, SQLiteReadOnlyExecutor, ToolGateway
 
 
+class NarrativeGenerator(Protocol):
+    def generate(self, evidence: Mapping[str, Any]) -> Any: ...
+
+
 class MetricAnalysisRuntime:
     """Runs certified metric queries with policy, validation, evidence, and checkpointing."""
 
@@ -35,11 +40,13 @@ class MetricAnalysisRuntime:
         artifacts: LocalArtifactStore,
         policy: PolicyEngine | None = None,
         audit: JsonlAuditSink | None = None,
+        narrator: NarrativeGenerator | None = None,
     ) -> None:
         self.catalog = catalog
         self.executor = executor
         self.artifacts = artifacts
         self.audit = audit
+        self.narrator = narrator
         self.sql_guard = SqlGuard(dialect="sqlite")
         self.gateway = ToolGateway(policy or PolicyEngine(), audit)
         self.gateway.register("sql.query", self._execute_query)
@@ -151,13 +158,30 @@ class MetricAnalysisRuntime:
             value=payload,
             created_by="data-analyst",
         )
-        return {
-            "analysis_result": {
-                **payload,
-                "artifact": artifact.model_dump(mode="json"),
-                "metric": plan["metric"],
-            }
+        analysis = {
+            **payload,
+            "artifact": artifact.model_dump(mode="json"),
+            "metric": plan["metric"],
         }
+        if self.narrator is not None:
+            narrative = self.narrator.generate(
+                {
+                    "metric": plan["metric"],
+                    "columns": payload["columns"],
+                    "rows": payload["rows"],
+                    "row_count": payload["row_count"],
+                }
+            )
+            narrative_payload = narrative.model_dump(mode="json")
+            narrative_artifact = self.artifacts.put_json(
+                task_id=request.task_id,
+                artifact_type="llm_narrative",
+                value=narrative_payload,
+                created_by="llm-narrator",
+            )
+            analysis["narrative"] = narrative_payload
+            analysis["narrative_artifact"] = narrative_artifact.model_dump(mode="json")
+        return {"analysis_result": analysis}
 
     def _validate(self, state: PhaseOneState) -> dict[str, Any]:
         analysis = state["analysis_result"]
@@ -174,6 +198,15 @@ class MetricAnalysisRuntime:
                 code="artifact_present",
                 message="The result must be backed by an immutable artifact reference.",
             ),
+            ValidationCheck(
+                check_id="narrative-evidence",
+                passed=(
+                    "narrative" not in analysis
+                    or bool(analysis.get("narrative_artifact", {}).get("uri"))
+                ),
+                code="narrative_artifact_present",
+                message="A model-generated narrative must be preserved as an artifact.",
+            ),
         )
         status = (
             ValidationStatus.PASS if all(item.passed for item in checks) else ValidationStatus.FAIL
@@ -189,6 +222,10 @@ class MetricAnalysisRuntime:
     @staticmethod
     def _deliver(state: PhaseOneState) -> dict[str, Any]:
         result = state["analysis_result"]
+        narrative = result.get("narrative")
+        evidence = [result["artifact"]]
+        if result.get("narrative_artifact"):
+            evidence.append(result["narrative_artifact"])
         return {
             "status": "completed",
             "delivery_package": {
@@ -196,8 +233,15 @@ class MetricAnalysisRuntime:
                 "columns": result["columns"],
                 "rows": result["rows"],
                 "row_count": result["row_count"],
-                "summary": f"Certified metric query returned {result['row_count']} row(s).",
-                "evidence": [result["artifact"]],
+                "summary": (
+                    narrative["summary"]
+                    if narrative
+                    else f"Certified metric query returned {result['row_count']} row(s)."
+                ),
+                "insights": narrative["insights"] if narrative else [],
+                "limitations": narrative["limitations"] if narrative else [],
+                "narrative_model": narrative.get("model") if narrative else None,
+                "evidence": evidence,
             },
         }
 

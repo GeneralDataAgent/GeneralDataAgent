@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/GeneralDataAgent/GeneralDataAgent/actions/workflows/ci.yml/badge.svg)](https://github.com/GeneralDataAgent/GeneralDataAgent/actions/workflows/ci.yml)
 
-GeneralDataAgent is a governed multi-agent foundation for data analytics, data engineering, and data science. The first implementation milestone delivers the contracts and control plane required by the project architecture before connecting a real model or production data source.
+GeneralDataAgent is a governed multi-agent foundation for data analytics, data engineering, and data science. The current implementation includes a governed certified-metric path, a real LLM loaded from CC Switch, and a reproducible NYC TLC open-data validation pipeline.
 
 ## Current scope
 
@@ -15,9 +15,11 @@ GeneralDataAgent is a governed multi-agent foundation for data analytics, data e
 - Certified metric catalog and parameterized query compiler.
 - Read-only SQLite execution with timeout, row limit, and query-plan capture.
 - Deep Agents specialist definitions for discovery, engineering, analysis, science, verification, and reporting.
+- Anthropic-compatible LangChain model loading from the current CC Switch provider without copying credentials.
+- Real NYC TLC Parquet ingestion with source hashes and a curated SQLite snapshot.
 - FastAPI health, capability, contract-validation, and certified-metric endpoints.
 
-Production writes, arbitrary shell execution, model deployment, external delivery, and real credentials are intentionally excluded from this milestone.
+Production writes, arbitrary shell execution, model deployment, external delivery, and committed credentials are intentionally excluded from this milestone.
 
 ## Development
 
@@ -58,6 +60,26 @@ curl -X POST http://127.0.0.1:8000/v1/analysis/metrics \
   }'
 ```
 
+## Run the real-data and real-model validation
+
+Prerequisites:
+
+- CC Switch has a current Anthropic-compatible provider.
+- Its API remains managed by CC Switch; no key is copied into this repository.
+- Internet access is available for the first source download and model request.
+
+```bash
+uv run python examples/tlc_real_data_demo.py
+```
+
+This downloads the official January 2025 NYC TLC green-taxi Parquet file and taxi-zone lookup,
+records their SHA-256 hashes, creates `data/tlc/tlc-2025-01.sqlite`, executes a certified read-only
+metric, and asks the selected model for an evidence-bounded structured narrative. The `data/`
+directory, model credentials, local artifacts, and audit state are ignored by Git.
+
+See [the dataset selection](docs/research/open-dataset-selection.md) and
+[the acceptance record](docs/validation/tlc-llm-acceptance.md) for scope and limitations.
+
 ## Package map
 
 ```text
@@ -69,6 +91,8 @@ src/generaldataagent/
   artifacts/       Content-addressed task artifacts
   orchestration/   LangGraph state and workflow skeleton
   agents/          Deep Agents role definitions and factory
+  datasets/        Reproducible open-data ingestion
+  llm/             Local provider resolution and model adapters
   observability/   Audit event sink
   api/             FastAPI application
 ```
