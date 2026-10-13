@@ -35,6 +35,34 @@ DEFAULT_RULES = (
         obligations=("audit", "read_only", "query_budget"),
     ),
     PolicyRule(
+        tool_name="connector.inspect",
+        risk_level=RiskLevel.R0,
+        allowed_actions=frozenset({"inspect"}),
+        allowed_roles=frozenset({"discovery", "data_engineer", "verifier"}),
+        obligations=("audit", "read_only"),
+    ),
+    PolicyRule(
+        tool_name="data.profile",
+        risk_level=RiskLevel.R1,
+        allowed_actions=frozenset({"profile"}),
+        allowed_roles=frozenset({"data_engineer", "verifier"}),
+        obligations=("audit", "read_only", "query_budget"),
+    ),
+    PolicyRule(
+        tool_name="data.quality",
+        risk_level=RiskLevel.R1,
+        allowed_actions=frozenset({"check"}),
+        allowed_roles=frozenset({"data_engineer", "verifier"}),
+        obligations=("audit", "read_only", "query_budget"),
+    ),
+    PolicyRule(
+        tool_name="schema.diff",
+        risk_level=RiskLevel.R0,
+        allowed_actions=frozenset({"compare"}),
+        allowed_roles=frozenset({"data_engineer", "verifier"}),
+        obligations=("audit",),
+    ),
+    PolicyRule(
         tool_name="artifact.write",
         risk_level=RiskLevel.R1,
         allowed_actions=frozenset({"create"}),
@@ -97,7 +125,12 @@ class PolicyEngine:
         if request.action not in rule.allowed_actions:
             return self._decision(request, "deny", rule.risk_level, "action_not_allowed")
 
-        if not request.data_domains and request.tool_name in {"sql.query", "dataset.export"}:
+        if not request.data_domains and request.tool_name in {
+            "sql.query",
+            "data.profile",
+            "data.quality",
+            "dataset.export",
+        }:
             return self._decision(request, "deny", rule.risk_level, "missing_data_domain")
 
         if rule.requires_approval:

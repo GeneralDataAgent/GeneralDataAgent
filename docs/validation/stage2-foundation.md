@@ -1,0 +1,49 @@
+# Stage 2 data-engineering foundation validation
+
+Validation date: 2026-10-13.
+
+## Scope
+
+This increment establishes the first read-only Stage 2 vertical slice:
+
+- SQLite and DuckDB implement one connector interface and normalized error model.
+- Every connector declares immutable capabilities; both shipped connectors explicitly disable DML
+  and DDL.
+- Schema introspection produces one versioned `RelationSchema` contract.
+- Deterministic profiling calculates row count, null count, distinct count, minimum, maximum, and
+  numeric mean.
+- Deterministic schema diff identifies added, removed, type-changed, and nullability-changed columns.
+- Constrained not-null, unique, accepted-values, and range rules execute inside the source engine.
+- The data-engineering runtime routes inspect, profile, quality, and diff calls through the policy
+  gateway, enforces connector-to-domain bindings, and persists immutable JSON artifacts.
+
+## Reproduction
+
+```bash
+uv run pytest
+uv run ruff check .
+uv run python examples/stage2_data_engineering_demo.py
+uv run python evals/run_stage1.py
+```
+
+Expected demo summary:
+
+```text
+profile rows=2 columns=3
+quality passed=False violations=1
+schema breaking=True changes=3
+artifacts=5
+```
+
+## Acceptance boundary
+
+This is a development foundation, not Stage 2 acceptance. The following remain open:
+
+- transformation and dbt compile/test proposals;
+- dependency and Dashboard impact analysis;
+- isolated parallel profiling and the 50-group concurrency test;
+- frozen Stage 2 evaluation corpus and comparison with an authoritative profiler;
+- optional R2 development-write approval trial, which remains disabled;
+- real source credentials, production identity propagation, and production connector hardening.
+
+No production write path is registered by this runtime.

@@ -1,0 +1,245 @@
+"""Policy-gated runtime for Stage 2 deterministic engineering operations."""
+
+from collections.abc import Mapping
+from typing import Any
+from uuid import UUID
+
+from generaldataagent.artifacts import LocalArtifactStore
+from generaldataagent.connectors import ReadOnlyConnector
+from generaldataagent.contracts import ActorContext, AgentRole, ToolRequest
+from generaldataagent.contracts.data_engineering import (
+    DataProfile,
+    QualityReport,
+    QualityRule,
+    RelationSchema,
+    SchemaDiff,
+)
+from generaldataagent.data_engineering.profile import profile_relation
+from generaldataagent.data_engineering.quality import execute_quality_rules
+from generaldataagent.data_engineering.schema_diff import compare_schemas
+from generaldataagent.observability import JsonlAuditSink
+from generaldataagent.policy import PolicyEngine
+from generaldataagent.tools import ToolGateway
+
+
+class DataEngineeringRuntime:
+    """Keeps connector selection and deterministic work outside the agent context."""
+
+    def __init__(
+        self,
+        *,
+        connectors: Mapping[str, ReadOnlyConnector],
+        connector_domains: Mapping[str, frozenset[str]],
+        artifacts: LocalArtifactStore,
+        policy: PolicyEngine | None = None,
+        audit: JsonlAuditSink | None = None,
+    ) -> None:
+        self.connectors = dict(connectors)
+        self.connector_domains = dict(connector_domains)
+        if not self.connectors:
+            raise ValueError("at least one connector is required")
+        if self.connectors.keys() != self.connector_domains.keys():
+            raise ValueError("every connector must have one connector_domains entry")
+        for connector_id, connector in self.connectors.items():
+            if connector_id != connector.capabilities.connector_id:
+                raise ValueError("connector registry key must match its declared connector_id")
+            if not connector.capabilities.read_only:
+                raise ValueError("Stage 2 foundation accepts only read-only connectors")
+            if not self.connector_domains[connector_id]:
+                raise ValueError("every connector must be bound to at least one data domain")
+        self.artifacts = artifacts
+        self.gateway = ToolGateway(policy or PolicyEngine(), audit)
+        self.gateway.register("connector.inspect", self._inspect)
+        self.gateway.register("data.profile", self._profile)
+        self.gateway.register("data.quality", self._quality)
+        self.gateway.register("schema.diff", self._diff)
+
+    def inspect_relation(
+        self,
+        *,
+        task_id: UUID,
+        actor: ActorContext,
+        connector_id: str,
+        relation: str,
+        trace_id: str,
+    ) -> RelationSchema:
+        authorized_domains = self._authorized_domains(actor, connector_id)
+        request = self._request(
+            task_id=task_id,
+            actor=actor,
+            tool_name="connector.inspect",
+            action="inspect",
+            resource=f"{connector_id}:{relation}",
+            arguments={"connector_id": connector_id, "relation": relation},
+            data_domains=authorized_domains,
+        )
+        result = self.gateway.invoke(request, trace_id=trace_id)
+        self._store(task_id, "relation_schema", result, "data-engineer")
+        return result
+
+    def profile_relation(
+        self,
+        *,
+        task_id: UUID,
+        actor: ActorContext,
+        connector_id: str,
+        relation: str,
+        trace_id: str,
+    ) -> DataProfile:
+        authorized_domains = self._authorized_domains(actor, connector_id)
+        request = self._request(
+            task_id=task_id,
+            actor=actor,
+            tool_name="data.profile",
+            action="profile",
+            resource=f"{connector_id}:{relation}",
+            arguments={"connector_id": connector_id, "relation": relation},
+            data_domains=authorized_domains,
+        )
+        result = self.gateway.invoke(request, trace_id=trace_id)
+        self._store(task_id, "data_profile", result, "data-engineer")
+        return result
+
+    def diff_schemas(
+        self,
+        *,
+        task_id: UUID,
+        actor: ActorContext,
+        before: RelationSchema,
+        after: RelationSchema,
+        trace_id: str,
+    ) -> SchemaDiff:
+        authorized_domains = self._authorized_domains(
+            actor,
+            before.connector_id,
+            after.connector_id,
+        )
+        request = self._request(
+            task_id=task_id,
+            actor=actor,
+            tool_name="schema.diff",
+            action="compare",
+            resource=before.relation,
+            arguments={
+                "before": before.model_dump(mode="json"),
+                "after": after.model_dump(mode="json"),
+            },
+            data_domains=authorized_domains,
+        )
+        result = self.gateway.invoke(request, trace_id=trace_id)
+        self._store(task_id, "schema_diff", result, "data-engineer")
+        return result
+
+    def check_quality(
+        self,
+        *,
+        task_id: UUID,
+        actor: ActorContext,
+        connector_id: str,
+        relation: str,
+        rules: tuple[QualityRule, ...],
+        trace_id: str,
+    ) -> QualityReport:
+        authorized_domains = self._authorized_domains(actor, connector_id)
+        request = self._request(
+            task_id=task_id,
+            actor=actor,
+            tool_name="data.quality",
+            action="check",
+            resource=f"{connector_id}:{relation}",
+            arguments={
+                "connector_id": connector_id,
+                "relation": relation,
+                "rules": [rule.model_dump(mode="json") for rule in rules],
+            },
+            data_domains=authorized_domains,
+        )
+        result = self.gateway.invoke(request, trace_id=trace_id)
+        self._store(task_id, "quality_report", result, "data-engineer")
+        return result
+
+    def _connector(self, connector_id: str) -> ReadOnlyConnector:
+        try:
+            return self.connectors[connector_id]
+        except KeyError as exc:
+            raise LookupError(f"unknown connector: {connector_id}") from exc
+
+    def _authorized_domains(
+        self,
+        actor: ActorContext,
+        *connector_ids: str,
+    ) -> tuple[str, ...]:
+        authorized: set[str] = set()
+        actor_domains = set(actor.data_domains)
+        for connector_id in connector_ids:
+            self._connector(connector_id)
+            matching = actor_domains & self.connector_domains[connector_id]
+            if not matching:
+                raise PermissionError(
+                    f"actor is not authorized for connector data domains: {connector_id}"
+                )
+            authorized.update(matching)
+        return tuple(sorted(authorized))
+
+    def _inspect(self, arguments: dict[str, Any]) -> RelationSchema:
+        return self._connector(str(arguments["connector_id"])).inspect_relation(
+            str(arguments["relation"])
+        )
+
+    def _profile(self, arguments: dict[str, Any]) -> DataProfile:
+        return profile_relation(
+            self._connector(str(arguments["connector_id"])),
+            str(arguments["relation"]),
+        )
+
+    def _quality(self, arguments: dict[str, Any]) -> QualityReport:
+        return execute_quality_rules(
+            self._connector(str(arguments["connector_id"])),
+            str(arguments["relation"]),
+            tuple(QualityRule.model_validate(item) for item in arguments["rules"]),
+        )
+
+    @staticmethod
+    def _diff(arguments: dict[str, Any]) -> SchemaDiff:
+        return compare_schemas(
+            RelationSchema.model_validate(arguments["before"]),
+            RelationSchema.model_validate(arguments["after"]),
+        )
+
+    @staticmethod
+    def _request(
+        *,
+        task_id: UUID,
+        actor: ActorContext,
+        tool_name: str,
+        action: str,
+        resource: str,
+        arguments: dict[str, Any],
+        data_domains: tuple[str, ...],
+    ) -> ToolRequest:
+        return ToolRequest(
+            task_id=task_id,
+            user_id=actor.user_id,
+            tenant_id=actor.tenant_id,
+            project_id=actor.project_id,
+            agent_role=AgentRole.DATA_ENGINEER,
+            tool_name=tool_name,
+            action=action,
+            resource=resource,
+            arguments=arguments,
+            data_domains=data_domains,
+        )
+
+    def _store(
+        self,
+        task_id: UUID,
+        artifact_type: str,
+        value: DataProfile | QualityReport | RelationSchema | SchemaDiff,
+        created_by: str,
+    ) -> None:
+        self.artifacts.put_json(
+            task_id=task_id,
+            artifact_type=artifact_type,
+            value=value.model_dump(mode="json"),
+            created_by=created_by,
+        )

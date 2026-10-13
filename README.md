@@ -23,6 +23,9 @@ GeneralDataAgent is a governed multi-agent foundation for data analytics, data e
   stable provider ID without copying credentials.
 - Append-only human-review collection and acceptance summaries.
 - Real NYC TLC Parquet ingestion with source hashes and a curated SQLite snapshot.
+- Unified read-only SQLite and DuckDB connectors with immutable capability declarations.
+- Deterministic relation profiling, schema-drift detection, and constrained quality checks.
+- Policy-gated data-engineering runtime with immutable schema, profile, diff, and quality artifacts.
 - FastAPI health, capability, contract-validation, and certified-metric endpoints.
 
 Production writes, arbitrary shell execution, model deployment, external delivery, and committed credentials are intentionally excluded from this milestone.
@@ -119,6 +122,17 @@ both disabled by default.
 
 See [implementation status](docs/implementation-status.md) for completed and remaining roadmap work.
 
+## Run the Stage 2 data-engineering foundation demo
+
+```bash
+uv run python examples/stage2_data_engineering_demo.py
+```
+
+The demo creates isolated SQLite and DuckDB sources, profiles the DuckDB relation, runs a not-null
+quality rule, compares the two schemas, and persists every result as a local immutable artifact. It
+does not register any write tool. See the
+[Stage 2 validation record](docs/validation/stage2-foundation.md) for the current acceptance boundary.
+
 ## Package map
 
 ```text
@@ -130,6 +144,8 @@ src/generaldataagent/
   artifacts/       Content-addressed task artifacts
   orchestration/   LangGraph state and workflow skeleton
   agents/          Deep Agents role definitions and factory
+  connectors/      Read-only source adapters and normalized failures
+  data_engineering/Deterministic profiling, quality, diff, and governed runtime
   datasets/        Reproducible open-data ingestion
   llm/             Local provider resolution and model adapters
   observability/   Audit event sink
