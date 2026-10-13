@@ -1,6 +1,7 @@
 """Policy-gated runtime for Stage 2 deterministic engineering operations."""
 
 from collections.abc import Mapping
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 from uuid import UUID
 
@@ -11,6 +12,9 @@ from generaldataagent.contracts.data_engineering import (
     DataProfile,
     ImpactAnalysis,
     LineageAsset,
+    ProfileBatchItem,
+    ProfileBatchRequest,
+    ProfileBatchResult,
     QualityReport,
     QualityRule,
     RelationSchema,
@@ -230,6 +234,65 @@ class DataEngineeringRuntime:
         result = self.gateway.invoke(request, trace_id=trace_id)
         self._store(task_id, "impact_analysis", result, "data-engineer")
         return result
+
+    def profile_relations_parallel(
+        self,
+        *,
+        actor: ActorContext,
+        requests: tuple[ProfileBatchRequest, ...],
+        trace_id: str,
+        max_workers: int = 8,
+    ) -> ProfileBatchResult:
+        if not requests:
+            raise ValueError("parallel profiling requires at least one request")
+        if max_workers < 1 or max_workers > 32:
+            raise ValueError("max_workers must be between 1 and 32")
+        request_ids = [request.request_id for request in requests]
+        if len(request_ids) != len(set(request_ids)):
+            raise ValueError("parallel profiling request ids must be unique")
+
+        results: dict[UUID, ProfileBatchItem] = {}
+        with ThreadPoolExecutor(max_workers=min(max_workers, len(requests))) as executor:
+            futures = {
+                executor.submit(
+                    self.profile_relation,
+                    task_id=request.task_id,
+                    actor=actor,
+                    connector_id=request.connector_id,
+                    relation=request.relation,
+                    trace_id=f"{trace_id}:{request.request_id}",
+                ): request
+                for request in requests
+            }
+            for future in as_completed(futures):
+                request = futures[future]
+                try:
+                    profile = future.result()
+                except Exception as exc:
+                    error_code = getattr(getattr(exc, "code", None), "value", None)
+                    results[request.request_id] = ProfileBatchItem(
+                        request_id=request.request_id,
+                        task_id=request.task_id,
+                        connector_id=request.connector_id,
+                        relation=request.relation,
+                        status="failed",
+                        error_code=error_code or type(exc).__name__,
+                        error_message=str(exc),
+                    )
+                else:
+                    results[request.request_id] = ProfileBatchItem(
+                        request_id=request.request_id,
+                        task_id=request.task_id,
+                        connector_id=request.connector_id,
+                        relation=request.relation,
+                        status="succeeded",
+                        profile=profile,
+                    )
+        items = tuple(results[request.request_id] for request in requests)
+        return ProfileBatchResult(
+            items=items,
+            all_succeeded=all(item.status == "succeeded" for item in items),
+        )
 
     def _connector(self, connector_id: str) -> ReadOnlyConnector:
         try:

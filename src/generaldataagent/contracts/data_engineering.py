@@ -216,3 +216,49 @@ class ImpactAnalysis(ContractModel):
     impacted_assets: tuple[ImpactedAsset, ...]
     has_cycles: bool
     generated_at: datetime = Field(default_factory=utc_now)
+
+
+class ProfileBatchRequest(ContractModel):
+    request_id: UUID = Field(default_factory=uuid4)
+    task_id: UUID = Field(default_factory=uuid4)
+    connector_id: str = Field(min_length=1, max_length=128)
+    relation: str = Field(min_length=1, max_length=512)
+
+
+class ProfileBatchItem(ContractModel):
+    request_id: UUID
+    task_id: UUID
+    connector_id: str = Field(min_length=1, max_length=128)
+    relation: str = Field(min_length=1, max_length=512)
+    status: Literal["succeeded", "failed"]
+    profile: DataProfile | None = None
+    error_code: str | None = Field(default=None, max_length=128)
+    error_message: str | None = Field(default=None, max_length=2_000)
+
+    @model_validator(mode="after")
+    def result_matches_status(self) -> "ProfileBatchItem":
+        if self.status == "succeeded":
+            if (
+                self.profile is None
+                or self.error_code is not None
+                or self.error_message is not None
+            ):
+                raise ValueError("a successful profile item requires only a profile")
+        elif self.profile is not None or not self.error_code or not self.error_message:
+            raise ValueError("a failed profile item requires error_code and error_message")
+        return self
+
+
+class ProfileBatchResult(ContractModel):
+    items: tuple[ProfileBatchItem, ...]
+    all_succeeded: bool
+    generated_at: datetime = Field(default_factory=utc_now)
+
+    @model_validator(mode="after")
+    def summary_matches_items(self) -> "ProfileBatchResult":
+        if len({item.request_id for item in self.items}) != len(self.items):
+            raise ValueError("profile batch request ids must be unique")
+        expected = all(item.status == "succeeded" for item in self.items)
+        if self.all_succeeded != expected:
+            raise ValueError("all_succeeded must match batch items")
+        return self

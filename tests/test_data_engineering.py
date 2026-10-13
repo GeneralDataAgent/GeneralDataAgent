@@ -10,6 +10,7 @@ from generaldataagent.contracts import ActorContext, AgentRole, ToolRequest
 from generaldataagent.contracts.data_engineering import (
     ColumnSchema,
     ConnectorCapabilities,
+    ProfileBatchRequest,
     QualityRule,
     RelationSchema,
 )
@@ -288,3 +289,85 @@ def test_policy_rejects_profile_without_data_domain() -> None:
 
     assert decision.decision == "deny"
     assert decision.reason_code == "missing_data_domain"
+
+
+def test_parallel_profiling_isolates_fifty_requests(tmp_path) -> None:
+    small_database = tmp_path / "small.db"
+    large_database = tmp_path / "large.db"
+    create_sqlite_database(small_database)
+    with sqlite3.connect(large_database) as connection:
+        connection.execute("CREATE TABLE orders (id INTEGER NOT NULL)")
+        connection.executemany("INSERT INTO orders VALUES (?)", [(index,) for index in range(7)])
+    runtime = DataEngineeringRuntime(
+        connectors={
+            "small": SQLiteConnector(small_database, connector_id="small"),
+            "large": SQLiteConnector(large_database, connector_id="large"),
+        },
+        connector_domains={
+            "small": frozenset({"commerce"}),
+            "large": frozenset({"commerce"}),
+        },
+        artifacts=LocalArtifactStore(tmp_path / "artifacts"),
+    )
+    actor = ActorContext(
+        user_id="user-1",
+        tenant_id="tenant-1",
+        project_id="project-1",
+        data_domains=("commerce",),
+    )
+    requests = tuple(
+        ProfileBatchRequest(
+            connector_id="small" if index % 2 == 0 else "large",
+            relation="orders",
+        )
+        for index in range(50)
+    )
+
+    result = runtime.profile_relations_parallel(
+        actor=actor,
+        requests=requests,
+        trace_id="parallel-test",
+        max_workers=8,
+    )
+
+    assert result.all_succeeded is True
+    assert [item.request_id for item in result.items] == [item.request_id for item in requests]
+    assert [item.profile.row_count for item in result.items if item.profile] == [
+        3 if index % 2 == 0 else 7 for index in range(50)
+    ]
+    assert len({item.task_id for item in result.items}) == 50
+    assert len(list((tmp_path / "artifacts").rglob("*.json"))) == 50
+
+
+def test_parallel_profiling_reports_partial_failure_without_cross_talk(tmp_path) -> None:
+    database = tmp_path / "source.db"
+    create_sqlite_database(database)
+    runtime = DataEngineeringRuntime(
+        connectors={"warehouse": SQLiteConnector(database, connector_id="warehouse")},
+        connector_domains={"warehouse": frozenset({"commerce"})},
+        artifacts=LocalArtifactStore(tmp_path / "artifacts"),
+    )
+    actor = ActorContext(
+        user_id="user-1",
+        tenant_id="tenant-1",
+        project_id="project-1",
+        data_domains=("commerce",),
+    )
+    requests = (
+        ProfileBatchRequest(connector_id="warehouse", relation="missing"),
+        ProfileBatchRequest(connector_id="warehouse", relation="orders"),
+    )
+
+    result = runtime.profile_relations_parallel(
+        actor=actor,
+        requests=requests,
+        trace_id="partial-test",
+        max_workers=2,
+    )
+
+    assert result.all_succeeded is False
+    assert result.items[0].status == "failed"
+    assert result.items[0].error_code == "not_found"
+    assert result.items[1].status == "succeeded"
+    assert result.items[1].profile is not None
+    assert result.items[1].profile.row_count == 3

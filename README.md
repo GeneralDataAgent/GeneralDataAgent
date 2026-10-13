@@ -26,6 +26,7 @@ GeneralDataAgent is a governed multi-agent foundation for data analytics, data e
 - Unified read-only SQLite and DuckDB connectors with immutable capability declarations.
 - Deterministic relation profiling, schema-drift detection, and constrained quality checks.
 - Dry-run transformation proposals and deterministic downstream lineage impact analysis.
+- Isolated parallel profiling with ordered results and explicit partial failures.
 - Policy-gated data-engineering runtime with immutable schema, profile, diff, and quality artifacts.
 - FastAPI health, capability, contract-validation, and certified-metric endpoints.
 

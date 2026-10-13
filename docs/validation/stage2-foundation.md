@@ -18,6 +18,8 @@ This increment establishes the first read-only Stage 2 vertical slice:
   summary, and a rollback plan; mutation and unauthorized source references are rejected.
 - Deterministic lineage analysis reports directly and transitively impacted assets using stable,
   shortest paths and flags graph cycles.
+- Parallel profiling preserves request order, assigns one task-scoped artifact path per request,
+  and returns structured partial failures without discarding successful sibling work.
 - The data-engineering runtime routes inspect, profile, quality, and diff calls through the policy
   gateway, enforces connector-to-domain bindings, and persists immutable JSON artifacts.
 
@@ -47,7 +49,8 @@ This is a development foundation, not Stage 2 acceptance. The following remain o
 
 - dbt-native compile/test execution;
 - catalog-backed lineage ingestion and authoritative Dashboard dependency verification;
-- isolated parallel profiling and the 50-group concurrency test;
+- production-scale load, cancellation, and timeout testing beyond the completed 50-request
+  isolation regression;
 - frozen Stage 2 evaluation corpus and comparison with an authoritative profiler;
 - optional R2 development-write approval trial, which remains disabled;
 - real source credentials, production identity propagation, and production connector hardening.
