@@ -13,3 +13,9 @@
 {"case_id":"workflow-validation-pass","category":"workflow","expected":"completed","description":"A validated result reaches delivery."}
 {"case_id":"workflow-validation-fail","category":"workflow","expected":"failed","description":"A failed result never reaches delivery."}
 {"case_id":"artifact-round-trip","category":"artifact","expected":"accept","description":"Artifact content is read only when its hash matches."}
+{"case_id":"metric-certified-dimension","category":"metric","expected":"completed","description":"A certified dimension can group a certified metric."}
+{"case_id":"metric-uncertified-dimension","category":"metric","expected":"reject","description":"A dimension absent from the metric definition is rejected."}
+{"case_id":"metric-time-range","category":"metric","expected":"completed","description":"A half-open time range is compiled as parameters rather than interpolated SQL."}
+{"case_id":"sqlite-read-only","category":"execution","expected":"reject","description":"The database rejects writes even if a caller bypasses the SQL guard."}
+{"case_id":"sqlite-row-limit","category":"execution","expected":"reject","description":"Results larger than the configured row limit fail closed."}
+{"case_id":"metric-unauthorized-domain","category":"policy","expected":"reject","description":"A certified metric is unavailable when the actor lacks its data domain."}

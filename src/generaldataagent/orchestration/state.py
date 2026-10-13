@@ -9,6 +9,9 @@ class PhaseOneState(TypedDict, total=False):
     tenant_id: str
     project_id: str
     user_query: str
+    metric_query: dict[str, Any]
+    actor_context: dict[str, Any]
+    trace_id: str
     status: str
     semantic_context: dict[str, Any]
     task_plan: dict[str, Any]

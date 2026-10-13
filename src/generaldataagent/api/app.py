@@ -1,19 +1,16 @@
-"""HTTP surface for health and contract validation."""
+"""HTTP surface for health, contracts, and certified metric analysis."""
 
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, ConfigDict
 
 from generaldataagent import __version__
 from generaldataagent.agents import SPECIALIST_SPECS
-from generaldataagent.contracts import TaskPlan
-
-app = FastAPI(
-    title="GeneralDataAgent",
-    version=__version__,
-    description="Governed multi-agent foundation for enterprise data work.",
-)
+from generaldataagent.catalog import MetricNotFoundError
+from generaldataagent.contracts import ActorContext, MetricQuery, TaskPlan
+from generaldataagent.orchestration import MetricAnalysisRuntime
+from generaldataagent.tools import QueryExecutionError
 
 
 class HealthResponse(BaseModel):
@@ -22,35 +19,83 @@ class HealthResponse(BaseModel):
     version: str
 
 
-@app.get("/health", response_model=HealthResponse)
-def health() -> HealthResponse:
-    return HealthResponse(status="ok", version=__version__)
+def create_app(metric_runtime: MetricAnalysisRuntime | None = None) -> FastAPI:
+    application = FastAPI(
+        title="GeneralDataAgent",
+        version=__version__,
+        description="Governed multi-agent foundation for enterprise data work.",
+    )
+    application.state.metric_runtime = metric_runtime
+
+    @application.get("/health", response_model=HealthResponse)
+    def health() -> HealthResponse:
+        return HealthResponse(status="ok", version=__version__)
+
+    @application.get("/v1/capabilities")
+    def capabilities() -> dict[str, Any]:
+        return {
+            "agents": [spec.name for spec in SPECIALIST_SPECS],
+            "certified_metric_analysis": metric_runtime is not None,
+            "production_writes": False,
+            "arbitrary_shell": False,
+            "implemented_controls": [
+                "versioned_contracts",
+                "policy_engine",
+                "read_only_sql_guard",
+                "artifact_hashing",
+                "validation_gate",
+            ],
+        }
+
+    @application.post("/v1/contracts/task-plan/validate")
+    def validate_task_plan(plan: TaskPlan) -> dict[str, Any]:
+        return {
+            "valid": True,
+            "schema_version": plan.schema_version,
+            "task_id": str(plan.task_id),
+            "step_count": len(plan.steps),
+        }
+
+    @application.post("/v1/analysis/metrics")
+    def analyze_metric(
+        query: MetricQuery,
+        x_user_id: Annotated[str, Header(min_length=1)],
+        x_tenant_id: Annotated[str, Header(min_length=1)],
+        x_project_id: Annotated[str, Header(min_length=1)],
+        x_data_domain: Annotated[list[str], Header(min_length=1)],
+    ) -> dict[str, Any]:
+        runtime = application.state.metric_runtime
+        if runtime is None:
+            raise HTTPException(
+                status_code=503,
+                detail="Certified metric analysis is not configured for this deployment.",
+            )
+        actor = ActorContext(
+            user_id=x_user_id,
+            tenant_id=x_tenant_id,
+            project_id=x_project_id,
+            data_domains=tuple(x_data_domain),
+        )
+        try:
+            result = runtime.run(query, actor)
+        except MetricNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except (QueryExecutionError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return {
+            "task_id": result["task_id"],
+            "status": result["status"],
+            "validation": result.get("validation_result"),
+            "delivery": result.get("delivery_package"),
+            "errors": result.get("errors", []),
+        }
+
+    return application
 
 
-@app.get("/v1/capabilities")
-def capabilities() -> dict[str, Any]:
-    return {
-        "agents": [spec.name for spec in SPECIALIST_SPECS],
-        "production_writes": False,
-        "arbitrary_shell": False,
-        "implemented_controls": [
-            "versioned_contracts",
-            "policy_engine",
-            "read_only_sql_guard",
-            "artifact_hashing",
-            "validation_gate",
-        ],
-    }
-
-
-@app.post("/v1/contracts/task-plan/validate")
-def validate_task_plan(plan: TaskPlan) -> dict[str, Any]:
-    return {
-        "valid": True,
-        "schema_version": plan.schema_version,
-        "task_id": str(plan.task_id),
-        "step_count": len(plan.steps),
-    }
+app = create_app()
 
 
 def run() -> None:

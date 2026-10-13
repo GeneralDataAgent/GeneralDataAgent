@@ -10,8 +10,10 @@ GeneralDataAgent is a governed multi-agent foundation for data analytics, data e
 - Local artifact store with path isolation and content hashes.
 - Append-only local audit sink for development.
 - LangGraph phase-one workflow skeleton with checkpoint support.
+- Certified metric catalog and parameterized query compiler.
+- Read-only SQLite execution with timeout, row limit, and query-plan capture.
 - Deep Agents specialist definitions for discovery, engineering, analysis, science, verification, and reporting.
-- FastAPI health, capability, and contract-validation endpoints.
+- FastAPI health, capability, contract-validation, and certified-metric endpoints.
 
 Production writes, arbitrary shell execution, model deployment, external delivery, and real credentials are intentionally excluded from this milestone.
 
@@ -28,11 +30,38 @@ uv run uvicorn generaldataagent.api.app:app --reload
 
 Then open `http://127.0.0.1:8000/health`.
 
+## Run the synthetic metric demo
+
+The demo creates a local SQLite database with synthetic order data. It never connects to an external data source.
+
+```bash
+uv run python examples/metric_demo.py
+```
+
+In another terminal, run:
+
+```bash
+curl -X POST http://127.0.0.1:8000/v1/analysis/metrics \
+  -H 'content-type: application/json' \
+  -H 'x-user-id: demo-user' \
+  -H 'x-tenant-id: demo-tenant' \
+  -H 'x-project-id: demo-project' \
+  -H 'x-data-domain: commerce' \
+  -d '{
+    "metric_name": "order_count",
+    "metric_version": "v1",
+    "dimensions": ["channel"],
+    "start_time": "2026-10-01T00:00:00Z",
+    "end_time": "2026-11-01T00:00:00Z"
+  }'
+```
+
 ## Package map
 
 ```text
 src/generaldataagent/
   contracts/       Versioned boundary models
+  catalog/         Certified metric definitions and resolution
   policy/          Risk classification and authorization decisions
   tools/           Tool gateway and SQL safety checks
   artifacts/       Content-addressed task artifacts

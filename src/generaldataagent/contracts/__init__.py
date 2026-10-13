@@ -1,5 +1,6 @@
 """Public contract exports."""
 
+from generaldataagent.contracts.analytics import ActorContext, MetricQuery
 from generaldataagent.contracts.models import (
     ArtifactRef,
     AuditEvent,
@@ -20,11 +21,13 @@ from generaldataagent.contracts.types import (
 )
 
 __all__ = [
+    "ActorContext",
     "AgentRole",
     "ArtifactClassification",
     "ArtifactRef",
     "AuditEvent",
     "Budget",
+    "MetricQuery",
     "PolicyDecision",
     "RiskLevel",
     "TaskPlan",
