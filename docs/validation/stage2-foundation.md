@@ -30,6 +30,7 @@ uv run pytest
 uv run ruff check .
 uv run python examples/stage2_data_engineering_demo.py
 uv run python evals/run_stage1.py
+uv run python evals/run_stage2.py
 ```
 
 Expected demo summary:
@@ -51,8 +52,15 @@ This is a development foundation, not Stage 2 acceptance. The following remain o
 - catalog-backed lineage ingestion and authoritative Dashboard dependency verification;
 - production-scale load, cancellation, and timeout testing beyond the completed 50-request
   isolation regression;
-- frozen Stage 2 evaluation corpus and comparison with an authoritative profiler;
+- comparison of the frozen Stage 2 corpus with an authoritative profiler and real projects;
 - optional R2 development-write approval trial, which remains disabled;
 - real source credentials, production identity propagation, and production connector hardening.
 
 No production write path is registered by this runtime.
+
+## Frozen Stage 2 baseline
+
+`evals/datasets/stage2.jsonl` contains 20 deterministic cases: five each for schema drift,
+quality rules, lineage impact, and transformation safety. The runner emits case-level failures and
+category counts. This baseline is a component regression gate; it does not replace comparison with
+an independent authoritative profiler or real dbt projects.

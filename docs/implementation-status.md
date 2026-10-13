@@ -7,7 +7,7 @@ Status date: 2026-10-13. This matrix compares the repository with the original s
 |---|---|---|---|
 | 0. Baseline and skeleton | Partial | Versioned core contracts, LangGraph skeleton, checkpoint wiring, policy gateway, audit events, API, unit and CI gates | 30-case Phase 0 baseline, 20 checkpoint fault-injection recoveries, failed-tool and approval demonstrations, full trace correlation proof |
 | 1. Read-only analytics | Partial | TLC source, eight certified metrics, authorized deterministic semantic resolution, read-only SQL firewall, query plan, execution and workflow budgets, immutable artifacts, Supervisor role ledger, validated table/chart/claims, 60-case execution regression, 26-case semantic regression, human-review workbench | Real-model success rate, verified SQL-result accuracy corpus, 15-result human review, and P95 under 60 seconds |
-| 2. Data engineering | Partial | Unified read-only SQLite and DuckDB connectors, capability declarations, normalized errors, deterministic profiling, schema diff, quality rules, dry-run transformation proposals, deterministic impact analysis, isolated parallel profiling with 50-request regression, policy-gated runtime, immutable artifacts | dbt-native compile/test, catalog lineage ingestion, Stage 2 evaluation corpus, production-scale load/cancellation tests, optional approved development write |
+| 2. Data engineering | Partial | Unified read-only SQLite and DuckDB connectors, capability declarations, normalized errors, deterministic profiling, schema diff, quality rules, dry-run transformation proposals, deterministic impact analysis, isolated parallel profiling with 50-request regression, frozen 20-case component baseline, policy-gated runtime, immutable artifacts | dbt-native compile/test, catalog lineage ingestion, authoritative profiler comparison, production-scale load/cancellation tests, optional approved development write |
 | 3. Data science | Not started | Data Scientist role specification only | Python sandbox, snapshot and experiment contracts, reproducible baseline training, leakage/split checks, evaluation report and model card |
 | 4. Production readiness | Foundation only | Actor context, tenant/project fields, risk levels, audit sink, fail-closed policy | SSO and row/column policy propagation, short-lived credentials, HITL, DLP, durable audit separation, red-team suite, SLO/alerts/runbooks |
 | 5. Business loop | Not started | No external side-effect tools enabled | Per-action approval, idempotency, compensation, kill switch, scheduling, notifications, feedback and cost optimization |
@@ -47,6 +47,7 @@ data access:
   Dashboards and flags cycles.
 - Parallel profiling preserves request order, isolates task-scoped artifacts, and retains successful
   results when sibling requests fail; the regression suite covers 50 concurrent requests.
+- The frozen Stage 2 baseline covers 20 schema, quality, impact, and transformation safety cases.
 - All engineering operations pass through the policy gateway, enforce connector-domain bindings,
   and persist immutable artifacts.
 
@@ -57,7 +58,7 @@ data access:
 3. Build a value-level SQL oracle corpus, collect reviews for at least 15 successful results, and
    calculate real first-useful-result P95.
 4. Add dbt-native compile/test and catalog-backed lineage ingestion.
-5. Add a frozen Stage 2 evaluation corpus and production-scale load/cancellation tests.
+5. Compare profiles with an authoritative tool and add production-scale load/cancellation tests.
 
 Stage 1 implementation is substantially complete, but Stage 1 acceptance is not. The remaining
 gates require external model availability and collected evaluation evidence rather than more core

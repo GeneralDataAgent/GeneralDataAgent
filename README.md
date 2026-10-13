@@ -136,6 +136,12 @@ impact, and persists every result as a local immutable artifact. It does not reg
 tool. See the
 [Stage 2 validation record](docs/validation/stage2-foundation.md) for the current acceptance boundary.
 
+Run the frozen 20-case Stage 2 component baseline with:
+
+```bash
+uv run python evals/run_stage2.py
+```
+
 ## Package map
 
 ```text

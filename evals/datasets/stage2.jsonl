@@ -1,0 +1,20 @@
+{"case_id":"schema-added","category":"schema_diff","before":[["id","INTEGER",false]],"after":[["id","INTEGER",false],["region","TEXT",true]],"expected":{"breaking":false,"changes":[["region","added"]]}}
+{"case_id":"schema-removed","category":"schema_diff","before":[["id","INTEGER",false],["legacy","TEXT",true]],"after":[["id","INTEGER",false]],"expected":{"breaking":true,"changes":[["legacy","removed"]]}}
+{"case_id":"schema-type-change","category":"schema_diff","before":[["id","INTEGER",false]],"after":[["id","BIGINT",false]],"expected":{"breaking":true,"changes":[["id","type_changed"]]}}
+{"case_id":"schema-nullability","category":"schema_diff","before":[["id","INTEGER",true]],"after":[["id","INTEGER",false]],"expected":{"breaking":true,"changes":[["id","nullability_changed"]]}}
+{"case_id":"schema-stable","category":"schema_diff","before":[["id","INTEGER",false],["amount","REAL",true]],"after":[["id","integer",false],["amount","real",true]],"expected":{"breaking":false,"changes":[]}}
+{"case_id":"quality-not-null","category":"quality","rule":{"rule_id":"channel-required","column":"channel","rule_type":"not_null"},"expected":{"violations":1,"passed":false}}
+{"case_id":"quality-unique","category":"quality","rule":{"rule_id":"id-unique","column":"id","rule_type":"unique"},"expected":{"violations":0,"passed":true}}
+{"case_id":"quality-accepted-values","category":"quality","rule":{"rule_id":"known-channel","column":"channel","rule_type":"accepted_values","parameters":{"values":["app"]}},"expected":{"violations":1,"passed":false}}
+{"case_id":"quality-range","category":"quality","rule":{"rule_id":"amount-range","column":"amount","rule_type":"range","parameters":{"minimum":15,"maximum":25}},"expected":{"violations":2,"passed":false}}
+{"case_id":"quality-warning","category":"quality","rule":{"rule_id":"known-channel-warning","column":"channel","rule_type":"accepted_values","parameters":{"values":["app"]},"severity":"warning"},"expected":{"violations":1,"passed":true}}
+{"case_id":"impact-chain","category":"impact","assets":[["raw.orders","source",[]],["model.orders","model",["raw.orders"]],["dashboard.sales","dashboard",["model.orders"]]],"changed":["raw.orders"],"expected":{"assets":[["model.orders",1],["dashboard.sales",2]],"cycles":false}}
+{"case_id":"impact-fork","category":"impact","assets":[["raw.orders","source",[]],["metric.orders","metric",["raw.orders"]],["metric.revenue","metric",["raw.orders"]]],"changed":["raw.orders"],"expected":{"assets":[["metric.orders",1],["metric.revenue",1]],"cycles":false}}
+{"case_id":"impact-shortest","category":"impact","assets":[["raw.orders","source",[]],["model.orders","model",["raw.orders"]],["dashboard.sales","dashboard",["raw.orders","model.orders"]]],"changed":["raw.orders"],"expected":{"assets":[["dashboard.sales",1],["model.orders",1]],"cycles":false}}
+{"case_id":"impact-cycle","category":"impact","assets":[["model.a","model",["model.b"]],["model.b","model",["model.a"]]],"changed":["model.a"],"expected":{"assets":[["model.b",1]],"cycles":true}}
+{"case_id":"impact-none","category":"impact","assets":[["raw.orders","source",[]],["raw.users","source",[]],["model.users","model",["raw.users"]]],"changed":["raw.orders"],"expected":{"assets":[],"cycles":false}}
+{"case_id":"transform-simple","category":"transformation","sql":"SELECT id, amount FROM orders","allowed":["orders"],"expected":{"status":"accepted","dependencies":["orders"]}}
+{"case_id":"transform-cte","category":"transformation","sql":"WITH clean AS (SELECT id FROM orders) SELECT COUNT(*) FROM clean","allowed":["orders"],"expected":{"status":"accepted","dependencies":["orders"]}}
+{"case_id":"transform-join","category":"transformation","sql":"SELECT o.id, u.segment FROM orders o JOIN users u ON o.user_id = u.id","allowed":["orders","users"],"expected":{"status":"accepted","dependencies":["orders","users"]}}
+{"case_id":"transform-mutation","category":"transformation","sql":"DELETE FROM orders","allowed":["orders"],"expected":{"status":"rejected"}}
+{"case_id":"transform-unauthorized","category":"transformation","sql":"SELECT * FROM payroll","allowed":["orders"],"expected":{"status":"rejected"}}
