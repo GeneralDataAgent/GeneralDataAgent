@@ -7,7 +7,7 @@ Status date: 2026-10-13. This matrix compares the repository with the original s
 |---|---|---|---|
 | 0. Baseline and skeleton | Partial | Versioned core contracts, LangGraph skeleton, checkpoint wiring, policy gateway, audit events, API, unit and CI gates | 30-case Phase 0 baseline, 20 checkpoint fault-injection recoveries, failed-tool and approval demonstrations, full trace correlation proof |
 | 1. Read-only analytics | Partial | TLC source, eight certified metrics, authorized deterministic semantic resolution, read-only SQL firewall, query plan, execution and workflow budgets, immutable artifacts, Supervisor role ledger, validated table/chart/claims, 60-case execution regression, 26-case semantic regression, human-review workbench | Real-model success rate, verified SQL-result accuracy corpus, 15-result human review, and P95 under 60 seconds |
-| 2. Data engineering | Partial | Unified read-only SQLite and DuckDB connectors, capability declarations, normalized errors, deterministic profiling, schema diff, quality rules, policy-gated runtime, immutable artifacts | Transformation proposal, dbt compile/test, impact analysis, isolated parallel merge and 50-group concurrency proof, Stage 2 evaluation corpus, optional approved development write |
+| 2. Data engineering | Partial | Unified read-only SQLite and DuckDB connectors, capability declarations, normalized errors, deterministic profiling, schema diff, quality rules, dry-run transformation proposals, deterministic impact analysis, policy-gated runtime, immutable artifacts | dbt-native compile/test, catalog lineage ingestion, isolated parallel merge and 50-group concurrency proof, Stage 2 evaluation corpus, optional approved development write |
 | 3. Data science | Not started | Data Scientist role specification only | Python sandbox, snapshot and experiment contracts, reproducible baseline training, leakage/split checks, evaluation report and model card |
 | 4. Production readiness | Foundation only | Actor context, tenant/project fields, risk levels, audit sink, fail-closed policy | SSO and row/column policy propagation, short-lived credentials, HITL, DLP, durable audit separation, red-team suite, SLO/alerts/runbooks |
 | 5. Business loop | Not started | No external side-effect tools enabled | Per-action approval, idempotency, compensation, kill switch, scheduling, notifications, feedback and cost optimization |
@@ -41,6 +41,10 @@ data access:
   reject malformed or internally inconsistent results.
 - Profiling and quality checks execute deterministic source-side aggregation queries.
 - Schema drift is explicit and marks removals, type changes, and nullability changes as breaking.
+- Transformation proposals are parsed read queries with explicit tests, impact, and rollback; they
+  cannot execute writes.
+- Lineage impact analysis returns stable shortest paths to downstream models, metrics, and
+  Dashboards and flags cycles.
 - All engineering operations pass through the policy gateway, enforce connector-domain bindings,
   and persist immutable artifacts.
 
@@ -50,7 +54,7 @@ data access:
 2. Qualify an available tool-calling model and run at least 60 representative real-model tasks.
 3. Build a value-level SQL oracle corpus, collect reviews for at least 15 successful results, and
    calculate real first-useful-result P95.
-4. Add transformation proposals, dependency impact analysis, and dbt-compatible dry runs.
+4. Add dbt-native compile/test and catalog-backed lineage ingestion.
 5. Add isolated parallel profiling and a frozen Stage 2 evaluation corpus.
 
 Stage 1 implementation is substantially complete, but Stage 1 acceptance is not. The remaining

@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from typing import Any, Literal
+from uuid import UUID, uuid4
 
 from pydantic import Field, model_validator
 
@@ -147,3 +148,71 @@ class SchemaDiff(ContractModel):
         if self.breaking != expected:
             raise ValueError("breaking must match the contained schema changes")
         return self
+
+
+class TransformationTest(ContractModel):
+    name: str = Field(pattern=r"^[a-z][a-z0-9_-]{0,63}$")
+    assertion: Literal["not_null", "unique", "accepted_values", "row_count_nonzero"]
+    column: str | None = Field(default=None, min_length=1, max_length=256)
+    parameters: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def column_matches_assertion(self) -> "TransformationTest":
+        if self.assertion == "row_count_nonzero" and self.column is not None:
+            raise ValueError("row_count_nonzero does not accept a column")
+        if self.assertion != "row_count_nonzero" and self.column is None:
+            raise ValueError(f"{self.assertion} requires a column")
+        if self.assertion in {"not_null", "unique", "row_count_nonzero"} and self.parameters:
+            raise ValueError(f"{self.assertion} does not accept parameters")
+        if self.assertion == "accepted_values":
+            values = self.parameters.get("values")
+            if not isinstance(values, list) or not values:
+                raise ValueError("accepted_values requires a non-empty values list")
+        return self
+
+
+class TransformationProposal(ContractModel):
+    proposal_id: UUID = Field(default_factory=uuid4)
+    connector_id: str = Field(min_length=1, max_length=128)
+    target_relation: str = Field(min_length=1, max_length=512)
+    dialect: str = Field(min_length=1, max_length=64)
+    select_sql: str = Field(min_length=1, max_length=100_000)
+    dependencies: tuple[str, ...]
+    tests: tuple[TransformationTest, ...]
+    impact_summary: str = Field(min_length=1, max_length=4_000)
+    rollback_plan: str = Field(min_length=1, max_length=4_000)
+    dry_run_only: Literal[True] = True
+    created_at: datetime = Field(default_factory=utc_now)
+
+    @model_validator(mode="after")
+    def complete_proposal(self) -> "TransformationProposal":
+        if not self.dependencies:
+            raise ValueError("a transformation proposal requires at least one dependency")
+        if len({item.casefold() for item in self.dependencies}) != len(self.dependencies):
+            raise ValueError("transformation dependencies must be unique")
+        if not self.tests:
+            raise ValueError("a transformation proposal requires at least one test")
+        names = [test.name for test in self.tests]
+        if len(names) != len(set(names)):
+            raise ValueError("transformation test names must be unique")
+        return self
+
+
+class LineageAsset(ContractModel):
+    asset_id: str = Field(pattern=r"^[A-Za-z0-9_.:-]{1,256}$")
+    asset_type: Literal["source", "table", "model", "metric", "dashboard"]
+    depends_on: tuple[str, ...] = ()
+
+
+class ImpactedAsset(ContractModel):
+    asset_id: str = Field(min_length=1, max_length=256)
+    asset_type: Literal["source", "table", "model", "metric", "dashboard"]
+    distance: int = Field(ge=1)
+    path: tuple[str, ...] = Field(min_length=2)
+
+
+class ImpactAnalysis(ContractModel):
+    changed_assets: tuple[str, ...] = Field(min_length=1)
+    impacted_assets: tuple[ImpactedAsset, ...]
+    has_cycles: bool
+    generated_at: datetime = Field(default_factory=utc_now)

@@ -14,6 +14,10 @@ This increment establishes the first read-only Stage 2 vertical slice:
   numeric mean.
 - Deterministic schema diff identifies added, removed, type-changed, and nullability-changed columns.
 - Constrained not-null, unique, accepted-values, and range rules execute inside the source engine.
+- Dry-run-only transformation proposals accept one parsed read query, explicit tests, an impact
+  summary, and a rollback plan; mutation and unauthorized source references are rejected.
+- Deterministic lineage analysis reports directly and transitively impacted assets using stable,
+  shortest paths and flags graph cycles.
 - The data-engineering runtime routes inspect, profile, quality, and diff calls through the policy
   gateway, enforces connector-to-domain bindings, and persists immutable JSON artifacts.
 
@@ -32,15 +36,17 @@ Expected demo summary:
 profile rows=2 columns=3
 quality passed=False violations=1
 schema breaking=True changes=3
-artifacts=5
+proposal dry_run_only=True dependencies=1
+impact downstream=2 cycles=False
+artifacts=7
 ```
 
 ## Acceptance boundary
 
 This is a development foundation, not Stage 2 acceptance. The following remain open:
 
-- transformation and dbt compile/test proposals;
-- dependency and Dashboard impact analysis;
+- dbt-native compile/test execution;
+- catalog-backed lineage ingestion and authoritative Dashboard dependency verification;
 - isolated parallel profiling and the 50-group concurrency test;
 - frozen Stage 2 evaluation corpus and comparison with an authoritative profiler;
 - optional R2 development-write approval trial, which remains disabled;

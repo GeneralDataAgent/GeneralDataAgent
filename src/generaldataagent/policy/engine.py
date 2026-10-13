@@ -63,6 +63,20 @@ DEFAULT_RULES = (
         obligations=("audit",),
     ),
     PolicyRule(
+        tool_name="transformation.propose",
+        risk_level=RiskLevel.R1,
+        allowed_actions=frozenset({"propose"}),
+        allowed_roles=frozenset({"data_engineer", "verifier"}),
+        obligations=("audit", "read_only", "dry_run", "rollback_plan"),
+    ),
+    PolicyRule(
+        tool_name="lineage.impact",
+        risk_level=RiskLevel.R0,
+        allowed_actions=frozenset({"analyze"}),
+        allowed_roles=frozenset({"data_engineer", "verifier"}),
+        obligations=("audit",),
+    ),
+    PolicyRule(
         tool_name="artifact.write",
         risk_level=RiskLevel.R1,
         allowed_actions=frozenset({"create"}),
@@ -129,6 +143,8 @@ class PolicyEngine:
             "sql.query",
             "data.profile",
             "data.quality",
+            "transformation.propose",
+            "lineage.impact",
             "dataset.export",
         }:
             return self._decision(request, "deny", rule.risk_level, "missing_data_domain")

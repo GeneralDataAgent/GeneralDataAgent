@@ -9,14 +9,20 @@ from generaldataagent.connectors import ReadOnlyConnector
 from generaldataagent.contracts import ActorContext, AgentRole, ToolRequest
 from generaldataagent.contracts.data_engineering import (
     DataProfile,
+    ImpactAnalysis,
+    LineageAsset,
     QualityReport,
     QualityRule,
     RelationSchema,
     SchemaDiff,
+    TransformationProposal,
+    TransformationTest,
 )
+from generaldataagent.data_engineering.impact import analyze_impact
 from generaldataagent.data_engineering.profile import profile_relation
 from generaldataagent.data_engineering.quality import execute_quality_rules
 from generaldataagent.data_engineering.schema_diff import compare_schemas
+from generaldataagent.data_engineering.transformation import build_transformation_proposal
 from generaldataagent.observability import JsonlAuditSink
 from generaldataagent.policy import PolicyEngine
 from generaldataagent.tools import ToolGateway
@@ -53,6 +59,8 @@ class DataEngineeringRuntime:
         self.gateway.register("data.profile", self._profile)
         self.gateway.register("data.quality", self._quality)
         self.gateway.register("schema.diff", self._diff)
+        self.gateway.register("transformation.propose", self._propose_transformation)
+        self.gateway.register("lineage.impact", self._analyze_impact)
 
     def inspect_relation(
         self,
@@ -158,6 +166,71 @@ class DataEngineeringRuntime:
         self._store(task_id, "quality_report", result, "data-engineer")
         return result
 
+    def propose_transformation(
+        self,
+        *,
+        task_id: UUID,
+        actor: ActorContext,
+        connector_id: str,
+        target_relation: str,
+        select_sql: str,
+        allowed_relations: set[str],
+        tests: tuple[TransformationTest, ...],
+        impact_summary: str,
+        rollback_plan: str,
+        trace_id: str,
+    ) -> TransformationProposal:
+        authorized_domains = self._authorized_domains(actor, connector_id)
+        connector = self._connector(connector_id)
+        request = self._request(
+            task_id=task_id,
+            actor=actor,
+            tool_name="transformation.propose",
+            action="propose",
+            resource=f"{connector_id}:{target_relation}",
+            arguments={
+                "connector_id": connector_id,
+                "dialect": connector.capabilities.dialect,
+                "target_relation": target_relation,
+                "select_sql": select_sql,
+                "allowed_relations": sorted(allowed_relations),
+                "tests": [test.model_dump(mode="json") for test in tests],
+                "impact_summary": impact_summary,
+                "rollback_plan": rollback_plan,
+            },
+            data_domains=authorized_domains,
+        )
+        result = self.gateway.invoke(request, trace_id=trace_id)
+        self._store(task_id, "transformation_proposal", result, "data-engineer")
+        return result
+
+    def analyze_impact(
+        self,
+        *,
+        task_id: UUID,
+        actor: ActorContext,
+        connector_ids: tuple[str, ...],
+        assets: tuple[LineageAsset, ...],
+        changed_assets: tuple[str, ...],
+        trace_id: str,
+    ) -> ImpactAnalysis:
+        authorized_domains = self._authorized_domains(actor, *connector_ids)
+        request = self._request(
+            task_id=task_id,
+            actor=actor,
+            tool_name="lineage.impact",
+            action="analyze",
+            resource=",".join(changed_assets),
+            arguments={
+                "assets": [asset.model_dump(mode="json") for asset in assets],
+                "changed_assets": list(changed_assets),
+            },
+            data_domains=authorized_domains,
+        )
+        result = self.gateway.invoke(request, trace_id=trace_id)
+        self._store(task_id, "impact_analysis", result, "data-engineer")
+        return result
+
     def _connector(self, connector_id: str) -> ReadOnlyConnector:
         try:
             return self.connectors[connector_id]
@@ -200,6 +273,26 @@ class DataEngineeringRuntime:
         )
 
     @staticmethod
+    def _propose_transformation(arguments: dict[str, Any]) -> TransformationProposal:
+        return build_transformation_proposal(
+            connector_id=str(arguments["connector_id"]),
+            dialect=str(arguments["dialect"]),
+            target_relation=str(arguments["target_relation"]),
+            select_sql=str(arguments["select_sql"]),
+            allowed_relations=set(arguments["allowed_relations"]),
+            tests=tuple(TransformationTest.model_validate(item) for item in arguments["tests"]),
+            impact_summary=str(arguments["impact_summary"]),
+            rollback_plan=str(arguments["rollback_plan"]),
+        )
+
+    @staticmethod
+    def _analyze_impact(arguments: dict[str, Any]) -> ImpactAnalysis:
+        return analyze_impact(
+            tuple(LineageAsset.model_validate(item) for item in arguments["assets"]),
+            tuple(str(item) for item in arguments["changed_assets"]),
+        )
+
+    @staticmethod
     def _diff(arguments: dict[str, Any]) -> SchemaDiff:
         return compare_schemas(
             RelationSchema.model_validate(arguments["before"]),
@@ -234,7 +327,14 @@ class DataEngineeringRuntime:
         self,
         task_id: UUID,
         artifact_type: str,
-        value: DataProfile | QualityReport | RelationSchema | SchemaDiff,
+        value: (
+            DataProfile
+            | ImpactAnalysis
+            | QualityReport
+            | RelationSchema
+            | SchemaDiff
+            | TransformationProposal
+        ),
         created_by: str,
     ) -> None:
         self.artifacts.put_json(

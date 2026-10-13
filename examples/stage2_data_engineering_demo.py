@@ -9,7 +9,12 @@ import duckdb
 
 from generaldataagent.artifacts import LocalArtifactStore
 from generaldataagent.connectors import DuckDBConnector, SQLiteConnector
-from generaldataagent.contracts import ActorContext, QualityRule
+from generaldataagent.contracts import (
+    ActorContext,
+    LineageAsset,
+    QualityRule,
+    TransformationTest,
+)
 from generaldataagent.data_engineering import DataEngineeringRuntime
 
 
@@ -80,6 +85,43 @@ def main() -> None:
             after=after,
             trace_id="stage2-demo",
         )
+        proposal = runtime.propose_transformation(
+            task_id=task_id,
+            actor=actor,
+            connector_id="warehouse",
+            target_relation="daily_orders",
+            select_sql="SELECT channel, COUNT(*) AS order_count FROM orders GROUP BY channel",
+            allowed_relations={"orders"},
+            tests=(
+                TransformationTest(
+                    name="has-rows",
+                    assertion="row_count_nonzero",
+                ),
+            ),
+            impact_summary="Adds a draft aggregate for a sales dashboard.",
+            rollback_plan="Discard the proposal; no source object is changed.",
+            trace_id="stage2-demo",
+        )
+        impact = runtime.analyze_impact(
+            task_id=task_id,
+            actor=actor,
+            connector_ids=("warehouse",),
+            assets=(
+                LineageAsset(asset_id="orders", asset_type="source"),
+                LineageAsset(
+                    asset_id="daily_orders",
+                    asset_type="model",
+                    depends_on=("orders",),
+                ),
+                LineageAsset(
+                    asset_id="dashboard.sales",
+                    asset_type="dashboard",
+                    depends_on=("daily_orders",),
+                ),
+            ),
+            changed_assets=("orders",),
+            trace_id="stage2-demo",
+        )
 
         print(f"profile rows={profile.row_count} columns={len(profile.columns)}")
         print(
@@ -87,6 +129,11 @@ def main() -> None:
             f"violations={quality.checks[0].violation_count}"
         )
         print(f"schema breaking={diff.breaking} changes={len(diff.changes)}")
+        print(
+            f"proposal dry_run_only={proposal.dry_run_only} "
+            f"dependencies={len(proposal.dependencies)}"
+        )
+        print(f"impact downstream={len(impact.impacted_assets)} cycles={impact.has_cycles}")
         print(f"artifacts={len(tuple((root / 'artifacts').rglob('*.json')))}")
 
 
