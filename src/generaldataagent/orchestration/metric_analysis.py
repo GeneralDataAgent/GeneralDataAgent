@@ -12,7 +12,11 @@ from generaldataagent.contracts import (
     ActorContext,
     AgentRole,
     AuditEvent,
+    ChartSpec,
+    DeliveryPackage,
+    GroundedClaim,
     MetricQuery,
+    TableSpec,
     ToolRequest,
     ValidationCheck,
     ValidationResult,
@@ -163,6 +167,22 @@ class MetricAnalysisRuntime:
             "artifact": artifact.model_dump(mode="json"),
             "metric": plan["metric"],
         }
+        table = TableSpec(
+            columns=tuple(payload["columns"]),
+            rows=tuple(tuple(row) for row in payload["rows"]),
+            data_artifact_uri=artifact.uri,
+        )
+        chart = self._build_chart_spec(plan["metric"], table)
+        chart_artifact = self.artifacts.put_json(
+            task_id=request.task_id,
+            artifact_type="chart_spec",
+            value=chart.model_dump(mode="json"),
+            created_by="deterministic-reporter",
+            lineage=(artifact.artifact_id,),
+        )
+        analysis["table"] = table.model_dump(mode="json")
+        analysis["chart"] = chart.model_dump(mode="json")
+        analysis["chart_artifact"] = chart_artifact.model_dump(mode="json")
         if self.narrator is not None:
             narrative = self.narrator.generate(
                 {
@@ -181,6 +201,7 @@ class MetricAnalysisRuntime:
             )
             analysis["narrative"] = narrative_payload
             analysis["narrative_artifact"] = narrative_artifact.model_dump(mode="json")
+        analysis["claims"] = [item.model_dump(mode="json") for item in self._build_claims(analysis)]
         return {"analysis_result": analysis}
 
     def _validate(self, state: PhaseOneState) -> dict[str, Any]:
@@ -207,6 +228,21 @@ class MetricAnalysisRuntime:
                 code="narrative_artifact_present",
                 message="A model-generated narrative must be preserved as an artifact.",
             ),
+            ValidationCheck(
+                check_id="chart-evidence",
+                passed=(
+                    bool(analysis.get("chart", {}).get("data_artifact_uri"))
+                    and bool(analysis.get("chart_artifact", {}).get("uri"))
+                ),
+                code="chart_artifact_present",
+                message="The chart spec must reference data and be preserved as an artifact.",
+            ),
+            ValidationCheck(
+                check_id="claim-grounding",
+                passed=self._claims_are_grounded(analysis),
+                code="all_claims_have_evidence",
+                message="Every delivery claim must cite evidence produced by this task.",
+            ),
         )
         status = (
             ValidationStatus.PASS if all(item.passed for item in checks) else ValidationStatus.FAIL
@@ -223,27 +259,107 @@ class MetricAnalysisRuntime:
     def _deliver(state: PhaseOneState) -> dict[str, Any]:
         result = state["analysis_result"]
         narrative = result.get("narrative")
-        evidence = [result["artifact"]]
+        evidence = [result["artifact"], result["chart_artifact"]]
         if result.get("narrative_artifact"):
             evidence.append(result["narrative_artifact"])
+        package = DeliveryPackage(
+            metric=result["metric"],
+            columns=tuple(result["columns"]),
+            rows=tuple(tuple(row) for row in result["rows"]),
+            row_count=result["row_count"],
+            table=TableSpec.model_validate(result["table"]),
+            chart=ChartSpec.model_validate(result["chart"]),
+            summary=(
+                narrative["summary"]
+                if narrative
+                else f"Certified metric query returned {result['row_count']} row(s)."
+            ),
+            insights=tuple(narrative["insights"] if narrative else ()),
+            limitations=tuple(narrative["limitations"] if narrative else ()),
+            claims=tuple(GroundedClaim.model_validate(item) for item in result["claims"]),
+            narrative_model=narrative.get("model") if narrative else None,
+            evidence=tuple(evidence),
+        )
         return {
             "status": "completed",
-            "delivery_package": {
-                "metric": result["metric"],
-                "columns": result["columns"],
-                "rows": result["rows"],
-                "row_count": result["row_count"],
-                "summary": (
-                    narrative["summary"]
-                    if narrative
-                    else f"Certified metric query returned {result['row_count']} row(s)."
-                ),
-                "insights": narrative["insights"] if narrative else [],
-                "limitations": narrative["limitations"] if narrative else [],
-                "narrative_model": narrative.get("model") if narrative else None,
-                "evidence": evidence,
-            },
+            "delivery_package": package.model_dump(mode="json"),
         }
+
+    @staticmethod
+    def _build_chart_spec(metric: str, table: TableSpec) -> ChartSpec:
+        dimensions = [column for column in table.columns if column != "metric_value"]
+        if not dimensions:
+            chart_type = "kpi"
+            x_field = None
+        elif len(dimensions) == 1:
+            chart_type = "bar"
+            x_field = dimensions[0]
+        else:
+            chart_type = "table"
+            x_field = dimensions[0]
+        return ChartSpec(
+            chart_type=chart_type,
+            title=metric,
+            x_field=x_field,
+            data_artifact_uri=table.data_artifact_uri,
+        )
+
+    @staticmethod
+    def _build_claims(analysis: dict[str, Any]) -> tuple[GroundedClaim, ...]:
+        data_uri = analysis["artifact"]["uri"]
+        narrative = analysis.get("narrative")
+        if narrative is None:
+            return (
+                GroundedClaim(
+                    claim_id="query-result",
+                    claim_type="fact",
+                    text=f"Certified metric query returned {analysis['row_count']} row(s).",
+                    evidence_uris=(data_uri,),
+                ),
+            )
+
+        narrative_uri = analysis["narrative_artifact"]["uri"]
+        evidence = (data_uri, narrative_uri)
+        claims = [
+            GroundedClaim(
+                claim_id="summary",
+                claim_type="interpretation",
+                text=narrative["summary"],
+                evidence_uris=evidence,
+            )
+        ]
+        claims.extend(
+            GroundedClaim(
+                claim_id=f"insight-{index}",
+                claim_type="interpretation",
+                text=text,
+                evidence_uris=evidence,
+            )
+            for index, text in enumerate(narrative["insights"], start=1)
+        )
+        claims.extend(
+            GroundedClaim(
+                claim_id=f"limitation-{index}",
+                claim_type="limitation",
+                text=text,
+                evidence_uris=evidence,
+            )
+            for index, text in enumerate(narrative["limitations"], start=1)
+        )
+        return tuple(claims)
+
+    @staticmethod
+    def _claims_are_grounded(analysis: dict[str, Any]) -> bool:
+        evidence_uris = {
+            item["uri"]
+            for key in ("artifact", "chart_artifact", "narrative_artifact")
+            if (item := analysis.get(key)) is not None
+        }
+        claims = analysis.get("claims", [])
+        return bool(claims) and all(
+            bool(claim.get("evidence_uris")) and set(claim["evidence_uris"]).issubset(evidence_uris)
+            for claim in claims
+        )
 
     def _execute_query(self, arguments: dict[str, Any]) -> Any:
         sql = str(arguments["sql"])

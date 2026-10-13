@@ -1,6 +1,12 @@
 """Public contract exports."""
 
 from generaldataagent.contracts.analytics import ActorContext, MetricQuery
+from generaldataagent.contracts.delivery import (
+    ChartSpec,
+    DeliveryPackage,
+    GroundedClaim,
+    TableSpec,
+)
 from generaldataagent.contracts.models import (
     ArtifactRef,
     AuditEvent,
@@ -27,12 +33,16 @@ __all__ = [
     "ArtifactRef",
     "AuditEvent",
     "Budget",
+    "ChartSpec",
+    "DeliveryPackage",
+    "GroundedClaim",
     "MetricQuery",
     "PolicyDecision",
     "RiskLevel",
     "TaskPlan",
     "TaskStatus",
     "TaskStep",
+    "TableSpec",
     "ToolRequest",
     "ValidationCheck",
     "ValidationResult",

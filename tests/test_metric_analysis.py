@@ -82,6 +82,10 @@ def test_metric_analysis_runs_end_to_end(tmp_path) -> None:
     assert result["status"] == "completed"
     assert result["validation_result"]["status"] == "pass"
     assert result["delivery_package"]["rows"] == [["store", 1], ["web", 2]]
+    assert result["delivery_package"]["table"]["columns"] == ["channel", "metric_value"]
+    assert result["delivery_package"]["chart"]["chart_type"] == "bar"
+    assert result["delivery_package"]["chart"]["x_field"] == "channel"
+    assert result["delivery_package"]["claims"][0]["evidence_uris"]
     evidence = result["delivery_package"]["evidence"][0]
     assert evidence["uri"].startswith("artifact://local/")
 
@@ -101,7 +105,39 @@ def test_metric_analysis_preserves_model_narrative_as_evidence(tmp_path) -> None
     delivery = result["delivery_package"]
     assert delivery["narrative_model"] == "fake-model"
     assert delivery["summary"] == "The query returned 2 segments."
-    assert len(delivery["evidence"]) == 2
+    assert len(delivery["evidence"]) == 3
+    assert {claim["claim_type"] for claim in delivery["claims"]} == {
+        "interpretation",
+        "limitation",
+    }
+    assert all(claim["evidence_uris"] for claim in delivery["claims"])
+
+
+def test_metric_analysis_uses_kpi_chart_without_dimensions(tmp_path) -> None:
+    runtime = build_runtime(tmp_path)
+    aggregate_query = query().model_copy(update={"dimensions": ()})
+    result = runtime.run(aggregate_query, actor(), thread_id="metric-kpi")
+
+    delivery = result["delivery_package"]
+    assert delivery["chart"]["chart_type"] == "kpi"
+    assert delivery["chart"]["x_field"] is None
+    assert delivery["table"]["rows"] == [[3]]
+
+
+def test_claim_grounding_rejects_unknown_artifact(tmp_path) -> None:
+    runtime = build_runtime(tmp_path)
+    analysis = {
+        "artifact": {"uri": "artifact://local/known"},
+        "claims": [
+            {
+                "claim_id": "bad-claim",
+                "claim_type": "fact",
+                "text": "Unsupported fact",
+                "evidence_uris": ["artifact://local/unknown"],
+            }
+        ],
+    }
+    assert runtime._claims_are_grounded(analysis) is False
 
 
 def test_metric_analysis_rejects_uncertified_dimension(tmp_path) -> None:

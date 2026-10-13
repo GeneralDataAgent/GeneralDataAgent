@@ -17,6 +17,7 @@ GeneralDataAgent is a governed multi-agent foundation for data analytics, data e
 - Deep Agents specialist definitions for discovery, engineering, analysis, science, verification, and reporting.
 - Governed metric Supervisor with actor-bound tools, deterministic role ledger, and a fixed
   post-validation Reporter node.
+- Versioned table, chart, claim, and delivery contracts with claim-level evidence validation.
 - Anthropic-compatible LangChain model loading from the current CC Switch provider without copying credentials.
 - Real NYC TLC Parquet ingestion with source hashes and a curated SQLite snapshot.
 - FastAPI health, capability, contract-validation, and certified-metric endpoints.
@@ -93,6 +94,19 @@ independent verification. The control layer then invokes a fixed Reporter node t
 validated delivery package. The run fails closed if the required role order is violated. With the
 currently selected free model this path is functionally testable but does not yet meet the Stage 1
 latency target; see [the multi-agent acceptance record](docs/validation/tlc-multi-agent-acceptance.md).
+
+## Run the Stage 1 regression baseline
+
+```bash
+uv run python evals/run_stage1.py
+```
+
+The frozen baseline contains 60 cases: 30 certified metric queries and 30 negative authorization,
+dimension, and catalog cases. The runner executes them against the curated TLC snapshot and emits a
+case-level pass report. This deterministic baseline does not replace the still-open real-model,
+human-review, ambiguity, and latency acceptance gates.
+
+See [implementation status](docs/implementation-status.md) for completed and remaining roadmap work.
 
 ## Package map
 
