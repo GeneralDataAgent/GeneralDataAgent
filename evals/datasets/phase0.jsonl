@@ -1,0 +1,15 @@
+{"case_id":"contract-valid-plan","category":"contract","expected":"accept","description":"A topologically ordered read-only task plan is accepted."}
+{"case_id":"contract-forward-dependency","category":"contract","expected":"reject","description":"A task step cannot depend on a later step."}
+{"case_id":"policy-read-only-sql","category":"policy","expected":"allow","description":"The analyst can issue a scoped read-only SQL request."}
+{"case_id":"policy-unknown-tool","category":"policy","expected":"deny","description":"An unregistered tool fails closed."}
+{"case_id":"policy-production-write","category":"policy","expected":"require_approval","description":"A production write cannot execute directly."}
+{"case_id":"policy-permission-change","category":"policy","expected":"deny","description":"An Agent can never change permissions."}
+{"case_id":"sql-select","category":"sql","expected":"accept","description":"A single SELECT against an allowed relation is accepted."}
+{"case_id":"sql-dml","category":"sql","expected":"reject","description":"DML is rejected."}
+{"case_id":"sql-ddl","category":"sql","expected":"reject","description":"DDL is rejected."}
+{"case_id":"sql-multiple","category":"sql","expected":"reject","description":"Multiple statements are rejected."}
+{"case_id":"sql-unauthorized-table","category":"sql","expected":"reject","description":"A query against an unauthorized relation is rejected."}
+{"case_id":"validation-failed-check","category":"validation","expected":"reject","description":"Validation cannot pass if any required check failed."}
+{"case_id":"workflow-validation-pass","category":"workflow","expected":"completed","description":"A validated result reaches delivery."}
+{"case_id":"workflow-validation-fail","category":"workflow","expected":"failed","description":"A failed result never reaches delivery."}
+{"case_id":"artifact-round-trip","category":"artifact","expected":"accept","description":"Artifact content is read only when its hash matches."}
