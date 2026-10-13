@@ -4,9 +4,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from generaldataagent.artifacts import LocalArtifactStore
-from generaldataagent.catalog import InMemoryMetricCatalog, MetricDefinition
 from generaldataagent.contracts import ActorContext, MetricQuery
-from generaldataagent.datasets import download_tlc_sources, prepare_tlc_database
+from generaldataagent.datasets import (
+    build_tlc_metric_catalog,
+    download_tlc_sources,
+    prepare_tlc_database,
+)
 from generaldataagent.llm import CcSwitchProvider, LangChainNarrator
 from generaldataagent.observability import JsonlAuditSink
 from generaldataagent.orchestration import MetricAnalysisRuntime
@@ -20,33 +23,7 @@ def build_runtime(root: Path) -> MetricAnalysisRuntime:
     manifest = prepare_tlc_database(trips, zones, database)
     print(f"Prepared {manifest.row_count:,} real trip records ({manifest.period}).")
 
-    metrics = InMemoryMetricCatalog(
-        [
-            MetricDefinition(
-                name="trip_count",
-                version="v1",
-                description="Number of reported NYC TLC green-taxi trips",
-                data_domain="mobility.tlc",
-                relation="green_trips",
-                expression="COUNT(*)",
-                time_column="pickup_at",
-                allowed_dimensions=("pickup_borough",),
-                owner="nyc-tlc",
-            ),
-            MetricDefinition(
-                name="total_fare_amount",
-                version="v1",
-                description="Sum of reported fare amount before extras and taxes",
-                data_domain="mobility.tlc",
-                relation="green_trips",
-                expression="ROUND(SUM(fare_amount), 2)",
-                time_column="pickup_at",
-                allowed_dimensions=("pickup_borough",),
-                unit="USD",
-                owner="nyc-tlc",
-            ),
-        ]
-    )
+    metrics = build_tlc_metric_catalog()
     provider = CcSwitchProvider.load()
     return MetricAnalysisRuntime(
         catalog=metrics,

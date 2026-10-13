@@ -11,6 +11,8 @@ from pathlib import Path
 import duckdb
 from pydantic import BaseModel, ConfigDict
 
+from generaldataagent.catalog import InMemoryMetricCatalog, MetricDefinition
+
 GREEN_TRIPS_URL = "https://d37ci6vzurychx.cloudfront.net/trip-data/green_tripdata_2025-01.parquet"
 ZONE_LOOKUP_URL = "https://d37ci6vzurychx.cloudfront.net/misc/taxi_zone_lookup.csv"
 
@@ -26,6 +28,38 @@ class TlcDatasetManifest(BaseModel):
     zone_sha256: str
     row_count: int
     prepared_at: datetime
+
+
+def build_tlc_metric_catalog() -> InMemoryMetricCatalog:
+    """Return the versioned semantic definitions for the curated TLC snapshot."""
+
+    return InMemoryMetricCatalog(
+        [
+            MetricDefinition(
+                name="trip_count",
+                version="v1",
+                description="Number of reported NYC TLC green-taxi trips",
+                data_domain="mobility.tlc",
+                relation="green_trips",
+                expression="COUNT(*)",
+                time_column="pickup_at",
+                allowed_dimensions=("pickup_borough",),
+                owner="nyc-tlc",
+            ),
+            MetricDefinition(
+                name="total_fare_amount",
+                version="v1",
+                description="Sum of reported fare amount before extras and taxes",
+                data_domain="mobility.tlc",
+                relation="green_trips",
+                expression="ROUND(SUM(fare_amount), 2)",
+                time_column="pickup_at",
+                allowed_dimensions=("pickup_borough",),
+                unit="USD",
+                owner="nyc-tlc",
+            ),
+        ]
+    )
 
 
 def download_tlc_sources(target_dir: Path) -> tuple[Path, Path]:

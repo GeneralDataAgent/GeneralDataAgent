@@ -79,14 +79,23 @@ class CcSwitchProvider(BaseModel):
                 f"CC Switch provider {name!r} is not Anthropic-compatible"
             ) from exc
 
-    def build_chat_model(self, *, timeout_seconds: float = 120) -> ChatAnthropic:
+    def build_chat_model(
+        self,
+        *,
+        timeout_seconds: float = 120,
+        max_retries: int = 1,
+    ) -> ChatAnthropic:
+        if timeout_seconds <= 0:
+            raise ValueError("timeout_seconds must be positive")
+        if max_retries < 0:
+            raise ValueError("max_retries cannot be negative")
         return ChatAnthropic(
             model=self.model,
             api_key=self.api_key,
             base_url=self.base_url,
             timeout=timeout_seconds,
             temperature=0,
-            max_retries=1,
+            max_retries=max_retries,
         )
 
 

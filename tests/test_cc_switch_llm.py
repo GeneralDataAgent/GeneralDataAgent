@@ -49,3 +49,14 @@ def test_rejects_missing_current_provider(tmp_path) -> None:
     create_provider_database(database, current=False)
     with pytest.raises(LlmConfigurationError, match="found 0"):
         CcSwitchProvider.load(database)
+
+
+def test_rejects_invalid_model_runtime_limits(tmp_path) -> None:
+    database = tmp_path / "cc-switch.db"
+    create_provider_database(database)
+    provider = CcSwitchProvider.load(database)
+
+    with pytest.raises(ValueError, match="positive"):
+        provider.build_chat_model(timeout_seconds=0)
+    with pytest.raises(ValueError, match="negative"):
+        provider.build_chat_model(max_retries=-1)

@@ -19,3 +19,7 @@
 {"case_id":"sqlite-read-only","category":"execution","expected":"reject","description":"The database rejects writes even if a caller bypasses the SQL guard."}
 {"case_id":"sqlite-row-limit","category":"execution","expected":"reject","description":"Results larger than the configured row limit fail closed."}
 {"case_id":"metric-unauthorized-domain","category":"policy","expected":"reject","description":"A certified metric is unavailable when the actor lacks its data domain."}
+{"case_id":"supervisor-role-order","category":"orchestration","expected":"completed","description":"The governed metric flow records Discovery, Data Analyst, Verifier, and Reporter in exact order."}
+{"case_id":"supervisor-hallucinated-task-id","category":"orchestration","expected":"reject","description":"A model-provided task identifier cannot select or replace the controller-owned candidate."}
+{"case_id":"supervisor-missing-reporter","category":"orchestration","expected":"completed","description":"A verified candidate missing only Reporter is finalized once by the fixed post-validation Reporter node."}
+{"case_id":"supervisor-analysis-idempotency","category":"orchestration","expected":"completed","description":"Repeated Data Analyst calls in one request return the same candidate and do not execute twice."}

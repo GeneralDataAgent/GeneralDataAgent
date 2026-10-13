@@ -3,9 +3,14 @@
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from deepagents import create_deep_agent
+from deepagents import (
+    GeneralPurposeSubagentProfile,
+    HarnessProfile,
+    create_deep_agent,
+    register_harness_profile,
+)
 
-from generaldataagent.agents.specs import SPECIALIST_SPECS
+from generaldataagent.agents.specs import SPECIALIST_SPECS, SpecialistSpec
 
 SUPERVISOR_PROMPT = """You coordinate governed data work.
 
@@ -15,6 +20,11 @@ them to return raw datasets or verbose tool logs. Never grant permissions, bypas
 perform a production mutation. A result can be delivered only after the verifier returns pass.
 """
 
+_GOVERNED_EXCLUDED_TOOLS = frozenset(
+    {"ls", "read_file", "write_file", "edit_file", "glob", "grep", "execute"}
+)
+_PROFILE_REGISTERED = False
+
 
 def build_supervisor(
     *,
@@ -22,6 +32,9 @@ def build_supervisor(
     tool_groups: Mapping[str, Sequence[Any]],
     backend: Any | None = None,
     checkpointer: Any | None = None,
+    specialist_specs: Sequence[SpecialistSpec] = SPECIALIST_SPECS,
+    response_formats: Mapping[str, Any] | None = None,
+    response_format: Any | None = None,
 ) -> Any:
     """Create a model-provider-neutral Deep Agents supervisor.
 
@@ -29,16 +42,18 @@ def build_supervisor(
     specialist's tools when the field is supplied.
     """
 
+    _register_governed_anthropic_profile()
     subagents = []
-    for spec in SPECIALIST_SPECS:
-        subagents.append(
-            {
-                "name": spec.name,
-                "description": spec.description,
-                "system_prompt": spec.system_prompt,
-                "tools": list(tool_groups.get(spec.tool_group, ())),
-            }
-        )
+    for spec in specialist_specs:
+        subagent: dict[str, Any] = {
+            "name": spec.name,
+            "description": spec.description,
+            "system_prompt": spec.system_prompt,
+            "tools": list(tool_groups.get(spec.tool_group, ())),
+        }
+        if response_formats and spec.name in response_formats:
+            subagent["response_format"] = response_formats[spec.name]
+        subagents.append(subagent)
 
     kwargs: dict[str, Any] = {
         "model": model,
@@ -50,4 +65,20 @@ def build_supervisor(
         kwargs["backend"] = backend
     if checkpointer is not None:
         kwargs["checkpointer"] = checkpointer
+    if response_format is not None:
+        kwargs["response_format"] = response_format
     return create_deep_agent(**kwargs)
+
+
+def _register_governed_anthropic_profile() -> None:
+    global _PROFILE_REGISTERED  # noqa: PLW0603
+    if _PROFILE_REGISTERED:
+        return
+    register_harness_profile(
+        "anthropic",
+        HarnessProfile(
+            excluded_tools=_GOVERNED_EXCLUDED_TOOLS,
+            general_purpose_subagent=GeneralPurposeSubagentProfile(enabled=False),
+        ),
+    )
+    _PROFILE_REGISTERED = True
