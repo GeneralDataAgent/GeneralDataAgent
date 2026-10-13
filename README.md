@@ -1,5 +1,7 @@
 # GeneralDataAgent
 
+[![CI](https://github.com/GeneralDataAgent/GeneralDataAgent/actions/workflows/ci.yml/badge.svg)](https://github.com/GeneralDataAgent/GeneralDataAgent/actions/workflows/ci.yml)
+
 GeneralDataAgent is a governed multi-agent foundation for data analytics, data engineering, and data science. The first implementation milestone delivers the contracts and control plane required by the project architecture before connecting a real model or production data source.
 
 ## Current scope
