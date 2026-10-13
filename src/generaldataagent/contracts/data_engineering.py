@@ -262,3 +262,22 @@ class ProfileBatchResult(ContractModel):
         if self.all_succeeded != expected:
             raise ValueError("all_succeeded must match batch items")
         return self
+
+
+class DbtCompileReport(ContractModel):
+    project_name: str = Field(min_length=1, max_length=256)
+    target: str = Field(pattern=r"^[A-Za-z0-9_-]{1,64}$")
+    selected_resources: tuple[str, ...] = ()
+    command: tuple[str, ...] = Field(min_length=1)
+    exit_code: int
+    succeeded: bool
+    elapsed_ms: float = Field(ge=0)
+    stdout_tail: str = Field(max_length=20_000)
+    stderr_tail: str = Field(max_length=20_000)
+    production_write_enabled: Literal[False] = False
+
+    @model_validator(mode="after")
+    def status_matches_exit_code(self) -> "DbtCompileReport":
+        if self.succeeded != (self.exit_code == 0):
+            raise ValueError("dbt compile status must match exit_code")
+        return self

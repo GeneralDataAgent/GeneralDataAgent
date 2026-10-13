@@ -10,6 +10,7 @@ from generaldataagent.connectors import ReadOnlyConnector
 from generaldataagent.contracts import ActorContext, AgentRole, ToolRequest
 from generaldataagent.contracts.data_engineering import (
     DataProfile,
+    DbtCompileReport,
     ImpactAnalysis,
     LineageAsset,
     ProfileBatchItem,
@@ -22,6 +23,7 @@ from generaldataagent.contracts.data_engineering import (
     TransformationProposal,
     TransformationTest,
 )
+from generaldataagent.data_engineering.dbt import DbtCompileRunner
 from generaldataagent.data_engineering.impact import analyze_impact
 from generaldataagent.data_engineering.profile import profile_relation
 from generaldataagent.data_engineering.quality import execute_quality_rules
@@ -41,6 +43,7 @@ class DataEngineeringRuntime:
         connectors: Mapping[str, ReadOnlyConnector],
         connector_domains: Mapping[str, frozenset[str]],
         artifacts: LocalArtifactStore,
+        dbt_runner: DbtCompileRunner | None = None,
         policy: PolicyEngine | None = None,
         audit: JsonlAuditSink | None = None,
     ) -> None:
@@ -58,6 +61,7 @@ class DataEngineeringRuntime:
             if not self.connector_domains[connector_id]:
                 raise ValueError("every connector must be bound to at least one data domain")
         self.artifacts = artifacts
+        self.dbt_runner = dbt_runner
         self.gateway = ToolGateway(policy or PolicyEngine(), audit)
         self.gateway.register("connector.inspect", self._inspect)
         self.gateway.register("data.profile", self._profile)
@@ -65,6 +69,8 @@ class DataEngineeringRuntime:
         self.gateway.register("schema.diff", self._diff)
         self.gateway.register("transformation.propose", self._propose_transformation)
         self.gateway.register("lineage.impact", self._analyze_impact)
+        if self.dbt_runner is not None:
+            self.gateway.register("dbt.compile", self._compile_dbt)
 
     def inspect_relation(
         self,
@@ -294,6 +300,35 @@ class DataEngineeringRuntime:
             all_succeeded=all(item.status == "succeeded" for item in items),
         )
 
+    def compile_dbt(
+        self,
+        *,
+        task_id: UUID,
+        actor: ActorContext,
+        connector_id: str,
+        target: str,
+        selected_resources: tuple[str, ...] = (),
+        trace_id: str,
+    ) -> DbtCompileReport:
+        if self.dbt_runner is None:
+            raise RuntimeError("dbt compile is not configured")
+        authorized_domains = self._authorized_domains(actor, connector_id)
+        request = self._request(
+            task_id=task_id,
+            actor=actor,
+            tool_name="dbt.compile",
+            action="compile",
+            resource=f"{connector_id}:{self.dbt_runner.project_dir.name}",
+            arguments={
+                "target": target,
+                "selected_resources": list(selected_resources),
+            },
+            data_domains=authorized_domains,
+        )
+        result = self.gateway.invoke(request, trace_id=trace_id)
+        self._store(task_id, "dbt_compile_report", result, "data-engineer")
+        return result
+
     def _connector(self, connector_id: str) -> ReadOnlyConnector:
         try:
             return self.connectors[connector_id]
@@ -355,6 +390,14 @@ class DataEngineeringRuntime:
             tuple(str(item) for item in arguments["changed_assets"]),
         )
 
+    def _compile_dbt(self, arguments: dict[str, Any]) -> DbtCompileReport:
+        if self.dbt_runner is None:
+            raise RuntimeError("dbt compile is not configured")
+        return self.dbt_runner.compile(
+            target=str(arguments["target"]),
+            selected_resources=tuple(str(item) for item in arguments["selected_resources"]),
+        )
+
     @staticmethod
     def _diff(arguments: dict[str, Any]) -> SchemaDiff:
         return compare_schemas(
@@ -392,6 +435,7 @@ class DataEngineeringRuntime:
         artifact_type: str,
         value: (
             DataProfile
+            | DbtCompileReport
             | ImpactAnalysis
             | QualityReport
             | RelationSchema

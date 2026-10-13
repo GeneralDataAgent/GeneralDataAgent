@@ -1,5 +1,6 @@
 """Deterministic Stage 2 data-engineering operations."""
 
+from generaldataagent.data_engineering.dbt import DbtCompileError, DbtCompileRunner
 from generaldataagent.data_engineering.impact import analyze_impact
 from generaldataagent.data_engineering.profile import profile_relation
 from generaldataagent.data_engineering.quality import execute_quality_rules
@@ -9,6 +10,8 @@ from generaldataagent.data_engineering.transformation import build_transformatio
 
 __all__ = [
     "DataEngineeringRuntime",
+    "DbtCompileError",
+    "DbtCompileRunner",
     "analyze_impact",
     "build_transformation_proposal",
     "compare_schemas",
