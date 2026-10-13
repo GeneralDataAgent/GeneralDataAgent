@@ -3,8 +3,9 @@
 ## Scope
 
 This record covers the Stage 1 certified-metric slice using the January 2025 NYC TLC green-taxi
-snapshot and the current Anthropic-compatible model selected by CC Switch. The deterministic data
-result and source hashes remain those recorded in `tlc-llm-acceptance.md`.
+snapshot and Anthropic-compatible or OpenAI Responses-compatible models selected by stable CC
+Switch provider ID. The deterministic data result and source hashes remain those recorded in
+`tlc-llm-acceptance.md`.
 
 ## Architecture exercised
 
@@ -30,6 +31,10 @@ final evidence URIs.
 | 5 | Same-thread LLM repair exceeded 11 minutes | Repair was interrupted and replaced with a fixed Reporter node |
 | 6 | Updated hybrid flow remained inside provider retry handling for 678.47 seconds | Run was interrupted; client retries were disabled for the acceptance profile |
 | 7 | Provider returned a rate-limit response | Workflow returned a structured `failed` result in 2.28 seconds with no partial roles or artifacts |
+| 8 | An OpenRouter Anthropic-compatible model returned valid structured output in the adapter smoke test | Provider selection and secret-safe loading succeeded in 10.42 seconds |
+| 9 | OpenAI Responses adapter initially used the CC Switch OpenRouter `/api` base | Base URL was normalized to `/api/v1`; the structured smoke test succeeded in 10.18 seconds |
+| 10 | Full OpenAI Responses multi-agent run remained in nested tool execution for more than four minutes | Run was interrupted; a whole-workflow deadline was added and covered by an async timeout test |
+| 11 | Latest OpenAI Responses real-provider run was rate limited | Workflow returned structured `failed` in 2.69 seconds with no retry, role, or artifact leakage |
 
 ## Automated acceptance
 
@@ -42,20 +47,26 @@ final evidence URIs.
 - A verified candidate missing only Reporter is finalized once through the fixed Reporter node.
 - Final identifiers and evidence references are overwritten from controller-owned state.
 - Model-provider exceptions fail closed without exposing credentials or accepting partial output.
-- The repository test suite contains 47 passing tests with 89% line coverage.
+- A whole-workflow deadline cancels an over-budget async Supervisor execution and returns a
+  structured failure.
+- The repository test suite contains 71 passing tests with 89% line coverage.
 
 ## Performance status
 
 **Not accepted.** Observed LLM-led attempts took roughly 165 to 300 seconds, and two experiments
 exceeded 673 seconds before interruption. This is above the planned Stage 1 P95 target of 60
-seconds to a first useful result. The acceptance profile now uses a 30-second per-request timeout
-with no provider retry and converts provider errors into a structured failure. On the latest run,
-the selected `z-ai/glm-5.3-flash-free` provider returned `AnthropicRateLimitError`; the workflow
-failed closed in 2.28 seconds.
+seconds to a first useful result. The acceptance profile now uses a 30-second per-request timeout,
+no provider retry, and a 60-second whole-workflow budget. Provider errors and workflow timeouts are
+converted into structured failures. On the latest run, the selected OpenRouter Responses provider
+returned `OpenAIRateLimitError`; the workflow failed closed in 2.69 seconds. Because the provider
+failed before tool execution, this run validates the provider-error path, not the real-provider
+60-second deadline path.
 
 ## Remaining acceptance action
 
-Repeat the updated hybrid flow when a tool-calling provider is available without rate limiting. The
-real-model workflow is functionally accepted only when it returns `completed`, the exact four-role
-sequence, and immutable evidence URIs. The fixed Reporter behavior and provider-failure behavior
-are covered by automated tests; real-provider success and performance remain open gates.
+Repeat the updated hybrid flow when a tool-calling provider is available without rate limiting.
+The real-model workflow is functionally accepted only when it returns `completed`, the exact
+four-role sequence, and immutable evidence URIs. Run enough successful tasks to calculate the
+planned success rate and P95 rather than treating a smoke test as acceptance. The fixed Reporter,
+provider-failure, and total-deadline behaviors are covered by automated tests; real-provider
+success and performance remain open gates.

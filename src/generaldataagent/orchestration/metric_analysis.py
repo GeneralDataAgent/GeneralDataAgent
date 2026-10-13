@@ -15,7 +15,10 @@ from generaldataagent.contracts import (
     ChartSpec,
     DeliveryPackage,
     GroundedClaim,
+    MetricCandidate,
     MetricQuery,
+    MetricResolution,
+    NaturalLanguageMetricQuery,
     TableSpec,
     ToolRequest,
     ValidationCheck,
@@ -104,6 +107,78 @@ class MetricAnalysisRuntime:
             raise
         self._emit("analysis.finished", result, {"status": result["status"]})
         return result
+
+    def resolve_question(
+        self,
+        request: NaturalLanguageMetricQuery,
+        actor: ActorContext,
+    ) -> MetricResolution:
+        matches = self.catalog.search(
+            request.question,
+            metric_version=request.metric_version,
+            data_domains=actor.data_domains,
+        )
+        if not matches:
+            return MetricResolution(
+                status="not_found",
+                question=request.question,
+                clarification_question=(
+                    "No authorized certified metric matched. Specify the metric name or business "
+                    "definition."
+                ),
+            )
+        top_score = matches[0].score
+        top_matches = tuple(item for item in matches if item.score == top_score)
+        candidates = tuple(
+            MetricCandidate(
+                metric_name=item.metric.name,
+                metric_version=item.metric.version,
+                description=item.metric.description,
+                unit=item.metric.unit,
+                matched_alias=item.matched_alias,
+            )
+            for item in top_matches
+        )
+        if len(candidates) > 1:
+            choices = ", ".join(f"{item.metric_name}@{item.metric_version}" for item in candidates)
+            return MetricResolution(
+                status="ambiguous",
+                question=request.question,
+                candidates=candidates,
+                clarification_question=f"Choose one certified metric: {choices}.",
+            )
+        return MetricResolution(
+            status="resolved",
+            question=request.question,
+            candidates=candidates,
+        )
+
+    def analyze_question(
+        self,
+        request: NaturalLanguageMetricQuery,
+        actor: ActorContext,
+        *,
+        thread_id: str | None = None,
+    ) -> dict[str, Any]:
+        resolution = self.resolve_question(request, actor)
+        if resolution.status != "resolved":
+            return {
+                "status": "needs_clarification",
+                "resolution": resolution.model_dump(mode="json"),
+            }
+        selected = resolution.candidates[0]
+        result = self.run(
+            MetricQuery(
+                metric_name=selected.metric_name,
+                metric_version=selected.metric_version,
+                dimensions=request.dimensions,
+                start_time=request.start_time,
+                end_time=request.end_time,
+            ),
+            actor,
+            thread_id=thread_id,
+        )
+        return {**result, "resolution": resolution.model_dump(mode="json")}
 
     def _discover(self, state: PhaseOneState) -> dict[str, Any]:
         request = MetricQuery.model_validate(state["metric_query"])

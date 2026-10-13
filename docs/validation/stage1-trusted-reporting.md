@@ -4,7 +4,7 @@
 
 - Date: 2026-10-13
 - Branch: `feat/stage1-trusted-reporting`
-- Dataset: `evals/datasets/stage1.jsonl`
+- Datasets: `evals/datasets/stage1.jsonl` and `evals/datasets/stage1-semantic.jsonl`
 - Data snapshot: NYC TLC January 2025 curated SQLite snapshot
 - Model calls: none; this record covers deterministic delivery and policy behavior
 
@@ -18,7 +18,14 @@
 | Unknown metric or version | 10 | 10 |
 | **Total** | **60** | **60** |
 
-Runtime: 0.95 seconds on the local acceptance environment. This is an offline deterministic
+| Semantic resolution | Cases | Passed |
+|---|---:|---:|
+| Resolved aliases | 16 | 16 |
+| Ambiguous aliases | 6 | 6 |
+| Not found or unauthorized | 4 | 4 |
+| **Total** | **26** | **26** |
+
+Combined runtime: 0.82 seconds on the local acceptance environment. This is an offline deterministic
 regression duration, not the real-model first-useful-result latency metric.
 
 ## Controls verified
@@ -33,9 +40,18 @@ regression duration, not the real-model first-useful-result latency metric.
 - Deterministic summaries cite the query result.
 - Delivery contract validation rejects references not present in the evidence package.
 - The workflow validation gate checks chart preservation and claim grounding before delivery.
+- Eight certified metrics cover count, fare, charge, distance, and passenger aggregations.
+- Exact English and Chinese aliases resolve to one certified metric; intentionally shared aliases
+  return multiple candidates and a clarification question.
+- Unauthorized-domain metrics are filtered before search results are constructed.
+- The append-only review store rejects a second review from the same reviewer and computes the
+  documented review gate from distinct reviewers.
+- The complete automated suite passes 71 tests with 89% line coverage.
 
 ## Boundary
 
-This increment does not claim full Stage 1 acceptance. Natural-language ambiguity, five-to-ten
-metric coverage, real-model task success, human review, and P95 latency remain open. The complete
-gap list is maintained in `docs/implementation-status.md`.
+This increment does not claim full Stage 1 acceptance. The metric-count and ambiguity-handling
+implementation requirements are complete, and the human-review collection mechanism exists.
+Real-model task success, value-level SQL accuracy, reviews of at least 15 successful results, and
+P95 latency remain open evidence gates. The complete gap list is maintained in
+`docs/implementation-status.md`.

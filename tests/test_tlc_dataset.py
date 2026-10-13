@@ -3,7 +3,7 @@ import sqlite3
 
 import duckdb
 
-from generaldataagent.datasets import prepare_tlc_database
+from generaldataagent.datasets import build_tlc_metric_catalog, prepare_tlc_database
 
 
 def test_prepares_curated_sqlite_snapshot(tmp_path) -> None:
@@ -46,3 +46,17 @@ def test_prepares_curated_sqlite_snapshot(tmp_path) -> None:
             "SELECT pickup_borough, pickup_zone, trip_distance FROM green_trips"
         ).fetchone()
     assert row == ("Queens", "Astoria", 2.5)
+
+
+def test_tlc_catalog_exposes_eight_certified_metrics() -> None:
+    catalog = build_tlc_metric_catalog()
+    assert {metric.name for metric in catalog.list()} == {
+        "average_charged_amount",
+        "average_fare_amount",
+        "average_passenger_count",
+        "average_trip_distance",
+        "total_charged_amount",
+        "total_fare_amount",
+        "total_trip_distance",
+        "trip_count",
+    }

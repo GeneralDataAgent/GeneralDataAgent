@@ -3,6 +3,7 @@
 from collections.abc import Iterable
 
 from generaldataagent.catalog.models import MetricDefinition
+from generaldataagent.catalog.resolver import MetricMatch, find_metric_matches
 
 
 class MetricNotFoundError(LookupError):
@@ -26,3 +27,17 @@ class InMemoryMetricCatalog:
 
     def list(self) -> tuple[MetricDefinition, ...]:
         return tuple(sorted(self._metrics.values(), key=lambda item: (item.name, item.version)))
+
+    def search(
+        self,
+        question: str,
+        *,
+        metric_version: str | None = None,
+        data_domains: tuple[str, ...] | None = None,
+    ) -> tuple[MetricMatch, ...]:
+        return find_metric_matches(
+            self.list(),
+            question,
+            metric_version=metric_version,
+            data_domains=data_domains,
+        )

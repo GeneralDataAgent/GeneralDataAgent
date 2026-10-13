@@ -29,3 +29,17 @@ def test_metric_endpoint_is_fail_closed_when_not_configured() -> None:
         json={"metric_name": "order_count", "metric_version": "v1"},
     )
     assert response.status_code == 503
+
+
+def test_question_endpoint_is_fail_closed_when_not_configured() -> None:
+    response = client.post(
+        "/v1/analysis/questions",
+        headers={
+            "x-user-id": "user-1",
+            "x-tenant-id": "tenant-1",
+            "x-project-id": "project-1",
+            "x-data-domain": "commerce",
+        },
+        json={"question": "How many orders?"},
+    )
+    assert response.status_code == 503

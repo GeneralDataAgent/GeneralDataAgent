@@ -1,5 +1,6 @@
 """Real-model Supervisor over an actor-bound certified metric tool surface."""
 
+import asyncio
 import json
 from datetime import datetime
 from typing import Any
@@ -52,7 +53,27 @@ class MetricSupervisorRuntime:
         actor: ActorContext,
         *,
         thread_id: str,
+        max_runtime_seconds: float = 60,
     ) -> SupervisorResult:
+        return asyncio.run(
+            self.arun(
+                query,
+                actor,
+                thread_id=thread_id,
+                max_runtime_seconds=max_runtime_seconds,
+            )
+        )
+
+    async def arun(
+        self,
+        query: MetricQuery,
+        actor: ActorContext,
+        *,
+        thread_id: str,
+        max_runtime_seconds: float = 60,
+    ) -> SupervisorResult:
+        if max_runtime_seconds <= 0:
+            raise ValueError("max_runtime_seconds must be positive")
         candidates: dict[str, dict[str, Any]] = {}
         role_events: list[str] = []
         tool_groups = self._build_actor_tools(actor, candidates, role_events)
@@ -64,7 +85,7 @@ class MetricSupervisorRuntime:
             checkpointer=InMemorySaver(),
             specialist_specs=specs,
             response_formats={spec.name: SpecialistResult.model_json_schema() for spec in specs},
-            response_format=SupervisorResult.model_json_schema(),
+            system_prompt=METRIC_SUPERVISOR_PROMPT,
         )
         request = {
             "metric_query": query.model_dump(mode="json"),
@@ -76,9 +97,10 @@ class MetricSupervisorRuntime:
         }
         config = {"configurable": {"thread_id": thread_id}, "recursion_limit": 40}
         try:
-            result = supervisor.invoke(
-                {"messages": [{"role": "user", "content": json.dumps(request)}]}, config
-            )
+            async with asyncio.timeout(max_runtime_seconds):
+                result = await supervisor.ainvoke(
+                    {"messages": [{"role": "user", "content": json.dumps(request)}]}, config
+                )
         except Exception as exc:
             candidate = candidates.get("current", {}).get("analysis")
             artifacts = (
@@ -94,17 +116,8 @@ class MetricSupervisorRuntime:
                 artifact_uris=artifacts,
                 limitations=(f"model invocation failed: {type(exc).__name__}",),
             )
-        proposed = SupervisorResult.model_validate(result["structured_response"])
         if tuple(role_events) == _REQUIRED_ROLE_SEQUENCE[:-1] and _candidate_passed(candidates):
-            delivery = tool_groups["reporting"][0].invoke({})
-            proposed = SupervisorResult(
-                status="completed",
-                summary=delivery["summary"],
-                task_id=candidates["current"]["analysis"]["task_id"],
-                delegated_roles=tuple(role_events),
-                artifact_uris=tuple(item["uri"] for item in delivery["evidence"]),
-                limitations=tuple(delivery["limitations"]),
-            )
+            tool_groups["reporting"][0].invoke({})
         candidate = candidates.get("current", {}).get("analysis")
         actual_task_id = candidate["task_id"] if candidate else None
         actual_artifacts = (
@@ -112,6 +125,27 @@ class MetricSupervisorRuntime:
             if candidate
             else ()
         )
+        if tuple(role_events) == _REQUIRED_ROLE_SEQUENCE and _candidate_passed(candidates):
+            delivery = candidate["delivery_package"]
+            return SupervisorResult(
+                status="completed",
+                summary=delivery["summary"],
+                task_id=actual_task_id,
+                delegated_roles=tuple(role_events),
+                artifact_uris=actual_artifacts,
+                limitations=tuple(delivery["limitations"]),
+            )
+        structured_response = result.get("structured_response")
+        if structured_response is None:
+            return SupervisorResult(
+                status="failed",
+                summary="The Supervisor returned no valid structured result.",
+                task_id=actual_task_id,
+                delegated_roles=tuple(role_events),
+                artifact_uris=actual_artifacts,
+                limitations=("missing structured Supervisor response",),
+            )
+        proposed = SupervisorResult.model_validate(structured_response)
         if tuple(role_events) != _REQUIRED_ROLE_SEQUENCE:
             return SupervisorResult(
                 status="failed",

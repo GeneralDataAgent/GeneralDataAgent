@@ -1,6 +1,12 @@
 """Public contract exports."""
 
-from generaldataagent.contracts.analytics import ActorContext, MetricQuery
+from generaldataagent.contracts.analytics import (
+    ActorContext,
+    MetricCandidate,
+    MetricQuery,
+    MetricResolution,
+    NaturalLanguageMetricQuery,
+)
 from generaldataagent.contracts.delivery import (
     ChartSpec,
     DeliveryPackage,
@@ -18,6 +24,7 @@ from generaldataagent.contracts.models import (
     ValidationCheck,
     ValidationResult,
 )
+from generaldataagent.contracts.review import HumanReview, HumanReviewSummary
 from generaldataagent.contracts.types import (
     AgentRole,
     ArtifactClassification,
@@ -36,7 +43,12 @@ __all__ = [
     "ChartSpec",
     "DeliveryPackage",
     "GroundedClaim",
+    "HumanReview",
+    "HumanReviewSummary",
     "MetricQuery",
+    "MetricCandidate",
+    "MetricResolution",
+    "NaturalLanguageMetricQuery",
     "PolicyDecision",
     "RiskLevel",
     "TaskPlan",

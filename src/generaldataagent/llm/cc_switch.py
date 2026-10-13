@@ -34,6 +34,7 @@ class CcSwitchProvider(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
+    provider_id: str
     provider_name: str
     app_type: Literal["claude"]
     base_url: str
@@ -45,29 +46,36 @@ class CcSwitchProvider(BaseModel):
         cls,
         database_path: Path | str = Path("~/.cc-switch/cc-switch.db"),
         *,
+        provider_id: str | None = None,
         provider_name: str | None = None,
         app_type: Literal["claude"] = "claude",
     ) -> "CcSwitchProvider":
         path = Path(database_path).expanduser().resolve(strict=True)
+        if provider_id and provider_name:
+            raise ValueError("select a CC Switch provider by id or name, not both")
         where = "app_type = ? AND is_current = 1"
         parameters: tuple[str, ...] = (app_type,)
-        if provider_name:
+        if provider_id:
+            where = "app_type = ? AND id = ?"
+            parameters = (app_type, provider_id)
+        elif provider_name:
             where = "app_type = ? AND name = ?"
             parameters = (app_type, provider_name)
         uri = f"file:{path.as_posix()}?mode=ro"
         with sqlite3.connect(uri, uri=True) as connection:
             rows = connection.execute(
-                f"SELECT name, settings_config FROM providers WHERE {where}", parameters
+                f"SELECT id, name, settings_config FROM providers WHERE {where}", parameters
             ).fetchall()
         if len(rows) != 1:
-            selector = provider_name or "current provider"
+            selector = provider_id or provider_name or "current provider"
             raise LlmConfigurationError(
                 f"expected one CC Switch {app_type} provider for {selector!r}, found {len(rows)}"
             )
-        name, raw_settings = rows[0]
+        resolved_id, name, raw_settings = rows[0]
         try:
             environment = json.loads(raw_settings)["env"]
             return cls(
+                provider_id=resolved_id,
                 provider_name=name,
                 app_type=app_type,
                 base_url=_anthropic_sdk_base_url(environment["ANTHROPIC_BASE_URL"]),

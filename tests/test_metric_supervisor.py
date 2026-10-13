@@ -1,3 +1,4 @@
+import asyncio
 import sqlite3
 
 import pytest
@@ -120,7 +121,7 @@ def test_supervisor_fails_closed_when_model_provider_errors(monkeypatch, tmp_pat
     runtime = build_supervisor_runtime(tmp_path)
 
     class FailingSupervisor:
-        def invoke(self, state, config):
+        async def ainvoke(self, state, config):
             raise TimeoutError("provider timeout")
 
     monkeypatch.setattr(
@@ -138,6 +139,28 @@ def test_supervisor_fails_closed_when_model_provider_errors(monkeypatch, tmp_pat
     assert result.limitations == ("model invocation failed: TimeoutError",)
 
 
+def test_supervisor_fails_closed_when_structured_response_is_missing(monkeypatch, tmp_path) -> None:
+    runtime = build_supervisor_runtime(tmp_path)
+
+    class MissingResponseSupervisor:
+        async def ainvoke(self, state, config):
+            return {"structured_response": None}
+
+    monkeypatch.setattr(
+        "generaldataagent.agents.metric_supervisor.build_supervisor",
+        lambda **kwargs: MissingResponseSupervisor(),
+    )
+    result = runtime.run(
+        MetricQuery(metric_name="event_count", metric_version="v1"),
+        actor(),
+        thread_id="missing-response-test",
+    )
+
+    assert result.status == "failed"
+    assert result.delegated_roles == ()
+    assert result.limitations == ("missing structured Supervisor response",)
+
+
 def test_supervisor_uses_fixed_reporter_after_verified_candidate(monkeypatch, tmp_path) -> None:
     runtime = build_supervisor_runtime(tmp_path)
 
@@ -147,7 +170,7 @@ def test_supervisor_uses_fixed_reporter_after_verified_candidate(monkeypatch, tm
         def __init__(self, groups) -> None:
             self.groups = groups
 
-        def invoke(self, state, config):
+        async def ainvoke(self, state, config):
             self.calls += 1
             arguments = {
                 "metric_name": "event_count",
@@ -155,22 +178,16 @@ def test_supervisor_uses_fixed_reporter_after_verified_candidate(monkeypatch, tm
                 "dimensions": ["segment"],
             }
             self.groups["discovery"][0].invoke(arguments)
-            analysis = self.groups["data_analysis"][0].invoke(arguments)
+            self.groups["data_analysis"][0].invoke(arguments)
             self.groups["verification"][0].invoke({})
             return {
-                "structured_response": {
-                    "status": "completed",
-                    "summary": "done",
-                    "task_id": analysis["task_id"],
-                    "delegated_roles": ("discovery", "data-analyst", "verifier"),
-                    "artifact_uris": [],
-                    "limitations": [],
-                }
+                "structured_response": None,
             }
 
     built = []
 
     def fake_builder(**kwargs):
+        assert "MUST delegate" in kwargs["system_prompt"]
         supervisor = FakeSupervisor(kwargs["tool_groups"])
         built.append(supervisor)
         return supervisor
@@ -190,3 +207,26 @@ def test_supervisor_uses_fixed_reporter_after_verified_candidate(monkeypatch, tm
     assert result.summary == "Certified metric query returned 2 row(s)."
     assert result.delegated_roles == ("discovery", "data-analyst", "verifier", "reporter")
     assert result.artifact_uris
+
+
+def test_supervisor_enforces_total_runtime_budget(monkeypatch, tmp_path) -> None:
+    runtime = build_supervisor_runtime(tmp_path)
+
+    class SlowSupervisor:
+        async def ainvoke(self, state, config):
+            await asyncio.sleep(1)
+            return {"structured_response": None}
+
+    monkeypatch.setattr(
+        "generaldataagent.agents.metric_supervisor.build_supervisor",
+        lambda **kwargs: SlowSupervisor(),
+    )
+    result = runtime.run(
+        MetricQuery(metric_name="event_count", metric_version="v1"),
+        actor(),
+        thread_id="total-timeout-test",
+        max_runtime_seconds=0.01,
+    )
+
+    assert result.status == "failed"
+    assert result.limitations == ("model invocation failed: TimeoutError",)

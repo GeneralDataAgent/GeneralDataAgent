@@ -1,0 +1,26 @@
+{"case_id":"sem-001","question":"number of trips","actor_domains":["mobility.tlc"],"expected_status":"resolved","expected_metric":"trip_count"}
+{"case_id":"sem-002","question":"行程数","actor_domains":["mobility.tlc"],"expected_status":"resolved","expected_metric":"trip_count"}
+{"case_id":"sem-003","question":"total fare","actor_domains":["mobility.tlc"],"expected_status":"resolved","expected_metric":"total_fare_amount"}
+{"case_id":"sem-004","question":"总车费","actor_domains":["mobility.tlc"],"expected_status":"resolved","expected_metric":"total_fare_amount"}
+{"case_id":"sem-005","question":"average fare","actor_domains":["mobility.tlc"],"expected_status":"resolved","expected_metric":"average_fare_amount"}
+{"case_id":"sem-006","question":"平均车费","actor_domains":["mobility.tlc"],"expected_status":"resolved","expected_metric":"average_fare_amount"}
+{"case_id":"sem-007","question":"total charged","actor_domains":["mobility.tlc"],"expected_status":"resolved","expected_metric":"total_charged_amount"}
+{"case_id":"sem-008","question":"总金额","actor_domains":["mobility.tlc"],"expected_status":"resolved","expected_metric":"total_charged_amount"}
+{"case_id":"sem-009","question":"average charged","actor_domains":["mobility.tlc"],"expected_status":"resolved","expected_metric":"average_charged_amount"}
+{"case_id":"sem-010","question":"平均总金额","actor_domains":["mobility.tlc"],"expected_status":"resolved","expected_metric":"average_charged_amount"}
+{"case_id":"sem-011","question":"total distance","actor_domains":["mobility.tlc"],"expected_status":"resolved","expected_metric":"total_trip_distance"}
+{"case_id":"sem-012","question":"总里程","actor_domains":["mobility.tlc"],"expected_status":"resolved","expected_metric":"total_trip_distance"}
+{"case_id":"sem-013","question":"average distance","actor_domains":["mobility.tlc"],"expected_status":"resolved","expected_metric":"average_trip_distance"}
+{"case_id":"sem-014","question":"平均里程","actor_domains":["mobility.tlc"],"expected_status":"resolved","expected_metric":"average_trip_distance"}
+{"case_id":"sem-015","question":"average passengers","actor_domains":["mobility.tlc"],"expected_status":"resolved","expected_metric":"average_passenger_count"}
+{"case_id":"sem-016","question":"平均乘客数","actor_domains":["mobility.tlc"],"expected_status":"resolved","expected_metric":"average_passenger_count"}
+{"case_id":"sem-017","question":"fare","actor_domains":["mobility.tlc"],"expected_status":"ambiguous"}
+{"case_id":"sem-018","question":"车费","actor_domains":["mobility.tlc"],"expected_status":"ambiguous"}
+{"case_id":"sem-019","question":"charged amount","actor_domains":["mobility.tlc"],"expected_status":"ambiguous"}
+{"case_id":"sem-020","question":"总费用","actor_domains":["mobility.tlc"],"expected_status":"ambiguous"}
+{"case_id":"sem-021","question":"trip distance","actor_domains":["mobility.tlc"],"expected_status":"ambiguous"}
+{"case_id":"sem-022","question":"行程里程","actor_domains":["mobility.tlc"],"expected_status":"ambiguous"}
+{"case_id":"sem-023","question":"revenue","actor_domains":["mobility.tlc"],"expected_status":"not_found"}
+{"case_id":"sem-024","question":"conversion rate","actor_domains":["mobility.tlc"],"expected_status":"not_found"}
+{"case_id":"sem-025","question":"number of trips","actor_domains":["finance"],"expected_status":"not_found"}
+{"case_id":"sem-026","question":"总车费","actor_domains":["commerce"],"expected_status":"not_found"}

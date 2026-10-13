@@ -1,5 +1,6 @@
 """Run the real Deep Agents Supervisor over the governed TLC metric tools."""
 
+import argparse
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -11,13 +12,22 @@ from generaldataagent.datasets import (
     download_tlc_sources,
     prepare_tlc_database,
 )
-from generaldataagent.llm import CcSwitchProvider
+from generaldataagent.llm import CcSwitchProvider, OpenAiCcSwitchProvider
 from generaldataagent.observability import JsonlAuditSink
 from generaldataagent.orchestration import MetricAnalysisRuntime
 from generaldataagent.tools import SQLiteReadOnlyExecutor
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--provider-id",
+        help="Stable CC Switch provider id; defaults to its current Claude provider.",
+    )
+    parser.add_argument("--app-type", choices=("claude", "codex"), default="claude")
+    parser.add_argument("--timeout-seconds", type=float, default=30)
+    parser.add_argument("--max-runtime-seconds", type=float, default=60)
+    arguments = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     trips, zones = download_tlc_sources(root / "data" / "tlc" / "raw")
     database = root / "data" / "tlc" / "tlc-2025-01.sqlite"
@@ -30,9 +40,16 @@ def main() -> None:
         artifacts=LocalArtifactStore(root / ".artifacts" / "tlc-multi-agent"),
         audit=JsonlAuditSink(root / ".state" / "tlc-multi-agent" / "audit.jsonl"),
     )
-    provider = CcSwitchProvider.load()
+    provider = (
+        CcSwitchProvider.load(provider_id=arguments.provider_id)
+        if arguments.app_type == "claude"
+        else OpenAiCcSwitchProvider.load(provider_id=arguments.provider_id)
+    )
     supervisor = MetricSupervisorRuntime(
-        model=provider.build_chat_model(timeout_seconds=30, max_retries=0),
+        model=provider.build_chat_model(
+            timeout_seconds=arguments.timeout_seconds,
+            max_retries=0,
+        ),
         catalog=catalog,
         metric_runtime=metric_runtime,
     )
@@ -51,6 +68,7 @@ def main() -> None:
             data_domains=("mobility.tlc",),
         ),
         thread_id="tlc-real-multi-agent-demo",
+        max_runtime_seconds=arguments.max_runtime_seconds,
     )
     print(result.model_dump_json(indent=2))
 

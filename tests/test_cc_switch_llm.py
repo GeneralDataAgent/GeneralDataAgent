@@ -19,6 +19,7 @@ def create_provider_database(path, *, current: bool = True) -> None:
         connection.execute(
             """
             CREATE TABLE providers (
+                id TEXT,
                 name TEXT,
                 app_type TEXT,
                 settings_config TEXT,
@@ -27,8 +28,8 @@ def create_provider_database(path, *, current: bool = True) -> None:
             """
         )
         connection.execute(
-            "INSERT INTO providers VALUES (?, ?, ?, ?)",
-            ("Test Provider", "claude", json.dumps(settings), int(current)),
+            "INSERT INTO providers VALUES (?, ?, ?, ?, ?)",
+            ("test-provider-id", "Test Provider", "claude", json.dumps(settings), int(current)),
         )
 
 
@@ -38,6 +39,7 @@ def test_loads_current_provider_without_exposing_secret(tmp_path) -> None:
     provider = CcSwitchProvider.load(database)
 
     assert provider.provider_name == "Test Provider"
+    assert provider.provider_id == "test-provider-id"
     assert provider.model == "test-model"
     assert provider.base_url == "https://models.example.test"
     assert provider.api_key == SecretStr("secret-value")
@@ -60,3 +62,21 @@ def test_rejects_invalid_model_runtime_limits(tmp_path) -> None:
         provider.build_chat_model(timeout_seconds=0)
     with pytest.raises(ValueError, match="negative"):
         provider.build_chat_model(max_retries=-1)
+
+
+def test_loads_provider_by_stable_id(tmp_path) -> None:
+    database = tmp_path / "cc-switch.db"
+    create_provider_database(database, current=False)
+    provider = CcSwitchProvider.load(database, provider_id="test-provider-id")
+    assert provider.provider_name == "Test Provider"
+
+
+def test_rejects_multiple_provider_selectors(tmp_path) -> None:
+    database = tmp_path / "cc-switch.db"
+    create_provider_database(database)
+    with pytest.raises(ValueError, match="not both"):
+        CcSwitchProvider.load(
+            database,
+            provider_id="test-provider-id",
+            provider_name="Test Provider",
+        )

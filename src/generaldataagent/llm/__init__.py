@@ -7,6 +7,7 @@ from generaldataagent.llm.cc_switch import (
     LlmInvocationError,
     Narrative,
 )
+from generaldataagent.llm.cc_switch_openai import OpenAiCcSwitchProvider
 
 __all__ = [
     "CcSwitchProvider",
@@ -14,4 +15,5 @@ __all__ = [
     "LlmConfigurationError",
     "LlmInvocationError",
     "Narrative",
+    "OpenAiCcSwitchProvider",
 ]

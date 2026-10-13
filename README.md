@@ -12,13 +12,16 @@ GeneralDataAgent is a governed multi-agent foundation for data analytics, data e
 - Local artifact store with path isolation and content hashes.
 - Append-only local audit sink for development.
 - LangGraph phase-one workflow skeleton with checkpoint support.
-- Certified metric catalog and parameterized query compiler.
+- Certified metric catalog with eight TLC metrics and a parameterized query compiler.
+- Authorization-filtered English and Chinese metric alias resolution with explicit ambiguity.
 - Read-only SQLite execution with timeout, row limit, and query-plan capture.
 - Deep Agents specialist definitions for discovery, engineering, analysis, science, verification, and reporting.
 - Governed metric Supervisor with actor-bound tools, deterministic role ledger, and a fixed
   post-validation Reporter node.
 - Versioned table, chart, claim, and delivery contracts with claim-level evidence validation.
-- Anthropic-compatible LangChain model loading from the current CC Switch provider without copying credentials.
+- Anthropic-compatible and OpenAI Responses-compatible LangChain model loading from CC Switch by
+  stable provider ID without copying credentials.
+- Append-only human-review collection and acceptance summaries.
 - Real NYC TLC Parquet ingestion with source hashes and a curated SQLite snapshot.
 - FastAPI health, capability, contract-validation, and certified-metric endpoints.
 
@@ -87,6 +90,8 @@ See [the dataset selection](docs/research/open-dataset-selection.md) and
 
 ```bash
 uv run python examples/tlc_multi_agent_demo.py
+# Or select a CC Switch Codex/OpenAI Responses provider explicitly:
+uv run python examples/tlc_multi_agent_demo.py --app-type codex --provider-id <provider-id>
 ```
 
 The Supervisor dynamically delegates semantic discovery, certified metric execution, and
@@ -101,10 +106,16 @@ latency target; see [the multi-agent acceptance record](docs/validation/tlc-mult
 uv run python evals/run_stage1.py
 ```
 
-The frozen baseline contains 60 cases: 30 certified metric queries and 30 negative authorization,
-dimension, and catalog cases. The runner executes them against the curated TLC snapshot and emits a
-case-level pass report. This deterministic baseline does not replace the still-open real-model,
-human-review, ambiguity, and latency acceptance gates.
+The frozen baseline contains 60 execution cases plus 26 semantic-resolution cases. The runner
+executes them against the curated TLC snapshot and emits case-level pass reports. This
+deterministic baseline does not replace the still-open real-model, value-level SQL, collected
+human-review, and latency acceptance gates.
+
+The API also exposes `POST /v1/analysis/questions` for deterministic natural-language metric
+resolution and analysis, `POST /v1/reviews` for appending a scored review, and
+`GET /v1/reviews/{task_id}/summary` for evaluating the review gate. Runtime construction must
+explicitly configure the metric runtime and review store; the module-level development app keeps
+both disabled by default.
 
 See [implementation status](docs/implementation-status.md) for completed and remaining roadmap work.
 

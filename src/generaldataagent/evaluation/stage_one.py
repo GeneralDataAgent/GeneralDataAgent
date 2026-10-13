@@ -8,7 +8,7 @@ from typing import Any, Literal, Protocol
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from generaldataagent.catalog import MetricNotFoundError
-from generaldataagent.contracts import ActorContext, MetricQuery
+from generaldataagent.contracts import ActorContext, MetricQuery, NaturalLanguageMetricQuery
 from generaldataagent.tools import QueryExecutionError
 
 
@@ -61,6 +61,24 @@ class EvaluationReport(BaseModel):
     results: tuple[EvaluationCaseResult, ...]
 
 
+class SemanticEvalCase(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    case_id: str = Field(pattern=r"^sem-[0-9]{3}$")
+    question: str = Field(min_length=1, max_length=2_000)
+    actor_domains: tuple[str, ...] = Field(min_length=1)
+    expected_status: Literal["resolved", "ambiguous", "not_found"]
+    expected_metric: str | None = None
+
+    @model_validator(mode="after")
+    def resolved_case_requires_metric(self) -> "SemanticEvalCase":
+        if self.expected_status == "resolved" and self.expected_metric is None:
+            raise ValueError("resolved semantic cases require expected_metric")
+        if self.expected_status != "resolved" and self.expected_metric is not None:
+            raise ValueError("unresolved semantic cases cannot define expected_metric")
+        return self
+
+
 def load_stage_one_cases(path: Path) -> tuple[StageOneEvalCase, ...]:
     cases: list[StageOneEvalCase] = []
     for line_number, line in enumerate(path.read_text().splitlines(), start=1):
@@ -73,6 +91,21 @@ def load_stage_one_cases(path: Path) -> tuple[StageOneEvalCase, ...]:
     case_ids = [case.case_id for case in cases]
     if len(case_ids) != len(set(case_ids)):
         raise ValueError("evaluation case ids must be unique")
+    return tuple(cases)
+
+
+def load_semantic_cases(path: Path) -> tuple[SemanticEvalCase, ...]:
+    cases: list[SemanticEvalCase] = []
+    for line_number, line in enumerate(path.read_text().splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            cases.append(SemanticEvalCase.model_validate_json(line))
+        except (ValidationError, ValueError) as exc:
+            raise ValueError(f"invalid semantic evaluation case at line {line_number}") from exc
+    case_ids = [case.case_id for case in cases]
+    if len(case_ids) != len(set(case_ids)):
+        raise ValueError("semantic evaluation case ids must be unique")
     return tuple(cases)
 
 
@@ -124,6 +157,56 @@ def evaluate_stage_one(
         failed=len(materialized) - passed_count,
         pass_rate=(passed_count / len(materialized)) if materialized else 0.0,
         category_counts=dict(Counter(case.category for case in materialized)),
+        results=tuple(results),
+    )
+
+
+def evaluate_semantic_resolution(
+    runtime: Any,
+    cases: Iterable[SemanticEvalCase],
+    *,
+    user_id: str = "semantic-evaluator",
+    tenant_id: str = "stage1",
+    project_id: str = "semantic-regression",
+) -> EvaluationReport:
+    materialized = tuple(cases)
+    results: list[EvaluationCaseResult] = []
+    for case in materialized:
+        actor = ActorContext(
+            user_id=user_id,
+            tenant_id=tenant_id,
+            project_id=project_id,
+            data_domains=case.actor_domains,
+        )
+        resolution = runtime.resolve_question(
+            NaturalLanguageMetricQuery(question=case.question),
+            actor,
+        )
+        actual_metric = (
+            resolution.candidates[0].metric_name if resolution.status == "resolved" else None
+        )
+        passed = resolution.status == case.expected_status and actual_metric == case.expected_metric
+        results.append(
+            EvaluationCaseResult(
+                case_id=case.case_id,
+                passed=passed,
+                expected=(
+                    f"{case.expected_status}:{case.expected_metric}"
+                    if case.expected_metric
+                    else case.expected_status
+                ),
+                actual=(
+                    f"{resolution.status}:{actual_metric}" if actual_metric else resolution.status
+                ),
+            )
+        )
+    passed_count = sum(item.passed for item in results)
+    return EvaluationReport(
+        dataset_size=len(materialized),
+        passed=passed_count,
+        failed=len(materialized) - passed_count,
+        pass_rate=(passed_count / len(materialized)) if materialized else 0.0,
+        category_counts=dict(Counter(case.expected_status for case in materialized)),
         results=tuple(results),
     )
 

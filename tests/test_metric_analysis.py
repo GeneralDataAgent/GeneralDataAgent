@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from generaldataagent.api.app import create_app
 from generaldataagent.artifacts import LocalArtifactStore
 from generaldataagent.catalog import InMemoryMetricCatalog, MetricDefinition
-from generaldataagent.contracts import ActorContext, MetricQuery
+from generaldataagent.contracts import ActorContext, MetricQuery, NaturalLanguageMetricQuery
 from generaldataagent.llm import Narrative
 from generaldataagent.observability import JsonlAuditSink
 from generaldataagent.orchestration import MetricAnalysisRuntime
@@ -32,6 +32,7 @@ def build_runtime(tmp_path) -> MetricAnalysisRuntime:
         name="order_count",
         version="v1",
         description="Number of accepted orders",
+        aliases=("order count", "number of orders", "orders", "订单量"),
         data_domain="commerce",
         relation="orders",
         expression="COUNT(*)",
@@ -147,6 +148,65 @@ def test_metric_analysis_rejects_uncertified_dimension(tmp_path) -> None:
         runtime.run(unsafe_query, actor())
 
 
+def test_natural_language_metric_question_resolves_and_runs(tmp_path) -> None:
+    runtime = build_runtime(tmp_path)
+    result = runtime.analyze_question(
+        NaturalLanguageMetricQuery(
+            question="Show the number of orders by channel",
+            dimensions=("channel",),
+            start_time=datetime(2026, 10, 1, tzinfo=UTC),
+            end_time=datetime(2026, 11, 1, tzinfo=UTC),
+        ),
+        actor(),
+        thread_id="natural-language-resolved",
+    )
+
+    assert result["status"] == "completed"
+    assert result["resolution"]["status"] == "resolved"
+    assert result["resolution"]["candidates"][0]["metric_name"] == "order_count"
+
+
+def test_natural_language_metric_question_requires_clarification_on_ambiguity(tmp_path) -> None:
+    runtime = build_runtime(tmp_path)
+    order_metric = runtime.catalog.get("order_count", "v1")
+    runtime.catalog = InMemoryMetricCatalog(
+        [
+            order_metric,
+            order_metric.model_copy(
+                update={
+                    "name": "average_order_value",
+                    "description": "Average accepted order value",
+                    "aliases": ("average order value", "orders"),
+                    "expression": "AVG(1)",
+                    "unit": "USD",
+                }
+            ),
+        ]
+    )
+    result = runtime.analyze_question(
+        NaturalLanguageMetricQuery(question="orders"),
+        actor(),
+        thread_id="natural-language-ambiguous",
+    )
+
+    assert result["status"] == "needs_clarification"
+    assert result["resolution"]["status"] == "ambiguous"
+    assert len(result["resolution"]["candidates"]) == 2
+
+
+def test_natural_language_resolution_hides_unauthorized_catalog_entries(tmp_path) -> None:
+    runtime = build_runtime(tmp_path)
+    result = runtime.analyze_question(
+        NaturalLanguageMetricQuery(question="orders"),
+        actor().model_copy(update={"data_domains": ("finance",)}),
+        thread_id="natural-language-unauthorized",
+    )
+
+    assert result["status"] == "needs_clarification"
+    assert result["resolution"]["status"] == "not_found"
+    assert result["resolution"]["candidates"] == []
+
+
 def test_metric_analysis_rejects_unauthorized_data_domain(tmp_path) -> None:
     runtime = build_runtime(tmp_path)
     unauthorized_actor = actor().model_copy(update={"data_domains": ("finance",)})
@@ -204,3 +264,26 @@ def test_metric_analysis_api_maps_unknown_metric(tmp_path) -> None:
         json=payload,
     )
     assert response.status_code == 404
+
+
+def test_natural_language_metric_api_returns_resolution(tmp_path) -> None:
+    client = TestClient(create_app(build_runtime(tmp_path)))
+    response = client.post(
+        "/v1/analysis/questions",
+        headers={
+            "x-user-id": "user-1",
+            "x-tenant-id": "tenant-1",
+            "x-project-id": "project-1",
+            "x-data-domain": "commerce",
+        },
+        json={
+            "question": "Show the number of orders by channel",
+            "dimensions": ["channel"],
+            "start_time": "2026-10-01T00:00:00Z",
+            "end_time": "2026-11-01T00:00:00Z",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "completed"
+    assert response.json()["resolution"]["status"] == "resolved"

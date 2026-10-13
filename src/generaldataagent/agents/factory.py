@@ -35,6 +35,7 @@ def build_supervisor(
     specialist_specs: Sequence[SpecialistSpec] = SPECIALIST_SPECS,
     response_formats: Mapping[str, Any] | None = None,
     response_format: Any | None = None,
+    system_prompt: str = SUPERVISOR_PROMPT,
 ) -> Any:
     """Create a model-provider-neutral Deep Agents supervisor.
 
@@ -42,7 +43,7 @@ def build_supervisor(
     specialist's tools when the field is supplied.
     """
 
-    _register_governed_anthropic_profile()
+    _register_governed_profiles()
     subagents = []
     for spec in specialist_specs:
         subagent: dict[str, Any] = {
@@ -57,7 +58,7 @@ def build_supervisor(
 
     kwargs: dict[str, Any] = {
         "model": model,
-        "system_prompt": SUPERVISOR_PROMPT,
+        "system_prompt": system_prompt,
         "tools": list(tool_groups.get("supervisor", ())),
         "subagents": subagents,
     }
@@ -70,15 +71,14 @@ def build_supervisor(
     return create_deep_agent(**kwargs)
 
 
-def _register_governed_anthropic_profile() -> None:
+def _register_governed_profiles() -> None:
     global _PROFILE_REGISTERED  # noqa: PLW0603
     if _PROFILE_REGISTERED:
         return
-    register_harness_profile(
-        "anthropic",
-        HarnessProfile(
-            excluded_tools=_GOVERNED_EXCLUDED_TOOLS,
-            general_purpose_subagent=GeneralPurposeSubagentProfile(enabled=False),
-        ),
+    profile = HarnessProfile(
+        excluded_tools=_GOVERNED_EXCLUDED_TOOLS,
+        general_purpose_subagent=GeneralPurposeSubagentProfile(enabled=False),
     )
+    register_harness_profile("anthropic", profile)
+    register_harness_profile("openai", profile)
     _PROFILE_REGISTERED = True
