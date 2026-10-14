@@ -27,6 +27,7 @@ from generaldataagent.data_engineering import (
     compare_schemas,
     execute_quality_rules,
     profile_relation,
+    run_profile_load_gate,
 )
 from generaldataagent.policy import PolicyEngine
 
@@ -443,6 +444,40 @@ def test_parallel_profiling_isolates_fifty_requests(tmp_path) -> None:
     ]
     assert len({item.task_id for item in result.items}) == 50
     assert len(list((tmp_path / "artifacts").rglob("*.json"))) == 50
+    assert all(item.elapsed_ms > 0 for item in result.items)
+
+
+def test_profile_load_gate_covers_one_hundred_isolated_requests(tmp_path) -> None:
+    database = tmp_path / "load.db"
+    create_sqlite_database(database)
+    runtime = DataEngineeringRuntime(
+        connectors={"warehouse": SQLiteConnector(database, connector_id="warehouse")},
+        connector_domains={"warehouse": frozenset({"commerce"})},
+        artifacts=LocalArtifactStore(tmp_path / "artifacts"),
+    )
+    actor = ActorContext(
+        user_id="load-gate",
+        tenant_id="tenant-1",
+        project_id="project-1",
+        data_domains=("commerce",),
+    )
+
+    result = run_profile_load_gate(
+        runtime,
+        actor=actor,
+        connector_id="warehouse",
+        relation="orders",
+        request_count=100,
+        max_workers=8,
+        max_p95_ms=5_000,
+    )
+
+    assert result.passed is True
+    assert result.succeeded == 100
+    assert result.failed == 0
+    assert result.cancelled == 0
+    assert result.artifact_count == 100
+    assert result.p95_request_ms <= result.max_p95_ms
 
 
 def test_parallel_profiling_reports_partial_failure_without_cross_talk(tmp_path) -> None:

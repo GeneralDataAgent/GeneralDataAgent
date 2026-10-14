@@ -26,6 +26,9 @@ This increment establishes the first read-only Stage 2 vertical slice:
   retains completed results; already-running work remains bounded by connector deadlines.
 - Runtime cancellation tokens are opaque audit-safe identifiers; the underlying event stays local
   and interrupts active SQLite or DuckDB queries with the shared cancelled error code.
+- Every parallel item records submission-to-completion latency, including queue time. A reproducible
+  local gate runs 100 requests and requires zero failures, zero cancellations, one isolated artifact
+  per success, and an end-to-end P95 no greater than five seconds.
 - The optional dbt adapter runs only `dbt compile` against a pinned project and profiles directory,
   accepts only explicit development or CI targets, validates selectors, applies a hard timeout, and
   redacts local paths from the persisted command report.
@@ -47,6 +50,7 @@ uv run ruff check .
 uv run python examples/stage2_data_engineering_demo.py
 uv run python evals/run_stage1.py
 uv run python evals/run_stage2.py
+uv run python evals/run_stage2_load.py
 ```
 
 Expected demo summary:
@@ -66,8 +70,8 @@ This is a development foundation, not Stage 2 acceptance. The following remain o
 
 - real-project dbt compile qualification and R2-gated dbt test execution;
 - authoritative catalog and Dashboard dependency verification beyond the dbt manifest snapshot;
-- production-scale load testing beyond the completed cooperative cancellation, 50-request
-  isolation regression, and connector deadline tests;
+- production-scale load testing beyond the completed cooperative cancellation, reproducible local
+  100-request P95 gate, and connector deadline tests;
 - comparison of the frozen Stage 2 corpus with an authoritative profiler and real projects;
 - optional R2 development-write approval trial, which remains disabled;
 - real source credentials, production identity propagation, and production connector hardening.
@@ -80,3 +84,7 @@ No production write path is registered by this runtime.
 quality rules, lineage impact, transformation safety, and hand-calculated profile oracles. The
 runner emits case-level failures and category counts. This baseline is a component regression gate;
 it does not replace comparison with an independent authoritative profiler or real dbt projects.
+
+The local load runner creates an ephemeral 1,000-row SQLite source and 100 isolated task requests.
+Its five-second P95 threshold is deliberately environment-tolerant for CI; record the observed
+latency as diagnostic evidence, not as a production SLO or capacity result.

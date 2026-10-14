@@ -148,6 +148,15 @@ Run the frozen 25-case Stage 2 component baseline with:
 uv run python evals/run_stage2.py
 ```
 
+Run the reproducible 100-request local profiling load gate with:
+
+```bash
+uv run python evals/run_stage2_load.py
+```
+
+The gate fails on any failed or cancelled request, missing task artifact, or local end-to-end P95
+above five seconds. It is a development regression, not a production capacity claim.
+
 ## Package map
 
 ```text

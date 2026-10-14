@@ -3,6 +3,7 @@
 from collections.abc import Mapping
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from threading import Event, Lock
+from time import monotonic
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -282,13 +283,17 @@ class DataEngineeringRuntime:
             raise ValueError("parallel profiling request ids must be unique")
 
         if cancel_event is not None and cancel_event.is_set():
-            items = tuple(self._cancelled_profile_item(request) for request in requests)
+            items = tuple(
+                self._cancelled_profile_item(request, elapsed_ms=0.0) for request in requests
+            )
             return ProfileBatchResult(items=items, all_succeeded=False)
 
         results: dict[UUID, ProfileBatchItem] = {}
         with ThreadPoolExecutor(max_workers=min(max_workers, len(requests))) as executor:
-            pending: dict[Future[DataProfile], ProfileBatchRequest] = {
-                executor.submit(
+            pending: dict[Future[DataProfile], tuple[ProfileBatchRequest, float]] = {}
+            for request in requests:
+                submitted_at = monotonic()
+                future = executor.submit(
                     self.profile_relation,
                     task_id=request.task_id,
                     actor=actor,
@@ -296,21 +301,27 @@ class DataEngineeringRuntime:
                     relation=request.relation,
                     trace_id=f"{trace_id}:{request.request_id}",
                     cancel_event=cancel_event,
-                ): request
-                for request in requests
-            }
+                )
+                pending[future] = (request, submitted_at)
             while pending:
                 if cancel_event is not None and cancel_event.is_set():
-                    for future, request in tuple(pending.items()):
+                    for future, (request, submitted_at) in tuple(pending.items()):
                         if future.cancel():
-                            results[request.request_id] = self._cancelled_profile_item(request)
+                            results[request.request_id] = self._cancelled_profile_item(
+                                request,
+                                elapsed_ms=(monotonic() - submitted_at) * 1_000,
+                            )
                             del pending[future]
                 if not pending:
                     break
                 completed, _ = wait(pending, timeout=0.05, return_when=FIRST_COMPLETED)
                 for future in completed:
-                    request = pending.pop(future)
-                    results[request.request_id] = self._completed_profile_item(future, request)
+                    request, submitted_at = pending.pop(future)
+                    results[request.request_id] = self._completed_profile_item(
+                        future,
+                        request,
+                        elapsed_ms=(monotonic() - submitted_at) * 1_000,
+                    )
         items = tuple(results[request.request_id] for request in requests)
         return ProfileBatchResult(
             items=items,
@@ -318,13 +329,18 @@ class DataEngineeringRuntime:
         )
 
     @staticmethod
-    def _cancelled_profile_item(request: ProfileBatchRequest) -> ProfileBatchItem:
+    def _cancelled_profile_item(
+        request: ProfileBatchRequest,
+        *,
+        elapsed_ms: float,
+    ) -> ProfileBatchItem:
         return ProfileBatchItem(
             request_id=request.request_id,
             task_id=request.task_id,
             connector_id=request.connector_id,
             relation=request.relation,
             status="cancelled",
+            elapsed_ms=elapsed_ms,
             error_code="cancelled",
             error_message="profiling request was cancelled before execution",
         )
@@ -333,6 +349,8 @@ class DataEngineeringRuntime:
     def _completed_profile_item(
         future: Future[DataProfile],
         request: ProfileBatchRequest,
+        *,
+        elapsed_ms: float,
     ) -> ProfileBatchItem:
         try:
             profile = future.result()
@@ -345,6 +363,7 @@ class DataEngineeringRuntime:
                 connector_id=request.connector_id,
                 relation=request.relation,
                 status=status,
+                elapsed_ms=elapsed_ms,
                 error_code=error_code or type(exc).__name__,
                 error_message=str(exc),
             )
@@ -354,6 +373,7 @@ class DataEngineeringRuntime:
             connector_id=request.connector_id,
             relation=request.relation,
             status="succeeded",
+            elapsed_ms=elapsed_ms,
             profile=profile,
         )
 

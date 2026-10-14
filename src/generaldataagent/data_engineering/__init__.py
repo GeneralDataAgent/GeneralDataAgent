@@ -6,6 +6,7 @@ from generaldataagent.data_engineering.catalog_lineage import (
 )
 from generaldataagent.data_engineering.dbt import DbtCompileError, DbtCompileRunner
 from generaldataagent.data_engineering.impact import analyze_impact
+from generaldataagent.data_engineering.load_gate import run_profile_load_gate
 from generaldataagent.data_engineering.profile import profile_relation
 from generaldataagent.data_engineering.profile_validation import compare_profiles
 from generaldataagent.data_engineering.quality import execute_quality_rules
@@ -25,4 +26,5 @@ __all__ = [
     "compare_profiles",
     "execute_quality_rules",
     "profile_relation",
+    "run_profile_load_gate",
 ]

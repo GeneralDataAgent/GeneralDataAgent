@@ -290,6 +290,7 @@ class ProfileBatchItem(ContractModel):
     connector_id: str = Field(min_length=1, max_length=128)
     relation: str = Field(min_length=1, max_length=512)
     status: Literal["succeeded", "failed", "cancelled"]
+    elapsed_ms: float = Field(ge=0)
     profile: DataProfile | None = None
     error_code: str | None = Field(default=None, max_length=128)
     error_message: str | None = Field(default=None, max_length=2_000)
@@ -320,6 +321,35 @@ class ProfileBatchResult(ContractModel):
         expected = all(item.status == "succeeded" for item in self.items)
         if self.all_succeeded != expected:
             raise ValueError("all_succeeded must match batch items")
+        return self
+
+
+class ProfileLoadGateResult(ContractModel):
+    request_count: int = Field(ge=1)
+    max_workers: int = Field(ge=1, le=32)
+    succeeded: int = Field(ge=0)
+    failed: int = Field(ge=0)
+    cancelled: int = Field(ge=0)
+    artifact_count: int = Field(ge=0)
+    elapsed_ms: float = Field(ge=0)
+    p95_request_ms: float = Field(ge=0)
+    max_p95_ms: float = Field(gt=0)
+    passed: bool
+    generated_at: datetime = Field(default_factory=utc_now)
+
+    @model_validator(mode="after")
+    def summary_matches_gate(self) -> "ProfileLoadGateResult":
+        if self.succeeded + self.failed + self.cancelled != self.request_count:
+            raise ValueError("load gate outcomes must match request_count")
+        expected = (
+            self.failed == 0
+            and self.cancelled == 0
+            and self.succeeded == self.request_count
+            and self.artifact_count == self.succeeded
+            and self.p95_request_ms <= self.max_p95_ms
+        )
+        if self.passed != expected:
+            raise ValueError("load gate status must match outcomes, artifacts, and latency")
         return self
 
 
