@@ -15,6 +15,8 @@ This increment establishes the first read-only Stage 2 vertical slice:
 - Deterministic profiling calculates row count, null count, distinct count, minimum, maximum, and
   numeric mean.
 - Deterministic schema diff identifies added, removed, type-changed, and nullability-changed columns.
+- A fail-closed compatibility gate permits additive columns, but breaking drift raises a structured
+  replanning error; the governed runtime persists the full diff before propagating the failure.
 - Constrained not-null, unique, accepted-values, and range rules execute inside the source engine.
 - Dry-run-only transformation proposals accept one parsed read query, explicit tests, an impact
   summary, and a rollback plan; mutation and unauthorized source references are rejected.

@@ -142,6 +142,11 @@ impact, and persists every result as a local immutable artifact. It does not reg
 tool. See the
 [Stage 2 validation record](docs/validation/stage2-foundation.md) for the current acceptance boundary.
 
+For execution paths that depend on a frozen schema, `require_compatible_schema` allows additive
+columns but raises a structured `SchemaDriftError` for removals, type changes, or nullability
+changes. The governed runtime persists the breaking diff before stopping so an orchestrator can
+replan without silently using stale fields.
+
 Run the frozen 25-case Stage 2 component baseline with:
 
 ```bash

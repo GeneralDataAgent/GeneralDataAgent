@@ -41,6 +41,9 @@ data access:
   reject malformed or internally inconsistent results.
 - Profiling and quality checks execute deterministic source-side aggregation queries.
 - Schema drift is explicit and marks removals, type changes, and nullability changes as breaking.
+- The schema compatibility gate permits additive drift but stops on every breaking change, carries
+  the full diff in a structured replanning error, and persists that evidence before returning the
+  failure.
 - Transformation proposals are parsed read queries with explicit tests, impact, and rollback; they
   cannot execute writes.
 - Lineage impact analysis returns stable shortest paths to downstream models, metrics, and

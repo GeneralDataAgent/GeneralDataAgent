@@ -41,6 +41,10 @@ from generaldataagent.data_engineering.impact import analyze_impact
 from generaldataagent.data_engineering.profile import profile_relation
 from generaldataagent.data_engineering.quality import execute_quality_rules
 from generaldataagent.data_engineering.schema_diff import compare_schemas
+from generaldataagent.data_engineering.schema_gate import (
+    SchemaDriftError,
+    require_compatible_schema,
+)
 from generaldataagent.data_engineering.transformation import build_transformation_proposal
 from generaldataagent.observability import JsonlAuditSink
 from generaldataagent.policy import ApprovalStore, PolicyEngine
@@ -182,6 +186,41 @@ class DataEngineeringRuntime:
         )
         result = self.gateway.invoke(request, trace_id=trace_id)
         self._store(task_id, "schema_diff", result, "data-engineer")
+        return result
+
+    def guard_schema(
+        self,
+        *,
+        task_id: UUID,
+        actor: ActorContext,
+        expected: RelationSchema,
+        actual: RelationSchema,
+        trace_id: str,
+    ) -> SchemaDiff:
+        authorized_domains = self._authorized_domains(
+            actor,
+            expected.connector_id,
+            actual.connector_id,
+        )
+        request = self._request(
+            task_id=task_id,
+            actor=actor,
+            tool_name="schema.diff",
+            action="guard",
+            resource=expected.relation,
+            arguments={
+                "before": expected.model_dump(mode="json"),
+                "after": actual.model_dump(mode="json"),
+                "fail_on_breaking": True,
+            },
+            data_domains=authorized_domains,
+        )
+        try:
+            result = self.gateway.invoke(request, trace_id=trace_id)
+        except SchemaDriftError as exc:
+            self._store(task_id, "schema_drift", exc.diff, "data-engineer")
+            raise
+        self._store(task_id, "schema_drift", result, "data-engineer")
         return result
 
     def check_quality(
@@ -628,10 +667,11 @@ class DataEngineeringRuntime:
 
     @staticmethod
     def _diff(arguments: dict[str, Any]) -> SchemaDiff:
-        return compare_schemas(
-            RelationSchema.model_validate(arguments["before"]),
-            RelationSchema.model_validate(arguments["after"]),
-        )
+        before = RelationSchema.model_validate(arguments["before"])
+        after = RelationSchema.model_validate(arguments["after"])
+        if arguments.get("fail_on_breaking") is True:
+            return require_compatible_schema(before, after)
+        return compare_schemas(before, after)
 
     @staticmethod
     def _request(

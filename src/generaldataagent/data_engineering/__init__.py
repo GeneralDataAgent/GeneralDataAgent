@@ -12,6 +12,10 @@ from generaldataagent.data_engineering.profile_validation import compare_profile
 from generaldataagent.data_engineering.quality import execute_quality_rules
 from generaldataagent.data_engineering.runtime import DataEngineeringRuntime
 from generaldataagent.data_engineering.schema_diff import compare_schemas
+from generaldataagent.data_engineering.schema_gate import (
+    SchemaDriftError,
+    require_compatible_schema,
+)
 from generaldataagent.data_engineering.transformation import build_transformation_proposal
 
 __all__ = [
@@ -20,11 +24,13 @@ __all__ = [
     "DbtManifestLineageLoader",
     "DbtCompileError",
     "DbtCompileRunner",
+    "SchemaDriftError",
     "analyze_impact",
     "build_transformation_proposal",
     "compare_schemas",
     "compare_profiles",
     "execute_quality_rules",
     "profile_relation",
+    "require_compatible_schema",
     "run_profile_load_gate",
 ]

@@ -58,7 +58,7 @@ DEFAULT_RULES = (
     PolicyRule(
         tool_name="schema.diff",
         risk_level=RiskLevel.R0,
-        allowed_actions=frozenset({"compare"}),
+        allowed_actions=frozenset({"compare", "guard"}),
         allowed_roles=frozenset({"data_engineer", "verifier"}),
         obligations=("audit",),
     ),

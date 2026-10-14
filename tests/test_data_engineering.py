@@ -24,9 +24,11 @@ from generaldataagent.contracts.data_engineering import (
 )
 from generaldataagent.data_engineering import (
     DataEngineeringRuntime,
+    SchemaDriftError,
     compare_schemas,
     execute_quality_rules,
     profile_relation,
+    require_compatible_schema,
     run_profile_load_gate,
 )
 from generaldataagent.policy import PolicyEngine
@@ -242,6 +244,102 @@ def test_schema_diff_detects_breaking_and_non_breaking_changes() -> None:
         ("amount", "nullability_changed"),
         ("id", "type_changed"),
     ]
+
+
+def test_schema_gate_stops_breaking_drift_with_replan_evidence() -> None:
+    expected = RelationSchema(
+        connector_id="warehouse",
+        relation="orders",
+        columns=(
+            ColumnSchema(name="id", data_type="INTEGER", nullable=False, ordinal_position=0),
+            ColumnSchema(name="amount", data_type="REAL", nullable=True, ordinal_position=1),
+        ),
+    )
+    actual = RelationSchema(
+        connector_id="warehouse",
+        relation="orders",
+        columns=(
+            ColumnSchema(name="id", data_type="INTEGER", nullable=False, ordinal_position=0),
+            ColumnSchema(name="amount", data_type="TEXT", nullable=True, ordinal_position=1),
+        ),
+    )
+
+    with pytest.raises(SchemaDriftError, match="requires replanning") as caught:
+        require_compatible_schema(expected, actual)
+
+    assert caught.value.diff.breaking is True
+    assert [(item.name, item.change_type) for item in caught.value.diff.changes] == [
+        ("amount", "type_changed")
+    ]
+
+
+def test_schema_gate_allows_additive_drift() -> None:
+    expected = RelationSchema(
+        connector_id="warehouse",
+        relation="orders",
+        columns=(
+            ColumnSchema(name="id", data_type="INTEGER", nullable=False, ordinal_position=0),
+        ),
+    )
+    actual = RelationSchema(
+        connector_id="warehouse",
+        relation="orders",
+        columns=(
+            ColumnSchema(name="id", data_type="INTEGER", nullable=False, ordinal_position=0),
+            ColumnSchema(name="region", data_type="TEXT", nullable=True, ordinal_position=1),
+        ),
+    )
+
+    result = require_compatible_schema(expected, actual)
+
+    assert result.breaking is False
+    assert [(item.name, item.change_type) for item in result.changes] == [
+        ("region", "added")
+    ]
+
+
+def test_runtime_schema_gate_persists_breaking_diff_before_stopping(tmp_path) -> None:
+    database = tmp_path / "source.db"
+    create_sqlite_database(database)
+    runtime = DataEngineeringRuntime(
+        connectors={"warehouse": SQLiteConnector(database, connector_id="warehouse")},
+        connector_domains={"warehouse": frozenset({"commerce"})},
+        artifacts=LocalArtifactStore(tmp_path / "artifacts"),
+    )
+    actor = ActorContext(
+        user_id="user-1",
+        tenant_id="tenant-1",
+        project_id="project-1",
+        data_domains=("commerce",),
+    )
+    expected = RelationSchema(
+        connector_id="warehouse",
+        relation="orders",
+        columns=(
+            ColumnSchema(name="id", data_type="INTEGER", nullable=False, ordinal_position=0),
+            ColumnSchema(name="amount", data_type="REAL", nullable=True, ordinal_position=1),
+        ),
+    )
+    actual = RelationSchema(
+        connector_id="warehouse",
+        relation="orders",
+        columns=(
+            ColumnSchema(name="id", data_type="INTEGER", nullable=False, ordinal_position=0),
+        ),
+    )
+
+    with pytest.raises(SchemaDriftError):
+        runtime.guard_schema(
+            task_id=uuid4(),
+            actor=actor,
+            expected=expected,
+            actual=actual,
+            trace_id="schema-guard",
+        )
+
+    artifacts = list((tmp_path / "artifacts").rglob("*.json"))
+    assert len(artifacts) == 1
+    assert '"breaking":true' in artifacts[0].read_text()
 
 
 def test_runtime_routes_profile_through_policy_and_persists_artifact(tmp_path) -> None:
