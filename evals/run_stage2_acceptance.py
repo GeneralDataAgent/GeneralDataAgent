@@ -31,6 +31,9 @@ run_load_evaluation = run_path(EVAL_DIR / "run_stage2_load.py")["run_load_evalua
 run_impact_evaluation = run_path(EVAL_DIR / "run_stage2_impact.py")[
     "run_impact_evaluation"
 ]
+run_lineage_evaluation = run_path(EVAL_DIR / "run_stage2_lineage.py")[
+    "run_lineage_evaluation"
+]
 run_quality_evaluation = run_path(EVAL_DIR / "run_stage2_quality.py")[
     "run_quality_evaluation"
 ]
@@ -72,6 +75,7 @@ def run_acceptance_report() -> dict[str, Any]:
     dbt_adapter = run_dbt_adapter_evaluation()
     load = run_load_evaluation()
     impact = run_impact_evaluation()
+    lineage = run_lineage_evaluation()
     quality = run_quality_evaluation()
     schema = run_schema_evaluation()
     transformation = run_transformation_evaluation()
@@ -97,6 +101,11 @@ def run_acceptance_report() -> dict[str, Any]:
             "gate_id": "impact_analysis_matrix",
             "status": "passed" if impact["failed"] == 0 else "failed",
             "evidence": impact,
+        },
+        {
+            "gate_id": "dbt_manifest_lineage_matrix",
+            "status": "passed" if lineage["failed"] == 0 else "failed",
+            "evidence": lineage,
         },
         {
             "gate_id": "quality_rule_matrix",

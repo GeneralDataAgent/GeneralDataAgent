@@ -195,6 +195,12 @@ Run the 16-check local fake-dbt adapter qualification with:
 uv run python evals/run_stage2_dbt_adapter.py
 ```
 
+Run the frozen 20-case dbt-manifest lineage matrix with:
+
+```bash
+uv run python evals/run_stage2_lineage.py
+```
+
 Aggregate all local Stage 2 evidence while retaining external blockers with:
 
 ```bash
@@ -215,6 +221,9 @@ The transformation matrix contains eight accepted read proposals and twelve reje
 unauthorized relations, mutations, DDL, multiple statements, locking, and incomplete safeguards.
 The local dbt gate checks timeouts, nonzero exits, target and selector restrictions, command/output
 path redaction, and one-time approval behavior. It does not satisfy the real-project dbt gate.
+The lineage matrix checks supported node normalization, dependency filtering, incomplete snapshots,
+deterministic re-ingestion, and fail-closed malformed-manifest handling. It does not replace an
+authoritative catalog comparison.
 The aggregate report exits successfully when local development gates pass, but deliberately reports
 `stage_acceptance_complete: false` until every real-environment gate has evidence.
 

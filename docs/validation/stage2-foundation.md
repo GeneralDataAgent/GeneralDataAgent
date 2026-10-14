@@ -71,6 +71,7 @@ uv run python evals/run_stage2_impact.py
 uv run python evals/run_stage2_schema.py
 uv run python evals/run_stage2_transformation.py
 uv run python evals/run_stage2_dbt_adapter.py
+uv run python evals/run_stage2_lineage.py
 uv run python evals/run_stage2_acceptance.py
 ```
 
@@ -136,6 +137,11 @@ The local fake-dbt runner performs 16 checks for compile/test success and nonzer
 timeouts, production-target and unsafe-selector rejection, exact and single-use approval binding,
 and path redaction in commands, stdout, and stderr. It qualifies adapter behavior only; the
 `real_dbt_project` external gate remains `not_run`.
+
+The frozen dbt-manifest runner contains 20 cases: ten accepted snapshots (including one explicitly
+incomplete graph) and ten rejected malformed manifests. Every accepted case is loaded twice to
+verify stable hashes, assets, and unresolved dependencies. Authoritative catalog comparison remains
+an external `not_run` gate.
 
 The aggregate acceptance runner executes all local development evidence and returns a successful
 process status only when those gates pass. Its report still sets `stage_acceptance_complete` to

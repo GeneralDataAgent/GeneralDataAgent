@@ -94,6 +94,8 @@ data access:
   boundaries that remain effective after restart; deterministic injected-clock tests cover expiry.
 - The dbt manifest adapter pins and hashes its input, normalizes supported assets, and makes missing
   dependencies explicit before impact analysis.
+- A frozen 20-case manifest matrix verifies supported node normalization, dependency filtering,
+  incomplete snapshots, deterministic re-ingestion, and malformed-input rejection.
 - All engineering operations pass through the policy gateway, enforce connector-domain bindings,
   and persist immutable artifacts.
 
