@@ -136,10 +136,10 @@ See [implementation status](docs/implementation-status.md) for completed and rem
 uv run python examples/stage2_data_engineering_demo.py
 ```
 
-The demo creates isolated SQLite and DuckDB sources, profiles the DuckDB relation, runs a not-null
-quality rule, compares the two schemas, proposes a read-only transformation, analyzes downstream
-impact, and persists every result as a local immutable artifact. It does not register any write
-tool. See the
+The demo creates isolated SQLite and DuckDB sources, profiles the DuckDB relation, proposes
+evidence-bound quality rules, executes a not-null rule, compares the two schemas, proposes a
+read-only transformation, analyzes downstream impact, and persists every result as a local
+immutable artifact. It does not register any write tool. See the
 [Stage 2 validation record](docs/validation/stage2-foundation.md) for the current acceptance boundary.
 
 For execution paths that depend on a frozen schema, `require_compatible_schema` allows additive
@@ -175,6 +175,12 @@ Run the frozen 20-case quality-rule matrix with:
 
 ```bash
 uv run python evals/run_stage2_quality.py
+```
+
+Run the 12-check conservative quality-rule proposal gate with:
+
+```bash
+uv run python evals/run_stage2_quality_proposals.py
 ```
 
 Run the frozen 20-case impact-analysis matrix with:
@@ -219,6 +225,8 @@ The cross-engine gate requires exact agreement across 380 profile fields; it che
 not agreement with an external authoritative profiler.
 The quality matrix covers exact violation counts and report outcomes for not-null, uniqueness,
 accepted-value, range, and warning-severity behavior.
+The proposal gate ensures schema constraints remain errors while snapshot-inferred uniqueness and
+ranges remain warnings, and rejects mismatched evidence.
 The impact matrix checks exact downstream types, distances, and paths across chains, forks, fan-in,
 multiple changed assets, disconnected components, cycles, metrics, and Dashboards.
 The schema matrix requires exact change type, ordering, and breaking status across additions,

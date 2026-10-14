@@ -22,6 +22,7 @@ def test_stage2_acceptance_report_separates_local_and_external_gates() -> None:
         "parallel_group_isolation",
         "local_dbt_adapter",
         "quality_rule_matrix",
+        "quality_rule_proposal_safety",
         "schema_diff_matrix",
         "transformation_safety_matrix",
         "schema_drift_fail_closed",

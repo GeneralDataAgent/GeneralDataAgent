@@ -64,6 +64,13 @@ def main() -> None:
             relation="orders",
             trace_id="stage2-demo",
         )
+        rule_proposal = runtime.propose_quality_rules(
+            task_id=task_id,
+            actor=actor,
+            schema=after,
+            profile=profile,
+            trace_id="stage2-demo",
+        )
         quality = runtime.check_quality(
             task_id=task_id,
             actor=actor,
@@ -124,6 +131,7 @@ def main() -> None:
         )
 
         print(f"profile rows={profile.row_count} columns={len(profile.columns)}")
+        print(f"quality proposal rules={len(rule_proposal.rules)}")
         print(
             f"quality passed={quality.passed} "
             f"violations={quality.checks[0].violation_count}"

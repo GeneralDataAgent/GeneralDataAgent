@@ -56,6 +56,13 @@ DEFAULT_RULES = (
         obligations=("audit", "read_only", "query_budget"),
     ),
     PolicyRule(
+        tool_name="data.quality.propose",
+        risk_level=RiskLevel.R0,
+        allowed_actions=frozenset({"propose"}),
+        allowed_roles=frozenset({"data_engineer", "verifier"}),
+        obligations=("audit", "read_only", "evidence_bound"),
+    ),
+    PolicyRule(
         tool_name="schema.diff",
         risk_level=RiskLevel.R0,
         allowed_actions=frozenset({"compare", "guard"}),
@@ -171,6 +178,7 @@ class PolicyEngine:
             "sql.query",
             "data.profile",
             "data.quality",
+            "data.quality.propose",
             "transformation.propose",
             "lineage.impact",
             "lineage.ingest",

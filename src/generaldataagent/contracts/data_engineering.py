@@ -140,6 +140,22 @@ class QualityRule(ContractModel):
         return self
 
 
+class QualityRuleProposal(ContractModel):
+    connector_id: str = Field(min_length=1, max_length=128)
+    relation: str = Field(min_length=1, max_length=512)
+    rules: tuple[QualityRule, ...] = Field(min_length=1)
+    evidence_basis: Literal["schema_profile"] = "schema_profile"
+    notes: tuple[str, ...] = Field(min_length=1)
+    generated_at: datetime = Field(default_factory=utc_now)
+
+    @model_validator(mode="after")
+    def unique_rules(self) -> "QualityRuleProposal":
+        rule_ids = [rule.rule_id for rule in self.rules]
+        if len(rule_ids) != len(set(rule_ids)):
+            raise ValueError("quality proposal rule ids must be unique")
+        return self
+
+
 class QualityCheckResult(ContractModel):
     rule_id: str = Field(min_length=1, max_length=64)
     column: str = Field(min_length=1, max_length=256)

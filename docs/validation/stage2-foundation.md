@@ -18,6 +18,8 @@ This increment establishes the first read-only Stage 2 vertical slice:
 - A fail-closed compatibility gate permits additive columns, but breaking drift raises a structured
   replanning error; the governed runtime persists the full diff before propagating the failure.
 - Constrained not-null, unique, accepted-values, and range rules execute inside the source engine.
+- Deterministic quality-rule proposals bind matching schema/profile evidence. Schema non-null
+  constraints are errors; snapshot-inferred identifier uniqueness and numeric bounds are warnings.
 - Dry-run-only transformation proposals accept one parsed read query, explicit tests, an impact
   summary, and a rollback plan; mutation and unauthorized source references are rejected.
 - Deterministic lineage analysis reports directly and transitively impacted assets using stable,
@@ -68,6 +70,7 @@ uv run python evals/run_stage2_load.py
 uv run python evals/run_stage2_isolation.py
 uv run python evals/run_stage2_cross_engine.py
 uv run python evals/run_stage2_quality.py
+uv run python evals/run_stage2_quality_proposals.py
 uv run python evals/run_stage2_impact.py
 uv run python evals/run_stage2_schema.py
 uv run python evals/run_stage2_transformation.py
@@ -80,11 +83,12 @@ Expected demo summary:
 
 ```text
 profile rows=2 columns=3
+quality proposal rules=4
 quality passed=False violations=1
 schema breaking=True changes=3
 proposal dry_run_only=True dependencies=1
 impact downstream=2 cycles=False
-artifacts=7
+artifacts=8
 ```
 
 ## Acceptance boundary
@@ -123,6 +127,10 @@ fields. It is a connector-consistency regression, not an authoritative external-
 The frozen quality runner contains 20 independently enumerated rule cases over a fixed 10-row
 fixture. It requires exact violation counts and final report outcomes for every case; it remains a
 deterministic component gate rather than a business-domain rule effectiveness study.
+
+The quality-proposal runner checks 12 conservative-generation boundaries, including severity,
+stable identifiers, empty samples, and schema/profile relation, column, type, and row-count
+mismatches. Snapshot-derived rules remain warnings until reviewed against business semantics.
 
 The frozen impact runner contains 20 explicit lineage graphs and expected downstream paths. It
 checks direct and transitive dependencies, shortest-path tie breaking, multiple changed assets,

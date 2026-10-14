@@ -1,14 +1,92 @@
 """Deterministic execution of a constrained data-quality rule set."""
 
+import re
 from collections.abc import Iterable
 from typing import Any
 
 from generaldataagent.connectors.base import ReadOnlyConnector, quote_identifier
 from generaldataagent.contracts.data_engineering import (
+    DataProfile,
     QualityCheckResult,
     QualityReport,
     QualityRule,
+    QualityRuleProposal,
+    RelationSchema,
 )
+
+_NUMERIC_TYPE_MARKERS = ("INT", "REAL", "FLOAT", "DOUBLE", "DECIMAL", "NUMERIC")
+
+
+def propose_quality_rules(
+    schema: RelationSchema,
+    profile: DataProfile,
+) -> QualityRuleProposal:
+    """Build conservative rules from one matching schema/profile snapshot."""
+    if schema.connector_id != profile.connector_id or schema.relation != profile.relation:
+        raise ValueError("quality proposal schema and profile must describe the same relation")
+    schema_columns = {column.name.casefold(): column for column in schema.columns}
+    profile_columns = {column.name.casefold(): column for column in profile.columns}
+    if schema_columns.keys() != profile_columns.keys():
+        raise ValueError("quality proposal schema and profile columns must match")
+
+    rules: list[QualityRule] = []
+    for ordinal, column in enumerate(schema.columns):
+        observed = profile_columns[column.name.casefold()]
+        if column.data_type.casefold() != observed.data_type.casefold():
+            raise ValueError(f"quality proposal data type mismatch: {column.name}")
+        if observed.row_count != profile.row_count:
+            raise ValueError(f"quality proposal row count mismatch: {column.name}")
+        if not column.nullable:
+            rules.append(
+                QualityRule(
+                    rule_id=_rule_id("not_null", ordinal, column.name),
+                    column=column.name,
+                    rule_type="not_null",
+                    severity="error",
+                )
+            )
+        id_like = column.name.casefold() == "id" or column.name.casefold().endswith("_id")
+        if (
+            id_like
+            and profile.row_count > 0
+            and observed.null_count == 0
+            and observed.distinct_count == profile.row_count
+        ):
+            rules.append(
+                QualityRule(
+                    rule_id=_rule_id("unique", ordinal, column.name),
+                    column=column.name,
+                    rule_type="unique",
+                    severity="warning",
+                )
+            )
+        numeric = any(marker in column.data_type.upper() for marker in _NUMERIC_TYPE_MARKERS)
+        if numeric and observed.minimum is not None and observed.maximum is not None:
+            rules.append(
+                QualityRule(
+                    rule_id=_rule_id("observed_range", ordinal, column.name),
+                    column=column.name,
+                    rule_type="range",
+                    parameters={"minimum": observed.minimum, "maximum": observed.maximum},
+                    severity="warning",
+                )
+            )
+    if not rules:
+        raise ValueError("quality proposal found no evidence-backed rule candidates")
+    return QualityRuleProposal(
+        connector_id=schema.connector_id,
+        relation=schema.relation,
+        rules=tuple(rules),
+        notes=(
+            "Non-nullable schema columns produce error-severity not-null rules.",
+            "Observed identifier uniqueness and numeric ranges are warning-only snapshot evidence.",
+        ),
+    )
+
+
+def _rule_id(prefix: str, ordinal: int, column: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "_", column.casefold()).strip("_") or "column"
+    return f"{prefix}_{ordinal:03d}_{slug}"[:64].rstrip("_")
 
 
 def execute_quality_rules(

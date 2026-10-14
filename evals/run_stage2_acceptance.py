@@ -40,6 +40,9 @@ run_lineage_evaluation = run_path(EVAL_DIR / "run_stage2_lineage.py")[
 run_quality_evaluation = run_path(EVAL_DIR / "run_stage2_quality.py")[
     "run_quality_evaluation"
 ]
+run_quality_proposal_evaluation = run_path(EVAL_DIR / "run_stage2_quality_proposals.py")[
+    "run_quality_proposal_evaluation"
+]
 run_schema_evaluation = run_path(EVAL_DIR / "run_stage2_schema.py")[
     "run_schema_evaluation"
 ]
@@ -81,6 +84,7 @@ def run_acceptance_report() -> dict[str, Any]:
     isolation = run_isolation_evaluation()
     lineage = run_lineage_evaluation()
     quality = run_quality_evaluation()
+    quality_proposals = run_quality_proposal_evaluation()
     schema = run_schema_evaluation()
     transformation = run_transformation_evaluation()
     schema_gate = _schema_gate_probe()
@@ -115,6 +119,11 @@ def run_acceptance_report() -> dict[str, Any]:
             "gate_id": "quality_rule_matrix",
             "status": "passed" if quality["failed"] == 0 else "failed",
             "evidence": quality,
+        },
+        {
+            "gate_id": "quality_rule_proposal_safety",
+            "status": "passed" if quality_proposals["failed"] == 0 else "failed",
+            "evidence": quality_proposals,
         },
         {
             "gate_id": "schema_diff_matrix",

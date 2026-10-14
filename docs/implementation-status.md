@@ -40,6 +40,8 @@ data access:
 - Versioned relation schema, data profile, schema diff, quality rule, and quality report contracts
   reject malformed or internally inconsistent results.
 - Profiling and quality checks execute deterministic source-side aggregation queries.
+- Quality-rule proposals bind matching schema/profile evidence: schema non-null constraints are
+  errors, while observed identifier uniqueness and numeric ranges remain reviewable warnings.
 - Schema drift is explicit and marks removals, type changes, and nullability changes as breaking.
 - The schema compatibility gate permits additive drift but stops on every breaking change, carries
   the full diff in a structured replanning error, and persists that evidence before returning the
@@ -60,6 +62,8 @@ data access:
   and numeric means; SQLite and DuckDB currently agree on all 380 compared profile fields.
 - A separate frozen 20-case quality matrix verifies exact violation counts and report status across
   not-null, uniqueness, accepted-value, range, and warning-severity behavior.
+- A 12-check proposal-safety gate verifies conservative severity, deterministic rule identifiers,
+  empty-sample behavior, and fail-closed schema/profile mismatch handling.
 - A frozen 20-case impact matrix verifies exact downstream asset types, distances, and shortest
   paths across direct/transitive chains, fan-in, multiple changes, disconnected nodes, and cycles.
 - A frozen 20-case schema matrix verifies exact change ordering and breaking classification across

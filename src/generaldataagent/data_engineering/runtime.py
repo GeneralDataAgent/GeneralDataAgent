@@ -30,6 +30,7 @@ from generaldataagent.contracts.data_engineering import (
     ProfileBatchResult,
     QualityReport,
     QualityRule,
+    QualityRuleProposal,
     RelationSchema,
     SchemaDiff,
     TransformationProposal,
@@ -39,7 +40,7 @@ from generaldataagent.data_engineering.catalog_lineage import DbtManifestLineage
 from generaldataagent.data_engineering.dbt import DbtCompileRunner
 from generaldataagent.data_engineering.impact import analyze_impact
 from generaldataagent.data_engineering.profile import profile_relation
-from generaldataagent.data_engineering.quality import execute_quality_rules
+from generaldataagent.data_engineering.quality import execute_quality_rules, propose_quality_rules
 from generaldataagent.data_engineering.schema_diff import compare_schemas
 from generaldataagent.data_engineering.schema_gate import (
     SchemaDriftError,
@@ -89,6 +90,7 @@ class DataEngineeringRuntime:
         self.gateway.register("connector.inspect", self._inspect)
         self.gateway.register("data.profile", self._profile)
         self.gateway.register("data.quality", self._quality)
+        self.gateway.register("data.quality.propose", self._propose_quality_rules)
         self.gateway.register("schema.diff", self._diff)
         self.gateway.register("transformation.propose", self._propose_transformation)
         self.gateway.register("lineage.impact", self._analyze_impact)
@@ -249,6 +251,33 @@ class DataEngineeringRuntime:
         )
         result = self.gateway.invoke(request, trace_id=trace_id)
         self._store(task_id, "quality_report", result, "data-engineer")
+        return result
+
+    def propose_quality_rules(
+        self,
+        *,
+        task_id: UUID,
+        actor: ActorContext,
+        schema: RelationSchema,
+        profile: DataProfile,
+        trace_id: str,
+    ) -> QualityRuleProposal:
+        authorized_domains = self._authorized_domains(actor, schema.connector_id)
+        request = self._request(
+            task_id=task_id,
+            actor=actor,
+            tool_name="data.quality.propose",
+            action="propose",
+            resource=f"{schema.connector_id}:{schema.relation}",
+            arguments={
+                "schema": schema.model_dump(mode="json"),
+                "profile": profile.model_dump(mode="json"),
+            },
+            data_domains=authorized_domains,
+            requested_risk=RiskLevel.R0,
+        )
+        result = self.gateway.invoke(request, trace_id=trace_id)
+        self._store(task_id, "quality_rule_proposal", result, "data-engineer")
         return result
 
     def propose_transformation(
@@ -623,6 +652,13 @@ class DataEngineeringRuntime:
         )
 
     @staticmethod
+    def _propose_quality_rules(arguments: dict[str, Any]) -> QualityRuleProposal:
+        return propose_quality_rules(
+            RelationSchema.model_validate(arguments["schema"]),
+            DataProfile.model_validate(arguments["profile"]),
+        )
+
+    @staticmethod
     def _propose_transformation(arguments: dict[str, Any]) -> TransformationProposal:
         return build_transformation_proposal(
             connector_id=str(arguments["connector_id"]),
@@ -711,6 +747,7 @@ class DataEngineeringRuntime:
             | ImpactAnalysis
             | LineageSnapshot
             | QualityReport
+            | QualityRuleProposal
             | RelationSchema
             | SchemaDiff
             | TransformationProposal
