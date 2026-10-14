@@ -11,7 +11,7 @@ from generaldataagent.contracts import ActorContext
 from generaldataagent.data_engineering import DataEngineeringRuntime, run_profile_load_gate
 
 
-def main() -> int:
+def run_load_evaluation() -> dict[str, object]:
     with TemporaryDirectory(prefix="generaldataagent-load-") as temporary_directory:
         root = Path(temporary_directory)
         database = root / "load.sqlite"
@@ -44,8 +44,13 @@ def main() -> int:
             max_workers=8,
             max_p95_ms=5_000,
         )
-        print(json.dumps(result.model_dump(mode="json"), indent=2, sort_keys=True))
-        return 0 if result.passed else 1
+        return result.model_dump(mode="json")
+
+
+def main() -> int:
+    result = run_load_evaluation()
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0 if result["passed"] else 1
 
 
 if __name__ == "__main__":

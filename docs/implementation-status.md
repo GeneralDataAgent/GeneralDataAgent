@@ -56,6 +56,9 @@ data access:
   agreement threshold that defaults to the Stage 2 99% target.
 - A deterministic 20-case corpus spans empty relations, nulls, duplicates, strings, negative values,
   and numeric means; SQLite and DuckDB currently agree on all 380 compared profile fields.
+- A machine-readable acceptance report aggregates the frozen component, cross-engine, local load,
+  schema fail-closed, and exactly-once approval gates. It cannot report Stage 2 complete while the
+  declared real-environment gates remain `not_run`.
 - SQLite and DuckDB connectors enforce per-query deadlines and normalize interruption as retryable
   timeout failures instead of leaving profiling calls unbounded.
 - Batch cancellation prevents queued profile requests from starting, preserves completed siblings,

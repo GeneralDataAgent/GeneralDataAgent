@@ -66,6 +66,7 @@ uv run python evals/run_stage1.py
 uv run python evals/run_stage2.py
 uv run python evals/run_stage2_load.py
 uv run python evals/run_stage2_cross_engine.py
+uv run python evals/run_stage2_acceptance.py
 ```
 
 Expected demo summary:
@@ -107,3 +108,8 @@ latency as diagnostic evidence, not as a production SLO or capacity result.
 
 The cross-engine runner creates the same 20 relations in SQLite and DuckDB and compares 380 profile
 fields. It is a connector-consistency regression, not an authoritative external-profiler result.
+
+The aggregate acceptance runner executes all local development evidence and returns a successful
+process status only when those gates pass. Its report still sets `stage_acceptance_complete` to
+`false` and lists authoritative profiler, real dbt project, authoritative catalog, external approval
+service, and production-scale load gates as `not_run`; local success cannot erase those blockers.
