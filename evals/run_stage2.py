@@ -20,6 +20,7 @@ from generaldataagent.data_engineering import (
     build_transformation_proposal,
     compare_schemas,
     execute_quality_rules,
+    profile_relation,
 )
 
 DATASET = Path(__file__).parent / "datasets" / "stage2.jsonl"
@@ -64,6 +65,8 @@ def _evaluate_case(case: dict[str, Any], connector: SQLiteConnector) -> None:
         _evaluate_impact(case)
     elif category == "transformation":
         _evaluate_transformation(case)
+    elif category == "profile_oracle":
+        _evaluate_profile_oracle(case, connector)
     else:
         raise ValueError(f"unsupported Stage 2 category: {category}")
 
@@ -135,6 +138,17 @@ def _evaluate_transformation(case: dict[str, Any]) -> None:
         return
     assert expected_status == "accepted"
     assert list(result.dependencies) == case["expected"]["dependencies"]
+
+
+def _evaluate_profile_oracle(case: dict[str, Any], connector: SQLiteConnector) -> None:
+    result = profile_relation(connector, "orders")
+    expected = case["expected"]
+    if expected["column"] is None:
+        actual = getattr(result, expected["metric"])
+    else:
+        column = next(item for item in result.columns if item.name == expected["column"])
+        actual = getattr(column, expected["metric"])
+    assert actual == expected["value"]
 
 
 def _create_quality_fixture(path: Path) -> None:

@@ -29,6 +29,7 @@ GeneralDataAgent is a governed multi-agent foundation for data analytics, data e
 - Isolated parallel profiling with ordered results and explicit partial failures.
 - Optional pinned dbt compile adapter restricted to explicit development and CI targets.
 - Hashed, size-limited dbt manifest ingestion for source-to-Dashboard lineage impact.
+- Field-level profile comparison with configurable numeric tolerance and a 99% default gate.
 - Policy-gated data-engineering runtime with immutable schema, profile, diff, and quality artifacts.
 - FastAPI health, capability, contract-validation, and certified-metric endpoints.
 
@@ -138,7 +139,7 @@ impact, and persists every result as a local immutable artifact. It does not reg
 tool. See the
 [Stage 2 validation record](docs/validation/stage2-foundation.md) for the current acceptance boundary.
 
-Run the frozen 20-case Stage 2 component baseline with:
+Run the frozen 25-case Stage 2 component baseline with:
 
 ```bash
 uv run python evals/run_stage2.py

@@ -78,6 +78,44 @@ class DataProfile(ContractModel):
     generated_at: datetime = Field(default_factory=utc_now)
 
 
+class ProfileMismatch(ContractModel):
+    column: str | None = Field(default=None, max_length=256)
+    metric: Literal[
+        "column_present",
+        "row_count",
+        "null_count",
+        "distinct_count",
+        "minimum",
+        "maximum",
+        "mean",
+    ]
+    expected: Any | None = None
+    actual: Any | None = None
+
+
+class ProfileComparison(ContractModel):
+    total_checks: int = Field(ge=1)
+    matched_checks: int = Field(ge=0)
+    agreement_rate: float = Field(ge=0, le=1)
+    threshold: float = Field(ge=0, le=1)
+    passed: bool
+    mismatches: tuple[ProfileMismatch, ...]
+    compared_at: datetime = Field(default_factory=utc_now)
+
+    @model_validator(mode="after")
+    def validate_summary(self) -> "ProfileComparison":
+        if self.matched_checks > self.total_checks:
+            raise ValueError("matched_checks cannot exceed total_checks")
+        expected_rate = self.matched_checks / self.total_checks
+        if abs(self.agreement_rate - expected_rate) > 1e-12:
+            raise ValueError("agreement_rate must match comparison counts")
+        if self.passed != (self.agreement_rate >= self.threshold):
+            raise ValueError("profile comparison status must match threshold")
+        if len(self.mismatches) != self.total_checks - self.matched_checks:
+            raise ValueError("mismatch count must match failed checks")
+        return self
+
+
 class QualityRule(ContractModel):
     rule_id: str = Field(pattern=r"^[a-z][a-z0-9_-]{0,63}$")
     column: str = Field(min_length=1, max_length=256)

@@ -18,3 +18,8 @@
 {"case_id":"transform-join","category":"transformation","sql":"SELECT o.id, u.segment FROM orders o JOIN users u ON o.user_id = u.id","allowed":["orders","users"],"expected":{"status":"accepted","dependencies":["orders","users"]}}
 {"case_id":"transform-mutation","category":"transformation","sql":"DELETE FROM orders","allowed":["orders"],"expected":{"status":"rejected"}}
 {"case_id":"transform-unauthorized","category":"transformation","sql":"SELECT * FROM payroll","allowed":["orders"],"expected":{"status":"rejected"}}
+{"case_id":"profile-row-count","category":"profile_oracle","expected":{"column":null,"metric":"row_count","value":3}}
+{"case_id":"profile-channel-null","category":"profile_oracle","expected":{"column":"channel","metric":"null_count","value":1}}
+{"case_id":"profile-channel-distinct","category":"profile_oracle","expected":{"column":"channel","metric":"distinct_count","value":2}}
+{"case_id":"profile-amount-minimum","category":"profile_oracle","expected":{"column":"amount","metric":"minimum","value":10.0}}
+{"case_id":"profile-amount-mean","category":"profile_oracle","expected":{"column":"amount","metric":"mean","value":20.0}}

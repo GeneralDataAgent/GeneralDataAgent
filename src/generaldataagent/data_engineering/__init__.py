@@ -7,6 +7,7 @@ from generaldataagent.data_engineering.catalog_lineage import (
 from generaldataagent.data_engineering.dbt import DbtCompileError, DbtCompileRunner
 from generaldataagent.data_engineering.impact import analyze_impact
 from generaldataagent.data_engineering.profile import profile_relation
+from generaldataagent.data_engineering.profile_validation import compare_profiles
 from generaldataagent.data_engineering.quality import execute_quality_rules
 from generaldataagent.data_engineering.runtime import DataEngineeringRuntime
 from generaldataagent.data_engineering.schema_diff import compare_schemas
@@ -21,6 +22,7 @@ __all__ = [
     "analyze_impact",
     "build_transformation_proposal",
     "compare_schemas",
+    "compare_profiles",
     "execute_quality_rules",
     "profile_relation",
 ]

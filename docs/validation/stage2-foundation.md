@@ -27,6 +27,9 @@ This increment establishes the first read-only Stage 2 vertical slice:
   versions, normalizes sources/models/metrics/exposures into the lineage contract, ignores test-only
   edges, and marks supported but missing dependencies as incomplete instead of silently dropping
   them.
+- Profile-oracle comparison checks row count plus per-column null, distinct, minimum, maximum, and
+  mean statistics, emitting field-level mismatches with configurable numeric tolerance and a 99%
+  default agreement gate.
 - The data-engineering runtime routes inspect, profile, quality, and diff calls through the policy
   gateway, enforces connector-to-domain bindings, and persists immutable JSON artifacts.
 
@@ -67,7 +70,7 @@ No production write path is registered by this runtime.
 
 ## Frozen Stage 2 baseline
 
-`evals/datasets/stage2.jsonl` contains 20 deterministic cases: five each for schema drift,
-quality rules, lineage impact, and transformation safety. The runner emits case-level failures and
-category counts. This baseline is a component regression gate; it does not replace comparison with
-an independent authoritative profiler or real dbt projects.
+`evals/datasets/stage2.jsonl` contains 25 deterministic cases: five each for schema drift,
+quality rules, lineage impact, transformation safety, and hand-calculated profile oracles. The
+runner emits case-level failures and category counts. This baseline is a component regression gate;
+it does not replace comparison with an independent authoritative profiler or real dbt projects.
