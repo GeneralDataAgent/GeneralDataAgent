@@ -60,6 +60,8 @@ data access:
   not-null, uniqueness, accepted-value, range, and warning-severity behavior.
 - A frozen 20-case impact matrix verifies exact downstream asset types, distances, and shortest
   paths across direct/transitive chains, fan-in, multiple changes, disconnected nodes, and cycles.
+- A frozen 20-case schema matrix verifies exact change ordering and breaking classification across
+  additions, removals, renames, type/nullability changes, and compound drift.
 - A machine-readable acceptance report aggregates the frozen component, cross-engine, local load,
   schema fail-closed, and exactly-once approval gates. It cannot report Stage 2 complete while the
   declared real-environment gates remain `not_run`.

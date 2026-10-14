@@ -177,6 +177,12 @@ Run the frozen 20-case impact-analysis matrix with:
 uv run python evals/run_stage2_impact.py
 ```
 
+Run the frozen 20-case schema-diff matrix with:
+
+```bash
+uv run python evals/run_stage2_schema.py
+```
+
 Aggregate all local Stage 2 evidence while retaining external blockers with:
 
 ```bash
@@ -191,6 +197,8 @@ The quality matrix covers exact violation counts and report outcomes for not-nul
 accepted-value, range, and warning-severity behavior.
 The impact matrix checks exact downstream types, distances, and paths across chains, forks, fan-in,
 multiple changed assets, disconnected components, cycles, metrics, and Dashboards.
+The schema matrix requires exact change type, ordering, and breaking status across additions,
+removals, renames, type/nullability changes, compound drift, and ordering/case stability.
 The aggregate report exits successfully when local development gates pass, but deliberately reports
 `stage_acceptance_complete: false` until every real-environment gate has evidence.
 
