@@ -159,7 +159,8 @@ above five seconds. It is a development regression, not a production capacity cl
 
 The optional dbt adapter also exposes selected `dbt test` only through an R2 approval grant. The
 grant is bound to the exact request and tenant, expires, rejects self-approval, and is consumed once.
-The default runtime has no approval store or dbt runner configured, so this path stays disabled.
+An optional SQLite approval store preserves pending and consumed state across local process restarts;
+the default runtime has no approval store or dbt runner configured, so this path stays disabled.
 
 ## Package map
 

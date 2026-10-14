@@ -6,7 +6,7 @@ from uuid import UUID
 
 from generaldataagent.contracts import AuditEvent, ToolRequest
 from generaldataagent.observability import JsonlAuditSink
-from generaldataagent.policy import InMemoryApprovalStore, PolicyEngine
+from generaldataagent.policy import ApprovalStore, PolicyEngine
 
 
 class PolicyDeniedError(PermissionError):
@@ -18,7 +18,7 @@ class ToolGateway:
         self,
         policy: PolicyEngine,
         audit: JsonlAuditSink | None = None,
-        approvals: InMemoryApprovalStore | None = None,
+        approvals: ApprovalStore | None = None,
     ) -> None:
         self.policy = policy
         self.audit = audit

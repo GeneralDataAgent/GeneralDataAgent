@@ -9,7 +9,12 @@ from generaldataagent.contracts import (
     RiskLevel,
     ToolRequest,
 )
-from generaldataagent.policy import ApprovalError, InMemoryApprovalStore, PolicyEngine
+from generaldataagent.policy import (
+    ApprovalError,
+    InMemoryApprovalStore,
+    PolicyEngine,
+    SQLiteApprovalStore,
+)
 from generaldataagent.tools import PolicyDeniedError, ToolGateway
 
 
@@ -153,3 +158,50 @@ def test_approval_store_rejects_self_approval() -> None:
 
     with pytest.raises(ApprovalError, match="cannot approve their own"):
         approvals.approve(approval_request.approval_id, approver_id="requester-1")
+
+
+def test_sqlite_approval_survives_restart_and_still_consumes_once(tmp_path) -> None:
+    database = tmp_path / "approvals.sqlite"
+    request = ToolRequest(
+        task_id=uuid4(),
+        user_id="requester-1",
+        tenant_id="tenant-1",
+        project_id="project-1",
+        agent_role=AgentRole.REPORTER,
+        tool_name="dataset.export",
+        action="export",
+        resource="warehouse.analytics.orders",
+        arguments={"format": "csv", "limit": 25},
+        data_domains=("commerce",),
+        requested_risk=RiskLevel.R2,
+    )
+    first_process = SQLiteApprovalStore(database)
+    approval_request = first_process.create_request(
+        request,
+        impact_scope="Export at most 25 internal rows.",
+        cost_estimate="Less than one minute of compute.",
+        classification=ArtifactClassification.INTERNAL,
+        rollback_plan="Delete the generated artifact.",
+        expires_at=datetime.now(UTC) + timedelta(minutes=5),
+    )
+    first_process.approve(approval_request.approval_id, approver_id="reviewer-1")
+
+    after_restart = SQLiteApprovalStore(database)
+    gateway = ToolGateway(PolicyEngine(), approvals=after_restart)
+    gateway.register("dataset.export", lambda arguments: arguments["limit"])
+    result = gateway.invoke(
+        request,
+        trace_id="resumed-export",
+        approval_id=approval_request.approval_id,
+    )
+
+    assert result == 25
+    after_second_restart = SQLiteApprovalStore(database)
+    replay_gateway = ToolGateway(PolicyEngine(), approvals=after_second_restart)
+    replay_gateway.register("dataset.export", lambda arguments: arguments["limit"])
+    with pytest.raises(ApprovalError, match="already been consumed"):
+        replay_gateway.invoke(
+            request,
+            trace_id="replayed-after-restart",
+            approval_id=approval_request.approval_id,
+        )

@@ -35,6 +35,9 @@ This increment establishes the first read-only Stage 2 vertical slice:
 - R2 approval requests display exact parameters, impact, cost, classification, rollback, and expiry;
   grants bind the tenant and full request fingerprint, reject self-approval, and are consumed once.
   The approval request and test result are immutable artifacts and consumption is audited.
+- The optional SQLite approval store persists requests, grants, and atomic consumption across local
+  process restarts; a restart recovery regression proves the original action can resume once and a
+  subsequent replay is rejected.
 - The dbt manifest adapter reads one pinned, size-limited local manifest, records its SHA-256 and dbt
   versions, normalizes sources/models/metrics/exposures into the lineage contract, ignores test-only
   edges, and marks supported but missing dependencies as incomplete instead of silently dropping
@@ -71,7 +74,7 @@ artifacts=7
 
 This is a development foundation, not Stage 2 acceptance. The following remain open:
 
-- real-project dbt compile/test qualification and a durable external approval backend;
+- real-project dbt compile/test qualification and external approval-service integration;
 - authoritative catalog and Dashboard dependency verification beyond the dbt manifest snapshot;
 - production-scale load testing beyond the completed cooperative cancellation, reproducible local
   100-request P95 gate, and connector deadline tests;

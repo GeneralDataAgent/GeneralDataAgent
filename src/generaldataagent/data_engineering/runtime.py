@@ -43,7 +43,7 @@ from generaldataagent.data_engineering.quality import execute_quality_rules
 from generaldataagent.data_engineering.schema_diff import compare_schemas
 from generaldataagent.data_engineering.transformation import build_transformation_proposal
 from generaldataagent.observability import JsonlAuditSink
-from generaldataagent.policy import InMemoryApprovalStore, PolicyEngine
+from generaldataagent.policy import ApprovalStore, PolicyEngine
 from generaldataagent.tools import ToolGateway
 
 
@@ -60,7 +60,7 @@ class DataEngineeringRuntime:
         lineage_loader: DbtManifestLineageLoader | None = None,
         policy: PolicyEngine | None = None,
         audit: JsonlAuditSink | None = None,
-        approvals: InMemoryApprovalStore | None = None,
+        approvals: ApprovalStore | None = None,
     ) -> None:
         self.connectors = dict(connectors)
         self.connector_domains = dict(connector_domains)
