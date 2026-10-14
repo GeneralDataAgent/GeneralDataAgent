@@ -7,6 +7,8 @@ Validation date: 2026-10-13.
 This increment establishes the first read-only Stage 2 vertical slice:
 
 - SQLite and DuckDB implement one connector interface and normalized error model.
+- Both connectors enforce query deadlines and report engine interruption through the shared,
+  retryable timeout error code.
 - Every connector declares immutable capabilities; both shipped connectors explicitly disable DML
   and DDL.
 - Schema introspection produces one versioned `RelationSchema` contract.
@@ -60,8 +62,8 @@ This is a development foundation, not Stage 2 acceptance. The following remain o
 
 - real-project dbt compile qualification and R2-gated dbt test execution;
 - authoritative catalog and Dashboard dependency verification beyond the dbt manifest snapshot;
-- production-scale load, cancellation, and timeout testing beyond the completed 50-request
-  isolation regression;
+- batch-level cancellation and production-scale load testing beyond the completed 50-request
+  isolation regression and connector deadline tests;
 - comparison of the frozen Stage 2 corpus with an authoritative profiler and real projects;
 - optional R2 development-write approval trial, which remains disabled;
 - real source credentials, production identity propagation, and production connector hardening.

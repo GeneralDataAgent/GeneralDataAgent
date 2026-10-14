@@ -1,6 +1,7 @@
 """Read-only DuckDB connector providing the second Stage 2 data source."""
 
 from pathlib import Path
+from threading import Timer
 from typing import Any
 
 import duckdb
@@ -14,11 +15,20 @@ from generaldataagent.contracts.data_engineering import (
 
 
 class DuckDBConnector:
-    def __init__(self, database_path: Path, *, connector_id: str = "duckdb") -> None:
+    def __init__(
+        self,
+        database_path: Path,
+        *,
+        connector_id: str = "duckdb",
+        timeout_seconds: float = 30.0,
+    ) -> None:
         try:
             self.database_path = database_path.resolve(strict=True)
         except FileNotFoundError as exc:
             raise ConnectorError(ConnectorErrorCode.NOT_FOUND, str(exc)) from exc
+        if timeout_seconds <= 0:
+            raise ValueError("timeout_seconds must be positive")
+        self.timeout_seconds = timeout_seconds
         self._capabilities = ConnectorCapabilities(
             connector_id=connector_id,
             dialect="duckdb",
@@ -27,6 +37,7 @@ class DuckDBConnector:
             profiling=True,
             sampling=True,
             explain=True,
+            cancellation=True,
         )
 
     @property
@@ -71,12 +82,23 @@ class DuckDBConnector:
     ) -> tuple[tuple[Any, ...], ...]:
         try:
             with duckdb.connect(str(self.database_path), read_only=True) as connection:
-                return tuple(connection.execute(sql, parameters).fetchall())
+                timer = Timer(self.timeout_seconds, connection.interrupt)
+                timer.daemon = True
+                timer.start()
+                try:
+                    return tuple(connection.execute(sql, parameters).fetchall())
+                finally:
+                    timer.cancel()
         except duckdb.Error as exc:
             message = str(exc)
-            code = (
-                ConnectorErrorCode.PERMISSION_DENIED
-                if "read-only" in message.casefold()
-                else ConnectorErrorCode.EXECUTION_FAILED
-            )
+            lowered = message.casefold()
+            if "interrupt" in lowered:
+                raise ConnectorError(
+                    ConnectorErrorCode.TIMEOUT,
+                    f"DuckDB request exceeded {self.timeout_seconds:g} seconds",
+                    retryable=True,
+                ) from exc
+            code = ConnectorErrorCode.PERMISSION_DENIED
+            if "read-only" not in lowered:
+                code = ConnectorErrorCode.EXECUTION_FAILED
             raise ConnectorError(code, f"DuckDB request failed: {message}") from exc

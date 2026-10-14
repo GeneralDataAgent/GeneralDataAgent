@@ -92,6 +92,34 @@ def test_connectors_fail_closed_on_writes(tmp_path, factory, creator) -> None:
     assert caught.value.retryable is False
 
 
+def test_sqlite_connector_enforces_query_deadline(tmp_path) -> None:
+    database = tmp_path / "timeout.sqlite"
+    create_sqlite_database(database)
+    connector = SQLiteConnector(database, timeout_seconds=0.001)
+
+    with pytest.raises(ConnectorError) as caught:
+        connector.fetch_all(
+            "WITH RECURSIVE counter(value) AS ("
+            "SELECT 1 UNION ALL SELECT value + 1 FROM counter WHERE value < 100000000"
+            ") SELECT SUM(value) FROM counter"
+        )
+
+    assert caught.value.code.value == "timeout"
+    assert caught.value.retryable is True
+
+
+def test_duckdb_connector_enforces_query_deadline(tmp_path) -> None:
+    database = tmp_path / "timeout.duckdb"
+    create_duckdb_database(database)
+    connector = DuckDBConnector(database, timeout_seconds=0.001)
+
+    with pytest.raises(ConnectorError) as caught:
+        connector.fetch_all("SELECT SUM(value) FROM range(100000000000) AS items(value)")
+
+    assert caught.value.code.value == "timeout"
+    assert caught.value.retryable is True
+
+
 def test_capabilities_reject_read_only_mutation_claims() -> None:
     with pytest.raises(ValueError, match="read-only"):
         ConnectorCapabilities(
