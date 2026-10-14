@@ -154,8 +154,16 @@ Run the reproducible 100-request local profiling load gate with:
 uv run python evals/run_stage2_load.py
 ```
 
+Cross-check 20 deterministic profiles between SQLite and DuckDB with:
+
+```bash
+uv run python evals/run_stage2_cross_engine.py
+```
+
 The gate fails on any failed or cancelled request, missing task artifact, or local end-to-end P95
 above five seconds. It is a development regression, not a production capacity claim.
+The cross-engine gate requires exact agreement across 380 profile fields; it checks connector parity,
+not agreement with an external authoritative profiler.
 
 The optional dbt adapter also exposes selected `dbt test` only through an R2 approval grant. The
 grant is bound to the exact request and tenant, expires, rejects self-approval, and is consumed once.

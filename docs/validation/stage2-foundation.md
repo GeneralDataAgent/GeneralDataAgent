@@ -48,6 +48,9 @@ This increment establishes the first read-only Stage 2 vertical slice:
 - Profile-oracle comparison checks row count plus per-column null, distinct, minimum, maximum, and
   mean statistics, emitting field-level mismatches with configurable numeric tolerance and a 99%
   default agreement gate.
+- A deterministic 20-case cross-engine corpus compares SQLite and DuckDB over empty relations,
+  nulls, duplicates, categorical extrema, negative values, and numeric means. All 380 compared
+  fields must agree exactly within a `1e-12` numeric tolerance.
 - The data-engineering runtime routes inspect, profile, quality, and diff calls through the policy
   gateway, enforces connector-to-domain bindings, and persists immutable JSON artifacts.
 
@@ -60,6 +63,7 @@ uv run python examples/stage2_data_engineering_demo.py
 uv run python evals/run_stage1.py
 uv run python evals/run_stage2.py
 uv run python evals/run_stage2_load.py
+uv run python evals/run_stage2_cross_engine.py
 ```
 
 Expected demo summary:
@@ -81,7 +85,8 @@ This is a development foundation, not Stage 2 acceptance. The following remain o
 - authoritative catalog and Dashboard dependency verification beyond the dbt manifest snapshot;
 - production-scale load testing beyond the completed cooperative cancellation, reproducible local
   100-request P95 gate, and connector deadline tests;
-- comparison of the frozen Stage 2 corpus with an authoritative profiler and real projects;
+- comparison with an authoritative external profiler and real projects; cross-engine parity alone
+  does not establish independent correctness;
 - optional R2 development-write approval trial, which remains disabled;
 - real source credentials, production identity propagation, and production connector hardening.
 
@@ -97,3 +102,6 @@ it does not replace comparison with an independent authoritative profiler or rea
 The local load runner creates an ephemeral 1,000-row SQLite source and 100 isolated task requests.
 Its five-second P95 threshold is deliberately environment-tolerant for CI; record the observed
 latency as diagnostic evidence, not as a production SLO or capacity result.
+
+The cross-engine runner creates the same 20 relations in SQLite and DuckDB and compares 380 profile
+fields. It is a connector-consistency regression, not an authoritative external-profiler result.
