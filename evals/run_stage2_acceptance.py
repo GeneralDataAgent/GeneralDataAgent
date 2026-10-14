@@ -25,6 +25,9 @@ run_cross_engine_evaluation = run_path(EVAL_DIR / "run_stage2_cross_engine.py")[
     "run_cross_engine_evaluation"
 ]
 run_load_evaluation = run_path(EVAL_DIR / "run_stage2_load.py")["run_load_evaluation"]
+run_quality_evaluation = run_path(EVAL_DIR / "run_stage2_quality.py")[
+    "run_quality_evaluation"
+]
 
 
 EXTERNAL_GATES = (
@@ -55,6 +58,7 @@ def run_acceptance_report() -> dict[str, Any]:
     component = run_evaluation()
     cross_engine = run_cross_engine_evaluation()
     load = run_load_evaluation()
+    quality = run_quality_evaluation()
     schema_gate = _schema_gate_probe()
     approval_gate = _approval_gate_probe()
     development_gates = (
@@ -67,6 +71,11 @@ def run_acceptance_report() -> dict[str, Any]:
             "gate_id": "cross_engine_profile_parity",
             "status": "passed" if cross_engine["failed"] == 0 else "failed",
             "evidence": cross_engine,
+        },
+        {
+            "gate_id": "quality_rule_matrix",
+            "status": "passed" if quality["failed"] == 0 else "failed",
+            "evidence": quality,
         },
         {
             "gate_id": "local_parallel_load",

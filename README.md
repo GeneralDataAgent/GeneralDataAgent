@@ -165,6 +165,12 @@ Cross-check 20 deterministic profiles between SQLite and DuckDB with:
 uv run python evals/run_stage2_cross_engine.py
 ```
 
+Run the frozen 20-case quality-rule matrix with:
+
+```bash
+uv run python evals/run_stage2_quality.py
+```
+
 Aggregate all local Stage 2 evidence while retaining external blockers with:
 
 ```bash
@@ -175,6 +181,8 @@ The gate fails on any failed or cancelled request, missing task artifact, or loc
 above five seconds. It is a development regression, not a production capacity claim.
 The cross-engine gate requires exact agreement across 380 profile fields; it checks connector parity,
 not agreement with an external authoritative profiler.
+The quality matrix covers exact violation counts and report outcomes for not-null, uniqueness,
+accepted-value, range, and warning-severity behavior.
 The aggregate report exits successfully when local development gates pass, but deliberately reports
 `stage_acceptance_complete: false` until every real-environment gate has evidence.
 

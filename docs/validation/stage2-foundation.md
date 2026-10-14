@@ -66,6 +66,7 @@ uv run python evals/run_stage1.py
 uv run python evals/run_stage2.py
 uv run python evals/run_stage2_load.py
 uv run python evals/run_stage2_cross_engine.py
+uv run python evals/run_stage2_quality.py
 uv run python evals/run_stage2_acceptance.py
 ```
 
@@ -108,6 +109,10 @@ latency as diagnostic evidence, not as a production SLO or capacity result.
 
 The cross-engine runner creates the same 20 relations in SQLite and DuckDB and compares 380 profile
 fields. It is a connector-consistency regression, not an authoritative external-profiler result.
+
+The frozen quality runner contains 20 independently enumerated rule cases over a fixed 10-row
+fixture. It requires exact violation counts and final report outcomes for every case; it remains a
+deterministic component gate rather than a business-domain rule effectiveness study.
 
 The aggregate acceptance runner executes all local development evidence and returns a successful
 process status only when those gates pass. Its report still sets `stage_acceptance_complete` to
