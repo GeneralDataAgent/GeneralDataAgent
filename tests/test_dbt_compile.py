@@ -47,6 +47,8 @@ def test_dbt_compile_uses_pinned_project_and_safe_target(tmp_path) -> None:
     assert result.production_write_enabled is False
     assert result.command[:2] == ("dbt", "compile")
     assert str(tmp_path) not in " ".join(result.command)
+    assert str(tmp_path) not in result.stdout_tail
+    assert str(tmp_path) not in result.stderr_tail
     assert "fake dbt compile" in result.stdout_tail
 
 
@@ -154,6 +156,8 @@ def test_dbt_test_requires_exact_one_time_r2_approval(tmp_path) -> None:
     assert result.succeeded is True
     assert result.command[:2] == ("dbt", "test")
     assert str(tmp_path) not in " ".join(result.command)
+    assert str(tmp_path) not in result.stdout_tail
+    assert str(tmp_path) not in result.stderr_tail
     assert result.production_write_enabled is False
     assert len(list((tmp_path / "artifacts").rglob("*.json"))) == 2
     audit_events = [json.loads(line) for line in audit_path.read_text().splitlines()]

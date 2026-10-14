@@ -501,7 +501,7 @@ class DataEngineeringRuntime:
         connector_id: str,
         target: str,
         selected_resources: tuple[str, ...],
-        approval_id: UUID,
+        approval_id: UUID | None,
         trace_id: str,
     ) -> DbtTestReport:
         request = self._dbt_test_request(

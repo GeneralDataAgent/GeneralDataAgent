@@ -33,7 +33,7 @@ This increment establishes the first read-only Stage 2 vertical slice:
   per success, and an end-to-end P95 no greater than five seconds.
 - The optional dbt adapter runs `dbt compile` and approval-gated selected `dbt test` against a pinned
   project and profiles directory, accepts only explicit development or CI targets, validates
-  selectors, applies a hard timeout, and redacts local paths from persisted command reports.
+  selectors, applies a hard timeout, and redacts local paths from persisted commands and output.
 - R2 approval requests display exact parameters, impact, cost, classification, rollback, and expiry;
   grants bind the tenant and full request fingerprint, reject self-approval, and are consumed once.
   The approval request and test result are immutable artifacts and consumption is audited.
@@ -70,6 +70,7 @@ uv run python evals/run_stage2_quality.py
 uv run python evals/run_stage2_impact.py
 uv run python evals/run_stage2_schema.py
 uv run python evals/run_stage2_transformation.py
+uv run python evals/run_stage2_dbt_adapter.py
 uv run python evals/run_stage2_acceptance.py
 ```
 
@@ -130,6 +131,11 @@ The frozen transformation runner contains eight accepted read-only proposals and
 rejections. It checks CTEs, joins, unions, qualified relations, dependency extraction, allowlists,
 DML/DDL, multi-statement and locking rejection, mandatory tests, and rollback completeness. All
 accepted proposals remain `dry_run_only`.
+
+The local fake-dbt runner performs 16 checks for compile/test success and nonzero exits, hard
+timeouts, production-target and unsafe-selector rejection, exact and single-use approval binding,
+and path redaction in commands, stdout, and stderr. It qualifies adapter behavior only; the
+`real_dbt_project` external gate remains `not_run`.
 
 The aggregate acceptance runner executes all local development evidence and returns a successful
 process status only when those gates pass. Its report still sets `stage_acceptance_complete` to

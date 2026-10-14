@@ -79,6 +79,9 @@ data access:
 - The optional dbt adapter pins project and profiles paths, rejects production targets and unsafe
   selectors, and enforces a timeout. Compile is R1; selected `dbt test` is R2 and remains unavailable
   unless a separate approval store is configured.
+- A 16-check fake-dbt qualification covers success, nonzero exits, timeout, target/selector guards,
+  exact approvals, replay blocking, and path redaction in commands, stdout, and stderr. Real-project
+  qualification remains open.
 - Approval requests expose the exact action, target, parameters, impact, cost, classification,
   rollback, and expiry. Grants bind the full request fingerprint and tenant, reject self-approval,
   expire, and are consumed once before execution; request and execution reports are immutable

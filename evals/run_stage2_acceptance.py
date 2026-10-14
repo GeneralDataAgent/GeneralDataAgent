@@ -24,6 +24,9 @@ run_evaluation = run_path(EVAL_DIR / "run_stage2.py")["run_evaluation"]
 run_cross_engine_evaluation = run_path(EVAL_DIR / "run_stage2_cross_engine.py")[
     "run_cross_engine_evaluation"
 ]
+run_dbt_adapter_evaluation = run_path(EVAL_DIR / "run_stage2_dbt_adapter.py")[
+    "run_dbt_adapter_evaluation"
+]
 run_load_evaluation = run_path(EVAL_DIR / "run_stage2_load.py")["run_load_evaluation"]
 run_impact_evaluation = run_path(EVAL_DIR / "run_stage2_impact.py")[
     "run_impact_evaluation"
@@ -66,6 +69,7 @@ EXTERNAL_GATES = (
 def run_acceptance_report() -> dict[str, Any]:
     component = run_evaluation()
     cross_engine = run_cross_engine_evaluation()
+    dbt_adapter = run_dbt_adapter_evaluation()
     load = run_load_evaluation()
     impact = run_impact_evaluation()
     quality = run_quality_evaluation()
@@ -83,6 +87,11 @@ def run_acceptance_report() -> dict[str, Any]:
             "gate_id": "cross_engine_profile_parity",
             "status": "passed" if cross_engine["failed"] == 0 else "failed",
             "evidence": cross_engine,
+        },
+        {
+            "gate_id": "local_dbt_adapter",
+            "status": "passed" if dbt_adapter["failed"] == 0 else "failed",
+            "evidence": dbt_adapter,
         },
         {
             "gate_id": "impact_analysis_matrix",

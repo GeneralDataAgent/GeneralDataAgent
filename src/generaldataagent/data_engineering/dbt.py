@@ -109,8 +109,8 @@ class DbtCompileRunner:
             exit_code=result.returncode,
             succeeded=result.returncode == 0,
             elapsed_ms=elapsed_ms,
-            stdout_tail=result.stdout[-20_000:],
-            stderr_tail=result.stderr[-20_000:],
+            stdout_tail=self._redact_output(result.stdout)[-20_000:],
+            stderr_tail=self._redact_output(result.stderr)[-20_000:],
         )
 
     def validate_test_request(
@@ -185,6 +185,12 @@ class DbtCompileRunner:
             exit_code=result.returncode,
             succeeded=result.returncode == 0,
             elapsed_ms=elapsed_ms,
-            stdout_tail=result.stdout[-20_000:],
-            stderr_tail=result.stderr[-20_000:],
+            stdout_tail=self._redact_output(result.stdout)[-20_000:],
+            stderr_tail=self._redact_output(result.stderr)[-20_000:],
+        )
+
+    def _redact_output(self, value: str) -> str:
+        return value.replace(str(self.project_dir), "<project_dir>").replace(
+            str(self.profiles_dir),
+            "<profiles_dir>",
         )
