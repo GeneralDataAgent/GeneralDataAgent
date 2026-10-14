@@ -20,6 +20,7 @@ def test_stage2_acceptance_report_separates_local_and_external_gates() -> None:
         "local_parallel_load",
         "quality_rule_matrix",
         "schema_diff_matrix",
+        "transformation_safety_matrix",
         "schema_drift_fail_closed",
     }
     assert all(gate["status"] == "passed" for gate in report["development_gates"])

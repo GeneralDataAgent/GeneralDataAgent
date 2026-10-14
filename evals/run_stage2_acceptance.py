@@ -34,6 +34,9 @@ run_quality_evaluation = run_path(EVAL_DIR / "run_stage2_quality.py")[
 run_schema_evaluation = run_path(EVAL_DIR / "run_stage2_schema.py")[
     "run_schema_evaluation"
 ]
+run_transformation_evaluation = run_path(EVAL_DIR / "run_stage2_transformation.py")[
+    "run_transformation_evaluation"
+]
 
 
 EXTERNAL_GATES = (
@@ -67,6 +70,7 @@ def run_acceptance_report() -> dict[str, Any]:
     impact = run_impact_evaluation()
     quality = run_quality_evaluation()
     schema = run_schema_evaluation()
+    transformation = run_transformation_evaluation()
     schema_gate = _schema_gate_probe()
     approval_gate = _approval_gate_probe()
     development_gates = (
@@ -94,6 +98,11 @@ def run_acceptance_report() -> dict[str, Any]:
             "gate_id": "schema_diff_matrix",
             "status": "passed" if schema["failed"] == 0 else "failed",
             "evidence": schema,
+        },
+        {
+            "gate_id": "transformation_safety_matrix",
+            "status": "passed" if transformation["failed"] == 0 else "failed",
+            "evidence": transformation,
         },
         {
             "gate_id": "local_parallel_load",

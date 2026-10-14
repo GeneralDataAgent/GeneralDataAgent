@@ -183,6 +183,12 @@ Run the frozen 20-case schema-diff matrix with:
 uv run python evals/run_stage2_schema.py
 ```
 
+Run the frozen 20-case transformation-safety matrix with:
+
+```bash
+uv run python evals/run_stage2_transformation.py
+```
+
 Aggregate all local Stage 2 evidence while retaining external blockers with:
 
 ```bash
@@ -199,6 +205,8 @@ The impact matrix checks exact downstream types, distances, and paths across cha
 multiple changed assets, disconnected components, cycles, metrics, and Dashboards.
 The schema matrix requires exact change type, ordering, and breaking status across additions,
 removals, renames, type/nullability changes, compound drift, and ordering/case stability.
+The transformation matrix contains eight accepted read proposals and twelve rejected cases covering
+unauthorized relations, mutations, DDL, multiple statements, locking, and incomplete safeguards.
 The aggregate report exits successfully when local development gates pass, but deliberately reports
 `stage_acceptance_complete: false` until every real-environment gate has evidence.
 

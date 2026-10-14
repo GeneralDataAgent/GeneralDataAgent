@@ -69,6 +69,7 @@ uv run python evals/run_stage2_cross_engine.py
 uv run python evals/run_stage2_quality.py
 uv run python evals/run_stage2_impact.py
 uv run python evals/run_stage2_schema.py
+uv run python evals/run_stage2_transformation.py
 uv run python evals/run_stage2_acceptance.py
 ```
 
@@ -124,6 +125,11 @@ gate remains `not_run` because synthetic graph recall does not prove real metada
 The frozen schema runner contains 20 explicit before/after contracts and requires exact ordered
 changes plus breaking status. It covers additions, removals, renames, type and nullability changes,
 compound drift, connector differences, name/type casing, and ordinal-only changes.
+
+The frozen transformation runner contains eight accepted read-only proposals and twelve expected
+rejections. It checks CTEs, joins, unions, qualified relations, dependency extraction, allowlists,
+DML/DDL, multi-statement and locking rejection, mandatory tests, and rollback completeness. All
+accepted proposals remain `dry_run_only`.
 
 The aggregate acceptance runner executes all local development evidence and returns a successful
 process status only when those gates pass. Its report still sets `stage_acceptance_complete` to

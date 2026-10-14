@@ -1,0 +1,20 @@
+{"case_id":"simple-select","sql":"SELECT id, amount FROM orders","allowed":["orders"],"expected":{"status":"accepted","dependencies":["orders"]}}
+{"case_id":"cte-select","sql":"WITH clean AS (SELECT id FROM orders) SELECT COUNT(*) FROM clean","allowed":["orders"],"expected":{"status":"accepted","dependencies":["orders"]}}
+{"case_id":"join-select","sql":"SELECT o.id, u.segment FROM orders o JOIN users u ON o.user_id = u.id","allowed":["orders","users"],"expected":{"status":"accepted","dependencies":["orders","users"]}}
+{"case_id":"union-select","sql":"SELECT id FROM orders UNION ALL SELECT id FROM archived_orders","allowed":["orders","archived_orders"],"expected":{"status":"accepted","dependencies":["archived_orders","orders"]}}
+{"case_id":"subquery-select","sql":"SELECT * FROM (SELECT id FROM orders) nested","allowed":["orders"],"expected":{"status":"accepted","dependencies":["orders"]}}
+{"case_id":"qualified-relation","sql":"SELECT id FROM analytics.orders","allowed":["analytics.orders"],"expected":{"status":"accepted","dependencies":["analytics.orders"]}}
+{"case_id":"case-insensitive-allowlist","sql":"SELECT id FROM Orders","allowed":["orders"],"expected":{"status":"accepted","dependencies":["Orders"]}}
+{"case_id":"comment-does-not-hide-query","sql":"/* governed */ SELECT COUNT(*) FROM orders -- read only","allowed":["orders"],"expected":{"status":"accepted","dependencies":["orders"]}}
+{"case_id":"empty-sql","sql":"","allowed":["orders"],"expected":{"status":"rejected"}}
+{"case_id":"no-source-relation","sql":"SELECT 1 AS constant_value","allowed":[],"expected":{"status":"rejected"}}
+{"case_id":"unauthorized-relation","sql":"SELECT * FROM payroll","allowed":["orders"],"expected":{"status":"rejected"}}
+{"case_id":"delete-rejected","sql":"DELETE FROM orders","allowed":["orders"],"expected":{"status":"rejected"}}
+{"case_id":"insert-rejected","sql":"INSERT INTO orders SELECT * FROM staged_orders","allowed":["orders","staged_orders"],"expected":{"status":"rejected"}}
+{"case_id":"update-rejected","sql":"UPDATE orders SET amount = 0","allowed":["orders"],"expected":{"status":"rejected"}}
+{"case_id":"create-rejected","sql":"CREATE TABLE new_orders AS SELECT * FROM orders","allowed":["orders"],"expected":{"status":"rejected"}}
+{"case_id":"drop-rejected","sql":"DROP TABLE orders","allowed":["orders"],"expected":{"status":"rejected"}}
+{"case_id":"multi-statement-rejected","sql":"SELECT * FROM orders; SELECT * FROM users","allowed":["orders","users"],"expected":{"status":"rejected"}}
+{"case_id":"locking-select-rejected","sql":"SELECT * FROM orders FOR UPDATE","allowed":["orders"],"expected":{"status":"rejected"}}
+{"case_id":"missing-tests-rejected","sql":"SELECT * FROM orders","allowed":["orders"],"tests":false,"expected":{"status":"rejected"}}
+{"case_id":"blank-rollback-rejected","sql":"SELECT * FROM orders","allowed":["orders"],"rollback_plan":"","expected":{"status":"rejected"}}
