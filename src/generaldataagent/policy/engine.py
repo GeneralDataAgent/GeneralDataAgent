@@ -91,6 +91,20 @@ DEFAULT_RULES = (
         obligations=("audit", "approved_target", "no_production_write"),
     ),
     PolicyRule(
+        tool_name="dbt.test",
+        risk_level=RiskLevel.R2,
+        allowed_actions=frozenset({"test"}),
+        allowed_roles=frozenset({"data_engineer"}),
+        requires_approval=True,
+        obligations=(
+            "audit",
+            "approved_target",
+            "selected_resources",
+            "approval",
+            "no_production_write",
+        ),
+    ),
+    PolicyRule(
         tool_name="artifact.write",
         risk_level=RiskLevel.R1,
         allowed_actions=frozenset({"create"}),
@@ -161,6 +175,7 @@ class PolicyEngine:
             "lineage.impact",
             "lineage.ingest",
             "dbt.compile",
+            "dbt.test",
             "dataset.export",
         }:
             return self._decision(request, "deny", rule.risk_level, "missing_data_domain")

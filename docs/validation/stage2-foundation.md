@@ -29,9 +29,12 @@ This increment establishes the first read-only Stage 2 vertical slice:
 - Every parallel item records submission-to-completion latency, including queue time. A reproducible
   local gate runs 100 requests and requires zero failures, zero cancellations, one isolated artifact
   per success, and an end-to-end P95 no greater than five seconds.
-- The optional dbt adapter runs only `dbt compile` against a pinned project and profiles directory,
-  accepts only explicit development or CI targets, validates selectors, applies a hard timeout, and
-  redacts local paths from the persisted command report.
+- The optional dbt adapter runs `dbt compile` and approval-gated selected `dbt test` against a pinned
+  project and profiles directory, accepts only explicit development or CI targets, validates
+  selectors, applies a hard timeout, and redacts local paths from persisted command reports.
+- R2 approval requests display exact parameters, impact, cost, classification, rollback, and expiry;
+  grants bind the tenant and full request fingerprint, reject self-approval, and are consumed once.
+  The approval request and test result are immutable artifacts and consumption is audited.
 - The dbt manifest adapter reads one pinned, size-limited local manifest, records its SHA-256 and dbt
   versions, normalizes sources/models/metrics/exposures into the lineage contract, ignores test-only
   edges, and marks supported but missing dependencies as incomplete instead of silently dropping
@@ -68,7 +71,7 @@ artifacts=7
 
 This is a development foundation, not Stage 2 acceptance. The following remain open:
 
-- real-project dbt compile qualification and R2-gated dbt test execution;
+- real-project dbt compile/test qualification and a durable external approval backend;
 - authoritative catalog and Dashboard dependency verification beyond the dbt manifest snapshot;
 - production-scale load testing beyond the completed cooperative cancellation, reproducible local
   100-request P95 gate, and connector deadline tests;

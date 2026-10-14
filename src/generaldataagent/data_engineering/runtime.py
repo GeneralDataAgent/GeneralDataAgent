@@ -2,6 +2,7 @@
 
 from collections.abc import Mapping
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
+from datetime import datetime
 from threading import Event, Lock
 from time import monotonic
 from typing import Any
@@ -9,10 +10,18 @@ from uuid import UUID, uuid4
 
 from generaldataagent.artifacts import LocalArtifactStore
 from generaldataagent.connectors import ReadOnlyConnector
-from generaldataagent.contracts import ActorContext, AgentRole, ToolRequest
+from generaldataagent.contracts import (
+    ActorContext,
+    AgentRole,
+    ApprovalRequest,
+    ArtifactClassification,
+    RiskLevel,
+    ToolRequest,
+)
 from generaldataagent.contracts.data_engineering import (
     DataProfile,
     DbtCompileReport,
+    DbtTestReport,
     ImpactAnalysis,
     LineageAsset,
     LineageSnapshot,
@@ -34,7 +43,7 @@ from generaldataagent.data_engineering.quality import execute_quality_rules
 from generaldataagent.data_engineering.schema_diff import compare_schemas
 from generaldataagent.data_engineering.transformation import build_transformation_proposal
 from generaldataagent.observability import JsonlAuditSink
-from generaldataagent.policy import PolicyEngine
+from generaldataagent.policy import InMemoryApprovalStore, PolicyEngine
 from generaldataagent.tools import ToolGateway
 
 
@@ -51,6 +60,7 @@ class DataEngineeringRuntime:
         lineage_loader: DbtManifestLineageLoader | None = None,
         policy: PolicyEngine | None = None,
         audit: JsonlAuditSink | None = None,
+        approvals: InMemoryApprovalStore | None = None,
     ) -> None:
         self.connectors = dict(connectors)
         self.connector_domains = dict(connector_domains)
@@ -68,9 +78,10 @@ class DataEngineeringRuntime:
         self.artifacts = artifacts
         self.dbt_runner = dbt_runner
         self.lineage_loader = lineage_loader
+        self.approvals = approvals
         self._cancel_events: dict[str, Event] = {}
         self._cancel_events_lock = Lock()
-        self.gateway = ToolGateway(policy or PolicyEngine(), audit)
+        self.gateway = ToolGateway(policy or PolicyEngine(), audit, approvals)
         self.gateway.register("connector.inspect", self._inspect)
         self.gateway.register("data.profile", self._profile)
         self.gateway.register("data.quality", self._quality)
@@ -79,6 +90,7 @@ class DataEngineeringRuntime:
         self.gateway.register("lineage.impact", self._analyze_impact)
         if self.dbt_runner is not None:
             self.gateway.register("dbt.compile", self._compile_dbt)
+            self.gateway.register("dbt.test", self._test_dbt)
         if self.lineage_loader is not None:
             self.gateway.register("lineage.ingest", self._ingest_lineage)
 
@@ -406,6 +418,98 @@ class DataEngineeringRuntime:
         self._store(task_id, "dbt_compile_report", result, "data-engineer")
         return result
 
+    def request_dbt_test_approval(
+        self,
+        *,
+        task_id: UUID,
+        actor: ActorContext,
+        connector_id: str,
+        target: str,
+        selected_resources: tuple[str, ...],
+        impact_scope: str,
+        cost_estimate: str,
+        rollback_plan: str,
+        expires_at: datetime,
+    ) -> ApprovalRequest:
+        if self.approvals is None:
+            raise RuntimeError("approval store is not configured")
+        request = self._dbt_test_request(
+            task_id=task_id,
+            actor=actor,
+            connector_id=connector_id,
+            target=target,
+            selected_resources=selected_resources,
+        )
+        decision = self.gateway.policy.evaluate(request)
+        if decision.decision != "require_approval":
+            raise RuntimeError("dbt test policy must require approval")
+        approval = self.approvals.create_request(
+            request,
+            impact_scope=impact_scope,
+            cost_estimate=cost_estimate,
+            classification=ArtifactClassification.INTERNAL,
+            rollback_plan=rollback_plan,
+            expires_at=expires_at,
+        )
+        self._store(task_id, "approval_request", approval, "data-engineer")
+        return approval
+
+    def test_dbt(
+        self,
+        *,
+        task_id: UUID,
+        actor: ActorContext,
+        connector_id: str,
+        target: str,
+        selected_resources: tuple[str, ...],
+        approval_id: UUID,
+        trace_id: str,
+    ) -> DbtTestReport:
+        request = self._dbt_test_request(
+            task_id=task_id,
+            actor=actor,
+            connector_id=connector_id,
+            target=target,
+            selected_resources=selected_resources,
+        )
+        result = self.gateway.invoke(
+            request,
+            trace_id=trace_id,
+            approval_id=approval_id,
+        )
+        self._store(task_id, "dbt_test_report", result, "data-engineer")
+        return result
+
+    def _dbt_test_request(
+        self,
+        *,
+        task_id: UUID,
+        actor: ActorContext,
+        connector_id: str,
+        target: str,
+        selected_resources: tuple[str, ...],
+    ) -> ToolRequest:
+        if self.dbt_runner is None:
+            raise RuntimeError("dbt test is not configured")
+        self.dbt_runner.validate_test_request(
+            target=target,
+            selected_resources=selected_resources,
+        )
+        authorized_domains = self._authorized_domains(actor, connector_id)
+        return self._request(
+            task_id=task_id,
+            actor=actor,
+            tool_name="dbt.test",
+            action="test",
+            resource=f"{connector_id}:{self.dbt_runner.project_dir.name}",
+            arguments={
+                "target": target,
+                "selected_resources": list(selected_resources),
+            },
+            data_domains=authorized_domains,
+            requested_risk=RiskLevel.R2,
+        )
+
     def ingest_dbt_lineage(
         self,
         *,
@@ -507,6 +611,14 @@ class DataEngineeringRuntime:
             selected_resources=tuple(str(item) for item in arguments["selected_resources"]),
         )
 
+    def _test_dbt(self, arguments: dict[str, Any]) -> DbtTestReport:
+        if self.dbt_runner is None:
+            raise RuntimeError("dbt test is not configured")
+        return self.dbt_runner._test_selected(
+            target=str(arguments["target"]),
+            selected_resources=tuple(str(item) for item in arguments["selected_resources"]),
+        )
+
     def _ingest_lineage(self, arguments: dict[str, Any]) -> LineageSnapshot:
         if arguments:
             raise ValueError("dbt lineage ingestion does not accept runtime paths")
@@ -531,6 +643,7 @@ class DataEngineeringRuntime:
         resource: str,
         arguments: dict[str, Any],
         data_domains: tuple[str, ...],
+        requested_risk: RiskLevel = RiskLevel.R1,
     ) -> ToolRequest:
         return ToolRequest(
             task_id=task_id,
@@ -543,6 +656,7 @@ class DataEngineeringRuntime:
             resource=resource,
             arguments=arguments,
             data_domains=data_domains,
+            requested_risk=requested_risk,
         )
 
     def _store(
@@ -550,8 +664,10 @@ class DataEngineeringRuntime:
         task_id: UUID,
         artifact_type: str,
         value: (
-            DataProfile
+            ApprovalRequest
+            | DataProfile
             | DbtCompileReport
+            | DbtTestReport
             | ImpactAnalysis
             | LineageSnapshot
             | QualityReport

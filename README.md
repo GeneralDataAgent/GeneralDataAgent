@@ -157,6 +157,10 @@ uv run python evals/run_stage2_load.py
 The gate fails on any failed or cancelled request, missing task artifact, or local end-to-end P95
 above five seconds. It is a development regression, not a production capacity claim.
 
+The optional dbt adapter also exposes selected `dbt test` only through an R2 approval grant. The
+grant is bound to the exact request and tenant, expires, rejects self-approval, and is consumed once.
+The default runtime has no approval store or dbt runner configured, so this path stays disabled.
+
 ## Package map
 
 ```text

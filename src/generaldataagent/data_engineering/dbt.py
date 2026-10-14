@@ -1,4 +1,4 @@
-"""Pinned dbt compile adapter for development and CI targets."""
+"""Pinned dbt adapter for governed development and CI commands."""
 
 import os
 import re
@@ -7,7 +7,7 @@ import time
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
-from generaldataagent.contracts.data_engineering import DbtCompileReport
+from generaldataagent.contracts.data_engineering import DbtCompileReport, DbtTestReport
 
 _SAFE_SELECTOR = re.compile(r"^[A-Za-z0-9_.:+-]{1,256}$")
 
@@ -17,7 +17,7 @@ class DbtCompileError(RuntimeError):
 
 
 class DbtCompileRunner:
-    """Runs only `dbt compile` against one pinned project and profiles directory."""
+    """Runs constrained dbt compile and selected tests on pinned local paths."""
 
     def __init__(
         self,
@@ -102,6 +102,82 @@ class DbtCompileRunner:
         if selected_resources:
             reported_command = (*reported_command, "--select", *selected_resources)
         return DbtCompileReport(
+            project_name=self.project_dir.name,
+            target=target,
+            selected_resources=selected_resources,
+            command=reported_command,
+            exit_code=result.returncode,
+            succeeded=result.returncode == 0,
+            elapsed_ms=elapsed_ms,
+            stdout_tail=result.stdout[-20_000:],
+            stderr_tail=result.stderr[-20_000:],
+        )
+
+    def validate_test_request(
+        self,
+        *,
+        target: str,
+        selected_resources: tuple[str, ...],
+    ) -> None:
+        if target not in self.allowed_targets:
+            raise PermissionError(f"dbt target is not approved for test: {target}")
+        if not selected_resources:
+            raise ValueError("dbt test requires at least one selected resource")
+        invalid = [item for item in selected_resources if not _SAFE_SELECTOR.fullmatch(item)]
+        if invalid:
+            raise ValueError(f"invalid dbt selectors: {invalid}")
+
+    def _test_selected(
+        self,
+        *,
+        target: str,
+        selected_resources: tuple[str, ...],
+    ) -> DbtTestReport:
+        """Execute only after the policy gateway consumes an exact approval."""
+        self.validate_test_request(target=target, selected_resources=selected_resources)
+        command = (
+            *self.executable,
+            "test",
+            "--project-dir",
+            str(self.project_dir),
+            "--profiles-dir",
+            str(self.profiles_dir),
+            "--target",
+            target,
+            "--no-use-colors",
+            "--select",
+            *selected_resources,
+        )
+        started = time.monotonic()
+        try:
+            result = subprocess.run(
+                command,
+                cwd=self.project_dir,
+                env=self.environment,
+                capture_output=True,
+                text=True,
+                timeout=self.timeout_seconds,
+                check=False,
+            )
+        except FileNotFoundError as exc:
+            raise DbtCompileError("configured dbt executable was not found") from exc
+        except subprocess.TimeoutExpired as exc:
+            raise DbtCompileError(f"dbt test exceeded {self.timeout_seconds:g} seconds") from exc
+        elapsed_ms = (time.monotonic() - started) * 1_000
+        reported_command = (
+            "dbt",
+            "test",
+            "--project-dir",
+            "<project_dir>",
+            "--profiles-dir",
+            "<profiles_dir>",
+            "--target",
+            target,
+            "--no-use-colors",
+            "--select",
+            *selected_resources,
+        )
+        return DbtTestReport(
             project_name=self.project_dir.name,
             target=target,
             selected_resources=selected_resources,

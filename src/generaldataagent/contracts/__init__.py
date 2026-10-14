@@ -7,6 +7,7 @@ from generaldataagent.contracts.analytics import (
     MetricResolution,
     NaturalLanguageMetricQuery,
 )
+from generaldataagent.contracts.approval import ApprovalGrant, ApprovalRequest
 from generaldataagent.contracts.data_engineering import (
     ColumnChange,
     ColumnProfile,
@@ -14,6 +15,7 @@ from generaldataagent.contracts.data_engineering import (
     ConnectorCapabilities,
     DataProfile,
     DbtCompileReport,
+    DbtTestReport,
     ImpactAnalysis,
     ImpactedAsset,
     LineageAsset,
@@ -61,6 +63,8 @@ from generaldataagent.contracts.types import (
 __all__ = [
     "ActorContext",
     "AgentRole",
+    "ApprovalGrant",
+    "ApprovalRequest",
     "ArtifactClassification",
     "ArtifactRef",
     "AuditEvent",
@@ -72,6 +76,7 @@ __all__ = [
     "ConnectorCapabilities",
     "DataProfile",
     "DbtCompileReport",
+    "DbtTestReport",
     "DeliveryPackage",
     "GroundedClaim",
     "HumanReview",

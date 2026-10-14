@@ -45,6 +45,19 @@ def test_requires_approval_for_export() -> None:
     assert decision.decision == "require_approval"
 
 
+def test_requires_r2_approval_for_dbt_test() -> None:
+    decision = PolicyEngine().evaluate(
+        request(
+            agent_role=AgentRole.DATA_ENGINEER,
+            tool_name="dbt.test",
+            action="test",
+            requested_risk=RiskLevel.R2,
+        )
+    )
+    assert decision.decision == "require_approval"
+    assert decision.risk_level == RiskLevel.R2
+
+
 def test_never_allows_permission_changes() -> None:
     decision = PolicyEngine().evaluate(
         request(
