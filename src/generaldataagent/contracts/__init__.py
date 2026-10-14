@@ -7,7 +7,11 @@ from generaldataagent.contracts.analytics import (
     MetricResolution,
     NaturalLanguageMetricQuery,
 )
-from generaldataagent.contracts.approval import ApprovalGrant, ApprovalRequest
+from generaldataagent.contracts.approval import (
+    ApprovalDisposition,
+    ApprovalGrant,
+    ApprovalRequest,
+)
 from generaldataagent.contracts.data_engineering import (
     ColumnChange,
     ColumnProfile,
@@ -63,6 +67,7 @@ from generaldataagent.contracts.types import (
 __all__ = [
     "ActorContext",
     "AgentRole",
+    "ApprovalDisposition",
     "ApprovalGrant",
     "ApprovalRequest",
     "ArtifactClassification",

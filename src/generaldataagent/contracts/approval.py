@@ -1,6 +1,6 @@
 """Contracts for explicit, request-bound human approvals."""
 
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID, uuid4
 
 from pydantic import AwareDatetime, Field, model_validator
@@ -47,3 +47,13 @@ class ApprovalGrant(ContractModel):
         if self.expires_at <= self.approved_at:
             raise ValueError("approval grant must expire after approval")
         return self
+
+
+class ApprovalDisposition(ContractModel):
+    approval_id: UUID
+    request_fingerprint: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    disposition: Literal["rejected", "cancelled"]
+    actor_id: str = Field(min_length=1, max_length=128)
+    tenant_id: str = Field(min_length=1, max_length=128)
+    reason: str = Field(min_length=1, max_length=2_000)
+    recorded_at: AwareDatetime = Field(default_factory=utc_now)

@@ -205,3 +205,111 @@ def test_sqlite_approval_survives_restart_and_still_consumes_once(tmp_path) -> N
             trace_id="replayed-after-restart",
             approval_id=approval_request.approval_id,
         )
+
+
+def test_rejected_approval_cannot_be_granted_or_consumed() -> None:
+    approvals = InMemoryApprovalStore()
+    request = ToolRequest(
+        task_id=uuid4(),
+        user_id="requester-1",
+        tenant_id="tenant-1",
+        project_id="project-1",
+        agent_role=AgentRole.REPORTER,
+        tool_name="dataset.export",
+        action="export",
+        resource="warehouse.analytics.orders",
+        arguments={"limit": 50},
+        data_domains=("commerce",),
+        requested_risk=RiskLevel.R2,
+    )
+    approval_request = approvals.create_request(
+        request,
+        impact_scope="Export at most 50 internal rows.",
+        cost_estimate="Less than one minute of compute.",
+        classification=ArtifactClassification.INTERNAL,
+        rollback_plan="Delete the generated artifact.",
+        expires_at=datetime.now(UTC) + timedelta(minutes=5),
+    )
+
+    disposition = approvals.reject(
+        approval_request.approval_id,
+        reviewer_id="reviewer-1",
+        reason="The requested export is not necessary.",
+    )
+
+    assert disposition.disposition == "rejected"
+    with pytest.raises(ApprovalError, match="already closed"):
+        approvals.approve(approval_request.approval_id, approver_id="reviewer-2")
+    with pytest.raises(ApprovalError, match="was rejected"):
+        approvals.consume(approval_request.approval_id, request)
+
+
+def test_approved_action_can_be_cancelled_and_stays_cancelled_after_restart(tmp_path) -> None:
+    database = tmp_path / "cancelled-approvals.sqlite"
+    request = ToolRequest(
+        task_id=uuid4(),
+        user_id="requester-1",
+        tenant_id="tenant-1",
+        project_id="project-1",
+        agent_role=AgentRole.REPORTER,
+        tool_name="dataset.export",
+        action="export",
+        resource="warehouse.analytics.orders",
+        arguments={"limit": 25},
+        data_domains=("commerce",),
+        requested_risk=RiskLevel.R2,
+    )
+    store = SQLiteApprovalStore(database)
+    approval_request = store.create_request(
+        request,
+        impact_scope="Export at most 25 internal rows.",
+        cost_estimate="Less than one minute of compute.",
+        classification=ArtifactClassification.INTERNAL,
+        rollback_plan="Delete the generated artifact.",
+        expires_at=datetime.now(UTC) + timedelta(minutes=5),
+    )
+    store.approve(approval_request.approval_id, approver_id="reviewer-1")
+    disposition = store.cancel(
+        approval_request.approval_id,
+        requester_id="requester-1",
+        reason="The requester no longer needs the export.",
+    )
+
+    assert disposition.disposition == "cancelled"
+    after_restart = SQLiteApprovalStore(database)
+    with pytest.raises(ApprovalError, match="was cancelled"):
+        after_restart.consume(approval_request.approval_id, request)
+
+
+def test_expired_grant_stays_unusable_after_restart_with_injected_clock(tmp_path) -> None:
+    database = tmp_path / "expired-approvals.sqlite"
+    issued_at = datetime.now(UTC)
+    current_time = [issued_at]
+    request = ToolRequest(
+        task_id=uuid4(),
+        user_id="requester-1",
+        tenant_id="tenant-1",
+        project_id="project-1",
+        agent_role=AgentRole.REPORTER,
+        tool_name="dataset.export",
+        action="export",
+        resource="warehouse.analytics.orders",
+        arguments={"limit": 25},
+        data_domains=("commerce",),
+        requested_risk=RiskLevel.R2,
+    )
+    store = SQLiteApprovalStore(database, clock=lambda: current_time[0])
+    approval_request = store.create_request(
+        request,
+        impact_scope="Export at most 25 internal rows.",
+        cost_estimate="Less than one minute of compute.",
+        classification=ArtifactClassification.INTERNAL,
+        rollback_plan="Delete the generated artifact.",
+        expires_at=issued_at + timedelta(minutes=5),
+    )
+    store.approve(approval_request.approval_id, approver_id="reviewer-1")
+    current_time[0] = issued_at + timedelta(minutes=6)
+
+    after_restart = SQLiteApprovalStore(database, clock=lambda: current_time[0])
+    with pytest.raises(ApprovalError, match="has expired"):
+        after_restart.consume(approval_request.approval_id, request)

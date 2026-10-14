@@ -38,6 +38,9 @@ This increment establishes the first read-only Stage 2 vertical slice:
 - The optional SQLite approval store persists requests, grants, and atomic consumption across local
   process restarts; a restart recovery regression proves the original action can resume once and a
   subsequent replay is rejected.
+- Rejection closes an unapproved request, while cancellation lets the original requester close any
+  unconsumed action. Restart fault-injection verifies rejected, cancelled, consumed, and expired
+  states cannot be executed; expiry uses an injected clock rather than timing-dependent sleeps.
 - The dbt manifest adapter reads one pinned, size-limited local manifest, records its SHA-256 and dbt
   versions, normalizes sources/models/metrics/exposures into the lineage contract, ignores test-only
   edges, and marks supported but missing dependencies as incomplete instead of silently dropping

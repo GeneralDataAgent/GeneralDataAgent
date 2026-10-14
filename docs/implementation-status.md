@@ -70,6 +70,9 @@ data access:
 - The SQLite approval store atomically persists request, grant, and consumption state, so an approved
   task can resume after a local process restart without making the grant replayable. The in-memory
   store remains available only for isolated tests and ephemeral development.
+- Reviewers can reject pending requests and requesters can cancel any unconsumed action, including an
+  approved one. Rejection, cancellation, consumption, and expiry are mutually exclusive execution
+  boundaries that remain effective after restart; deterministic injected-clock tests cover expiry.
 - The dbt manifest adapter pins and hashes its input, normalizes supported assets, and makes missing
   dependencies explicit before impact analysis.
 - All engineering operations pass through the policy gateway, enforce connector-domain bindings,
