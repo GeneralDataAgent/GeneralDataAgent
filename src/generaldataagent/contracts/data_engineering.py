@@ -289,7 +289,7 @@ class ProfileBatchItem(ContractModel):
     task_id: UUID
     connector_id: str = Field(min_length=1, max_length=128)
     relation: str = Field(min_length=1, max_length=512)
-    status: Literal["succeeded", "failed"]
+    status: Literal["succeeded", "failed", "cancelled"]
     profile: DataProfile | None = None
     error_code: str | None = Field(default=None, max_length=128)
     error_message: str | None = Field(default=None, max_length=2_000)

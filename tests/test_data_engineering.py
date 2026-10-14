@@ -1,4 +1,7 @@
 import sqlite3
+import time
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event
 from uuid import uuid4
 
 import duckdb
@@ -21,6 +24,45 @@ from generaldataagent.data_engineering import (
     profile_relation,
 )
 from generaldataagent.policy import PolicyEngine
+
+
+class BlockingConnector:
+    def __init__(self, started: Event, release: Event) -> None:
+        self.started = started
+        self.release = release
+        self.capabilities = ConnectorCapabilities(
+            connector_id="blocking",
+            dialect="sqlite",
+            read_only=True,
+            schema_introspection=True,
+            profiling=True,
+            sampling=False,
+            explain=False,
+            cancellation=True,
+        )
+
+    def inspect_relation(self, relation: str) -> RelationSchema:
+        return RelationSchema(
+            connector_id="blocking",
+            relation=relation,
+            columns=(
+                ColumnSchema(
+                    name="id",
+                    data_type="INTEGER",
+                    nullable=False,
+                    ordinal_position=0,
+                ),
+            ),
+        )
+
+    def fetch_all(self, sql: str, parameters=()):
+        if not self.started.is_set():
+            self.started.set()
+            assert self.release.wait(timeout=2)
+        time.sleep(0.01)
+        if sql.startswith("SELECT COUNT(*) FROM"):
+            return ((1,),)
+        return ((0, 1, 1, 1, 1.0),)
 
 
 def create_sqlite_database(path) -> None:
@@ -399,3 +441,43 @@ def test_parallel_profiling_reports_partial_failure_without_cross_talk(tmp_path)
     assert result.items[1].status == "succeeded"
     assert result.items[1].profile is not None
     assert result.items[1].profile.row_count == 3
+
+
+def test_parallel_profiling_cancels_queued_requests(tmp_path) -> None:
+    started = Event()
+    release = Event()
+    cancel = Event()
+    runtime = DataEngineeringRuntime(
+        connectors={"blocking": BlockingConnector(started, release)},
+        connector_domains={"blocking": frozenset({"commerce"})},
+        artifacts=LocalArtifactStore(tmp_path / "artifacts"),
+    )
+    actor = ActorContext(
+        user_id="user-1",
+        tenant_id="tenant-1",
+        project_id="project-1",
+        data_domains=("commerce",),
+    )
+    requests = tuple(
+        ProfileBatchRequest(connector_id="blocking", relation="orders") for _ in range(10)
+    )
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(
+            runtime.profile_relations_parallel,
+            actor=actor,
+            requests=requests,
+            trace_id="cancel-test",
+            max_workers=1,
+            cancel_event=cancel,
+        )
+        assert started.wait(timeout=2)
+        cancel.set()
+        release.set()
+        result = future.result(timeout=3)
+
+    statuses = [item.status for item in result.items]
+    assert statuses[0] == "succeeded"
+    assert statuses.count("cancelled") >= 8
+    assert result.all_succeeded is False
+    assert len(list((tmp_path / "artifacts").rglob("*.json"))) == statuses.count("succeeded")

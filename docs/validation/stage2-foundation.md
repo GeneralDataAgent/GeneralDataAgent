@@ -22,6 +22,8 @@ This increment establishes the first read-only Stage 2 vertical slice:
   shortest paths and flags graph cycles.
 - Parallel profiling preserves request order, assigns one task-scoped artifact path per request,
   and returns structured partial failures without discarding successful sibling work.
+- Batch cancellation prevents queued requests from starting, returns explicit cancelled items, and
+  retains completed results; already-running work remains bounded by connector deadlines.
 - The optional dbt adapter runs only `dbt compile` against a pinned project and profiles directory,
   accepts only explicit development or CI targets, validates selectors, applies a hard timeout, and
   redacts local paths from the persisted command report.
@@ -62,8 +64,8 @@ This is a development foundation, not Stage 2 acceptance. The following remain o
 
 - real-project dbt compile qualification and R2-gated dbt test execution;
 - authoritative catalog and Dashboard dependency verification beyond the dbt manifest snapshot;
-- batch-level cancellation and production-scale load testing beyond the completed 50-request
-  isolation regression and connector deadline tests;
+- active-query cooperative cancellation and production-scale load testing beyond the completed
+  queued-work cancellation, 50-request isolation regression, and connector deadline tests;
 - comparison of the frozen Stage 2 corpus with an authoritative profiler and real projects;
 - optional R2 development-write approval trial, which remains disabled;
 - real source credentials, production identity propagation, and production connector hardening.

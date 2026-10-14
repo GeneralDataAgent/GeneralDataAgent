@@ -27,7 +27,8 @@ GeneralDataAgent is a governed multi-agent foundation for data analytics, data e
 - Connector-level SQLite and DuckDB query deadlines with normalized retryable timeout failures.
 - Deterministic relation profiling, schema-drift detection, and constrained quality checks.
 - Dry-run transformation proposals and deterministic downstream lineage impact analysis.
-- Isolated parallel profiling with ordered results and explicit partial failures.
+- Isolated parallel profiling with ordered results, explicit partial failures, and queued-work
+  cancellation.
 - Optional pinned dbt compile adapter restricted to explicit development and CI targets.
 - Hashed, size-limited dbt manifest ingestion for source-to-Dashboard lineage impact.
 - Field-level profile comparison with configurable numeric tolerance and a 99% default gate.

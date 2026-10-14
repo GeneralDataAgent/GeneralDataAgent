@@ -1,7 +1,8 @@
 """Policy-gated runtime for Stage 2 deterministic engineering operations."""
 
 from collections.abc import Mapping
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
+from threading import Event
 from typing import Any
 from uuid import UUID
 
@@ -254,6 +255,7 @@ class DataEngineeringRuntime:
         requests: tuple[ProfileBatchRequest, ...],
         trace_id: str,
         max_workers: int = 8,
+        cancel_event: Event | None = None,
     ) -> ProfileBatchResult:
         if not requests:
             raise ValueError("parallel profiling requires at least one request")
@@ -263,9 +265,13 @@ class DataEngineeringRuntime:
         if len(request_ids) != len(set(request_ids)):
             raise ValueError("parallel profiling request ids must be unique")
 
+        if cancel_event is not None and cancel_event.is_set():
+            items = tuple(self._cancelled_profile_item(request) for request in requests)
+            return ProfileBatchResult(items=items, all_succeeded=False)
+
         results: dict[UUID, ProfileBatchItem] = {}
         with ThreadPoolExecutor(max_workers=min(max_workers, len(requests))) as executor:
-            futures = {
+            pending: dict[Future[DataProfile], ProfileBatchRequest] = {
                 executor.submit(
                     self.profile_relation,
                     task_id=request.task_id,
@@ -276,34 +282,61 @@ class DataEngineeringRuntime:
                 ): request
                 for request in requests
             }
-            for future in as_completed(futures):
-                request = futures[future]
-                try:
-                    profile = future.result()
-                except Exception as exc:
-                    error_code = getattr(getattr(exc, "code", None), "value", None)
-                    results[request.request_id] = ProfileBatchItem(
-                        request_id=request.request_id,
-                        task_id=request.task_id,
-                        connector_id=request.connector_id,
-                        relation=request.relation,
-                        status="failed",
-                        error_code=error_code or type(exc).__name__,
-                        error_message=str(exc),
-                    )
-                else:
-                    results[request.request_id] = ProfileBatchItem(
-                        request_id=request.request_id,
-                        task_id=request.task_id,
-                        connector_id=request.connector_id,
-                        relation=request.relation,
-                        status="succeeded",
-                        profile=profile,
-                    )
+            while pending:
+                if cancel_event is not None and cancel_event.is_set():
+                    for future, request in tuple(pending.items()):
+                        if future.cancel():
+                            results[request.request_id] = self._cancelled_profile_item(request)
+                            del pending[future]
+                if not pending:
+                    break
+                completed, _ = wait(pending, timeout=0.05, return_when=FIRST_COMPLETED)
+                for future in completed:
+                    request = pending.pop(future)
+                    results[request.request_id] = self._completed_profile_item(future, request)
         items = tuple(results[request.request_id] for request in requests)
         return ProfileBatchResult(
             items=items,
             all_succeeded=all(item.status == "succeeded" for item in items),
+        )
+
+    @staticmethod
+    def _cancelled_profile_item(request: ProfileBatchRequest) -> ProfileBatchItem:
+        return ProfileBatchItem(
+            request_id=request.request_id,
+            task_id=request.task_id,
+            connector_id=request.connector_id,
+            relation=request.relation,
+            status="cancelled",
+            error_code="cancelled",
+            error_message="profiling request was cancelled before execution",
+        )
+
+    @staticmethod
+    def _completed_profile_item(
+        future: Future[DataProfile],
+        request: ProfileBatchRequest,
+    ) -> ProfileBatchItem:
+        try:
+            profile = future.result()
+        except Exception as exc:
+            error_code = getattr(getattr(exc, "code", None), "value", None)
+            return ProfileBatchItem(
+                request_id=request.request_id,
+                task_id=request.task_id,
+                connector_id=request.connector_id,
+                relation=request.relation,
+                status="failed",
+                error_code=error_code or type(exc).__name__,
+                error_message=str(exc),
+            )
+        return ProfileBatchItem(
+            request_id=request.request_id,
+            task_id=request.task_id,
+            connector_id=request.connector_id,
+            relation=request.relation,
+            status="succeeded",
+            profile=profile,
         )
 
     def compile_dbt(
