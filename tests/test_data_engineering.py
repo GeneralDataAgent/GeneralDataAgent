@@ -8,7 +8,12 @@ import duckdb
 import pytest
 
 from generaldataagent.artifacts import LocalArtifactStore
-from generaldataagent.connectors import ConnectorError, DuckDBConnector, SQLiteConnector
+from generaldataagent.connectors import (
+    ConnectorError,
+    ConnectorErrorCode,
+    DuckDBConnector,
+    SQLiteConnector,
+)
 from generaldataagent.contracts import ActorContext, AgentRole, ToolRequest
 from generaldataagent.contracts.data_engineering import (
     ColumnSchema,
@@ -41,7 +46,7 @@ class BlockingConnector:
             cancellation=True,
         )
 
-    def inspect_relation(self, relation: str) -> RelationSchema:
+    def inspect_relation(self, relation: str, *, cancel_event=None) -> RelationSchema:
         return RelationSchema(
             connector_id="blocking",
             relation=relation,
@@ -55,10 +60,12 @@ class BlockingConnector:
             ),
         )
 
-    def fetch_all(self, sql: str, parameters=()):
+    def fetch_all(self, sql: str, parameters=(), *, cancel_event=None):
         if not self.started.is_set():
             self.started.set()
             assert self.release.wait(timeout=2)
+        if cancel_event is not None and cancel_event.is_set():
+            raise ConnectorError(ConnectorErrorCode.CANCELLED, "request cancelled")
         time.sleep(0.01)
         if sql.startswith("SELECT COUNT(*) FROM"):
             return ((1,),)
@@ -160,6 +167,35 @@ def test_duckdb_connector_enforces_query_deadline(tmp_path) -> None:
 
     assert caught.value.code.value == "timeout"
     assert caught.value.retryable is True
+
+
+@pytest.mark.parametrize(
+    ("factory", "creator", "sql"),
+    [
+        (
+            SQLiteConnector,
+            create_sqlite_database,
+            "WITH RECURSIVE counter(value) AS ("
+            "SELECT 1 UNION ALL SELECT value + 1 FROM counter WHERE value < 100000000"
+            ") SELECT SUM(value) FROM counter",
+        ),
+        (
+            DuckDBConnector,
+            create_duckdb_database,
+            "SELECT SUM(value) FROM range(100000000000) AS items(value)",
+        ),
+    ],
+)
+def test_connectors_honor_active_cancellation(tmp_path, factory, creator, sql) -> None:
+    database = tmp_path / f"cancel-{factory.__name__}.db"
+    creator(database)
+    cancel = Event()
+    cancel.set()
+
+    with pytest.raises(ConnectorError) as caught:
+        factory(database).fetch_all(sql, cancel_event=cancel)
+
+    assert caught.value.code.value == "cancelled"
 
 
 def test_capabilities_reject_read_only_mutation_claims() -> None:
@@ -477,7 +513,6 @@ def test_parallel_profiling_cancels_queued_requests(tmp_path) -> None:
         result = future.result(timeout=3)
 
     statuses = [item.status for item in result.items]
-    assert statuses[0] == "succeeded"
-    assert statuses.count("cancelled") >= 8
+    assert statuses.count("cancelled") == 10
     assert result.all_succeeded is False
-    assert len(list((tmp_path / "artifacts").rglob("*.json"))) == statuses.count("succeeded")
+    assert not list((tmp_path / "artifacts").rglob("*.json"))

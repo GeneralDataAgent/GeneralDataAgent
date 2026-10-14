@@ -3,6 +3,7 @@
 import sqlite3
 import time
 from pathlib import Path
+from threading import Event
 from typing import Any
 
 from generaldataagent.connectors.base import (
@@ -47,8 +48,16 @@ class SQLiteConnector:
     def capabilities(self) -> ConnectorCapabilities:
         return self._capabilities
 
-    def inspect_relation(self, relation: str) -> RelationSchema:
-        rows = self.fetch_all(f"PRAGMA table_info({quote_identifier(relation)})")
+    def inspect_relation(
+        self,
+        relation: str,
+        *,
+        cancel_event: Event | None = None,
+    ) -> RelationSchema:
+        rows = self.fetch_all(
+            f"PRAGMA table_info({quote_identifier(relation)})",
+            cancel_event=cancel_event,
+        )
         if not rows:
             raise ConnectorError(
                 ConnectorErrorCode.NOT_FOUND,
@@ -73,6 +82,8 @@ class SQLiteConnector:
         self,
         sql: str,
         parameters: tuple[Any, ...] = (),
+        *,
+        cancel_event: Event | None = None,
     ) -> tuple[tuple[Any, ...], ...]:
         uri = f"file:{self.database_path.as_posix()}?mode=ro"
         deadline = time.monotonic() + self.timeout_seconds
@@ -80,7 +91,12 @@ class SQLiteConnector:
             with sqlite3.connect(uri, uri=True) as connection:
                 connection.execute("PRAGMA query_only = ON")
                 connection.set_progress_handler(
-                    lambda: 1 if time.monotonic() > deadline else 0,
+                    lambda: (
+                        1
+                        if time.monotonic() > deadline
+                        or (cancel_event is not None and cancel_event.is_set())
+                        else 0
+                    ),
                     1_000,
                 )
                 return tuple(connection.execute(sql, parameters).fetchall())
@@ -88,6 +104,11 @@ class SQLiteConnector:
             message = str(exc)
             lowered = message.casefold()
             if "interrupted" in lowered:
+                if cancel_event is not None and cancel_event.is_set():
+                    raise ConnectorError(
+                        ConnectorErrorCode.CANCELLED,
+                        "SQLite request was cancelled",
+                    ) from exc
                 raise ConnectorError(
                     ConnectorErrorCode.TIMEOUT,
                     f"SQLite request exceeded {self.timeout_seconds:g} seconds",

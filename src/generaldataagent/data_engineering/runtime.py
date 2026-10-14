@@ -2,9 +2,9 @@
 
 from collections.abc import Mapping
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
-from threading import Event
+from threading import Event, Lock
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from generaldataagent.artifacts import LocalArtifactStore
 from generaldataagent.connectors import ReadOnlyConnector
@@ -67,6 +67,8 @@ class DataEngineeringRuntime:
         self.artifacts = artifacts
         self.dbt_runner = dbt_runner
         self.lineage_loader = lineage_loader
+        self._cancel_events: dict[str, Event] = {}
+        self._cancel_events_lock = Lock()
         self.gateway = ToolGateway(policy or PolicyEngine(), audit)
         self.gateway.register("connector.inspect", self._inspect)
         self.gateway.register("data.profile", self._profile)
@@ -110,18 +112,32 @@ class DataEngineeringRuntime:
         connector_id: str,
         relation: str,
         trace_id: str,
+        cancel_event: Event | None = None,
     ) -> DataProfile:
         authorized_domains = self._authorized_domains(actor, connector_id)
+        cancel_token = str(uuid4()) if cancel_event is not None else None
+        if cancel_token is not None:
+            with self._cancel_events_lock:
+                self._cancel_events[cancel_token] = cancel_event
         request = self._request(
             task_id=task_id,
             actor=actor,
             tool_name="data.profile",
             action="profile",
             resource=f"{connector_id}:{relation}",
-            arguments={"connector_id": connector_id, "relation": relation},
+            arguments={
+                "connector_id": connector_id,
+                "relation": relation,
+                "cancel_token": cancel_token,
+            },
             data_domains=authorized_domains,
         )
-        result = self.gateway.invoke(request, trace_id=trace_id)
+        try:
+            result = self.gateway.invoke(request, trace_id=trace_id)
+        finally:
+            if cancel_token is not None:
+                with self._cancel_events_lock:
+                    self._cancel_events.pop(cancel_token, None)
         self._store(task_id, "data_profile", result, "data-engineer")
         return result
 
@@ -279,6 +295,7 @@ class DataEngineeringRuntime:
                     connector_id=request.connector_id,
                     relation=request.relation,
                     trace_id=f"{trace_id}:{request.request_id}",
+                    cancel_event=cancel_event,
                 ): request
                 for request in requests
             }
@@ -321,12 +338,13 @@ class DataEngineeringRuntime:
             profile = future.result()
         except Exception as exc:
             error_code = getattr(getattr(exc, "code", None), "value", None)
+            status = "cancelled" if error_code == "cancelled" else "failed"
             return ProfileBatchItem(
                 request_id=request.request_id,
                 task_id=request.task_id,
                 connector_id=request.connector_id,
                 relation=request.relation,
-                status="failed",
+                status=status,
                 error_code=error_code or type(exc).__name__,
                 error_message=str(exc),
             )
@@ -421,9 +439,17 @@ class DataEngineeringRuntime:
         )
 
     def _profile(self, arguments: dict[str, Any]) -> DataProfile:
+        cancel_token = arguments.get("cancel_token")
+        cancel_event = None
+        if cancel_token is not None:
+            with self._cancel_events_lock:
+                cancel_event = self._cancel_events.get(str(cancel_token))
+            if cancel_event is None:
+                raise RuntimeError("profiling cancellation token is no longer active")
         return profile_relation(
             self._connector(str(arguments["connector_id"])),
             str(arguments["relation"]),
+            cancel_event=cancel_event,
         )
 
     def _quality(self, arguments: dict[str, Any]) -> QualityReport:

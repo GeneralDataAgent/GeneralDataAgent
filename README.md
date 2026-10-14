@@ -25,6 +25,7 @@ GeneralDataAgent is a governed multi-agent foundation for data analytics, data e
 - Real NYC TLC Parquet ingestion with source hashes and a curated SQLite snapshot.
 - Unified read-only SQLite and DuckDB connectors with immutable capability declarations.
 - Connector-level SQLite and DuckDB query deadlines with normalized retryable timeout failures.
+- Cooperative cancellation propagated through governed profiling into active connector queries.
 - Deterministic relation profiling, schema-drift detection, and constrained quality checks.
 - Dry-run transformation proposals and deterministic downstream lineage impact analysis.
 - Isolated parallel profiling with ordered results, explicit partial failures, and queued-work

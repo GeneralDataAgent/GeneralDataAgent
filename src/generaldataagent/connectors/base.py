@@ -1,6 +1,7 @@
 """Common connector interface and normalized failure model."""
 
 from enum import StrEnum
+from threading import Event
 from typing import Any, Protocol
 
 from generaldataagent.contracts.data_engineering import (
@@ -16,6 +17,7 @@ class ConnectorErrorCode(StrEnum):
     TIMEOUT = "timeout"
     TEMPORARY_UNAVAILABLE = "temporary_unavailable"
     EXECUTION_FAILED = "execution_failed"
+    CANCELLED = "cancelled"
 
 
 class ConnectorError(RuntimeError):
@@ -35,12 +37,19 @@ class ReadOnlyConnector(Protocol):
     @property
     def capabilities(self) -> ConnectorCapabilities: ...
 
-    def inspect_relation(self, relation: str) -> RelationSchema: ...
+    def inspect_relation(
+        self,
+        relation: str,
+        *,
+        cancel_event: Event | None = None,
+    ) -> RelationSchema: ...
 
     def fetch_all(
         self,
         sql: str,
         parameters: tuple[Any, ...] = (),
+        *,
+        cancel_event: Event | None = None,
     ) -> tuple[tuple[Any, ...], ...]: ...
 
 
