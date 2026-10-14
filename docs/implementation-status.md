@@ -50,6 +50,8 @@ data access:
   Dashboards and flags cycles.
 - Parallel profiling preserves request order, isolates task-scoped artifacts, and retains successful
   results when sibling requests fail; the regression suite covers 50 concurrent requests.
+- A separate 50-group concurrent gate alternates two source sizes and verifies 100 distinct task
+  artifacts, directly covering the Stage 2 isolation threshold without claiming production load.
 - The frozen Stage 2 baseline covers 25 schema, quality, impact, transformation safety, and
   hand-calculated profile-oracle cases.
 - Profile comparison emits field-level mismatches and applies numeric tolerance plus a configurable

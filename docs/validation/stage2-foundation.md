@@ -65,6 +65,7 @@ uv run python examples/stage2_data_engineering_demo.py
 uv run python evals/run_stage1.py
 uv run python evals/run_stage2.py
 uv run python evals/run_stage2_load.py
+uv run python evals/run_stage2_isolation.py
 uv run python evals/run_stage2_cross_engine.py
 uv run python evals/run_stage2_quality.py
 uv run python evals/run_stage2_impact.py
@@ -111,6 +112,10 @@ it does not replace comparison with an independent authoritative profiler or rea
 The local load runner creates an ephemeral 1,000-row SQLite source and 100 isolated task requests.
 Its five-second P95 threshold is deliberately environment-tolerant for CI; record the observed
 latency as diagnostic evidence, not as a production SLO or capacity result.
+
+The isolation runner executes 50 profiling groups concurrently. Each group reads two connectors with
+different row counts and must produce the ordered `[3, 7]` result plus two unique artifacts; this
+directly tests the 50-group no-cross-talk threshold.
 
 The cross-engine runner creates the same 20 relations in SQLite and DuckDB and compares 380 profile
 fields. It is a connector-consistency regression, not an authoritative external-profiler result.

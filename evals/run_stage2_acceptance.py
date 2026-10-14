@@ -31,6 +31,9 @@ run_load_evaluation = run_path(EVAL_DIR / "run_stage2_load.py")["run_load_evalua
 run_impact_evaluation = run_path(EVAL_DIR / "run_stage2_impact.py")[
     "run_impact_evaluation"
 ]
+run_isolation_evaluation = run_path(EVAL_DIR / "run_stage2_isolation.py")[
+    "run_isolation_evaluation"
+]
 run_lineage_evaluation = run_path(EVAL_DIR / "run_stage2_lineage.py")[
     "run_lineage_evaluation"
 ]
@@ -75,6 +78,7 @@ def run_acceptance_report() -> dict[str, Any]:
     dbt_adapter = run_dbt_adapter_evaluation()
     load = run_load_evaluation()
     impact = run_impact_evaluation()
+    isolation = run_isolation_evaluation()
     lineage = run_lineage_evaluation()
     quality = run_quality_evaluation()
     schema = run_schema_evaluation()
@@ -126,6 +130,11 @@ def run_acceptance_report() -> dict[str, Any]:
             "gate_id": "local_parallel_load",
             "status": "passed" if load["passed"] else "failed",
             "evidence": load,
+        },
+        {
+            "gate_id": "parallel_group_isolation",
+            "status": "passed" if isolation["passed"] else "failed",
+            "evidence": isolation,
         },
         {
             "gate_id": "schema_drift_fail_closed",

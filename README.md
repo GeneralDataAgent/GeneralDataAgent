@@ -159,6 +159,12 @@ Run the reproducible 100-request local profiling load gate with:
 uv run python evals/run_stage2_load.py
 ```
 
+Run the 50-group cross-source profiling isolation gate with:
+
+```bash
+uv run python evals/run_stage2_isolation.py
+```
+
 Cross-check 20 deterministic profiles between SQLite and DuckDB with:
 
 ```bash

@@ -19,6 +19,7 @@ def test_stage2_acceptance_report_separates_local_and_external_gates() -> None:
         "frozen_components",
         "impact_analysis_matrix",
         "local_parallel_load",
+        "parallel_group_isolation",
         "local_dbt_adapter",
         "quality_rule_matrix",
         "schema_diff_matrix",
