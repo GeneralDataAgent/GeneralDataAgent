@@ -171,6 +171,12 @@ Run the frozen 20-case quality-rule matrix with:
 uv run python evals/run_stage2_quality.py
 ```
 
+Run the frozen 20-case impact-analysis matrix with:
+
+```bash
+uv run python evals/run_stage2_impact.py
+```
+
 Aggregate all local Stage 2 evidence while retaining external blockers with:
 
 ```bash
@@ -183,6 +189,8 @@ The cross-engine gate requires exact agreement across 380 profile fields; it che
 not agreement with an external authoritative profiler.
 The quality matrix covers exact violation counts and report outcomes for not-null, uniqueness,
 accepted-value, range, and warning-severity behavior.
+The impact matrix checks exact downstream types, distances, and paths across chains, forks, fan-in,
+multiple changed assets, disconnected components, cycles, metrics, and Dashboards.
 The aggregate report exits successfully when local development gates pass, but deliberately reports
 `stage_acceptance_complete: false` until every real-environment gate has evidence.
 

@@ -67,6 +67,7 @@ uv run python evals/run_stage2.py
 uv run python evals/run_stage2_load.py
 uv run python evals/run_stage2_cross_engine.py
 uv run python evals/run_stage2_quality.py
+uv run python evals/run_stage2_impact.py
 uv run python evals/run_stage2_acceptance.py
 ```
 
@@ -113,6 +114,11 @@ fields. It is a connector-consistency regression, not an authoritative external-
 The frozen quality runner contains 20 independently enumerated rule cases over a fixed 10-row
 fixture. It requires exact violation counts and final report outcomes for every case; it remains a
 deterministic component gate rather than a business-domain rule effectiveness study.
+
+The frozen impact runner contains 20 explicit lineage graphs and expected downstream paths. It
+checks direct and transitive dependencies, shortest-path tie breaking, multiple changed assets,
+disconnected components, cycles, tables, models, metrics, and Dashboards. The authoritative catalog
+gate remains `not_run` because synthetic graph recall does not prove real metadata completeness.
 
 The aggregate acceptance runner executes all local development evidence and returns a successful
 process status only when those gates pass. Its report still sets `stage_acceptance_complete` to
