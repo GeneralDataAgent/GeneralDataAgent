@@ -204,6 +204,27 @@ class LineageAsset(ContractModel):
     depends_on: tuple[str, ...] = ()
 
 
+class LineageSnapshot(ContractModel):
+    manifest_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    dbt_schema_version: str = Field(min_length=1, max_length=512)
+    dbt_version: str = Field(min_length=1, max_length=64)
+    assets: tuple[LineageAsset, ...]
+    unresolved_dependencies: tuple[str, ...] = ()
+    complete: bool
+    loaded_at: datetime = Field(default_factory=utc_now)
+
+    @model_validator(mode="after")
+    def validate_graph_summary(self) -> "LineageSnapshot":
+        asset_ids = [asset.asset_id for asset in self.assets]
+        if len(asset_ids) != len(set(asset_ids)):
+            raise ValueError("lineage snapshot asset ids must be unique")
+        if len(self.unresolved_dependencies) != len(set(self.unresolved_dependencies)):
+            raise ValueError("unresolved lineage dependencies must be unique")
+        if self.complete != (not self.unresolved_dependencies):
+            raise ValueError("lineage snapshot completeness must match unresolved dependencies")
+        return self
+
+
 class ImpactedAsset(ContractModel):
     asset_id: str = Field(min_length=1, max_length=256)
     asset_type: Literal["source", "table", "model", "metric", "dashboard"]

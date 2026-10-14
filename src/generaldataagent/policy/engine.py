@@ -77,6 +77,13 @@ DEFAULT_RULES = (
         obligations=("audit",),
     ),
     PolicyRule(
+        tool_name="lineage.ingest",
+        risk_level=RiskLevel.R0,
+        allowed_actions=frozenset({"ingest"}),
+        allowed_roles=frozenset({"discovery", "data_engineer", "verifier"}),
+        obligations=("audit", "content_hash", "read_only"),
+    ),
+    PolicyRule(
         tool_name="dbt.compile",
         risk_level=RiskLevel.R1,
         allowed_actions=frozenset({"compile"}),
@@ -152,6 +159,7 @@ class PolicyEngine:
             "data.quality",
             "transformation.propose",
             "lineage.impact",
+            "lineage.ingest",
             "dbt.compile",
             "dataset.export",
         }:

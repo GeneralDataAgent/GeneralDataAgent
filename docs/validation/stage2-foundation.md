@@ -23,6 +23,10 @@ This increment establishes the first read-only Stage 2 vertical slice:
 - The optional dbt adapter runs only `dbt compile` against a pinned project and profiles directory,
   accepts only explicit development or CI targets, validates selectors, applies a hard timeout, and
   redacts local paths from the persisted command report.
+- The dbt manifest adapter reads one pinned, size-limited local manifest, records its SHA-256 and dbt
+  versions, normalizes sources/models/metrics/exposures into the lineage contract, ignores test-only
+  edges, and marks supported but missing dependencies as incomplete instead of silently dropping
+  them.
 - The data-engineering runtime routes inspect, profile, quality, and diff calls through the policy
   gateway, enforces connector-to-domain bindings, and persists immutable JSON artifacts.
 
@@ -52,7 +56,7 @@ artifacts=7
 This is a development foundation, not Stage 2 acceptance. The following remain open:
 
 - real-project dbt compile qualification and R2-gated dbt test execution;
-- catalog-backed lineage ingestion and authoritative Dashboard dependency verification;
+- authoritative catalog and Dashboard dependency verification beyond the dbt manifest snapshot;
 - production-scale load, cancellation, and timeout testing beyond the completed 50-request
   isolation regression;
 - comparison of the frozen Stage 2 corpus with an authoritative profiler and real projects;

@@ -28,6 +28,7 @@ GeneralDataAgent is a governed multi-agent foundation for data analytics, data e
 - Dry-run transformation proposals and deterministic downstream lineage impact analysis.
 - Isolated parallel profiling with ordered results and explicit partial failures.
 - Optional pinned dbt compile adapter restricted to explicit development and CI targets.
+- Hashed, size-limited dbt manifest ingestion for source-to-Dashboard lineage impact.
 - Policy-gated data-engineering runtime with immutable schema, profile, diff, and quality artifacts.
 - FastAPI health, capability, contract-validation, and certified-metric endpoints.
 

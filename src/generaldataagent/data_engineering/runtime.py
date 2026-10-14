@@ -13,6 +13,7 @@ from generaldataagent.contracts.data_engineering import (
     DbtCompileReport,
     ImpactAnalysis,
     LineageAsset,
+    LineageSnapshot,
     ProfileBatchItem,
     ProfileBatchRequest,
     ProfileBatchResult,
@@ -23,6 +24,7 @@ from generaldataagent.contracts.data_engineering import (
     TransformationProposal,
     TransformationTest,
 )
+from generaldataagent.data_engineering.catalog_lineage import DbtManifestLineageLoader
 from generaldataagent.data_engineering.dbt import DbtCompileRunner
 from generaldataagent.data_engineering.impact import analyze_impact
 from generaldataagent.data_engineering.profile import profile_relation
@@ -44,6 +46,7 @@ class DataEngineeringRuntime:
         connector_domains: Mapping[str, frozenset[str]],
         artifacts: LocalArtifactStore,
         dbt_runner: DbtCompileRunner | None = None,
+        lineage_loader: DbtManifestLineageLoader | None = None,
         policy: PolicyEngine | None = None,
         audit: JsonlAuditSink | None = None,
     ) -> None:
@@ -62,6 +65,7 @@ class DataEngineeringRuntime:
                 raise ValueError("every connector must be bound to at least one data domain")
         self.artifacts = artifacts
         self.dbt_runner = dbt_runner
+        self.lineage_loader = lineage_loader
         self.gateway = ToolGateway(policy or PolicyEngine(), audit)
         self.gateway.register("connector.inspect", self._inspect)
         self.gateway.register("data.profile", self._profile)
@@ -71,6 +75,8 @@ class DataEngineeringRuntime:
         self.gateway.register("lineage.impact", self._analyze_impact)
         if self.dbt_runner is not None:
             self.gateway.register("dbt.compile", self._compile_dbt)
+        if self.lineage_loader is not None:
+            self.gateway.register("lineage.ingest", self._ingest_lineage)
 
     def inspect_relation(
         self,
@@ -329,6 +335,30 @@ class DataEngineeringRuntime:
         self._store(task_id, "dbt_compile_report", result, "data-engineer")
         return result
 
+    def ingest_dbt_lineage(
+        self,
+        *,
+        task_id: UUID,
+        actor: ActorContext,
+        connector_id: str,
+        trace_id: str,
+    ) -> LineageSnapshot:
+        if self.lineage_loader is None:
+            raise RuntimeError("dbt lineage ingestion is not configured")
+        authorized_domains = self._authorized_domains(actor, connector_id)
+        request = self._request(
+            task_id=task_id,
+            actor=actor,
+            tool_name="lineage.ingest",
+            action="ingest",
+            resource=f"{connector_id}:dbt-manifest",
+            arguments={},
+            data_domains=authorized_domains,
+        )
+        result = self.gateway.invoke(request, trace_id=trace_id)
+        self._store(task_id, "lineage_snapshot", result, "data-engineer")
+        return result
+
     def _connector(self, connector_id: str) -> ReadOnlyConnector:
         try:
             return self.connectors[connector_id]
@@ -398,6 +428,13 @@ class DataEngineeringRuntime:
             selected_resources=tuple(str(item) for item in arguments["selected_resources"]),
         )
 
+    def _ingest_lineage(self, arguments: dict[str, Any]) -> LineageSnapshot:
+        if arguments:
+            raise ValueError("dbt lineage ingestion does not accept runtime paths")
+        if self.lineage_loader is None:
+            raise RuntimeError("dbt lineage ingestion is not configured")
+        return self.lineage_loader.load()
+
     @staticmethod
     def _diff(arguments: dict[str, Any]) -> SchemaDiff:
         return compare_schemas(
@@ -437,6 +474,7 @@ class DataEngineeringRuntime:
             DataProfile
             | DbtCompileReport
             | ImpactAnalysis
+            | LineageSnapshot
             | QualityReport
             | RelationSchema
             | SchemaDiff

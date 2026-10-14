@@ -1,13 +1,13 @@
 # Roadmap implementation status
 
-Status date: 2026-10-13. This matrix compares the repository with the original six-stage roadmap.
+Status date: 2026-10-14. This matrix compares the repository with the original six-stage roadmap.
 `Partial` means useful code exists but the documented exit criteria have not all passed.
 
 | Stage | Status | Implemented | Remaining exit work |
 |---|---|---|---|
 | 0. Baseline and skeleton | Partial | Versioned core contracts, LangGraph skeleton, checkpoint wiring, policy gateway, audit events, API, unit and CI gates | 30-case Phase 0 baseline, 20 checkpoint fault-injection recoveries, failed-tool and approval demonstrations, full trace correlation proof |
 | 1. Read-only analytics | Partial | TLC source, eight certified metrics, authorized deterministic semantic resolution, read-only SQL firewall, query plan, execution and workflow budgets, immutable artifacts, Supervisor role ledger, validated table/chart/claims, 60-case execution regression, 26-case semantic regression, human-review workbench | Real-model success rate, verified SQL-result accuracy corpus, 15-result human review, and P95 under 60 seconds |
-| 2. Data engineering | Partial | Unified read-only SQLite and DuckDB connectors, capability declarations, normalized errors, deterministic profiling, schema diff, quality rules, dry-run transformation proposals, deterministic impact analysis, isolated parallel profiling with 50-request regression, pinned non-production dbt compile adapter, frozen 20-case component baseline, policy-gated runtime, immutable artifacts | Real-project dbt compile qualification, R2-gated dbt test, catalog lineage ingestion, authoritative profiler comparison, production-scale load/cancellation tests, optional approved development write |
+| 2. Data engineering | Partial | Unified read-only SQLite and DuckDB connectors, capability declarations, normalized errors, deterministic profiling, schema diff, quality rules, dry-run transformation proposals, deterministic impact analysis, isolated parallel profiling with 50-request regression, pinned non-production dbt compile adapter, hashed dbt-manifest lineage ingestion, frozen 20-case component baseline, policy-gated runtime, immutable artifacts | Real-project dbt compile qualification, R2-gated dbt test, authoritative catalog and profiler comparison, production-scale load/cancellation tests, optional approved development write |
 | 3. Data science | Not started | Data Scientist role specification only | Python sandbox, snapshot and experiment contracts, reproducible baseline training, leakage/split checks, evaluation report and model card |
 | 4. Production readiness | Foundation only | Actor context, tenant/project fields, risk levels, audit sink, fail-closed policy | SSO and row/column policy propagation, short-lived credentials, HITL, DLP, durable audit separation, red-team suite, SLO/alerts/runbooks |
 | 5. Business loop | Not started | No external side-effect tools enabled | Per-action approval, idempotency, compensation, kill switch, scheduling, notifications, feedback and cost optimization |
@@ -50,6 +50,8 @@ data access:
 - The frozen Stage 2 baseline covers 20 schema, quality, impact, and transformation safety cases.
 - The optional dbt adapter pins project and profiles paths, rejects production targets and unsafe
   selectors, enforces a timeout, and only exposes `compile`; no dbt test or run path is registered.
+- The dbt manifest adapter pins and hashes its input, normalizes supported assets, and makes missing
+  dependencies explicit before impact analysis.
 - All engineering operations pass through the policy gateway, enforce connector-domain bindings,
   and persist immutable artifacts.
 
@@ -59,7 +61,8 @@ data access:
 2. Qualify an available tool-calling model and run at least 60 representative real-model tasks.
 3. Build a value-level SQL oracle corpus, collect reviews for at least 15 successful results, and
    calculate real first-useful-result P95.
-4. Qualify dbt compile on a real project, add R2-gated dbt test, and ingest catalog lineage.
+4. Qualify dbt compile on a real project, add R2-gated dbt test, and verify manifest lineage against
+   an authoritative catalog.
 5. Compare profiles with an authoritative tool and add production-scale load/cancellation tests.
 
 Stage 1 implementation is substantially complete, but Stage 1 acceptance is not. The remaining
