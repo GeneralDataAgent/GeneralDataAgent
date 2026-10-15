@@ -379,7 +379,21 @@ def record_external_gate_acceptance(
             )
             """
         )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS external_gate_acceptance_history (
+                sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+                accepted_at TEXT NOT NULL,
+                bundle_json TEXT NOT NULL,
+                bundle_hash TEXT NOT NULL,
+                previous_entry_hash TEXT NOT NULL,
+                entry_hash TEXT NOT NULL UNIQUE
+            )
+            """
+        )
         connection.execute("BEGIN IMMEDIATE")
+        previous_entry_hash, previous_accepted_at = _verify_acceptance_history(connection)
+        changed = False
         for gate_id, observed_at, manifest_hash in entries:
             prior = connection.execute(
                 "SELECT observed_at, manifest_hash FROM external_gate_acceptance WHERE gate_id = ?",
@@ -393,6 +407,7 @@ def record_external_gate_acceptance(
                     raise ValueError(f"external evidence equivocation detected for {gate_id}")
                 if observed_at == prior_observed_at:
                     continue
+            changed = True
             connection.execute(
                 """
                 INSERT INTO external_gate_acceptance (
@@ -405,6 +420,147 @@ def record_external_gate_acceptance(
                 """,
                 (gate_id, observed_at.isoformat(), manifest_hash, accepted_at.isoformat()),
             )
+        current_rows = connection.execute(
+            """
+            SELECT gate_id, observed_at, manifest_hash
+            FROM external_gate_acceptance
+            ORDER BY gate_id
+            """
+        ).fetchall()
+        bundle_json = _serialize_acceptance_bundle(current_rows)
+        bundle_hash = f"sha256:{hashlib.sha256(bundle_json.encode()).hexdigest()}"
+        latest_history = connection.execute(
+            """
+            SELECT bundle_hash FROM external_gate_acceptance_history
+            ORDER BY sequence DESC LIMIT 1
+            """
+        ).fetchone()
+        if not changed and latest_history is not None and latest_history[0] == bundle_hash:
+            return
+        if previous_accepted_at is not None and accepted_at < previous_accepted_at:
+            raise ValueError("external evidence ledger acceptance time moved backwards")
+        next_sequence = connection.execute(
+            "SELECT COALESCE(MAX(sequence), 0) + 1 FROM external_gate_acceptance_history"
+        ).fetchone()[0]
+        entry_hash = _acceptance_history_entry_hash(
+            sequence=next_sequence,
+            accepted_at=accepted_at.isoformat(),
+            bundle_hash=bundle_hash,
+            previous_entry_hash=previous_entry_hash,
+        )
+        connection.execute(
+            """
+            INSERT INTO external_gate_acceptance_history (
+                sequence, accepted_at, bundle_json, bundle_hash, previous_entry_hash, entry_hash
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                next_sequence,
+                accepted_at.isoformat(),
+                bundle_json,
+                bundle_hash,
+                previous_entry_hash,
+                entry_hash,
+            ),
+        )
+
+
+def _serialize_acceptance_bundle(rows: list[tuple[str, str, str]]) -> str:
+    return json.dumps(
+        [
+            {
+                "gate_id": gate_id,
+                "manifest_hash": manifest_hash,
+                "observed_at": observed_at,
+            }
+            for gate_id, observed_at, manifest_hash in rows
+        ],
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+
+
+def _acceptance_history_entry_hash(
+    *,
+    sequence: int,
+    accepted_at: str,
+    bundle_hash: str,
+    previous_entry_hash: str,
+) -> str:
+    payload = json.dumps(
+        {
+            "accepted_at": accepted_at,
+            "bundle_hash": bundle_hash,
+            "previous_entry_hash": previous_entry_hash,
+            "sequence": sequence,
+        },
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode()
+    return f"sha256:{hashlib.sha256(payload).hexdigest()}"
+
+
+def _verify_acceptance_history(
+    connection: sqlite3.Connection,
+) -> tuple[str, datetime | None]:
+    genesis_hash = f"sha256:{'0' * 64}"
+    previous_entry_hash = genesis_hash
+    previous_accepted_at: datetime | None = None
+    latest_bundle_json: str | None = None
+    rows = connection.execute(
+        """
+        SELECT sequence, accepted_at, bundle_json, bundle_hash, previous_entry_hash, entry_hash
+        FROM external_gate_acceptance_history
+        ORDER BY sequence
+        """
+    ).fetchall()
+    for expected_sequence, row in enumerate(rows, start=1):
+        sequence, accepted_at, bundle_json, bundle_hash, stored_previous, entry_hash = row
+        canonical_bundle = _serialize_acceptance_bundle(
+            [
+                (item["gate_id"], item["observed_at"], item["manifest_hash"])
+                for item in json.loads(bundle_json)
+            ]
+        )
+        expected_bundle_hash = f"sha256:{hashlib.sha256(canonical_bundle.encode()).hexdigest()}"
+        expected_entry_hash = _acceptance_history_entry_hash(
+            sequence=sequence,
+            accepted_at=accepted_at,
+            bundle_hash=bundle_hash,
+            previous_entry_hash=previous_entry_hash,
+        )
+        if (
+            sequence != expected_sequence
+            or bundle_json != canonical_bundle
+            or bundle_hash != expected_bundle_hash
+            or stored_previous != previous_entry_hash
+            or entry_hash != expected_entry_hash
+        ):
+            raise ValueError("external evidence acceptance ledger audit chain is invalid")
+        parsed_accepted_at = datetime.fromisoformat(accepted_at)
+        if previous_accepted_at is not None and parsed_accepted_at < previous_accepted_at:
+            raise ValueError("external evidence acceptance ledger audit time moved backwards")
+        previous_entry_hash = entry_hash
+        previous_accepted_at = parsed_accepted_at
+        latest_bundle_json = bundle_json
+
+    current_rows = connection.execute(
+        """
+        SELECT gate_id, observed_at, manifest_hash
+        FROM external_gate_acceptance
+        ORDER BY gate_id
+        """
+    ).fetchall()
+    if current_rows and latest_bundle_json is None:
+        raise ValueError("external evidence acceptance ledger is missing audit history")
+    if (
+        latest_bundle_json is not None
+        and _serialize_acceptance_bundle(current_rows) != latest_bundle_json
+    ):
+        raise ValueError(
+            "external evidence acceptance ledger snapshot does not match audit history"
+        )
+    return previous_entry_hash, previous_accepted_at
 
 
 def _load_trusted_verifiers(

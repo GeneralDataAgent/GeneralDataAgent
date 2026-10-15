@@ -266,7 +266,10 @@ unauthorized, under-threshold, duplicate-signer, revoked, malformed, or tampered
 When the complete bundle passes, the acceptance runner atomically records each gate's observation
 time and signed manifest hash in the durable SQLite evidence ledger. Re-running the identical bundle
 is idempotent; an older observation or a different manifest at the same observation time is rejected
-as rollback or equivocation. Failed or incomplete bundles never advance the ledger.
+as rollback or equivocation. Every accepted bundle also appends a deterministic audit entry chained
+to the previous entry hash. Before any acceptance, the runner verifies the full chain and requires
+the latest chained bundle to match the current gate snapshot, so edits to either history or current
+state fail closed. Failed, incomplete, or exact-replay bundles never append a new audit entry.
 
 The default command exits on local-gate status; when an evidence directory is supplied, it requires
 both the trust registry and ledger and exits successfully only when local and all external gates pass.

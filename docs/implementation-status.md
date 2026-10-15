@@ -145,6 +145,8 @@ data access:
 - Completed external bundles advance a durable SQLite acceptance ledger in one transaction. Exact
   bundle replay is idempotent, while an older observation or a different signed manifest at the same
   observation time is rejected as rollback or equivocation; incomplete bundles do not alter state.
+  Each accepted bundle is also appended to a deterministic hash chain. The full chain and its match
+  with the current gate snapshot are verified before every write, exposing history or snapshot edits.
 
 ## Recommended sequence after this increment
 

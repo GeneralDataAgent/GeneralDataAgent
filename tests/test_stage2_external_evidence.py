@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import json
+import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from runpy import run_path
@@ -405,6 +406,13 @@ def test_evidence_ledger_is_idempotent_and_rejects_rollback(tmp_path) -> None:
 
     record_external_gate_acceptance(current_results, ledger, accepted_at=now)
     record_external_gate_acceptance(current_results, ledger, accepted_at=now)
+    with sqlite3.connect(ledger) as connection:
+        assert (
+            connection.execute("SELECT COUNT(*) FROM external_gate_acceptance_history").fetchone()[
+                0
+            ]
+            == 1
+        )
 
     older = now - timedelta(minutes=10)
     older_dir = tmp_path / "older"
@@ -451,6 +459,40 @@ def test_evidence_ledger_rejects_same_time_equivocation(tmp_path) -> None:
 
     with pytest.raises(ValueError, match="equivocation detected"):
         record_external_gate_acceptance(second_results, ledger, accepted_at=now)
+
+
+def test_evidence_ledger_rejects_audit_chain_and_snapshot_tampering(tmp_path) -> None:
+    now = datetime.now(UTC)
+    evidence_dir = tmp_path / "evidence"
+    _write_bundle(evidence_dir, now=now)
+    registry = tmp_path / "registry.json"
+    _attest_bundle(evidence_dir, registry, signed_at=now)
+    results = load_external_gate_results(
+        evidence_dir,
+        now=now,
+        trusted_verifiers_path=registry,
+    )
+
+    chain_ledger = tmp_path / "chain-ledger.sqlite"
+    record_external_gate_acceptance(results, chain_ledger, accepted_at=now)
+    with sqlite3.connect(chain_ledger) as connection:
+        connection.execute(
+            "UPDATE external_gate_acceptance_history SET bundle_hash = ? WHERE sequence = 1",
+            (f"sha256:{'f' * 64}",),
+        )
+    with pytest.raises(ValueError, match="audit chain is invalid"):
+        record_external_gate_acceptance(results, chain_ledger, accepted_at=now)
+
+    snapshot_ledger = tmp_path / "snapshot-ledger.sqlite"
+    record_external_gate_acceptance(results, snapshot_ledger, accepted_at=now)
+    with sqlite3.connect(snapshot_ledger) as connection:
+        connection.execute(
+            "UPDATE external_gate_acceptance SET manifest_hash = ? "
+            "WHERE gate_id = 'authoritative_profiler'",
+            (f"sha256:{'e' * 64}",),
+        )
+    with pytest.raises(ValueError, match="snapshot does not match audit history"):
+        record_external_gate_acceptance(results, snapshot_ledger, accepted_at=now)
 
 
 def test_expired_rotated_key_accepts_evidence_signed_during_validity(tmp_path) -> None:
