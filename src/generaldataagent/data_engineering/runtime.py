@@ -91,6 +91,13 @@ class DataEngineeringRuntime:
             and self.development_write_runner.connector_id not in self.connectors
         ):
             raise ValueError("development write runner must reference a registered connector")
+        if self.development_write_runner is not None:
+            configured_connector = self.connectors[self.development_write_runner.connector_id]
+            connector_path = getattr(configured_connector, "database_path", None)
+            if connector_path != self.development_write_runner.database_path:
+                raise ValueError(
+                    "development write runner must share the registered SQLite connector path"
+                )
         self.lineage_loader = lineage_loader
         self.approvals = approvals
         self._cancel_events: dict[str, Event] = {}

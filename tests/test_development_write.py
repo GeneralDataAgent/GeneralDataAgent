@@ -117,6 +117,25 @@ def test_runner_rejects_production_unsafe_and_forged_proposals(tmp_path) -> None
         runner.validate(forged)
 
 
+def test_runtime_rejects_write_runner_bound_to_another_database(tmp_path) -> None:
+    source = tmp_path / "source.sqlite"
+    other = tmp_path / "other.sqlite"
+    create_database(source)
+    create_database(other)
+
+    with pytest.raises(ValueError, match="share the registered SQLite connector path"):
+        DataEngineeringRuntime(
+            connectors={"warehouse": SQLiteConnector(source, connector_id="warehouse")},
+            connector_domains={"warehouse": frozenset({"commerce"})},
+            artifacts=LocalArtifactStore(tmp_path / "artifacts"),
+            development_write_runner=SQLiteDevelopmentWriteRunner(
+                other,
+                connector_id="warehouse",
+                environment="development",
+            ),
+        )
+
+
 def test_exact_one_time_approval_materializes_without_overwrite(tmp_path) -> None:
     database = tmp_path / "source.sqlite"
     create_database(database)

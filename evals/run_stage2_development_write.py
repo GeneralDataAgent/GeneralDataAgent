@@ -44,6 +44,24 @@ def run_development_write_evaluation() -> dict[str, Any]:
             connector_id="warehouse",
             environment="development",
         )
+        other_database = root / "other.sqlite"
+        _create_database(other_database)
+        _expect_error(
+            checks,
+            "connector_path_mismatch_rejected",
+            ValueError,
+            "share the registered SQLite connector path",
+            lambda: _runtime(
+                root / "mismatched",
+                database,
+                approvals=InMemoryApprovalStore(),
+                runner=SQLiteDevelopmentWriteRunner(
+                    other_database,
+                    connector_id="warehouse",
+                    environment="development",
+                ),
+            ),
+        )
         _expect_error(
             checks,
             "unsafe_target_rejected",

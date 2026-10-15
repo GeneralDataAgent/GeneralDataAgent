@@ -39,7 +39,7 @@ This increment establishes the first read-only Stage 2 vertical slice:
 - The optional SQLite development-write runner is absent by default. When explicitly configured for
   `development` or `ci`, it reparses one approved SELECT proposal and creates only a new `dev_`
   table in a pinned database; proposal tests run before commit, exact R2 approval is consumed once,
-  and overwrite is prohibited.
+  the write path must match the registered read connector, and overwrite is prohibited.
 - R2 approval requests display exact parameters, impact, cost, classification, rollback, and expiry;
   grants bind the tenant and full request fingerprint, reject self-approval, and are consumed once.
   The approval request and test result are immutable artifacts and consumption is audited.
@@ -155,11 +155,11 @@ timeouts, production-target and unsafe-selector rejection, exact and single-use 
 and path redaction in commands, stdout, and stderr. It qualifies adapter behavior only; the
 `real_dbt_project` external gate remains `not_run`.
 
-The development-write runner performs 20 checks for default closure, production-environment and
-unsafe-target rejection, exact one-time approval, generated rollback, changed-request and replay
-blocking, no overwrite, correct materialized values, transactional test rollback, source
-preservation, and a false production-write flag. This local pilot does not authorize or expose
-production writes.
+The development-write runner performs 21 checks for default closure, connector-path,
+production-environment and unsafe-target rejection, exact one-time approval, generated rollback,
+changed-request and replay blocking, no overwrite, correct materialized values, transactional test
+rollback, source preservation, and a false production-write flag. This local pilot does not
+authorize or expose production writes.
 
 The frozen dbt-manifest runner contains 20 cases: ten accepted snapshots (including one explicitly
 incomplete graph) and ten rejected malformed manifests. Every accepted case is loaded twice to
