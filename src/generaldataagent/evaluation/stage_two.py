@@ -1,5 +1,7 @@
 """Validated evidence bundles for real-environment Stage 2 gates."""
 
+import base64
+import binascii
 import hashlib
 import json
 from datetime import UTC, datetime
@@ -7,6 +9,8 @@ from pathlib import Path
 from typing import Literal
 from uuid import UUID
 
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from pydantic import AwareDatetime, Field, model_validator
 
 from generaldataagent.contracts.data_engineering import LineageAsset
@@ -150,10 +154,51 @@ class ProductionLoadTranscript(ContractModel):
         return self
 
 
+class TrustedExternalVerifier(ContractModel):
+    verifier: str = Field(min_length=1, max_length=256)
+    key_id: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+    algorithm: Literal["ed25519"] = "ed25519"
+    public_key: str = Field(pattern=r"^base64:[A-Za-z0-9+/]+={0,2}$")
+    allowed_gates: tuple[ExternalGateId, ...] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def validate_public_key_and_gates(self) -> "TrustedExternalVerifier":
+        try:
+            key_bytes = base64.b64decode(self.public_key.removeprefix("base64:"), validate=True)
+        except (ValueError, binascii.Error) as exc:
+            raise ValueError("trusted verifier public key must be valid base64") from exc
+        if len(key_bytes) != 32:
+            raise ValueError("trusted verifier Ed25519 public key must contain 32 bytes")
+        if len(self.allowed_gates) != len(set(self.allowed_gates)):
+            raise ValueError("trusted verifier allowed gates must be unique")
+        return self
+
+
+class TrustedExternalVerifierRegistry(ContractModel):
+    verifiers: tuple[TrustedExternalVerifier, ...] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def validate_unique_identities(self) -> "TrustedExternalVerifierRegistry":
+        identities = [(item.verifier, item.key_id) for item in self.verifiers]
+        if len(identities) != len(set(identities)):
+            raise ValueError("trusted verifier and key id pairs must be unique")
+        return self
+
+
+class ExternalEvidenceAttestation(ContractModel):
+    gate_id: ExternalGateId
+    verifier: str = Field(min_length=1, max_length=256)
+    key_id: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+    algorithm: Literal["ed25519"] = "ed25519"
+    manifest_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    signature: str = Field(pattern=r"^base64:[A-Za-z0-9+/]+={0,2}$")
+
+
 def load_external_gate_results(
     evidence_dir: Path | None,
     *,
     now: datetime | None = None,
+    trusted_verifiers_path: Path | None = None,
 ) -> tuple[dict[str, object], ...]:
     """Load exact gate manifests and verify their referenced evidence bytes."""
 
@@ -168,6 +213,17 @@ def load_external_gate_results(
     )
     if unexpected:
         raise ValueError(f"unknown external gate manifests: {unexpected}")
+    registry = _load_trusted_verifiers(trusted_verifiers_path)
+    expected_attestation_names = {
+        f"{gate_id}.attestation.json" for gate_id in EXTERNAL_GATE_REQUIREMENTS
+    }
+    unexpected_attestations = sorted(
+        path.name
+        for path in root.glob("*.attestation.json")
+        if path.name not in expected_attestation_names
+    )
+    if unexpected_attestations:
+        raise ValueError(f"unknown external gate attestations: {unexpected_attestations}")
 
     checked_at = now or datetime.now(UTC)
     results: list[dict[str, object]] = []
@@ -176,10 +232,20 @@ def load_external_gate_results(
         if not manifest_path.exists():
             results.append(_not_run(gate_id))
             continue
-        manifest = ExternalGateEvidence.model_validate_json(manifest_path.read_text())
+        manifest_bytes = manifest_path.read_bytes()
+        manifest = ExternalGateEvidence.model_validate_json(manifest_bytes)
         if manifest.gate_id != gate_id:
             raise ValueError(
                 f"external evidence manifest {manifest_path.name} declares {manifest.gate_id}"
+            )
+        attestation = None
+        if registry is not None:
+            attestation = _verify_attestation(
+                root=root,
+                gate_id=gate_id,
+                manifest=manifest,
+                manifest_bytes=manifest_bytes,
+                registry=registry,
             )
         evidence_path = (root / manifest.evidence_path).resolve(strict=True)
         if not evidence_path.is_relative_to(root) or not evidence_path.is_file():
@@ -194,6 +260,11 @@ def load_external_gate_results(
                 "status": status,
                 "required_evidence": requirement,
                 "evidence": manifest.model_dump(mode="json"),
+                **(
+                    {"attestation": attestation.model_dump(mode="json")}
+                    if attestation is not None
+                    else {}
+                ),
             }
         )
     return tuple(results)
@@ -203,6 +274,55 @@ def write_external_gate_manifest(path: Path, evidence: ExternalGateEvidence) -> 
     """Write a canonical manifest for an externally produced evidence file."""
 
     path.write_text(json.dumps(evidence.model_dump(mode="json"), indent=2, sort_keys=True) + "\n")
+
+
+def _load_trusted_verifiers(
+    trusted_verifiers_path: Path | None,
+) -> TrustedExternalVerifierRegistry | None:
+    if trusted_verifiers_path is None:
+        return None
+    registry_path = trusted_verifiers_path.resolve(strict=True)
+    if not registry_path.is_file():
+        raise ValueError("trusted verifier registry must be a file")
+    return TrustedExternalVerifierRegistry.model_validate_json(registry_path.read_bytes())
+
+
+def _verify_attestation(
+    *,
+    root: Path,
+    gate_id: ExternalGateId,
+    manifest: ExternalGateEvidence,
+    manifest_bytes: bytes,
+    registry: TrustedExternalVerifierRegistry,
+) -> ExternalEvidenceAttestation:
+    attestation_path = root / f"{gate_id}.attestation.json"
+    if not attestation_path.is_file():
+        raise ValueError(f"missing external evidence attestation for {gate_id}")
+    attestation = ExternalEvidenceAttestation.model_validate_json(attestation_path.read_bytes())
+    if attestation.gate_id != gate_id or attestation.verifier != manifest.verifier:
+        raise ValueError(f"external evidence attestation identity mismatch for {gate_id}")
+    manifest_hash = f"sha256:{hashlib.sha256(manifest_bytes).hexdigest()}"
+    if attestation.manifest_hash != manifest_hash:
+        raise ValueError(f"external evidence manifest hash mismatch for {gate_id}")
+    trusted = next(
+        (
+            item
+            for item in registry.verifiers
+            if item.verifier == attestation.verifier and item.key_id == attestation.key_id
+        ),
+        None,
+    )
+    if trusted is None:
+        raise ValueError(f"untrusted external evidence verifier for {gate_id}")
+    if gate_id not in trusted.allowed_gates:
+        raise ValueError(f"external evidence verifier is not authorized for {gate_id}")
+    public_key_bytes = base64.b64decode(trusted.public_key.removeprefix("base64:"), validate=True)
+    signature = base64.b64decode(attestation.signature.removeprefix("base64:"), validate=True)
+    try:
+        Ed25519PublicKey.from_public_bytes(public_key_bytes).verify(signature, manifest_bytes)
+    except (InvalidSignature, ValueError) as exc:
+        raise ValueError(f"invalid external evidence signature for {gate_id}") from exc
+    return attestation
 
 
 def _not_run(gate_id: ExternalGateId) -> dict[str, object]:

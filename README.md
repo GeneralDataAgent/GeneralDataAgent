@@ -225,17 +225,32 @@ Aggregate all local Stage 2 evidence while retaining external blockers with:
 uv run python evals/run_stage2_acceptance.py
 ```
 
-When real-environment evidence is available, place one `<gate_id>.manifest.json` plus its referenced
-evidence file in a dedicated directory and run:
+When real-environment evidence is available, place one `<gate_id>.manifest.json`, its referenced
+evidence file, and one independently signed `<gate_id>.attestation.json` in a dedicated directory.
+Then run:
 
 ```bash
-uv run python evals/run_stage2_acceptance.py --external-evidence-dir /path/to/evidence
+uv run python evals/run_stage2_acceptance.py \
+  --external-evidence-dir /path/to/evidence \
+  --trusted-verifiers /path/to/trusted-verifiers.json
 ```
 
-The loader verifies exact gate IDs, evidence hashes, relative paths, and validity windows. Missing
-evidence remains `not_run`; expired evidence cannot pass; malformed or tampered bundles fail closed.
-The default command exits on local-gate status; when an evidence directory is supplied, it exits
-successfully only when both local and all external gates pass.
+Sign each generated manifest with an Ed25519 private key held outside the evidence bundle:
+
+```bash
+uv run python evals/attest_external_evidence.py \
+  --manifest /path/to/evidence/real_dbt_project.manifest.json \
+  --private-key /secure/path/release-reviewer.pem \
+  --key-id release-reviewer-2026
+```
+
+The trusted-verifier registry contains the corresponding raw Ed25519 public key as `base64:...`,
+the verifier identity and key ID, and the exact external gate IDs that key may sign. The loader
+verifies identity, gate authorization, the manifest signature, evidence hashes, relative paths, and
+validity windows. Missing evidence remains `not_run`; expired, unsigned, untrusted, unauthorized,
+malformed, or tampered bundles fail closed. The default command exits on local-gate status; when an
+evidence directory is supplied, it requires the trust registry and exits successfully only when
+both local and all external gates pass.
 
 Generate the `real_dbt_project` evidence pair from an actual non-production project with:
 

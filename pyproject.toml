@@ -11,6 +11,7 @@ requires-python = ">=3.11,<3.14"
 license = { text = "Apache-2.0" }
 authors = [{ name = "GeneralDataAgent contributors" }]
 dependencies = [
+  "cryptography>=46,<51",
   "deepagents>=0.7,<0.8",
   "duckdb>=1.4,<2",
   "fastapi>=0.128,<1",

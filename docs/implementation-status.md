@@ -128,6 +128,12 @@ data access:
 - An external-approval qualification command validates a strict service transcript for independent
   approval, exact request and tenant binding, expiry, rejection paths, one-time consumption, and
   replay blocking. A real independently exported transcript is still required to close the gate.
+- A production-load qualification command validates staging or production measurements for request
+  scale, target throughput, errors, cancellations, artifacts, P95 latency, saturation, backpressure,
+  and bounded recovery. A real target-environment transcript is still required to close the gate.
+- External acceptance bundles now require detached Ed25519 attestations from explicitly trusted
+  verifier keys. The trust registry binds each verifier and key ID to an exact gate allowlist, so
+  unsigned, untrusted, unauthorized, or post-signature-tampered evidence fails closed.
 
 ## Recommended sequence after this increment
 

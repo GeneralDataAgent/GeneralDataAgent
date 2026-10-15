@@ -430,6 +430,7 @@ name = "generaldataagent"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "cryptography" },
     { name = "deepagents" },
     { name = "duckdb" },
     { name = "fastapi" },
@@ -453,6 +454,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "cryptography", specifier = ">=46,<51" },
     { name = "deepagents", specifier = ">=0.7,<0.8" },
     { name = "duckdb", specifier = ">=1.4,<2" },
     { name = "fastapi", specifier = ">=0.128,<1" },

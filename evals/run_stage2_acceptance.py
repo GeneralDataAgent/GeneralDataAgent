@@ -52,7 +52,10 @@ def run_acceptance_report(
     external_evidence_dir: Path | None = None,
     *,
     now: datetime | None = None,
+    trusted_verifiers_path: Path | None = None,
 ) -> dict[str, Any]:
+    if external_evidence_dir is not None and trusted_verifiers_path is None:
+        raise ValueError("external evidence requires a trusted verifier registry")
     component = run_evaluation()
     cross_engine = run_cross_engine_evaluation()
     dbt_adapter = run_dbt_adapter_evaluation()
@@ -140,7 +143,11 @@ def run_acceptance_report(
         },
     )
     development_passed = all(gate["status"] == "passed" for gate in development_gates)
-    external_gates = load_external_gate_results(external_evidence_dir, now=now)
+    external_gates = load_external_gate_results(
+        external_evidence_dir,
+        now=now,
+        trusted_verifiers_path=trusted_verifiers_path,
+    )
     external_passed = all(gate["status"] == "passed" for gate in external_gates)
     stage_complete = development_passed and external_passed
     return {
@@ -220,8 +227,12 @@ def _approval_gate_probe() -> dict[str, Any]:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--external-evidence-dir", type=Path)
+    parser.add_argument("--trusted-verifiers", type=Path)
     args = parser.parse_args()
-    report = run_acceptance_report(args.external_evidence_dir)
+    report = run_acceptance_report(
+        args.external_evidence_dir,
+        trusted_verifiers_path=args.trusted_verifiers,
+    )
     print(json.dumps(report, indent=2, sort_keys=True))
     if args.external_evidence_dir is None:
         succeeded = report["development_gate_status"] == "passed"
