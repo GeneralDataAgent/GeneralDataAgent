@@ -385,6 +385,84 @@ def run_development_write_evaluation() -> dict[str, Any]:
                 trace_id="missing-source-replay",
             ),
         )
+        timeout_database = root / "timeout.sqlite"
+        _create_database(timeout_database)
+        timeout_approvals = InMemoryApprovalStore()
+        timeout_runner = SQLiteDevelopmentWriteRunner(
+            timeout_database,
+            connector_id="warehouse",
+            environment="development",
+            timeout_seconds=0.001,
+        )
+        timeout_root = root / "timeout"
+        timeout_runtime = _runtime(
+            timeout_root,
+            timeout_database,
+            approvals=timeout_approvals,
+            runner=timeout_runner,
+        )
+        timeout_task = uuid4()
+        timeout_proposal = _proposal(
+            target="dev_timeout_orders",
+            select_sql=(
+                "WITH RECURSIVE counter AS ("
+                "SELECT 1 AS value UNION ALL "
+                "SELECT value + 1 AS value FROM counter WHERE value < 100000000"
+                ") SELECT SUM(value) AS total FROM counter CROSS JOIN orders"
+            ),
+        )
+        timeout_approval = timeout_runtime.request_development_write_approval(
+            task_id=timeout_task,
+            actor=actor,
+            proposal=timeout_proposal,
+            impact_scope="Exercise bounded development materialization.",
+            cost_estimate="One millisecond local execution deadline.",
+            expires_at=datetime.now(UTC) + timedelta(minutes=5),
+        )
+        timeout_approvals.approve(timeout_approval.approval_id, approver_id="reviewer")
+        _expect_error(
+            checks,
+            "timeout_classified",
+            DevelopmentWriteError,
+            "exceeded",
+            lambda: timeout_runtime.materialize_development(
+                task_id=timeout_task,
+                actor=actor,
+                proposal=timeout_proposal,
+                approval_id=timeout_approval.approval_id,
+                trace_id="timeout",
+            ),
+        )
+        with sqlite3.connect(timeout_database) as connection:
+            timeout_target = connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE name = 'dev_timeout_orders'"
+            ).fetchone()
+        _record(checks, "timeout_rolls_back_target", timeout_target is None)
+        timeout_artifacts = [
+            json.loads(path.read_text())
+            for path in (timeout_root / "artifacts" / str(timeout_task)).glob("*.json")
+        ]
+        timeout_failures = [item for item in timeout_artifacts if "error_code" in item]
+        _record(
+            checks,
+            "timeout_evidence_persisted",
+            len(timeout_failures) == 1
+            and timeout_failures[0]["error_code"] == "timeout"
+            and timeout_failures[0]["created_target_persisted"] is False,
+        )
+        _expect_error(
+            checks,
+            "timeout_approval_consumed",
+            ApprovalError,
+            "already been consumed",
+            lambda: timeout_runtime.materialize_development(
+                task_id=timeout_task,
+                actor=actor,
+                proposal=timeout_proposal,
+                approval_id=timeout_approval.approval_id,
+                trace_id="timeout-replay",
+            ),
+        )
     failed = [check for check in checks if check["status"] != "passed"]
     return {
         "check_count": len(checks),

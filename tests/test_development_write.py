@@ -55,7 +55,13 @@ def actor() -> ActorContext:
     )
 
 
-def runtime(tmp_path, database, approvals=None) -> DataEngineeringRuntime:
+def runtime(
+    tmp_path,
+    database,
+    approvals=None,
+    *,
+    timeout_seconds: float = 30.0,
+) -> DataEngineeringRuntime:
     return DataEngineeringRuntime(
         connectors={"warehouse": SQLiteConnector(database, connector_id="warehouse")},
         connector_domains={"warehouse": frozenset({"commerce"})},
@@ -65,6 +71,7 @@ def runtime(tmp_path, database, approvals=None) -> DataEngineeringRuntime:
             database,
             connector_id="warehouse",
             environment="development",
+            timeout_seconds=timeout_seconds,
         ),
     )
 
@@ -349,4 +356,62 @@ def test_execution_failure_rolls_back_persists_evidence_and_consumes_approval(tm
             proposal=change,
             approval_id=approval.approval_id,
             trace_id="missing-source-replay",
+        )
+
+
+def test_timeout_rolls_back_persists_evidence_and_consumes_approval(tmp_path) -> None:
+    database = tmp_path / "source.sqlite"
+    create_database(database)
+    approvals = InMemoryApprovalStore()
+    governed = runtime(tmp_path, database, approvals, timeout_seconds=0.001)
+    task_id = uuid4()
+    change = proposal(
+        target="dev_timeout_orders",
+        select_sql=(
+            "WITH RECURSIVE counter AS ("
+            "SELECT 1 AS value UNION ALL "
+            "SELECT value + 1 AS value FROM counter WHERE value < 100000000"
+            ") SELECT SUM(value) AS total FROM counter CROSS JOIN orders"
+        ),
+    )
+    approval = governed.request_development_write_approval(
+        task_id=task_id,
+        actor=actor(),
+        proposal=change,
+        impact_scope="Exercise bounded development materialization.",
+        cost_estimate="One millisecond local execution deadline.",
+        expires_at=datetime.now(UTC) + timedelta(minutes=10),
+    )
+    approvals.approve(approval.approval_id, approver_id="reviewer")
+
+    with pytest.raises(DevelopmentWriteError, match="exceeded") as error:
+        governed.materialize_development(
+            task_id=task_id,
+            actor=actor(),
+            proposal=change,
+            approval_id=approval.approval_id,
+            trace_id="timeout",
+        )
+    assert error.value.code == "timeout"
+
+    with sqlite3.connect(database) as connection:
+        target = connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE name = 'dev_timeout_orders'"
+        ).fetchone()
+    assert target is None
+    artifacts = [
+        json.loads(path.read_text())
+        for path in (tmp_path / "artifacts" / str(task_id)).glob("*.json")
+    ]
+    failures = [artifact for artifact in artifacts if "error_code" in artifact]
+    assert len(failures) == 1
+    assert failures[0]["error_code"] == "timeout"
+    assert failures[0]["created_target_persisted"] is False
+    with pytest.raises(ApprovalError, match="already been consumed"):
+        governed.materialize_development(
+            task_id=task_id,
+            actor=actor(),
+            proposal=change,
+            approval_id=approval.approval_id,
+            trace_id="timeout-replay",
         )
