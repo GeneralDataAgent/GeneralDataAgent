@@ -9,6 +9,6 @@ def test_stage2_development_write_gate_passes() -> None:
 
     result = run_evaluation()
 
-    assert result["check_count"] == 21
-    assert result["passed"] == 21
+    assert result["check_count"] == 22
+    assert result["passed"] == 22
     assert result["failed"] == 0

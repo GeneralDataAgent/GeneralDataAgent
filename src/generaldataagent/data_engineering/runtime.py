@@ -22,6 +22,7 @@ from generaldataagent.contracts.data_engineering import (
     DataProfile,
     DbtCompileReport,
     DbtTestReport,
+    DevelopmentWriteFailure,
     DevelopmentWriteReport,
     ImpactAnalysis,
     LineageAsset,
@@ -39,7 +40,10 @@ from generaldataagent.contracts.data_engineering import (
 )
 from generaldataagent.data_engineering.catalog_lineage import DbtManifestLineageLoader
 from generaldataagent.data_engineering.dbt import DbtCompileRunner
-from generaldataagent.data_engineering.development_write import SQLiteDevelopmentWriteRunner
+from generaldataagent.data_engineering.development_write import (
+    DevelopmentWriteError,
+    SQLiteDevelopmentWriteRunner,
+)
 from generaldataagent.data_engineering.impact import analyze_impact
 from generaldataagent.data_engineering.profile import profile_relation
 from generaldataagent.data_engineering.quality import execute_quality_rules, propose_quality_rules
@@ -645,11 +649,23 @@ class DataEngineeringRuntime:
             proposal=proposal,
             require_absent=False,
         )
-        result = self.gateway.invoke(
-            request,
-            trace_id=trace_id,
-            approval_id=approval_id,
-        )
+        try:
+            result = self.gateway.invoke(
+                request,
+                trace_id=trace_id,
+                approval_id=approval_id,
+            )
+        except DevelopmentWriteError as exc:
+            failure = DevelopmentWriteFailure(
+                proposal_id=proposal.proposal_id,
+                connector_id=proposal.connector_id,
+                target_relation=proposal.target_relation,
+                environment=self.development_write_runner.environment,
+                error_code=exc.code,
+                error_message=str(exc),
+            )
+            self._store(task_id, "development_write_failure", failure, "data-engineer")
+            raise
         self._store(task_id, "development_write_report", result, "data-engineer")
         return result
 
@@ -852,6 +868,7 @@ class DataEngineeringRuntime:
         value: (
             ApprovalRequest
             | DataProfile
+            | DevelopmentWriteFailure
             | DevelopmentWriteReport
             | DbtCompileReport
             | DbtTestReport

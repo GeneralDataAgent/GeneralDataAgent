@@ -1,3 +1,4 @@
+import json
 import sqlite3
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
@@ -245,3 +246,14 @@ def test_failed_materialization_tests_roll_back_and_consume_approval(tmp_path) -
             approval_id=approval.approval_id,
             trace_id="failed-validation-replay",
         )
+
+    artifacts = [
+        json.loads(path.read_text())
+        for path in (tmp_path / "artifacts" / str(task_id)).glob("*.json")
+    ]
+    failures = [artifact for artifact in artifacts if "error_code" in artifact]
+    assert len(artifacts) == 2
+    assert len(failures) == 1
+    assert failures[0]["error_code"] == "validation_failed"
+    assert failures[0]["created_target_persisted"] is False
+    assert failures[0]["production_write_enabled"] is False

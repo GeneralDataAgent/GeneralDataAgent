@@ -19,7 +19,13 @@ _SAFE_TARGET = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,127}$")
 
 
 class DevelopmentWriteError(RuntimeError):
-    pass
+    def __init__(
+        self,
+        code: Literal["target_exists", "validation_failed", "timeout", "execution_failed"],
+        message: str,
+    ) -> None:
+        super().__init__(message)
+        self.code = code
 
 
 class SQLiteDevelopmentWriteRunner:
@@ -81,7 +87,7 @@ class SQLiteDevelopmentWriteRunner:
         ):
             raise ValueError("development proposal does not match reparsed SQL evidence")
         if require_absent and self._target_exists(proposal.target_relation):
-            raise DevelopmentWriteError("development target already exists")
+            raise DevelopmentWriteError("target_exists", "development target already exists")
 
     def rollback_plan(self, proposal: TransformationProposal) -> str:
         self.validate(proposal)
@@ -106,9 +112,12 @@ class SQLiteDevelopmentWriteRunner:
         except sqlite3.Error as exc:
             if "interrupted" in str(exc).casefold():
                 raise DevelopmentWriteError(
+                    "timeout",
                     f"development materialization exceeded {self.timeout_seconds:g} seconds"
                 ) from exc
-            raise DevelopmentWriteError(f"development materialization failed: {exc}") from exc
+            raise DevelopmentWriteError(
+                "execution_failed", f"development materialization failed: {exc}"
+            ) from exc
         return DevelopmentWriteReport(
             proposal_id=proposal.proposal_id,
             connector_id=proposal.connector_id,
@@ -131,6 +140,7 @@ class SQLiteDevelopmentWriteRunner:
             violation_count = int(connection.execute(sql, parameters).fetchone()[0])
             if violation_count:
                 raise DevelopmentWriteError(
+                    "validation_failed",
                     f"development validation failed: {test.name} ({violation_count} violations)"
                 )
             results.append(

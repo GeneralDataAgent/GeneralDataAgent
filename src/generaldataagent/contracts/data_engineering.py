@@ -431,3 +431,20 @@ class DevelopmentWriteReport(ContractModel):
         if any(result.violation_count != 0 for result in self.tests):
             raise ValueError("development write report can contain only passing tests")
         return self
+
+
+class DevelopmentWriteFailure(ContractModel):
+    proposal_id: UUID
+    connector_id: str = Field(min_length=1, max_length=128)
+    target_relation: str = Field(pattern=r"^[A-Za-z_][A-Za-z0-9_]{0,127}$")
+    environment: Literal["development", "ci"]
+    error_code: Literal[
+        "target_exists",
+        "validation_failed",
+        "timeout",
+        "execution_failed",
+    ]
+    error_message: str = Field(min_length=1, max_length=2_000)
+    created_target_persisted: Literal[False] = False
+    production_write_enabled: Literal[False] = False
+    failed_at: datetime = Field(default_factory=utc_now)

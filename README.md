@@ -207,7 +207,7 @@ Run the 16-check local fake-dbt adapter qualification with:
 uv run python evals/run_stage2_dbt_adapter.py
 ```
 
-Run the 21-check approval-gated SQLite development-write pilot with:
+Run the 22-check approval-gated SQLite development-write pilot with:
 
 ```bash
 uv run python evals/run_stage2_development_write.py
@@ -245,7 +245,7 @@ The development-write pilot is absent by default and can only materialize a repa
 new `dev_` table in one pinned SQLite development/CI database after exact one-time R2 approval. It
 executes the proposal tests in the same transaction and rolls back on failure. It cannot select a
 production environment, bind a different database than the registered read connector, overwrite an
-object, or enable production writes.
+object, or enable production writes. Failed approved attempts persist immutable failure evidence.
 The lineage matrix checks supported node normalization, dependency filtering, incomplete snapshots,
 deterministic re-ingestion, and fail-closed malformed-manifest handling. It does not replace an
 authoritative catalog comparison.

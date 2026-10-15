@@ -225,6 +225,20 @@ def run_development_write_evaluation() -> dict[str, Any]:
                 "SELECT 1 FROM sqlite_master WHERE name = 'dev_empty_orders'"
             ).fetchone()
         _record(checks, "failed_test_rolls_back_target", failed_target is None)
+        failed_artifacts = [
+            json.loads(path.read_text())
+            for path in (root / "enabled" / "artifacts" / str(failed_task)).glob("*.json")
+        ]
+        failure_evidence = [item for item in failed_artifacts if "error_code" in item]
+        _record(
+            checks,
+            "failed_write_evidence_persisted",
+            len(failed_artifacts) == 2
+            and len(failure_evidence) == 1
+            and failure_evidence[0]["error_code"] == "validation_failed"
+            and failure_evidence[0]["created_target_persisted"] is False
+            and failure_evidence[0]["production_write_enabled"] is False,
+        )
         _expect_error(
             checks,
             "failed_write_approval_consumed",
