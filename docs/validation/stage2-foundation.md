@@ -1,6 +1,6 @@
 # Stage 2 data-engineering foundation validation
 
-Validation date: 2026-10-13.
+Validation date: 2026-10-15.
 
 ## Scope
 
@@ -98,15 +98,17 @@ artifacts=8
 
 ## Acceptance boundary
 
-This is a development foundation, not Stage 2 acceptance. The following remain open:
+The planned repository implementation is complete, but external Stage 2 acceptance remains open.
+Strict qualification commands and signed evidence ingestion exist for every item below; completion
+still requires the actual independent inputs and target environments:
 
-- real-project dbt compile/test qualification and external approval-service integration;
-- authoritative catalog and Dashboard dependency verification beyond the dbt manifest snapshot;
-- production-scale load testing beyond the completed cooperative cancellation, reproducible local
+- a real-project dbt compile/test run and independently operated approval-service transcript;
+- an authoritative catalog export with Dashboard dependencies beyond the dbt manifest snapshot;
+- a target-environment production-scale load run beyond the completed cooperative cancellation, reproducible local
   100-request P95 gate, and connector deadline tests;
-- comparison with an authoritative external profiler and real projects; cross-engine parity alone
+- an authoritative external-profiler export; cross-engine parity alone
   does not establish independent correctness;
-- real source credentials, production identity propagation, and production connector hardening.
+- trusted reviewer signatures and durable acceptance-ledger state for the complete evidence bundle.
 
 No production write path is registered by this runtime.
 

@@ -1,7 +1,8 @@
 # Roadmap implementation status
 
-Status date: 2026-10-14. This matrix compares the repository with the original six-stage roadmap.
-`Partial` means useful code exists but the documented exit criteria have not all passed.
+Status date: 2026-10-15. This matrix compares the repository with the original six-stage roadmap.
+`Partial` is an acceptance status: useful code exists but the documented exit criteria have not all
+passed. It does not necessarily mean planned repository implementation is missing.
 
 | Stage | Status | Implemented | Remaining exit work |
 |---|---|---|---|
@@ -147,6 +148,31 @@ data access:
   observation time is rejected as rollback or equivocation; incomplete bundles do not alter state.
   Each accepted bundle is also appended to a deterministic hash chain. The full chain and its match
   with the current gate snapshot are verified before every write, exposing history or snapshot edits.
+
+## Stage 2 implementation closure
+
+The repository implementation planned for Stage 2 is complete as of 2026-10-15. Every Stage 2
+delivery item in the original roadmap now has code, deterministic validation, and an aggregate local
+gate: the second connector, unified capabilities/errors, quality-rule generation and execution,
+reproducible transformation proposals with tests/impact/rollback, isolated parallel profiling, and
+the default-off R2 development-write pilot. The current suite has 181 passing tests and all 14 local
+Stage 2 development gates pass.
+
+Stage 2 acceptance remains `Partial` because five exit metrics require independently produced,
+real-environment evidence. The repository includes strict qualifiers for all five and a fail-closed
+ingestion chain with hashes, Ed25519 attestations, verifier allowlists and lifecycles, optional
+multi-party thresholds, rollback/equivocation protection, and an append-only audit chain. It does not
+ship or fabricate the external projects, credentials, exports, service transcripts, or production
+measurements needed to run them:
+
+1. an authoritative profiler export for the 99% comparison;
+2. a real non-production dbt project and approved selected tests;
+3. an authoritative catalog export including Dashboard dependencies;
+4. an independently operated approval-service transcript;
+5. a staging or production capacity, saturation, and recovery transcript.
+
+Until those inputs are supplied and signed by trusted reviewers, the corresponding gates correctly
+remain `not_run` and Stage 2 must not be described as production-ready.
 
 ## Recommended sequence after this increment
 

@@ -130,6 +130,10 @@ both disabled by default.
 
 See [implementation status](docs/implementation-status.md) for completed and remaining roadmap work.
 
+The planned Stage 2 repository implementation is complete. Its 14 local development gates pass;
+production acceptance remains intentionally incomplete until the five documented real-environment
+evidence bundles are supplied, independently signed, and accepted through the durable evidence ledger.
+
 ## Run the Stage 2 data-engineering foundation demo
 
 ```bash
