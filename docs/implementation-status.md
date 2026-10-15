@@ -116,6 +116,9 @@ data access:
 - The Stage 2 acceptance runner can ingest bounded external evidence bundles with exact gate IDs,
   content hashes, relative-path confinement, verifier/source metadata, and expiry. It remains
   fail-closed and defaults every external gate to `not_run` when no evidence directory is supplied.
+- A real-dbt qualification command runs compile and selected tests against an explicitly supplied
+  non-production project and emits the corresponding hashed evidence pair without overwriting prior
+  evidence. No project, credentials, or environment are bundled, so the real gate remains open.
 
 ## Recommended sequence after this increment
 

@@ -237,6 +237,23 @@ evidence remains `not_run`; expired evidence cannot pass; malformed or tampered 
 The default command exits on local-gate status; when an evidence directory is supplied, it exits
 successfully only when both local and all external gates pass.
 
+Generate the `real_dbt_project` evidence pair from an actual non-production project with:
+
+```bash
+uv run python evals/qualify_real_dbt_project.py \
+  --project-dir /path/to/dbt-project \
+  --profiles-dir /path/to/profiles \
+  --target ci \
+  --selector model.orders \
+  --output-dir /path/to/evidence \
+  --source-system dbt-core-ci \
+  --verifier release-reviewer
+```
+
+The qualifier refuses production environments and production target names, runs compile plus the
+selected tests, redacts local paths, and emits both passing and failing evidence without overwriting
+an existing evidence pair.
+
 The gate fails on any failed or cancelled request, missing task artifact, or local end-to-end P95
 above five seconds. It is a development regression, not a production capacity claim.
 The cross-engine gate requires exact agreement across 380 profile fields; it checks connector parity,

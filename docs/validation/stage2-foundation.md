@@ -179,3 +179,6 @@ service, and production-scale load gates as `not_run`; local success cannot eras
 An optional external-evidence directory can supply one manifest and hashed evidence file per gate.
 The loader rejects unknown IDs, path traversal, hash mismatches, and malformed evidence; expired
 evidence is reported as `expired`. With no directory, the default remains five `not_run` gates.
+The real-dbt qualifier accepts an explicit project, profiles directory, non-production target, and
+selector list. It emits a hashed `real_dbt_project` evidence pair after compile and selected tests;
+the repository does not ship or silently choose a real project, credential, or target.
