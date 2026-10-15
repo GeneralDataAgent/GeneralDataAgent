@@ -66,18 +66,17 @@ def run_cross_engine_evaluation(case_count: int = 20) -> dict[str, Any]:
 
 
 def _create_fixtures(sqlite_path: Path, duckdb_path: Path, case_count: int) -> None:
-    with sqlite3.connect(sqlite_path) as sqlite_connection, duckdb.connect(
-        str(duckdb_path)
-    ) as duckdb_connection:
+    with (
+        sqlite3.connect(sqlite_path) as sqlite_connection,
+        duckdb.connect(str(duckdb_path)) as duckdb_connection,
+    ):
         for index in range(case_count):
             relation = f"profile_case_{index:02d}"
             sqlite_connection.execute(
-                f'CREATE TABLE "{relation}" '
-                "(entity_id INTEGER, category TEXT, amount REAL)"
+                f'CREATE TABLE "{relation}" (entity_id INTEGER, category TEXT, amount REAL)'
             )
             duckdb_connection.execute(
-                f'CREATE TABLE "{relation}" '
-                "(entity_id INTEGER, category VARCHAR, amount DOUBLE)"
+                f'CREATE TABLE "{relation}" (entity_id INTEGER, category VARCHAR, amount DOUBLE)'
             )
             rows = _case_rows(index)
             if rows:
@@ -101,11 +100,7 @@ def _case_rows(index: int) -> list[tuple[int | None, str | None, float | None]]:
             if (row_index + index) % 7 == 0
             else categories[(row_index + index) % len(categories)]
         )
-        amount = (
-            None
-            if (row_index * 2 + index) % 13 == 0
-            else float((row_index - index) * 2)
-        )
+        amount = None if (row_index * 2 + index) % 13 == 0 else float((row_index - index) * 2)
         rows.append((entity_id, category, amount))
     return rows
 

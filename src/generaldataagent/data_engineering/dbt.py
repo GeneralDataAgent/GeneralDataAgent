@@ -84,9 +84,7 @@ class DbtCompileRunner:
         except FileNotFoundError as exc:
             raise DbtCompileError("configured dbt executable was not found") from exc
         except subprocess.TimeoutExpired as exc:
-            raise DbtCompileError(
-                f"dbt compile exceeded {self.timeout_seconds:g} seconds"
-            ) from exc
+            raise DbtCompileError(f"dbt compile exceeded {self.timeout_seconds:g} seconds") from exc
         elapsed_ms = (time.monotonic() - started) * 1_000
         reported_command = (
             "dbt",

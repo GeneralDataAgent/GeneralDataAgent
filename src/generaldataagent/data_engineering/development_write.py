@@ -131,7 +131,7 @@ class SQLiteDevelopmentWriteRunner:
             if "interrupted" in normalized_error:
                 raise DevelopmentWriteError(
                     "timeout",
-                    f"development materialization exceeded {self.timeout_seconds:g} seconds"
+                    f"development materialization exceeded {self.timeout_seconds:g} seconds",
                 ) from exc
             if "already exists" in normalized_error:
                 raise DevelopmentWriteError(
@@ -163,7 +163,7 @@ class SQLiteDevelopmentWriteRunner:
             if violation_count:
                 raise DevelopmentWriteError(
                     "validation_failed",
-                    f"development validation failed: {test.name} ({violation_count} violations)"
+                    f"development validation failed: {test.name} ({violation_count} violations)",
                 )
             results.append(
                 DevelopmentTestResult(

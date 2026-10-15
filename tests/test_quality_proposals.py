@@ -94,9 +94,7 @@ def test_rejects_mismatched_or_unproductive_evidence() -> None:
     empty_schema = RelationSchema(
         connector_id="warehouse",
         relation="labels",
-        columns=(
-            ColumnSchema(name="label", data_type="TEXT", nullable=True, ordinal_position=0),
-        ),
+        columns=(ColumnSchema(name="label", data_type="TEXT", nullable=True, ordinal_position=0),),
     )
     empty_profile = DataProfile(
         connector_id="warehouse",

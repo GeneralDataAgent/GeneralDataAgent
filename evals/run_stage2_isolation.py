@@ -75,8 +75,7 @@ def run_isolation_evaluation(*, group_count: int = 50) -> dict[str, Any]:
                 "row_counts": group["row_counts"],
             }
             for group in groups
-            if group["statuses"] != ["succeeded", "succeeded"]
-            or group["row_counts"] != [3, 7]
+            if group["statuses"] != ["succeeded", "succeeded"] or group["row_counts"] != [3, 7]
         ]
         artifact_count = len(tuple(artifacts.root.rglob("*.json")))
         unique_task_ids = len(set(task_ids))

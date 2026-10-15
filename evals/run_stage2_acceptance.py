@@ -31,24 +31,16 @@ run_development_write_evaluation = run_path(EVAL_DIR / "run_stage2_development_w
     "run_development_write_evaluation"
 ]
 run_load_evaluation = run_path(EVAL_DIR / "run_stage2_load.py")["run_load_evaluation"]
-run_impact_evaluation = run_path(EVAL_DIR / "run_stage2_impact.py")[
-    "run_impact_evaluation"
-]
+run_impact_evaluation = run_path(EVAL_DIR / "run_stage2_impact.py")["run_impact_evaluation"]
 run_isolation_evaluation = run_path(EVAL_DIR / "run_stage2_isolation.py")[
     "run_isolation_evaluation"
 ]
-run_lineage_evaluation = run_path(EVAL_DIR / "run_stage2_lineage.py")[
-    "run_lineage_evaluation"
-]
-run_quality_evaluation = run_path(EVAL_DIR / "run_stage2_quality.py")[
-    "run_quality_evaluation"
-]
+run_lineage_evaluation = run_path(EVAL_DIR / "run_stage2_lineage.py")["run_lineage_evaluation"]
+run_quality_evaluation = run_path(EVAL_DIR / "run_stage2_quality.py")["run_quality_evaluation"]
 run_quality_proposal_evaluation = run_path(EVAL_DIR / "run_stage2_quality_proposals.py")[
     "run_quality_proposal_evaluation"
 ]
-run_schema_evaluation = run_path(EVAL_DIR / "run_stage2_schema.py")[
-    "run_schema_evaluation"
-]
+run_schema_evaluation = run_path(EVAL_DIR / "run_stage2_schema.py")["run_schema_evaluation"]
 run_transformation_evaluation = run_path(EVAL_DIR / "run_stage2_transformation.py")[
     "run_transformation_evaluation"
 ]
@@ -191,9 +183,7 @@ def _schema_gate_probe() -> dict[str, Any]:
     actual = RelationSchema(
         connector_id="acceptance",
         relation="orders",
-        columns=(
-            ColumnSchema(name="id", data_type="INTEGER", nullable=False, ordinal_position=0),
-        ),
+        columns=(ColumnSchema(name="id", data_type="INTEGER", nullable=False, ordinal_position=0),),
     )
     try:
         require_compatible_schema(expected, actual)

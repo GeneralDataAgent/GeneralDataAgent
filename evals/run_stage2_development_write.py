@@ -513,9 +513,7 @@ def run_development_write_evaluation() -> dict[str, Any]:
             return concurrent_task, outcome
 
         with ThreadPoolExecutor(max_workers=2) as executor:
-            concurrent_outcomes = list(
-                executor.map(execute_concurrently, concurrent_attempts)
-            )
+            concurrent_outcomes = list(executor.map(execute_concurrently, concurrent_attempts))
         concurrent_successes = [
             (task_id, outcome)
             for task_id, outcome in concurrent_outcomes
@@ -534,8 +532,7 @@ def run_development_write_evaluation() -> dict[str, Any]:
         _record(
             checks,
             "concurrent_conflict_classified",
-            len(concurrent_failures) == 1
-            and concurrent_failures[0][1].code == "target_exists",
+            len(concurrent_failures) == 1 and concurrent_failures[0][1].code == "target_exists",
         )
         with sqlite3.connect(concurrent_database) as connection:
             concurrent_rows = connection.execute(
@@ -547,11 +544,7 @@ def run_development_write_evaluation() -> dict[str, Any]:
             concurrent_rows == [("app", 2), ("web", 1)],
         )
         concurrent_artifact_counts = [
-            len(
-                list(
-                    (concurrent_root / "artifacts" / str(task_id)).glob("*.json")
-                )
-            )
+            len(list((concurrent_root / "artifacts" / str(task_id)).glob("*.json")))
             for task_id, _outcome in concurrent_outcomes
         ]
         _record(

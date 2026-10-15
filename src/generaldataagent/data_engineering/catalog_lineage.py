@@ -35,14 +35,10 @@ class DbtManifestLineageLoader:
     def load(self) -> LineageSnapshot:
         size = self.manifest_path.stat().st_size
         if size > self.max_bytes:
-            raise DbtManifestError(
-                f"dbt manifest exceeds the {self.max_bytes} byte limit"
-            )
+            raise DbtManifestError(f"dbt manifest exceeds the {self.max_bytes} byte limit")
         content = self.manifest_path.read_bytes()
         if len(content) > self.max_bytes:
-            raise DbtManifestError(
-                f"dbt manifest exceeds the {self.max_bytes} byte limit"
-            )
+            raise DbtManifestError(f"dbt manifest exceeds the {self.max_bytes} byte limit")
         try:
             payload = json.loads(content)
         except (json.JSONDecodeError, UnicodeDecodeError) as exc:

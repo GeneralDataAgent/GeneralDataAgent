@@ -164,7 +164,6 @@ def _violation_query(
         parameters.append(rule.parameters["maximum"])
     predicate = " OR ".join(clauses)
     return (
-        f"SELECT COUNT(*) FROM {relation_sql} WHERE {column_sql} IS NOT NULL "
-        f"AND ({predicate})",
+        f"SELECT COUNT(*) FROM {relation_sql} WHERE {column_sql} IS NOT NULL AND ({predicate})",
         tuple(parameters),
     )

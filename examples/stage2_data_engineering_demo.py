@@ -132,10 +132,7 @@ def main() -> None:
 
         print(f"profile rows={profile.row_count} columns={len(profile.columns)}")
         print(f"quality proposal rules={len(rule_proposal.rules)}")
-        print(
-            f"quality passed={quality.passed} "
-            f"violations={quality.checks[0].violation_count}"
-        )
+        print(f"quality passed={quality.passed} violations={quality.checks[0].violation_count}")
         print(f"schema breaking={diff.breaking} changes={len(diff.changes)}")
         print(
             f"proposal dry_run_only={proposal.dry_run_only} "

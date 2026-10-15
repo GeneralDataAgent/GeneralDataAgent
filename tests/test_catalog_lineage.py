@@ -85,9 +85,7 @@ def test_loads_complete_dbt_lineage_with_provenance(tmp_path) -> None:
 
 def test_marks_missing_supported_dependency_as_incomplete(tmp_path) -> None:
     payload = manifest_payload()
-    payload["nodes"]["model.shop.orders_clean"]["depends_on"]["nodes"].append(
-        "model.shop.missing"
-    )
+    payload["nodes"]["model.shop.orders_clean"]["depends_on"]["nodes"].append("model.shop.missing")
     manifest = tmp_path / "manifest.json"
     write_manifest(manifest, payload)
 

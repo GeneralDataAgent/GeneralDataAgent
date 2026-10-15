@@ -77,9 +77,7 @@ class BlockingConnector:
 
 def create_sqlite_database(path) -> None:
     with sqlite3.connect(path) as connection:
-        connection.execute(
-            "CREATE TABLE orders (id INTEGER NOT NULL, channel TEXT, amount REAL)"
-        )
+        connection.execute("CREATE TABLE orders (id INTEGER NOT NULL, channel TEXT, amount REAL)")
         connection.executemany(
             "INSERT INTO orders VALUES (?, ?, ?)",
             [(1, "app", 10.0), (2, "web", 20.0), (3, None, 30.0)],
@@ -104,9 +102,7 @@ def create_duckdb_database(path) -> None:
         (DuckDBConnector, create_duckdb_database, "DOUBLE"),
     ],
 )
-def test_profile_is_consistent_across_connectors(
-    tmp_path, factory, creator, expected_type
-) -> None:
+def test_profile_is_consistent_across_connectors(tmp_path, factory, creator, expected_type) -> None:
     database = tmp_path / f"source-{factory.__name__}.db"
     creator(database)
     connector = factory(database)
@@ -277,9 +273,7 @@ def test_schema_gate_allows_additive_drift() -> None:
     expected = RelationSchema(
         connector_id="warehouse",
         relation="orders",
-        columns=(
-            ColumnSchema(name="id", data_type="INTEGER", nullable=False, ordinal_position=0),
-        ),
+        columns=(ColumnSchema(name="id", data_type="INTEGER", nullable=False, ordinal_position=0),),
     )
     actual = RelationSchema(
         connector_id="warehouse",
@@ -293,9 +287,7 @@ def test_schema_gate_allows_additive_drift() -> None:
     result = require_compatible_schema(expected, actual)
 
     assert result.breaking is False
-    assert [(item.name, item.change_type) for item in result.changes] == [
-        ("region", "added")
-    ]
+    assert [(item.name, item.change_type) for item in result.changes] == [("region", "added")]
 
 
 def test_runtime_schema_gate_persists_breaking_diff_before_stopping(tmp_path) -> None:
@@ -323,9 +315,7 @@ def test_runtime_schema_gate_persists_breaking_diff_before_stopping(tmp_path) ->
     actual = RelationSchema(
         connector_id="warehouse",
         relation="orders",
-        columns=(
-            ColumnSchema(name="id", data_type="INTEGER", nullable=False, ordinal_position=0),
-        ),
+        columns=(ColumnSchema(name="id", data_type="INTEGER", nullable=False, ordinal_position=0),),
     )
 
     with pytest.raises(SchemaDriftError):
@@ -431,9 +421,7 @@ def test_runtime_quality_check_is_policy_gated_and_persisted(tmp_path) -> None:
         actor=actor,
         connector_id="warehouse",
         relation="orders",
-        rules=(
-            QualityRule(rule_id="channel-required", column="channel", rule_type="not_null"),
-        ),
+        rules=(QualityRule(rule_id="channel-required", column="channel", rule_type="not_null"),),
         trace_id="trace-2",
     )
 

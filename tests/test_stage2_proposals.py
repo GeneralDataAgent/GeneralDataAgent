@@ -68,9 +68,7 @@ def test_transformation_proposal_rejects_mutation_and_unauthorized_sources(sql) 
             target_relation="daily_orders",
             select_sql=sql,
             allowed_relations={"orders"},
-            tests=(
-                TransformationTest(name="has-rows", assertion="row_count_nonzero"),
-            ),
+            tests=(TransformationTest(name="has-rows", assertion="row_count_nonzero"),),
             impact_summary="No production change is performed.",
             rollback_plan="Discard the proposal.",
         )

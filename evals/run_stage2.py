@@ -153,9 +153,7 @@ def _evaluate_profile_oracle(case: dict[str, Any], connector: SQLiteConnector) -
 
 def _create_quality_fixture(path: Path) -> None:
     with sqlite3.connect(path) as connection:
-        connection.execute(
-            "CREATE TABLE orders (id INTEGER NOT NULL, channel TEXT, amount REAL)"
-        )
+        connection.execute("CREATE TABLE orders (id INTEGER NOT NULL, channel TEXT, amount REAL)")
         connection.executemany(
             "INSERT INTO orders VALUES (?, ?, ?)",
             [(1, "app", 10.0), (2, "web", 20.0), (3, None, 30.0)],

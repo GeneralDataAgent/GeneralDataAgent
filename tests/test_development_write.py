@@ -40,8 +40,7 @@ def proposal(
         target_relation=target,
         select_sql=select_sql,
         allowed_relations={"orders"},
-        tests=tests
-        or (TransformationTest(name="has-rows", assertion="row_count_nonzero"),),
+        tests=tests or (TransformationTest(name="has-rows", assertion="row_count_nonzero"),),
         impact_summary="Creates one isolated development aggregate.",
         rollback_plan="Drop the isolated development table.",
     )
@@ -458,9 +457,7 @@ def test_concurrent_approved_writes_create_target_exactly_once(tmp_path) -> None
         outcomes = list(executor.map(execute, attempts))
 
     successes = [
-        (task_id, result)
-        for task_id, result in outcomes
-        if not isinstance(result, Exception)
+        (task_id, result) for task_id, result in outcomes if not isinstance(result, Exception)
     ]
     failures = [
         (task_id, result)

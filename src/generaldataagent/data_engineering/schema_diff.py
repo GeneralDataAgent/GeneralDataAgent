@@ -16,9 +16,7 @@ def compare_schemas(before: RelationSchema, after: RelationSchema) -> SchemaDiff
     changes: list[ColumnChange] = []
 
     for key in sorted(old.keys() - new.keys()):
-        changes.append(
-            ColumnChange(name=old[key].name, change_type="removed", before=old[key])
-        )
+        changes.append(ColumnChange(name=old[key].name, change_type="removed", before=old[key]))
     for key in sorted(new.keys() - old.keys()):
         changes.append(ColumnChange(name=new[key].name, change_type="added", after=new[key]))
     for key in sorted(old.keys() & new.keys()):

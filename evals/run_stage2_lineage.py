@@ -22,9 +22,7 @@ def run_lineage_evaluation(dataset_path: Path = DATASET) -> dict[str, Any]:
         root = Path(directory)
         for index, case in enumerate(cases):
             manifest = root / f"manifest-{index}.json"
-            content = json.dumps(
-                case["payload"], sort_keys=True, separators=(",", ":")
-            ).encode()
+            content = json.dumps(case["payload"], sort_keys=True, separators=(",", ":")).encode()
             manifest.write_bytes(content)
             try:
                 expected_error = case.get("error")
