@@ -574,6 +574,90 @@ def run_development_write_evaluation() -> dict[str, Any]:
             else:
                 replay_blocked = False
         _record(checks, "concurrent_approvals_consumed", replay_blocked)
+        _expect_error(
+            checks,
+            "invalid_row_budget_rejected",
+            ValueError,
+            "max_rows must be positive",
+            lambda: SQLiteDevelopmentWriteRunner(
+                database,
+                connector_id="warehouse",
+                environment="development",
+                max_rows=0,
+            ),
+        )
+        budget_database = root / "row-budget.sqlite"
+        _create_database(budget_database)
+        budget_approvals = InMemoryApprovalStore()
+        budget_root = root / "row-budget"
+        budget_runtime = _runtime(
+            budget_root,
+            budget_database,
+            approvals=budget_approvals,
+            runner=SQLiteDevelopmentWriteRunner(
+                budget_database,
+                connector_id="warehouse",
+                environment="development",
+                max_rows=2,
+            ),
+        )
+        budget_task = uuid4()
+        budget_proposal = _proposal(
+            target="dev_oversized_orders",
+            select_sql="SELECT * FROM orders",
+        )
+        budget_approval = budget_runtime.request_development_write_approval(
+            task_id=budget_task,
+            actor=actor,
+            proposal=budget_proposal,
+            impact_scope="Exercise the development row budget.",
+            cost_estimate="At most two materialized rows.",
+            expires_at=datetime.now(UTC) + timedelta(minutes=5),
+        )
+        budget_approvals.approve(budget_approval.approval_id, approver_id="reviewer")
+        _expect_error(
+            checks,
+            "row_budget_exceeded",
+            DevelopmentWriteError,
+            "configured limit",
+            lambda: budget_runtime.materialize_development(
+                task_id=budget_task,
+                actor=actor,
+                proposal=budget_proposal,
+                approval_id=budget_approval.approval_id,
+                trace_id="row-budget",
+            ),
+        )
+        with sqlite3.connect(budget_database) as connection:
+            budget_target = connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE name = 'dev_oversized_orders'"
+            ).fetchone()
+        _record(checks, "row_budget_rolls_back_target", budget_target is None)
+        budget_artifacts = [
+            json.loads(path.read_text())
+            for path in (budget_root / "artifacts" / str(budget_task)).glob("*.json")
+        ]
+        budget_failures = [item for item in budget_artifacts if "error_code" in item]
+        _record(
+            checks,
+            "row_budget_evidence_persisted",
+            len(budget_failures) == 1
+            and budget_failures[0]["error_code"] == "row_limit_exceeded"
+            and budget_failures[0]["created_target_persisted"] is False,
+        )
+        _expect_error(
+            checks,
+            "row_budget_approval_consumed",
+            ApprovalError,
+            "already been consumed",
+            lambda: budget_runtime.materialize_development(
+                task_id=budget_task,
+                actor=actor,
+                proposal=budget_proposal,
+                approval_id=budget_approval.approval_id,
+                trace_id="row-budget-replay",
+            ),
+        )
     failed = [check for check in checks if check["status"] != "passed"]
     return {
         "check_count": len(checks),

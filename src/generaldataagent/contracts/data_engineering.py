@@ -443,6 +443,7 @@ class DevelopmentWriteFailure(ContractModel):
         "validation_failed",
         "timeout",
         "execution_failed",
+        "row_limit_exceeded",
     ]
     error_message: str = Field(min_length=1, max_length=2_000)
     created_target_persisted: Literal[False] = False

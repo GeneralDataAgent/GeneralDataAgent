@@ -62,6 +62,7 @@ def runtime(
     approvals=None,
     *,
     timeout_seconds: float = 30.0,
+    max_rows: int = 100_000,
 ) -> DataEngineeringRuntime:
     return DataEngineeringRuntime(
         connectors={"warehouse": SQLiteConnector(database, connector_id="warehouse")},
@@ -73,6 +74,7 @@ def runtime(
             connector_id="warehouse",
             environment="development",
             timeout_seconds=timeout_seconds,
+            max_rows=max_rows,
         ),
     )
 
@@ -495,3 +497,64 @@ def test_concurrent_approved_writes_create_target_exactly_once(tmp_path) -> None
                 approval_id=approval_id,
                 trace_id=f"concurrent-replay-{task_id}",
             )
+
+
+def test_row_budget_rolls_back_persists_evidence_and_consumes_approval(tmp_path) -> None:
+    database = tmp_path / "source.sqlite"
+    create_database(database)
+    with pytest.raises(ValueError, match="max_rows must be positive"):
+        SQLiteDevelopmentWriteRunner(
+            database,
+            connector_id="warehouse",
+            environment="development",
+            max_rows=0,
+        )
+
+    approvals = InMemoryApprovalStore()
+    governed = runtime(tmp_path, database, approvals, max_rows=2)
+    task_id = uuid4()
+    change = proposal(
+        target="dev_oversized_orders",
+        select_sql="SELECT * FROM orders",
+    )
+    approval = governed.request_development_write_approval(
+        task_id=task_id,
+        actor=actor(),
+        proposal=change,
+        impact_scope="Exercise the development row budget.",
+        cost_estimate="At most two materialized rows.",
+        expires_at=datetime.now(UTC) + timedelta(minutes=10),
+    )
+    approvals.approve(approval.approval_id, approver_id="reviewer")
+
+    with pytest.raises(DevelopmentWriteError, match="configured limit") as error:
+        governed.materialize_development(
+            task_id=task_id,
+            actor=actor(),
+            proposal=change,
+            approval_id=approval.approval_id,
+            trace_id="row-budget",
+        )
+    assert error.value.code == "row_limit_exceeded"
+
+    with sqlite3.connect(database) as connection:
+        target = connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE name = 'dev_oversized_orders'"
+        ).fetchone()
+    assert target is None
+    artifacts = [
+        json.loads(path.read_text())
+        for path in (tmp_path / "artifacts" / str(task_id)).glob("*.json")
+    ]
+    failures = [artifact for artifact in artifacts if "error_code" in artifact]
+    assert len(failures) == 1
+    assert failures[0]["error_code"] == "row_limit_exceeded"
+    assert failures[0]["created_target_persisted"] is False
+    with pytest.raises(ApprovalError, match="already been consumed"):
+        governed.materialize_development(
+            task_id=task_id,
+            actor=actor(),
+            proposal=change,
+            approval_id=approval.approval_id,
+            trace_id="row-budget-replay",
+        )

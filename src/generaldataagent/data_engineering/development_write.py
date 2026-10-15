@@ -21,7 +21,13 @@ _SAFE_TARGET = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,127}$")
 class DevelopmentWriteError(RuntimeError):
     def __init__(
         self,
-        code: Literal["target_exists", "validation_failed", "timeout", "execution_failed"],
+        code: Literal[
+            "target_exists",
+            "validation_failed",
+            "timeout",
+            "execution_failed",
+            "row_limit_exceeded",
+        ],
         message: str,
     ) -> None:
         super().__init__(message)
@@ -39,6 +45,7 @@ class SQLiteDevelopmentWriteRunner:
         environment: Literal["development", "ci"],
         target_prefix: str = "dev_",
         timeout_seconds: float = 30.0,
+        max_rows: int = 100_000,
     ) -> None:
         self.database_path = database_path.resolve(strict=True)
         if not self.database_path.is_file():
@@ -51,10 +58,13 @@ class SQLiteDevelopmentWriteRunner:
             raise ValueError("target_prefix must be a safe SQLite identifier prefix")
         if timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
+        if max_rows <= 0:
+            raise ValueError("max_rows must be positive")
         self.connector_id = connector_id
         self.environment = environment
         self.target_prefix = target_prefix
         self.timeout_seconds = timeout_seconds
+        self.max_rows = max_rows
 
     def validate(self, proposal: TransformationProposal, *, require_absent: bool = True) -> None:
         if proposal.connector_id != self.connector_id:
@@ -108,6 +118,12 @@ class SQLiteDevelopmentWriteRunner:
                 rows_written = int(
                     connection.execute(f"SELECT COUNT(*) FROM {target_sql}").fetchone()[0]
                 )
+                if rows_written > self.max_rows:
+                    raise DevelopmentWriteError(
+                        "row_limit_exceeded",
+                        f"development materialization produced {rows_written} rows, "
+                        f"exceeding the configured limit of {self.max_rows}",
+                    )
                 test_results = self._run_tests(connection, target_sql, proposal.tests)
         except sqlite3.Error as exc:
             error_message = str(exc)
