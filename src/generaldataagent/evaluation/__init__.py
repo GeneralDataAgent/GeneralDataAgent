@@ -16,11 +16,13 @@ from generaldataagent.evaluation.stage_two import (
     CatalogLineageExport,
     ExternalApprovalTranscript,
     ExternalEvidenceAttestation,
+    ExternalEvidenceAttestationStatement,
     ExternalGateEvidence,
     ProductionLoadTranscript,
     TrustedExternalVerifier,
     TrustedExternalVerifierRegistry,
     load_external_gate_results,
+    serialize_attestation_statement,
     write_external_gate_manifest,
 )
 
@@ -30,6 +32,7 @@ __all__ = [
     "EXTERNAL_GATE_REQUIREMENTS",
     "CatalogLineageExport",
     "ExternalEvidenceAttestation",
+    "ExternalEvidenceAttestationStatement",
     "ExternalApprovalTranscript",
     "ExternalGateEvidence",
     "ProductionLoadTranscript",
@@ -44,5 +47,6 @@ __all__ = [
     "load_semantic_cases",
     "load_stage_one_cases",
     "load_external_gate_results",
+    "serialize_attestation_statement",
     "write_external_gate_manifest",
 ]

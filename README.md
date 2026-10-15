@@ -245,12 +245,19 @@ uv run python evals/attest_external_evidence.py \
 ```
 
 The trusted-verifier registry contains the corresponding raw Ed25519 public key as `base64:...`,
-the verifier identity and key ID, and the exact external gate IDs that key may sign. The loader
-verifies identity, gate authorization, the manifest signature, evidence hashes, relative paths, and
-validity windows. Missing evidence remains `not_run`; expired, unsigned, untrusted, unauthorized,
-malformed, or tampered bundles fail closed. The default command exits on local-gate status; when an
-evidence directory is supplied, it requires the trust registry and exits successfully only when
-both local and all external gates pass.
+the verifier identity and key ID, the exact external gate IDs that key may sign, `valid_from`,
+`valid_until`, and an optional `revoked_at`. The signed statement binds the gate, verifier, key ID,
+manifest hash, algorithm, and signing time. A signature must have been created during the key's
+validity window and after the evidence observation. Rotation does not invalidate still-current
+evidence signed while the old key was valid, but a revocation takes effect deterministically at the
+acceptance check time. The loader also rejects future-dated signatures and evidence signed after its
+own expiry.
+
+The loader verifies identity, gate authorization, the signed statement, evidence hashes, relative
+paths, and validity windows. Missing evidence remains `not_run`; expired, unsigned, untrusted,
+unauthorized, revoked, malformed, or tampered bundles fail closed. The default command exits on
+local-gate status; when an evidence directory is supplied, it requires the trust registry and exits
+successfully only when both local and all external gates pass.
 
 Generate the `real_dbt_project` evidence pair from an actual non-production project with:
 

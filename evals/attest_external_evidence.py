@@ -4,13 +4,19 @@ import argparse
 import base64
 import hashlib
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 
-from generaldataagent.evaluation import ExternalEvidenceAttestation, ExternalGateEvidence
+from generaldataagent.evaluation import (
+    ExternalEvidenceAttestation,
+    ExternalEvidenceAttestationStatement,
+    ExternalGateEvidence,
+    serialize_attestation_statement,
+)
 
 
 def attest_external_evidence(
@@ -18,6 +24,7 @@ def attest_external_evidence(
     manifest_path: Path,
     private_key_path: Path,
     key_id: str,
+    signed_at: datetime | None = None,
 ) -> dict[str, Any]:
     resolved_manifest = manifest_path.resolve(strict=True)
     manifest_bytes = resolved_manifest.read_bytes()
@@ -36,12 +43,17 @@ def attest_external_evidence(
     private_key = load_pem_private_key(private_key_bytes, password=None)
     if not isinstance(private_key, Ed25519PrivateKey):
         raise ValueError("external evidence signing key must be an Ed25519 private key")
-    signature = private_key.sign(manifest_bytes)
-    attestation = ExternalEvidenceAttestation(
+    actual_signed_at = signed_at or datetime.now(UTC)
+    statement = ExternalEvidenceAttestationStatement(
         gate_id=manifest.gate_id,
         verifier=manifest.verifier,
         key_id=key_id,
         manifest_hash=f"sha256:{hashlib.sha256(manifest_bytes).hexdigest()}",
+        signed_at=actual_signed_at,
+    )
+    signature = private_key.sign(serialize_attestation_statement(statement))
+    attestation = ExternalEvidenceAttestation(
+        **statement.model_dump(),
         signature=f"base64:{base64.b64encode(signature).decode()}",
     )
     output_path = resolved_manifest.with_name(f"{manifest.gate_id}.attestation.json")
@@ -54,6 +66,7 @@ def attest_external_evidence(
         "gate_id": manifest.gate_id,
         "verifier": manifest.verifier,
         "key_id": key_id,
+        "signed_at": actual_signed_at.isoformat(),
         "attestation_path": str(output_path),
     }
 

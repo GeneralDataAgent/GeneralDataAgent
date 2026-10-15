@@ -41,7 +41,15 @@ def _write_bundle(root: Path, *, now: datetime) -> None:
         write_external_gate_manifest(root / f"{gate_id}.manifest.json", manifest)
 
 
-def _attest_bundle(root: Path, trusted_verifiers_path: Path) -> None:
+def _attest_bundle(
+    root: Path,
+    trusted_verifiers_path: Path,
+    *,
+    signed_at: datetime,
+    valid_from: datetime | None = None,
+    valid_until: datetime | None = None,
+    revoked_at: datetime | None = None,
+) -> None:
     private_key = Ed25519PrivateKey.generate()
     private_key_path = root.parent / "verifier-private-key.pem"
     private_key_path.write_bytes(
@@ -69,6 +77,9 @@ def _attest_bundle(root: Path, trusted_verifiers_path: Path) -> None:
                         "algorithm": "ed25519",
                         "public_key": f"base64:{public_key}",
                         "allowed_gates": list(EXTERNAL_GATE_REQUIREMENTS),
+                        "valid_from": (valid_from or signed_at - timedelta(days=1)).isoformat(),
+                        "valid_until": (valid_until or signed_at + timedelta(days=1)).isoformat(),
+                        "revoked_at": revoked_at.isoformat() if revoked_at else None,
                     }
                 ],
             }
@@ -80,6 +91,7 @@ def _attest_bundle(root: Path, trusted_verifiers_path: Path) -> None:
             manifest_path=root / f"{gate_id}.manifest.json",
             private_key_path=private_key_path,
             key_id="test-key-1",
+            signed_at=signed_at,
         )
 
 
@@ -88,7 +100,7 @@ def test_valid_external_evidence_can_complete_stage(tmp_path) -> None:
     evidence_dir = tmp_path / "evidence"
     _write_bundle(evidence_dir, now=now)
     trusted_verifiers = tmp_path / "trusted-verifiers.json"
-    _attest_bundle(evidence_dir, trusted_verifiers)
+    _attest_bundle(evidence_dir, trusted_verifiers, signed_at=now)
     run_report = run_path(RUNNER)["run_acceptance_report"]
 
     report = run_report(evidence_dir, now=now, trusted_verifiers_path=trusted_verifiers)
@@ -114,7 +126,7 @@ def test_tampered_attested_manifest_fails_closed(tmp_path) -> None:
     evidence_dir = tmp_path / "evidence"
     _write_bundle(evidence_dir, now=now)
     trusted_verifiers = tmp_path / "trusted-verifiers.json"
-    _attest_bundle(evidence_dir, trusted_verifiers)
+    _attest_bundle(evidence_dir, trusted_verifiers, signed_at=now)
     manifest_path = evidence_dir / "real_dbt_project.manifest.json"
     manifest = json.loads(manifest_path.read_text())
     manifest["summary"] = "Tampered after independent attestation."
@@ -133,12 +145,94 @@ def test_verifier_cannot_sign_an_unauthorized_gate(tmp_path) -> None:
     evidence_dir = tmp_path / "evidence"
     _write_bundle(evidence_dir, now=now)
     trusted_verifiers = tmp_path / "trusted-verifiers.json"
-    _attest_bundle(evidence_dir, trusted_verifiers)
+    _attest_bundle(evidence_dir, trusted_verifiers, signed_at=now)
     registry = json.loads(trusted_verifiers.read_text())
     registry["verifiers"][0]["allowed_gates"] = ["authoritative_profiler"]
     trusted_verifiers.write_text(json.dumps(registry))
 
     with pytest.raises(ValueError, match="not authorized for real_dbt_project"):
+        load_external_gate_results(
+            evidence_dir,
+            now=now,
+            trusted_verifiers_path=trusted_verifiers,
+        )
+
+
+def test_expired_rotated_key_accepts_evidence_signed_during_validity(tmp_path) -> None:
+    now = datetime.now(UTC)
+    evidence_dir = tmp_path / "evidence"
+    _write_bundle(evidence_dir, now=now)
+    trusted_verifiers = tmp_path / "trusted-verifiers.json"
+    _attest_bundle(
+        evidence_dir,
+        trusted_verifiers,
+        signed_at=now - timedelta(minutes=1),
+        valid_from=now - timedelta(days=2),
+        valid_until=now - timedelta(seconds=1),
+    )
+
+    results = load_external_gate_results(
+        evidence_dir,
+        now=now,
+        trusted_verifiers_path=trusted_verifiers,
+    )
+
+    assert all(result["status"] == "passed" for result in results)
+
+
+def test_signature_before_key_activation_fails_closed(tmp_path) -> None:
+    now = datetime.now(UTC)
+    evidence_dir = tmp_path / "evidence"
+    _write_bundle(evidence_dir, now=now)
+    trusted_verifiers = tmp_path / "trusted-verifiers.json"
+    _attest_bundle(
+        evidence_dir,
+        trusted_verifiers,
+        signed_at=now,
+        valid_from=now + timedelta(minutes=1),
+        valid_until=now + timedelta(days=1),
+    )
+
+    with pytest.raises(ValueError, match="outside key validity"):
+        load_external_gate_results(
+            evidence_dir,
+            now=now,
+            trusted_verifiers_path=trusted_verifiers,
+        )
+
+
+def test_revoked_signing_key_fails_closed_at_revocation_time(tmp_path) -> None:
+    now = datetime.now(UTC)
+    evidence_dir = tmp_path / "evidence"
+    _write_bundle(evidence_dir, now=now)
+    trusted_verifiers = tmp_path / "trusted-verifiers.json"
+    _attest_bundle(
+        evidence_dir,
+        trusted_verifiers,
+        signed_at=now - timedelta(minutes=1),
+        revoked_at=now,
+    )
+
+    with pytest.raises(ValueError, match="signing key is revoked"):
+        load_external_gate_results(
+            evidence_dir,
+            now=now,
+            trusted_verifiers_path=trusted_verifiers,
+        )
+
+
+def test_future_signature_time_fails_closed(tmp_path) -> None:
+    now = datetime.now(UTC)
+    evidence_dir = tmp_path / "evidence"
+    _write_bundle(evidence_dir, now=now)
+    trusted_verifiers = tmp_path / "trusted-verifiers.json"
+    _attest_bundle(
+        evidence_dir,
+        trusted_verifiers,
+        signed_at=now + timedelta(minutes=1),
+    )
+
+    with pytest.raises(ValueError, match="signature time is invalid"):
         load_external_gate_results(
             evidence_dir,
             now=now,

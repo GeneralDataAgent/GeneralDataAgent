@@ -160,6 +160,9 @@ class TrustedExternalVerifier(ContractModel):
     algorithm: Literal["ed25519"] = "ed25519"
     public_key: str = Field(pattern=r"^base64:[A-Za-z0-9+/]+={0,2}$")
     allowed_gates: tuple[ExternalGateId, ...] = Field(min_length=1)
+    valid_from: AwareDatetime
+    valid_until: AwareDatetime
+    revoked_at: AwareDatetime | None = None
 
     @model_validator(mode="after")
     def validate_public_key_and_gates(self) -> "TrustedExternalVerifier":
@@ -171,6 +174,10 @@ class TrustedExternalVerifier(ContractModel):
             raise ValueError("trusted verifier Ed25519 public key must contain 32 bytes")
         if len(self.allowed_gates) != len(set(self.allowed_gates)):
             raise ValueError("trusted verifier allowed gates must be unique")
+        if self.valid_until <= self.valid_from:
+            raise ValueError("trusted verifier key must expire after it becomes valid")
+        if self.revoked_at is not None and self.revoked_at <= self.valid_from:
+            raise ValueError("trusted verifier revocation must occur after key activation")
         return self
 
 
@@ -185,13 +192,29 @@ class TrustedExternalVerifierRegistry(ContractModel):
         return self
 
 
-class ExternalEvidenceAttestation(ContractModel):
+class ExternalEvidenceAttestationStatement(ContractModel):
     gate_id: ExternalGateId
     verifier: str = Field(min_length=1, max_length=256)
     key_id: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
     algorithm: Literal["ed25519"] = "ed25519"
     manifest_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    signed_at: AwareDatetime
+
+
+class ExternalEvidenceAttestation(ExternalEvidenceAttestationStatement):
     signature: str = Field(pattern=r"^base64:[A-Za-z0-9+/]+={0,2}$")
+
+
+def serialize_attestation_statement(
+    statement: ExternalEvidenceAttestationStatement,
+) -> bytes:
+    """Serialize the complete signed statement deterministically."""
+
+    return json.dumps(
+        statement.model_dump(mode="json"),
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode()
 
 
 def load_external_gate_results(
@@ -226,6 +249,8 @@ def load_external_gate_results(
         raise ValueError(f"unknown external gate attestations: {unexpected_attestations}")
 
     checked_at = now or datetime.now(UTC)
+    if checked_at.utcoffset() is None:
+        raise ValueError("external evidence check time must include a timezone")
     results: list[dict[str, object]] = []
     for gate_id, requirement in EXTERNAL_GATE_REQUIREMENTS.items():
         manifest_path = root / f"{gate_id}.manifest.json"
@@ -246,6 +271,7 @@ def load_external_gate_results(
                 manifest=manifest,
                 manifest_bytes=manifest_bytes,
                 registry=registry,
+                checked_at=checked_at,
             )
         evidence_path = (root / manifest.evidence_path).resolve(strict=True)
         if not evidence_path.is_relative_to(root) or not evidence_path.is_file():
@@ -294,6 +320,7 @@ def _verify_attestation(
     manifest: ExternalGateEvidence,
     manifest_bytes: bytes,
     registry: TrustedExternalVerifierRegistry,
+    checked_at: datetime,
 ) -> ExternalEvidenceAttestation:
     attestation_path = root / f"{gate_id}.attestation.json"
     if not attestation_path.is_file():
@@ -316,10 +343,24 @@ def _verify_attestation(
         raise ValueError(f"untrusted external evidence verifier for {gate_id}")
     if gate_id not in trusted.allowed_gates:
         raise ValueError(f"external evidence verifier is not authorized for {gate_id}")
+    if not trusted.valid_from <= attestation.signed_at <= trusted.valid_until:
+        raise ValueError(f"external evidence signature is outside key validity for {gate_id}")
+    if not manifest.observed_at <= attestation.signed_at <= checked_at:
+        raise ValueError(f"external evidence signature time is invalid for {gate_id}")
+    if attestation.signed_at > manifest.valid_until:
+        raise ValueError(f"external evidence was signed after expiry for {gate_id}")
+    if trusted.revoked_at is not None and checked_at >= trusted.revoked_at:
+        raise ValueError(f"external evidence signing key is revoked for {gate_id}")
     public_key_bytes = base64.b64decode(trusted.public_key.removeprefix("base64:"), validate=True)
     signature = base64.b64decode(attestation.signature.removeprefix("base64:"), validate=True)
+    statement = ExternalEvidenceAttestationStatement.model_validate(
+        attestation.model_dump(exclude={"signature"})
+    )
     try:
-        Ed25519PublicKey.from_public_bytes(public_key_bytes).verify(signature, manifest_bytes)
+        Ed25519PublicKey.from_public_bytes(public_key_bytes).verify(
+            signature,
+            serialize_attestation_statement(statement),
+        )
     except (InvalidSignature, ValueError) as exc:
         raise ValueError(f"invalid external evidence signature for {gate_id}") from exc
     return attestation

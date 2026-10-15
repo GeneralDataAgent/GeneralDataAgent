@@ -134,6 +134,10 @@ data access:
 - External acceptance bundles now require detached Ed25519 attestations from explicitly trusted
   verifier keys. The trust registry binds each verifier and key ID to an exact gate allowlist, so
   unsigned, untrusted, unauthorized, or post-signature-tampered evidence fails closed.
+- Trusted verifier keys carry activation, expiry, and optional revocation timestamps. Attestations
+  cryptographically bind their signing time; verification rejects pre-activation, future-dated,
+  post-evidence-expiry, and revoked signatures while preserving evidence signed during a rotated
+  key's former validity window.
 
 ## Recommended sequence after this increment
 
