@@ -126,6 +126,11 @@ def run_development_write_evaluation() -> dict[str, Any]:
         )
         _record(checks, "approved_write_succeeds", result.succeeded)
         _record(checks, "row_count_reported", result.rows_written == 2)
+        _record(
+            checks,
+            "validation_tests_reported",
+            [(test.name, test.violation_count) for test in result.tests] == [("has-rows", 0)],
+        )
         _record(checks, "production_flag_false", not result.production_write_enabled)
         with sqlite3.connect(database) as connection:
             materialized = connection.execute(
@@ -168,6 +173,51 @@ def run_development_write_evaluation() -> dict[str, Any]:
                 impact_scope="Attempt duplicate target.",
                 cost_estimate="Not applicable.",
                 expires_at=datetime.now(UTC) + timedelta(minutes=5),
+            ),
+        )
+        failed_task = uuid4()
+        empty = _proposal(
+            target="dev_empty_orders",
+            select_sql="SELECT * FROM orders WHERE id < 0",
+        )
+        failed_approval = runtime.request_development_write_approval(
+            task_id=failed_task,
+            actor=actor,
+            proposal=empty,
+            impact_scope="Exercise transactional test rollback.",
+            cost_estimate="Bounded local SQLite execution.",
+            expires_at=datetime.now(UTC) + timedelta(minutes=5),
+        )
+        approvals.approve(failed_approval.approval_id, approver_id="reviewer")
+        _expect_error(
+            checks,
+            "failed_test_rejects_write",
+            DevelopmentWriteError,
+            "validation failed",
+            lambda: runtime.materialize_development(
+                task_id=failed_task,
+                actor=actor,
+                proposal=empty,
+                approval_id=failed_approval.approval_id,
+                trace_id="failed-validation",
+            ),
+        )
+        with sqlite3.connect(database) as connection:
+            failed_target = connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE name = 'dev_empty_orders'"
+            ).fetchone()
+        _record(checks, "failed_test_rolls_back_target", failed_target is None)
+        _expect_error(
+            checks,
+            "failed_write_approval_consumed",
+            ApprovalError,
+            "already been consumed",
+            lambda: runtime.materialize_development(
+                task_id=failed_task,
+                actor=actor,
+                proposal=empty,
+                approval_id=failed_approval.approval_id,
+                trace_id="failed-validation-replay",
             ),
         )
     failed = [check for check in checks if check["status"] != "passed"]

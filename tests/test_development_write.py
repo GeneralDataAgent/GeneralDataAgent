@@ -26,14 +26,20 @@ def create_database(path) -> None:
         )
 
 
-def proposal(*, target: str = "dev_daily_orders") -> TransformationProposal:
+def proposal(
+    *,
+    target: str = "dev_daily_orders",
+    select_sql: str = "SELECT channel, COUNT(*) AS order_count FROM orders GROUP BY channel",
+    tests: tuple[TransformationTest, ...] | None = None,
+) -> TransformationProposal:
     return build_transformation_proposal(
         connector_id="warehouse",
         dialect="sqlite",
         target_relation=target,
-        select_sql="SELECT channel, COUNT(*) AS order_count FROM orders GROUP BY channel",
+        select_sql=select_sql,
         allowed_relations={"orders"},
-        tests=(TransformationTest(name="has-rows", assertion="row_count_nonzero"),),
+        tests=tests
+        or (TransformationTest(name="has-rows", assertion="row_count_nonzero"),),
         impact_summary="Creates one isolated development aggregate.",
         rollback_plan="Drop the isolated development table.",
     )
@@ -151,6 +157,7 @@ def test_exact_one_time_approval_materializes_without_overwrite(tmp_path) -> Non
     assert report.production_write_enabled is False
     assert report.environment == "development"
     assert report.rows_written == 2
+    assert [(test.name, test.violation_count) for test in report.tests] == [("has-rows", 0)]
     with sqlite3.connect(database) as connection:
         rows = connection.execute(
             "SELECT channel, order_count FROM dev_daily_orders ORDER BY channel"
@@ -174,4 +181,48 @@ def test_exact_one_time_approval_materializes_without_overwrite(tmp_path) -> Non
             proposal=change,
             approval_id=approval.approval_id,
             trace_id="replay",
+        )
+
+
+def test_failed_materialization_tests_roll_back_and_consume_approval(tmp_path) -> None:
+    database = tmp_path / "source.sqlite"
+    create_database(database)
+    approvals = InMemoryApprovalStore()
+    governed = runtime(tmp_path, database, approvals)
+    task_id = uuid4()
+    empty = proposal(
+        target="dev_empty_orders",
+        select_sql="SELECT * FROM orders WHERE id < 0",
+    )
+    approval = governed.request_development_write_approval(
+        task_id=task_id,
+        actor=actor(),
+        proposal=empty,
+        impact_scope="Exercise transactional validation rollback.",
+        cost_estimate="Bounded local SQLite materialization.",
+        expires_at=datetime.now(UTC) + timedelta(minutes=10),
+    )
+    approvals.approve(approval.approval_id, approver_id="reviewer")
+
+    with pytest.raises(DevelopmentWriteError, match="validation failed"):
+        governed.materialize_development(
+            task_id=task_id,
+            actor=actor(),
+            proposal=empty,
+            approval_id=approval.approval_id,
+            trace_id="failed-validation",
+        )
+
+    with sqlite3.connect(database) as connection:
+        target = connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE name = 'dev_empty_orders'"
+        ).fetchone()
+    assert target is None
+    with pytest.raises(ApprovalError, match="already been consumed"):
+        governed.materialize_development(
+            task_id=task_id,
+            actor=actor(),
+            proposal=empty,
+            approval_id=approval.approval_id,
+            trace_id="failed-validation-replay",
         )

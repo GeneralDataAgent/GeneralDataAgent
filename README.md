@@ -207,7 +207,7 @@ Run the 16-check local fake-dbt adapter qualification with:
 uv run python evals/run_stage2_dbt_adapter.py
 ```
 
-Run the 16-check approval-gated SQLite development-write pilot with:
+Run the 20-check approval-gated SQLite development-write pilot with:
 
 ```bash
 uv run python evals/run_stage2_development_write.py
@@ -243,7 +243,8 @@ The local dbt gate checks timeouts, nonzero exits, target and selector restricti
 path redaction, and one-time approval behavior. It does not satisfy the real-project dbt gate.
 The development-write pilot is absent by default and can only materialize a reparsed SELECT into a
 new `dev_` table in one pinned SQLite development/CI database after exact one-time R2 approval. It
-cannot select a production environment, overwrite an object, or enable production writes.
+executes the proposal tests in the same transaction and rolls back on failure. It cannot select a
+production environment, overwrite an object, or enable production writes.
 The lineage matrix checks supported node normalization, dependency filtering, incomplete snapshots,
 deterministic re-ingestion, and fail-closed malformed-manifest handling. It does not replace an
 authoritative catalog comparison.

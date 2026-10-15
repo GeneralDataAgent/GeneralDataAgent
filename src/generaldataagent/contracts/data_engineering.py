@@ -407,13 +407,27 @@ class DbtTestReport(ContractModel):
         return self
 
 
+class DevelopmentTestResult(ContractModel):
+    name: str = Field(pattern=r"^[a-z][a-z0-9_-]{0,63}$")
+    assertion: Literal["not_null", "unique", "accepted_values", "row_count_nonzero"]
+    passed: Literal[True] = True
+    violation_count: int = Field(ge=0)
+
+
 class DevelopmentWriteReport(ContractModel):
     proposal_id: UUID
     connector_id: str = Field(min_length=1, max_length=128)
     target_relation: str = Field(pattern=r"^[A-Za-z_][A-Za-z0-9_]{0,127}$")
     environment: Literal["development", "ci"]
     rows_written: int = Field(ge=0)
+    tests: tuple[DevelopmentTestResult, ...] = Field(min_length=1)
     rollback_sql: str = Field(min_length=1, max_length=1_000)
     succeeded: Literal[True] = True
     production_write_enabled: Literal[False] = False
     executed_at: datetime = Field(default_factory=utc_now)
+
+    @model_validator(mode="after")
+    def successful_tests_only(self) -> "DevelopmentWriteReport":
+        if any(result.violation_count != 0 for result in self.tests):
+            raise ValueError("development write report can contain only passing tests")
+        return self

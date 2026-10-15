@@ -4,12 +4,14 @@ import re
 import sqlite3
 import time
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from generaldataagent.connectors.base import quote_identifier
 from generaldataagent.contracts.data_engineering import (
+    DevelopmentTestResult,
     DevelopmentWriteReport,
     TransformationProposal,
+    TransformationTest,
 )
 from generaldataagent.data_engineering.transformation import build_transformation_proposal
 
@@ -95,10 +97,12 @@ class SQLiteDevelopmentWriteRunner:
                     lambda: 1 if time.monotonic() > deadline else 0,
                     1_000,
                 )
+                connection.execute("BEGIN IMMEDIATE")
                 connection.execute(f"CREATE TABLE {target_sql} AS {proposal.select_sql}")
                 rows_written = int(
                     connection.execute(f"SELECT COUNT(*) FROM {target_sql}").fetchone()[0]
                 )
+                test_results = self._run_tests(connection, target_sql, proposal.tests)
         except sqlite3.Error as exc:
             if "interrupted" in str(exc).casefold():
                 raise DevelopmentWriteError(
@@ -111,8 +115,32 @@ class SQLiteDevelopmentWriteRunner:
             target_relation=proposal.target_relation,
             environment=self.environment,
             rows_written=rows_written,
+            tests=test_results,
             rollback_sql=f"DROP TABLE {target_sql}",
         )
+
+    @staticmethod
+    def _run_tests(
+        connection: sqlite3.Connection,
+        target_sql: str,
+        tests: tuple[TransformationTest, ...],
+    ) -> tuple[DevelopmentTestResult, ...]:
+        results: list[DevelopmentTestResult] = []
+        for test in tests:
+            sql, parameters = _test_query(test, target_sql)
+            violation_count = int(connection.execute(sql, parameters).fetchone()[0])
+            if violation_count:
+                raise DevelopmentWriteError(
+                    f"development validation failed: {test.name} ({violation_count} violations)"
+                )
+            results.append(
+                DevelopmentTestResult(
+                    name=test.name,
+                    assertion=test.assertion,
+                    violation_count=0,
+                )
+            )
+        return tuple(results)
 
     def _target_exists(self, target_relation: str) -> bool:
         with sqlite3.connect(self.database_path) as connection:
@@ -121,3 +149,27 @@ class SQLiteDevelopmentWriteRunner:
                 (target_relation,),
             ).fetchone()
         return row is not None
+
+
+def _test_query(
+    test: TransformationTest,
+    target_sql: str,
+) -> tuple[str, tuple[Any, ...]]:
+    if test.assertion == "row_count_nonzero":
+        return f"SELECT CASE WHEN COUNT(*) = 0 THEN 1 ELSE 0 END FROM {target_sql}", ()
+    column_sql = quote_identifier(str(test.column))
+    if test.assertion == "not_null":
+        return f"SELECT COUNT(*) FROM {target_sql} WHERE {column_sql} IS NULL", ()
+    if test.assertion == "unique":
+        return (
+            f"SELECT COUNT(*) - COUNT(DISTINCT {column_sql}) FROM {target_sql} "
+            f"WHERE {column_sql} IS NOT NULL",
+            (),
+        )
+    values = tuple(test.parameters["values"])
+    placeholders = ", ".join("?" for _ in values)
+    return (
+        f"SELECT COUNT(*) FROM {target_sql} WHERE {column_sql} IS NOT NULL "
+        f"AND {column_sql} NOT IN ({placeholders})",
+        values,
+    )
