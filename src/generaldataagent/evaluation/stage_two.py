@@ -112,6 +112,44 @@ class ExternalApprovalTranscript(ContractModel):
         return self
 
 
+class ProductionLoadTranscript(ContractModel):
+    source_system: str = Field(min_length=1, max_length=256)
+    environment: Literal["staging", "production"]
+    run_id: str = Field(min_length=1, max_length=256)
+    started_at: AwareDatetime
+    completed_at: AwareDatetime
+    request_count: int = Field(ge=1)
+    max_workers: int = Field(ge=1)
+    succeeded: int = Field(ge=0)
+    failed: int = Field(ge=0)
+    cancelled: int = Field(ge=0)
+    artifact_count: int = Field(ge=0)
+    target_requests_per_second: float = Field(gt=0)
+    observed_requests_per_second: float = Field(gt=0)
+    p50_request_ms: float = Field(ge=0)
+    p95_request_ms: float = Field(ge=0)
+    p99_request_ms: float = Field(ge=0)
+    max_p95_ms: float = Field(gt=0)
+    saturation_signal: Literal["cpu", "memory", "connection_pool", "queue_depth"]
+    saturation_observed: bool
+    backpressure_activated: bool
+    recovery_probe_succeeded: bool
+    recovery_seconds: float = Field(ge=0)
+    max_recovery_seconds: float = Field(gt=0)
+
+    @model_validator(mode="after")
+    def validate_run_accounting(self) -> "ProductionLoadTranscript":
+        if self.completed_at <= self.started_at:
+            raise ValueError("production load run must complete after it starts")
+        if self.succeeded + self.failed + self.cancelled != self.request_count:
+            raise ValueError("production load outcomes must equal request_count")
+        if self.artifact_count > self.succeeded:
+            raise ValueError("production load artifacts cannot exceed successful requests")
+        if not self.p50_request_ms <= self.p95_request_ms <= self.p99_request_ms:
+            raise ValueError("production load latency percentiles must be ordered")
+        return self
+
+
 def load_external_gate_results(
     evidence_dir: Path | None,
     *,
@@ -124,9 +162,7 @@ def load_external_gate_results(
     root = evidence_dir.resolve(strict=True)
     if not root.is_dir():
         raise ValueError("external evidence path must be a directory")
-    expected_names = {
-        f"{gate_id}.manifest.json" for gate_id in EXTERNAL_GATE_REQUIREMENTS
-    }
+    expected_names = {f"{gate_id}.manifest.json" for gate_id in EXTERNAL_GATE_REQUIREMENTS}
     unexpected = sorted(
         path.name for path in root.glob("*.manifest.json") if path.name not in expected_names
     )

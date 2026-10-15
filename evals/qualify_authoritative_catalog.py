@@ -53,8 +53,7 @@ def qualify_authoritative_catalog(
         raise ValueError(f"critical assets missing from actual lineage: {sorted(missing_actual)}")
     if missing_authoritative:
         raise ValueError(
-            "critical assets missing from authoritative catalog: "
-            f"{sorted(missing_authoritative)}"
+            f"critical assets missing from authoritative catalog: {sorted(missing_authoritative)}"
         )
 
     checks: list[dict[str, Any]] = []
@@ -106,9 +105,7 @@ def qualify_authoritative_catalog(
         "environment": environment,
         "critical_assets": critical_assets,
         "actual_snapshot_hash": f"sha256:{hashlib.sha256(actual_bytes).hexdigest()}",
-        "authoritative_export_hash": (
-            f"sha256:{hashlib.sha256(authoritative_bytes).hexdigest()}"
-        ),
+        "authoritative_export_hash": (f"sha256:{hashlib.sha256(authoritative_bytes).hexdigest()}"),
         "checks": checks,
         "qualified_at": qualified_at.isoformat(),
         "passed": passed,

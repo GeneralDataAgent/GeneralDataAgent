@@ -57,9 +57,7 @@ def qualify_authoritative_profiler(
         "environment": environment,
         "relation": actual.relation,
         "actual_profile_hash": f"sha256:{hashlib.sha256(actual_bytes).hexdigest()}",
-        "authoritative_profile_hash": (
-            f"sha256:{hashlib.sha256(authoritative_bytes).hexdigest()}"
-        ),
+        "authoritative_profile_hash": (f"sha256:{hashlib.sha256(authoritative_bytes).hexdigest()}"),
         "comparison": comparison.model_dump(mode="json"),
         "qualified_at": qualified_at.isoformat(),
         "passed": comparison.passed,

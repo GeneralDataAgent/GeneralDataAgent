@@ -301,6 +301,21 @@ The strict transcript records request and tenant binding, an independent approve
 self-approval and changed requests, one-time consumption, replay blocking, expiry, and ordered event
 timestamps. The emitted evidence omits the tenant identifier and local file paths.
 
+Generate the `production_scale_load` evidence pair from a staging or production load-harness
+transcript with:
+
+```bash
+uv run python evals/qualify_production_scale_load.py \
+  --transcript /path/to/production-load-transcript.json \
+  --output-dir /path/to/evidence \
+  --verifier performance-reviewer
+```
+
+The qualifier requires at least 1,000 requests by default and checks target throughput, bounded
+errors and cancellations, artifact completeness, P95 latency, an observed saturation signal,
+activated backpressure, and a successful bounded recovery probe. It only validates supplied
+staging or production measurements; the local load gate below does not create this external claim.
+
 The gate fails on any failed or cancelled request, missing task artifact, or local end-to-end P95
 above five seconds. It is a development regression, not a production capacity claim.
 The cross-engine gate requires exact agreement across 380 profile fields; it checks connector parity,
