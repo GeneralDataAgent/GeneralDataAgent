@@ -138,6 +138,10 @@ data access:
   cryptographically bind their signing time; verification rejects pre-activation, future-dated,
   post-evidence-expiry, and revoked signatures while preserving evidence signed during a rotated
   key's former validity window.
+- Per-gate attestation policies can require multiple distinct verifier identities. Deterministic
+  key-addressed attestation files support independent review, while missing signatures, duplicate
+  verifier identities, impossible registry thresholds, and omission of the manifest verifier all
+  fail closed; omitted policies retain the original one-verifier behavior.
 
 ## Recommended sequence after this increment
 

@@ -226,8 +226,8 @@ uv run python evals/run_stage2_acceptance.py
 ```
 
 When real-environment evidence is available, place one `<gate_id>.manifest.json`, its referenced
-evidence file, and one independently signed `<gate_id>.attestation.json` in a dedicated directory.
-Then run:
+evidence file, and the required independently signed
+`<gate_id>.<key_id>.attestation.json` files in a dedicated directory. Then run:
 
 ```bash
 uv run python evals/run_stage2_acceptance.py \
@@ -241,23 +241,29 @@ Sign each generated manifest with an Ed25519 private key held outside the eviden
 uv run python evals/attest_external_evidence.py \
   --manifest /path/to/evidence/real_dbt_project.manifest.json \
   --private-key /secure/path/release-reviewer.pem \
-  --key-id release-reviewer-2026
+  --key-id release-reviewer-2026 \
+  --verifier release-reviewer
 ```
 
 The trusted-verifier registry contains the corresponding raw Ed25519 public key as `base64:...`,
 the verifier identity and key ID, the exact external gate IDs that key may sign, `valid_from`,
-`valid_until`, and an optional `revoked_at`. The signed statement binds the gate, verifier, key ID,
-manifest hash, algorithm, and signing time. A signature must have been created during the key's
-validity window and after the evidence observation. Rotation does not invalidate still-current
-evidence signed while the old key was valid, but a revocation takes effect deterministically at the
-acceptance check time. The loader also rejects future-dated signatures and evidence signed after its
-own expiry.
+`valid_until`, and an optional `revoked_at`. Optional per-gate policies set `minimum_verifiers`; the
+default is one for backward compatibility. Thresholds count distinct verifier identities, not keys,
+and the manifest's declared verifier must be among the signers. This permits security and domain
+reviewers to jointly authorize higher-risk gates while preventing one reviewer from satisfying a
+threshold with rotated or duplicate keys.
+
+The signed statement binds the gate, verifier, key ID, manifest hash, algorithm, and signing time. A
+signature must have been created during the key's validity window and after the evidence observation.
+Rotation does not invalidate still-current evidence signed while the old key was valid, but a
+revocation takes effect deterministically at the acceptance check time. The loader also rejects
+future-dated signatures and evidence signed after its own expiry.
 
 The loader verifies identity, gate authorization, the signed statement, evidence hashes, relative
 paths, and validity windows. Missing evidence remains `not_run`; expired, unsigned, untrusted,
-unauthorized, revoked, malformed, or tampered bundles fail closed. The default command exits on
-local-gate status; when an evidence directory is supplied, it requires the trust registry and exits
-successfully only when both local and all external gates pass.
+unauthorized, under-threshold, duplicate-signer, revoked, malformed, or tampered bundles fail closed.
+The default command exits on local-gate status; when an evidence directory is supplied, it requires
+the trust registry and exits successfully only when both local and all external gates pass.
 
 Generate the `real_dbt_project` evidence pair from an actual non-production project with:
 

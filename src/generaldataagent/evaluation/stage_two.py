@@ -4,6 +4,7 @@ import base64
 import binascii
 import hashlib
 import json
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
@@ -181,15 +182,43 @@ class TrustedExternalVerifier(ContractModel):
         return self
 
 
+class ExternalGateAttestationPolicy(ContractModel):
+    gate_id: ExternalGateId
+    minimum_verifiers: int = Field(default=1, ge=1, le=16)
+
+
 class TrustedExternalVerifierRegistry(ContractModel):
     verifiers: tuple[TrustedExternalVerifier, ...] = Field(min_length=1)
+    gate_policies: tuple[ExternalGateAttestationPolicy, ...] = ()
 
     @model_validator(mode="after")
     def validate_unique_identities(self) -> "TrustedExternalVerifierRegistry":
         identities = [(item.verifier, item.key_id) for item in self.verifiers]
         if len(identities) != len(set(identities)):
             raise ValueError("trusted verifier and key id pairs must be unique")
+        policy_gates = [item.gate_id for item in self.gate_policies]
+        if len(policy_gates) != len(set(policy_gates)):
+            raise ValueError("external gate attestation policies must be unique")
+        for policy in self.gate_policies:
+            authorized_verifiers = {
+                item.verifier for item in self.verifiers if policy.gate_id in item.allowed_gates
+            }
+            if len(authorized_verifiers) < policy.minimum_verifiers:
+                raise ValueError(
+                    f"external gate policy for {policy.gate_id} requires more distinct "
+                    "verifiers than the registry authorizes"
+                )
         return self
+
+    def minimum_verifiers_for(self, gate_id: ExternalGateId) -> int:
+        return next(
+            (
+                policy.minimum_verifiers
+                for policy in self.gate_policies
+                if policy.gate_id == gate_id
+            ),
+            1,
+        )
 
 
 class ExternalEvidenceAttestationStatement(ContractModel):
@@ -237,13 +266,8 @@ def load_external_gate_results(
     if unexpected:
         raise ValueError(f"unknown external gate manifests: {unexpected}")
     registry = _load_trusted_verifiers(trusted_verifiers_path)
-    expected_attestation_names = {
-        f"{gate_id}.attestation.json" for gate_id in EXTERNAL_GATE_REQUIREMENTS
-    }
     unexpected_attestations = sorted(
-        path.name
-        for path in root.glob("*.attestation.json")
-        if path.name not in expected_attestation_names
+        path.name for path in root.glob("*.attestation.json") if not _is_attestation_name(path.name)
     )
     if unexpected_attestations:
         raise ValueError(f"unknown external gate attestations: {unexpected_attestations}")
@@ -263,9 +287,9 @@ def load_external_gate_results(
             raise ValueError(
                 f"external evidence manifest {manifest_path.name} declares {manifest.gate_id}"
             )
-        attestation = None
+        attestations: tuple[ExternalEvidenceAttestation, ...] = ()
         if registry is not None:
-            attestation = _verify_attestation(
+            attestations = _verify_attestations(
                 root=root,
                 gate_id=gate_id,
                 manifest=manifest,
@@ -287,8 +311,13 @@ def load_external_gate_results(
                 "required_evidence": requirement,
                 "evidence": manifest.model_dump(mode="json"),
                 **(
-                    {"attestation": attestation.model_dump(mode="json")}
-                    if attestation is not None
+                    {"attestations": [item.model_dump(mode="json") for item in attestations]}
+                    if attestations
+                    else {}
+                ),
+                **(
+                    {"attestation": attestations[0].model_dump(mode="json")}
+                    if len(attestations) == 1
                     else {}
                 ),
             }
@@ -313,7 +342,19 @@ def _load_trusted_verifiers(
     return TrustedExternalVerifierRegistry.model_validate_json(registry_path.read_bytes())
 
 
-def _verify_attestation(
+def _is_attestation_name(name: str) -> bool:
+    return any(
+        re.fullmatch(
+            rf"{re.escape(gate_id)}(?:\.[A-Za-z0-9][A-Za-z0-9._-]{{0,127}})?"
+            r"\.attestation\.json",
+            name,
+        )
+        is not None
+        for gate_id in EXTERNAL_GATE_REQUIREMENTS
+    )
+
+
+def _verify_attestations(
     *,
     root: Path,
     gate_id: ExternalGateId,
@@ -321,13 +362,54 @@ def _verify_attestation(
     manifest_bytes: bytes,
     registry: TrustedExternalVerifierRegistry,
     checked_at: datetime,
-) -> ExternalEvidenceAttestation:
-    attestation_path = root / f"{gate_id}.attestation.json"
-    if not attestation_path.is_file():
+) -> tuple[ExternalEvidenceAttestation, ...]:
+    legacy_path = root / f"{gate_id}.attestation.json"
+    attestation_paths = sorted(root.glob(f"{gate_id}.*.attestation.json"))
+    if legacy_path.is_file():
+        attestation_paths.insert(0, legacy_path)
+    if not attestation_paths:
         raise ValueError(f"missing external evidence attestation for {gate_id}")
+    attestations = tuple(
+        _verify_attestation(
+            attestation_path=path,
+            gate_id=gate_id,
+            manifest=manifest,
+            manifest_bytes=manifest_bytes,
+            registry=registry,
+            checked_at=checked_at,
+        )
+        for path in attestation_paths
+    )
+    verifier_names = [item.verifier for item in attestations]
+    if len(verifier_names) != len(set(verifier_names)):
+        raise ValueError(f"duplicate external evidence verifier for {gate_id}")
+    if manifest.verifier not in verifier_names:
+        raise ValueError(f"manifest verifier did not attest external evidence for {gate_id}")
+    minimum_verifiers = registry.minimum_verifiers_for(gate_id)
+    if len(verifier_names) < minimum_verifiers:
+        raise ValueError(
+            f"external evidence attestation threshold not met for {gate_id}: "
+            f"{len(verifier_names)}/{minimum_verifiers}"
+        )
+    return attestations
+
+
+def _verify_attestation(
+    *,
+    attestation_path: Path,
+    gate_id: ExternalGateId,
+    manifest: ExternalGateEvidence,
+    manifest_bytes: bytes,
+    registry: TrustedExternalVerifierRegistry,
+    checked_at: datetime,
+) -> ExternalEvidenceAttestation:
     attestation = ExternalEvidenceAttestation.model_validate_json(attestation_path.read_bytes())
-    if attestation.gate_id != gate_id or attestation.verifier != manifest.verifier:
+    if attestation.gate_id != gate_id:
         raise ValueError(f"external evidence attestation identity mismatch for {gate_id}")
+    if attestation_path.name != f"{gate_id}.attestation.json":
+        expected_name = f"{gate_id}.{attestation.key_id}.attestation.json"
+        if attestation_path.name != expected_name:
+            raise ValueError(f"external evidence attestation filename mismatch for {gate_id}")
     manifest_hash = f"sha256:{hashlib.sha256(manifest_bytes).hexdigest()}"
     if attestation.manifest_hash != manifest_hash:
         raise ValueError(f"external evidence manifest hash mismatch for {gate_id}")

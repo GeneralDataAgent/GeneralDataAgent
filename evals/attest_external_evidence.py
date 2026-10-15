@@ -24,6 +24,7 @@ def attest_external_evidence(
     manifest_path: Path,
     private_key_path: Path,
     key_id: str,
+    verifier: str | None = None,
     signed_at: datetime | None = None,
 ) -> dict[str, Any]:
     resolved_manifest = manifest_path.resolve(strict=True)
@@ -44,9 +45,10 @@ def attest_external_evidence(
     if not isinstance(private_key, Ed25519PrivateKey):
         raise ValueError("external evidence signing key must be an Ed25519 private key")
     actual_signed_at = signed_at or datetime.now(UTC)
+    actual_verifier = verifier or manifest.verifier
     statement = ExternalEvidenceAttestationStatement(
         gate_id=manifest.gate_id,
-        verifier=manifest.verifier,
+        verifier=actual_verifier,
         key_id=key_id,
         manifest_hash=f"sha256:{hashlib.sha256(manifest_bytes).hexdigest()}",
         signed_at=actual_signed_at,
@@ -56,7 +58,7 @@ def attest_external_evidence(
         **statement.model_dump(),
         signature=f"base64:{base64.b64encode(signature).decode()}",
     )
-    output_path = resolved_manifest.with_name(f"{manifest.gate_id}.attestation.json")
+    output_path = resolved_manifest.with_name(f"{manifest.gate_id}.{key_id}.attestation.json")
     if output_path.exists():
         raise FileExistsError("external evidence attestation already exists")
     output_path.write_text(
@@ -64,7 +66,7 @@ def attest_external_evidence(
     )
     return {
         "gate_id": manifest.gate_id,
-        "verifier": manifest.verifier,
+        "verifier": actual_verifier,
         "key_id": key_id,
         "signed_at": actual_signed_at.isoformat(),
         "attestation_path": str(output_path),
@@ -76,10 +78,12 @@ if __name__ == "__main__":
     parser.add_argument("--manifest", required=True, type=Path)
     parser.add_argument("--private-key", required=True, type=Path)
     parser.add_argument("--key-id", required=True)
+    parser.add_argument("--verifier")
     args = parser.parse_args()
     result = attest_external_evidence(
         manifest_path=args.manifest,
         private_key_path=args.private_key,
         key_id=args.key_id,
+        verifier=args.verifier,
     )
     print(json.dumps(result, indent=2, sort_keys=True))

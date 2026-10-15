@@ -95,6 +95,63 @@ def _attest_bundle(
         )
 
 
+def _create_signer(
+    root: Path,
+    *,
+    verifier: str,
+    key_id: str,
+    signed_at: datetime,
+) -> tuple[dict[str, object], Path]:
+    private_key = Ed25519PrivateKey.generate()
+    private_key_path = root.parent / f"{key_id}.pem"
+    private_key_path.write_bytes(
+        private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+    )
+    public_key = base64.b64encode(
+        private_key.public_key().public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw,
+        )
+    ).decode()
+    return (
+        {
+            "schema_version": "1.0",
+            "verifier": verifier,
+            "key_id": key_id,
+            "algorithm": "ed25519",
+            "public_key": f"base64:{public_key}",
+            "allowed_gates": list(EXTERNAL_GATE_REQUIREMENTS),
+            "valid_from": (signed_at - timedelta(days=1)).isoformat(),
+            "valid_until": (signed_at + timedelta(days=1)).isoformat(),
+            "revoked_at": None,
+        },
+        private_key_path,
+    )
+
+
+def _attest_all_as(
+    root: Path,
+    *,
+    verifier: str,
+    key_id: str,
+    private_key_path: Path,
+    signed_at: datetime,
+) -> None:
+    attest = run_path(ATTESTER)["attest_external_evidence"]
+    for gate_id in EXTERNAL_GATE_REQUIREMENTS:
+        attest(
+            manifest_path=root / f"{gate_id}.manifest.json",
+            private_key_path=private_key_path,
+            key_id=key_id,
+            verifier=verifier,
+            signed_at=signed_at,
+        )
+
+
 def test_valid_external_evidence_can_complete_stage(tmp_path) -> None:
     now = datetime.now(UTC)
     evidence_dir = tmp_path / "evidence"
@@ -155,6 +212,161 @@ def test_verifier_cannot_sign_an_unauthorized_gate(tmp_path) -> None:
             evidence_dir,
             now=now,
             trusted_verifiers_path=trusted_verifiers,
+        )
+
+
+def test_two_distinct_verifiers_satisfy_gate_thresholds(tmp_path) -> None:
+    now = datetime.now(UTC)
+    evidence_dir = tmp_path / "evidence"
+    _write_bundle(evidence_dir, now=now)
+    primary, primary_key = _create_signer(
+        evidence_dir,
+        verifier="independent-test-verifier",
+        key_id="primary-key",
+        signed_at=now,
+    )
+    secondary, secondary_key = _create_signer(
+        evidence_dir,
+        verifier="security-test-verifier",
+        key_id="secondary-key",
+        signed_at=now,
+    )
+    registry_path = tmp_path / "trusted-verifiers.json"
+    registry_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "verifiers": [primary, secondary],
+                "gate_policies": [
+                    {
+                        "schema_version": "1.0",
+                        "gate_id": gate_id,
+                        "minimum_verifiers": 2,
+                    }
+                    for gate_id in EXTERNAL_GATE_REQUIREMENTS
+                ],
+            }
+        )
+    )
+    _attest_all_as(
+        evidence_dir,
+        verifier="independent-test-verifier",
+        key_id="primary-key",
+        private_key_path=primary_key,
+        signed_at=now,
+    )
+    _attest_all_as(
+        evidence_dir,
+        verifier="security-test-verifier",
+        key_id="secondary-key",
+        private_key_path=secondary_key,
+        signed_at=now,
+    )
+
+    results = load_external_gate_results(
+        evidence_dir,
+        now=now,
+        trusted_verifiers_path=registry_path,
+    )
+
+    assert all(len(result["attestations"]) == 2 for result in results)
+    assert all("attestation" not in result for result in results)
+
+
+def test_gate_threshold_fails_when_one_verifier_is_missing(tmp_path) -> None:
+    now = datetime.now(UTC)
+    evidence_dir = tmp_path / "evidence"
+    _write_bundle(evidence_dir, now=now)
+    primary, primary_key = _create_signer(
+        evidence_dir,
+        verifier="independent-test-verifier",
+        key_id="primary-key",
+        signed_at=now,
+    )
+    secondary, _ = _create_signer(
+        evidence_dir,
+        verifier="security-test-verifier",
+        key_id="secondary-key",
+        signed_at=now,
+    )
+    registry_path = tmp_path / "trusted-verifiers.json"
+    registry_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "verifiers": [primary, secondary],
+                "gate_policies": [
+                    {
+                        "schema_version": "1.0",
+                        "gate_id": "authoritative_profiler",
+                        "minimum_verifiers": 2,
+                    }
+                ],
+            }
+        )
+    )
+    _attest_all_as(
+        evidence_dir,
+        verifier="independent-test-verifier",
+        key_id="primary-key",
+        private_key_path=primary_key,
+        signed_at=now,
+    )
+
+    with pytest.raises(ValueError, match="threshold not met.*1/2"):
+        load_external_gate_results(
+            evidence_dir,
+            now=now,
+            trusted_verifiers_path=registry_path,
+        )
+
+
+def test_duplicate_verifier_keys_do_not_count_twice(tmp_path) -> None:
+    now = datetime.now(UTC)
+    evidence_dir = tmp_path / "evidence"
+    _write_bundle(evidence_dir, now=now)
+    first, first_key = _create_signer(
+        evidence_dir,
+        verifier="independent-test-verifier",
+        key_id="first-key",
+        signed_at=now,
+    )
+    second, second_key = _create_signer(
+        evidence_dir,
+        verifier="independent-test-verifier",
+        key_id="second-key",
+        signed_at=now,
+    )
+    registry_path = tmp_path / "trusted-verifiers.json"
+    registry_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "verifiers": [first, second],
+                "gate_policies": [],
+            }
+        )
+    )
+    _attest_all_as(
+        evidence_dir,
+        verifier="independent-test-verifier",
+        key_id="first-key",
+        private_key_path=first_key,
+        signed_at=now,
+    )
+    _attest_all_as(
+        evidence_dir,
+        verifier="independent-test-verifier",
+        key_id="second-key",
+        private_key_path=second_key,
+        signed_at=now,
+    )
+
+    with pytest.raises(ValueError, match="duplicate external evidence verifier"):
+        load_external_gate_results(
+            evidence_dir,
+            now=now,
+            trusted_verifiers_path=registry_path,
         )
 
 
