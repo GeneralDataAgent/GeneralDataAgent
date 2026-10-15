@@ -13,6 +13,7 @@ from generaldataagent.evaluation import (
     EXTERNAL_GATE_REQUIREMENTS,
     ExternalGateEvidence,
     load_external_gate_results,
+    record_external_gate_acceptance,
     write_external_gate_manifest,
 )
 
@@ -158,14 +159,33 @@ def test_valid_external_evidence_can_complete_stage(tmp_path) -> None:
     _write_bundle(evidence_dir, now=now)
     trusted_verifiers = tmp_path / "trusted-verifiers.json"
     _attest_bundle(evidence_dir, trusted_verifiers, signed_at=now)
+    evidence_ledger = tmp_path / "evidence-ledger.sqlite"
     run_report = run_path(RUNNER)["run_acceptance_report"]
 
-    report = run_report(evidence_dir, now=now, trusted_verifiers_path=trusted_verifiers)
+    report = run_report(
+        evidence_dir,
+        now=now,
+        trusted_verifiers_path=trusted_verifiers,
+        evidence_ledger_path=evidence_ledger,
+    )
 
     assert report["stage_acceptance_status"] == "passed"
     assert report["stage_acceptance_complete"] is True
     assert all(gate["status"] == "passed" for gate in report["external_gates"])
     assert all("attestation" in gate for gate in report["external_gates"])
+    assert evidence_ledger.is_file()
+
+
+def test_acceptance_rejects_external_evidence_without_ledger(tmp_path) -> None:
+    now = datetime.now(UTC)
+    evidence_dir = tmp_path / "evidence"
+    _write_bundle(evidence_dir, now=now)
+    trusted_verifiers = tmp_path / "trusted-verifiers.json"
+    _attest_bundle(evidence_dir, trusted_verifiers, signed_at=now)
+    run_report = run_path(RUNNER)["run_acceptance_report"]
+
+    with pytest.raises(ValueError, match="durable acceptance ledger"):
+        run_report(evidence_dir, now=now, trusted_verifiers_path=trusted_verifiers)
 
 
 def test_acceptance_rejects_external_evidence_without_trust_registry(tmp_path) -> None:
@@ -368,6 +388,69 @@ def test_duplicate_verifier_keys_do_not_count_twice(tmp_path) -> None:
             now=now,
             trusted_verifiers_path=registry_path,
         )
+
+
+def test_evidence_ledger_is_idempotent_and_rejects_rollback(tmp_path) -> None:
+    now = datetime.now(UTC)
+    current_dir = tmp_path / "current"
+    _write_bundle(current_dir, now=now)
+    current_registry = tmp_path / "current-registry.json"
+    _attest_bundle(current_dir, current_registry, signed_at=now)
+    current_results = load_external_gate_results(
+        current_dir,
+        now=now,
+        trusted_verifiers_path=current_registry,
+    )
+    ledger = tmp_path / "evidence-ledger.sqlite"
+
+    record_external_gate_acceptance(current_results, ledger, accepted_at=now)
+    record_external_gate_acceptance(current_results, ledger, accepted_at=now)
+
+    older = now - timedelta(minutes=10)
+    older_dir = tmp_path / "older"
+    _write_bundle(older_dir, now=older)
+    older_registry = tmp_path / "older-registry.json"
+    _attest_bundle(older_dir, older_registry, signed_at=older)
+    older_results = load_external_gate_results(
+        older_dir,
+        now=older,
+        trusted_verifiers_path=older_registry,
+    )
+
+    with pytest.raises(ValueError, match="rollback detected"):
+        record_external_gate_acceptance(older_results, ledger, accepted_at=now)
+
+
+def test_evidence_ledger_rejects_same_time_equivocation(tmp_path) -> None:
+    now = datetime.now(UTC)
+    first_dir = tmp_path / "first"
+    _write_bundle(first_dir, now=now)
+    first_registry = tmp_path / "first-registry.json"
+    _attest_bundle(first_dir, first_registry, signed_at=now)
+    first_results = load_external_gate_results(
+        first_dir,
+        now=now,
+        trusted_verifiers_path=first_registry,
+    )
+    ledger = tmp_path / "evidence-ledger.sqlite"
+    record_external_gate_acceptance(first_results, ledger, accepted_at=now)
+
+    second_dir = tmp_path / "second"
+    _write_bundle(second_dir, now=now)
+    manifest_path = second_dir / "authoritative_profiler.manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest["summary"] = "Different evidence with the same observation time."
+    manifest_path.write_text(json.dumps(manifest))
+    second_registry = tmp_path / "second-registry.json"
+    _attest_bundle(second_dir, second_registry, signed_at=now)
+    second_results = load_external_gate_results(
+        second_dir,
+        now=now,
+        trusted_verifiers_path=second_registry,
+    )
+
+    with pytest.raises(ValueError, match="equivocation detected"):
+        record_external_gate_acceptance(second_results, ledger, accepted_at=now)
 
 
 def test_expired_rotated_key_accepts_evidence_signed_during_validity(tmp_path) -> None:

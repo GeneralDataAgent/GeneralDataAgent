@@ -23,6 +23,7 @@ from generaldataagent.evaluation.stage_two import (
     TrustedExternalVerifier,
     TrustedExternalVerifierRegistry,
     load_external_gate_results,
+    record_external_gate_acceptance,
     serialize_attestation_statement,
     write_external_gate_manifest,
 )
@@ -49,6 +50,7 @@ __all__ = [
     "load_semantic_cases",
     "load_stage_one_cases",
     "load_external_gate_results",
+    "record_external_gate_acceptance",
     "serialize_attestation_statement",
     "write_external_gate_manifest",
 ]

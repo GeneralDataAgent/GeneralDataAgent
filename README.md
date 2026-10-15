@@ -232,7 +232,8 @@ evidence file, and the required independently signed
 ```bash
 uv run python evals/run_stage2_acceptance.py \
   --external-evidence-dir /path/to/evidence \
-  --trusted-verifiers /path/to/trusted-verifiers.json
+  --trusted-verifiers /path/to/trusted-verifiers.json \
+  --evidence-ledger /durable/path/stage2-evidence.sqlite
 ```
 
 Sign each generated manifest with an Ed25519 private key held outside the evidence bundle:
@@ -262,8 +263,13 @@ future-dated signatures and evidence signed after its own expiry.
 The loader verifies identity, gate authorization, the signed statement, evidence hashes, relative
 paths, and validity windows. Missing evidence remains `not_run`; expired, unsigned, untrusted,
 unauthorized, under-threshold, duplicate-signer, revoked, malformed, or tampered bundles fail closed.
+When the complete bundle passes, the acceptance runner atomically records each gate's observation
+time and signed manifest hash in the durable SQLite evidence ledger. Re-running the identical bundle
+is idempotent; an older observation or a different manifest at the same observation time is rejected
+as rollback or equivocation. Failed or incomplete bundles never advance the ledger.
+
 The default command exits on local-gate status; when an evidence directory is supplied, it requires
-the trust registry and exits successfully only when both local and all external gates pass.
+both the trust registry and ledger and exits successfully only when local and all external gates pass.
 
 Generate the `real_dbt_project` evidence pair from an actual non-production project with:
 

@@ -5,6 +5,7 @@ import binascii
 import hashlib
 import json
 import re
+import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
@@ -329,6 +330,81 @@ def write_external_gate_manifest(path: Path, evidence: ExternalGateEvidence) -> 
     """Write a canonical manifest for an externally produced evidence file."""
 
     path.write_text(json.dumps(evidence.model_dump(mode="json"), indent=2, sort_keys=True) + "\n")
+
+
+def record_external_gate_acceptance(
+    results: tuple[dict[str, object], ...],
+    ledger_path: Path,
+    *,
+    accepted_at: datetime,
+) -> None:
+    """Atomically reject rollback/equivocation and record a complete accepted bundle."""
+
+    if accepted_at.utcoffset() is None:
+        raise ValueError("external evidence acceptance time must include a timezone")
+    if {result.get("gate_id") for result in results} != set(EXTERNAL_GATE_REQUIREMENTS):
+        raise ValueError("external evidence ledger requires every known gate")
+    if any(result.get("status") != "passed" for result in results):
+        raise ValueError("external evidence ledger only records fully passing bundles")
+    resolved_parent = ledger_path.parent.resolve(strict=True)
+    resolved_ledger = resolved_parent / ledger_path.name
+    if resolved_ledger.exists() and not resolved_ledger.is_file():
+        raise ValueError("external evidence ledger path must be a file")
+
+    entries: list[tuple[str, datetime, str]] = []
+    for result in results:
+        gate_id = str(result["gate_id"])
+        evidence = result.get("evidence")
+        attestations = result.get("attestations")
+        if not isinstance(evidence, dict) or not isinstance(attestations, list) or not attestations:
+            raise ValueError(f"external evidence ledger requires attestations for {gate_id}")
+        observed_at = datetime.fromisoformat(str(evidence["observed_at"]))
+        manifest_hashes = {
+            str(attestation["manifest_hash"])
+            for attestation in attestations
+            if isinstance(attestation, dict)
+        }
+        if len(manifest_hashes) != 1:
+            raise ValueError(f"external evidence attestations disagree for {gate_id}")
+        entries.append((gate_id, observed_at, manifest_hashes.pop()))
+
+    with sqlite3.connect(resolved_ledger, timeout=5) as connection:
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS external_gate_acceptance (
+                gate_id TEXT PRIMARY KEY,
+                observed_at TEXT NOT NULL,
+                manifest_hash TEXT NOT NULL,
+                accepted_at TEXT NOT NULL
+            )
+            """
+        )
+        connection.execute("BEGIN IMMEDIATE")
+        for gate_id, observed_at, manifest_hash in entries:
+            prior = connection.execute(
+                "SELECT observed_at, manifest_hash FROM external_gate_acceptance WHERE gate_id = ?",
+                (gate_id,),
+            ).fetchone()
+            if prior is not None:
+                prior_observed_at = datetime.fromisoformat(prior[0])
+                if observed_at < prior_observed_at:
+                    raise ValueError(f"external evidence rollback detected for {gate_id}")
+                if observed_at == prior_observed_at and manifest_hash != prior[1]:
+                    raise ValueError(f"external evidence equivocation detected for {gate_id}")
+                if observed_at == prior_observed_at:
+                    continue
+            connection.execute(
+                """
+                INSERT INTO external_gate_acceptance (
+                    gate_id, observed_at, manifest_hash, accepted_at
+                ) VALUES (?, ?, ?, ?)
+                ON CONFLICT(gate_id) DO UPDATE SET
+                    observed_at = excluded.observed_at,
+                    manifest_hash = excluded.manifest_hash,
+                    accepted_at = excluded.accepted_at
+                """,
+                (gate_id, observed_at.isoformat(), manifest_hash, accepted_at.isoformat()),
+            )
 
 
 def _load_trusted_verifiers(

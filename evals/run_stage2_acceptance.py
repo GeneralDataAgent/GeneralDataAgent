@@ -18,7 +18,7 @@ from generaldataagent.contracts import (
     ToolRequest,
 )
 from generaldataagent.data_engineering import SchemaDriftError, require_compatible_schema
-from generaldataagent.evaluation import load_external_gate_results
+from generaldataagent.evaluation import load_external_gate_results, record_external_gate_acceptance
 from generaldataagent.policy import ApprovalError, SQLiteApprovalStore
 
 EVAL_DIR = Path(__file__).parent
@@ -53,9 +53,13 @@ def run_acceptance_report(
     *,
     now: datetime | None = None,
     trusted_verifiers_path: Path | None = None,
+    evidence_ledger_path: Path | None = None,
 ) -> dict[str, Any]:
     if external_evidence_dir is not None and trusted_verifiers_path is None:
         raise ValueError("external evidence requires a trusted verifier registry")
+    if external_evidence_dir is not None and evidence_ledger_path is None:
+        raise ValueError("external evidence requires a durable acceptance ledger")
+    checked_at = now or datetime.now(UTC)
     component = run_evaluation()
     cross_engine = run_cross_engine_evaluation()
     dbt_adapter = run_dbt_adapter_evaluation()
@@ -145,11 +149,17 @@ def run_acceptance_report(
     development_passed = all(gate["status"] == "passed" for gate in development_gates)
     external_gates = load_external_gate_results(
         external_evidence_dir,
-        now=now,
+        now=checked_at,
         trusted_verifiers_path=trusted_verifiers_path,
     )
     external_passed = all(gate["status"] == "passed" for gate in external_gates)
     stage_complete = development_passed and external_passed
+    if stage_complete and evidence_ledger_path is not None:
+        record_external_gate_acceptance(
+            external_gates,
+            evidence_ledger_path,
+            accepted_at=checked_at,
+        )
     return {
         "stage": 2,
         "development_gate_status": "passed" if development_passed else "failed",
@@ -228,10 +238,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--external-evidence-dir", type=Path)
     parser.add_argument("--trusted-verifiers", type=Path)
+    parser.add_argument("--evidence-ledger", type=Path)
     args = parser.parse_args()
     report = run_acceptance_report(
         args.external_evidence_dir,
         trusted_verifiers_path=args.trusted_verifiers,
+        evidence_ledger_path=args.evidence_ledger,
     )
     print(json.dumps(report, indent=2, sort_keys=True))
     if args.external_evidence_dir is None:

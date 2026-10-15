@@ -142,6 +142,9 @@ data access:
   key-addressed attestation files support independent review, while missing signatures, duplicate
   verifier identities, impossible registry thresholds, and omission of the manifest verifier all
   fail closed; omitted policies retain the original one-verifier behavior.
+- Completed external bundles advance a durable SQLite acceptance ledger in one transaction. Exact
+  bundle replay is idempotent, while an older observation or a different signed manifest at the same
+  observation time is rejected as rollback or equivocation; incomplete bundles do not alter state.
 
 ## Recommended sequence after this increment
 
