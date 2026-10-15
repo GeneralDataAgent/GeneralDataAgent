@@ -119,6 +119,9 @@ data access:
 - A real-dbt qualification command runs compile and selected tests against an explicitly supplied
   non-production project and emits the corresponding hashed evidence pair without overwriting prior
   evidence. No project, credentials, or environment are bundled, so the real gate remains open.
+- An authoritative-profiler qualification command compares strict profile JSON from explicitly
+  independent source systems at the 99% default threshold and emits hashed pass/fail evidence. The
+  repository still needs a real authoritative profile export to close that gate.
 
 ## Recommended sequence after this increment
 

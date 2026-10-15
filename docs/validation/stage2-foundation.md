@@ -182,3 +182,6 @@ evidence is reported as `expired`. With no directory, the default remains five `
 The real-dbt qualifier accepts an explicit project, profiles directory, non-production target, and
 selector list. It emits a hashed `real_dbt_project` evidence pair after compile and selected tests;
 the repository does not ship or silently choose a real project, credential, or target.
+The authoritative-profiler qualifier consumes two strict `DataProfile` JSON files from explicitly
+different source systems, records both input hashes, applies the existing field-level comparison at
+the 99% default threshold, and emits passing or failing evidence without exposing local paths.

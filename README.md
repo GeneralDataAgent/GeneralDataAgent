@@ -254,6 +254,23 @@ The qualifier refuses production environments and production target names, runs 
 selected tests, redacts local paths, and emits both passing and failing evidence without overwriting
 an existing evidence pair.
 
+Generate the `authoritative_profiler` evidence pair from two independently produced profile JSON
+files with:
+
+```bash
+uv run python evals/qualify_authoritative_profiler.py \
+  --actual-profile /path/to/generaldataagent-profile.json \
+  --authoritative-profile /path/to/authoritative-profile.json \
+  --actual-source-system generaldataagent \
+  --authoritative-source-system enterprise-profiler \
+  --environment staging \
+  --output-dir /path/to/evidence \
+  --verifier data-quality-reviewer
+```
+
+The default agreement threshold is 99%. The evidence contains input hashes and field-level
+comparison results, not local file paths, and refuses identical source-system identities.
+
 The gate fails on any failed or cancelled request, missing task artifact, or local end-to-end P95
 above five seconds. It is a development regression, not a production capacity claim.
 The cross-engine gate requires exact agreement across 380 profile fields; it checks connector parity,
