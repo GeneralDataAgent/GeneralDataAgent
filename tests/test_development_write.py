@@ -298,3 +298,55 @@ def test_durable_approval_executes_once_across_runtime_restarts(tmp_path) -> Non
             approval_id=approval.approval_id,
             trace_id="after-second-restart",
         )
+
+
+def test_execution_failure_rolls_back_persists_evidence_and_consumes_approval(tmp_path) -> None:
+    database = tmp_path / "source.sqlite"
+    create_database(database)
+    approvals = InMemoryApprovalStore()
+    governed = runtime(tmp_path, database, approvals)
+    task_id = uuid4()
+    change = proposal(target="dev_missing_source")
+    approval = governed.request_development_write_approval(
+        task_id=task_id,
+        actor=actor(),
+        proposal=change,
+        impact_scope="Exercise source drift after approval.",
+        cost_estimate="Bounded local SQLite materialization.",
+        expires_at=datetime.now(UTC) + timedelta(minutes=10),
+    )
+    approvals.approve(approval.approval_id, approver_id="reviewer")
+    with sqlite3.connect(database) as connection:
+        connection.execute("DROP TABLE orders")
+
+    with pytest.raises(DevelopmentWriteError, match="materialization failed") as error:
+        governed.materialize_development(
+            task_id=task_id,
+            actor=actor(),
+            proposal=change,
+            approval_id=approval.approval_id,
+            trace_id="missing-source",
+        )
+    assert error.value.code == "execution_failed"
+
+    with sqlite3.connect(database) as connection:
+        target = connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE name = 'dev_missing_source'"
+        ).fetchone()
+    assert target is None
+    artifacts = [
+        json.loads(path.read_text())
+        for path in (tmp_path / "artifacts" / str(task_id)).glob("*.json")
+    ]
+    failures = [artifact for artifact in artifacts if "error_code" in artifact]
+    assert len(failures) == 1
+    assert failures[0]["error_code"] == "execution_failed"
+    assert failures[0]["created_target_persisted"] is False
+    with pytest.raises(ApprovalError, match="already been consumed"):
+        governed.materialize_development(
+            task_id=task_id,
+            actor=actor(),
+            proposal=change,
+            approval_id=approval.approval_id,
+            trace_id="missing-source-replay",
+        )

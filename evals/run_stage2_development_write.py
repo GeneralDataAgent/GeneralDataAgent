@@ -314,6 +314,77 @@ def run_development_write_evaluation() -> dict[str, Any]:
                 trace_id="after-second-restart",
             ),
         )
+        drift_database = root / "drift.sqlite"
+        _create_database(drift_database)
+        drift_approvals = InMemoryApprovalStore()
+        drift_runner = SQLiteDevelopmentWriteRunner(
+            drift_database,
+            connector_id="warehouse",
+            environment="development",
+        )
+        drift_root = root / "drift"
+        drift_runtime = _runtime(
+            drift_root,
+            drift_database,
+            approvals=drift_approvals,
+            runner=drift_runner,
+        )
+        drift_task = uuid4()
+        drift_proposal = _proposal(target="dev_missing_source")
+        drift_approval = drift_runtime.request_development_write_approval(
+            task_id=drift_task,
+            actor=actor,
+            proposal=drift_proposal,
+            impact_scope="Exercise source drift after approval.",
+            cost_estimate="Bounded local SQLite execution.",
+            expires_at=datetime.now(UTC) + timedelta(minutes=5),
+        )
+        drift_approvals.approve(drift_approval.approval_id, approver_id="reviewer")
+        with sqlite3.connect(drift_database) as connection:
+            connection.execute("DROP TABLE orders")
+        _expect_error(
+            checks,
+            "execution_failure_classified",
+            DevelopmentWriteError,
+            "materialization failed",
+            lambda: drift_runtime.materialize_development(
+                task_id=drift_task,
+                actor=actor,
+                proposal=drift_proposal,
+                approval_id=drift_approval.approval_id,
+                trace_id="missing-source",
+            ),
+        )
+        with sqlite3.connect(drift_database) as connection:
+            drift_target = connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE name = 'dev_missing_source'"
+            ).fetchone()
+        _record(checks, "execution_failure_rolls_back_target", drift_target is None)
+        drift_artifacts = [
+            json.loads(path.read_text())
+            for path in (drift_root / "artifacts" / str(drift_task)).glob("*.json")
+        ]
+        drift_failures = [item for item in drift_artifacts if "error_code" in item]
+        _record(
+            checks,
+            "execution_failure_evidence_persisted",
+            len(drift_failures) == 1
+            and drift_failures[0]["error_code"] == "execution_failed"
+            and drift_failures[0]["created_target_persisted"] is False,
+        )
+        _expect_error(
+            checks,
+            "execution_failure_approval_consumed",
+            ApprovalError,
+            "already been consumed",
+            lambda: drift_runtime.materialize_development(
+                task_id=drift_task,
+                actor=actor,
+                proposal=drift_proposal,
+                approval_id=drift_approval.approval_id,
+                trace_id="missing-source-replay",
+            ),
+        )
     failed = [check for check in checks if check["status"] != "passed"]
     return {
         "check_count": len(checks),

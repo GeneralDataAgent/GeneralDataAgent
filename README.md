@@ -207,7 +207,7 @@ Run the 16-check local fake-dbt adapter qualification with:
 uv run python evals/run_stage2_dbt_adapter.py
 ```
 
-Run the 24-check approval-gated SQLite development-write pilot with:
+Run the 28-check approval-gated SQLite development-write pilot with:
 
 ```bash
 uv run python evals/run_stage2_development_write.py
@@ -247,6 +247,7 @@ executes the proposal tests in the same transaction and rolls back on failure. I
 production environment, bind a different database than the registered read connector, overwrite an
 object, or enable production writes. Failed approved attempts persist immutable failure evidence.
 Durable local approvals remain executable across one runtime restart and non-replayable thereafter.
+Source drift after approval is classified, rolled back, persisted, and cannot reuse the grant.
 The lineage matrix checks supported node normalization, dependency filtering, incomplete snapshots,
 deterministic re-ingestion, and fail-closed malformed-manifest handling. It does not replace an
 authoritative catalog comparison.
