@@ -288,6 +288,19 @@ uv run python evals/qualify_authoritative_catalog.py \
 The comparison checks each critical asset's type, direct dependencies, and exact downstream
 Dashboard paths. Both graphs must be complete, self-contained, and independently sourced.
 
+Generate the `external_approval_service` evidence pair from an exported service transcript with:
+
+```bash
+uv run python evals/qualify_external_approval_service.py \
+  --transcript /path/to/approval-transcript.json \
+  --output-dir /path/to/evidence \
+  --verifier security-reviewer
+```
+
+The strict transcript records request and tenant binding, an independent approver, rejection of
+self-approval and changed requests, one-time consumption, replay blocking, expiry, and ordered event
+timestamps. The emitted evidence omits the tenant identifier and local file paths.
+
 The gate fails on any failed or cancelled request, missing task artifact, or local end-to-end P95
 above five seconds. It is a development regression, not a production capacity claim.
 The cross-engine gate requires exact agreement across 380 profile fields; it checks connector parity,

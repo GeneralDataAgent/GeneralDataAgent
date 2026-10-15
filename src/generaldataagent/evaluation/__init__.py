@@ -14,6 +14,7 @@ from generaldataagent.evaluation.stage_one import (
 from generaldataagent.evaluation.stage_two import (
     EXTERNAL_GATE_REQUIREMENTS,
     CatalogLineageExport,
+    ExternalApprovalTranscript,
     ExternalGateEvidence,
     load_external_gate_results,
     write_external_gate_manifest,
@@ -24,6 +25,7 @@ __all__ = [
     "EvaluationReport",
     "EXTERNAL_GATE_REQUIREMENTS",
     "CatalogLineageExport",
+    "ExternalApprovalTranscript",
     "ExternalGateEvidence",
     "DuplicateReviewError",
     "LocalHumanReviewStore",

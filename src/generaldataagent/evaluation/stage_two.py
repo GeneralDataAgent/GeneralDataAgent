@@ -5,6 +5,7 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
+from uuid import UUID
 
 from pydantic import AwareDatetime, Field, model_validator
 
@@ -80,6 +81,34 @@ class CatalogLineageExport(ContractModel):
             raise ValueError(f"authoritative catalog has unknown dependencies: {sorted(unknown)}")
         if not any(asset.asset_type == "dashboard" for asset in self.assets):
             raise ValueError("authoritative catalog must include at least one dashboard")
+        return self
+
+
+class ExternalApprovalTranscript(ContractModel):
+    source_system: str = Field(min_length=1, max_length=256)
+    environment: Literal["non_production", "staging", "production"]
+    service_request_id: str = Field(min_length=1, max_length=256)
+    approval_id: UUID
+    request_fingerprint: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    tenant_id: str = Field(min_length=1, max_length=128)
+    requester_id: str = Field(min_length=1, max_length=128)
+    approver_id: str = Field(min_length=1, max_length=128)
+    requested_at: AwareDatetime
+    approved_at: AwareDatetime
+    consumed_at: AwareDatetime
+    expires_at: AwareDatetime
+    request_bound: bool
+    tenant_bound: bool
+    self_approval_rejected: bool
+    changed_request_rejected: bool
+    replay_blocked: bool
+
+    @model_validator(mode="after")
+    def validate_event_order(self) -> "ExternalApprovalTranscript":
+        if not self.requested_at <= self.approved_at <= self.consumed_at:
+            raise ValueError("external approval event timestamps are out of order")
+        if self.consumed_at > self.expires_at:
+            raise ValueError("external approval was consumed after expiry")
         return self
 
 

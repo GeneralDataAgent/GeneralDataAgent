@@ -188,3 +188,6 @@ the 99% default threshold, and emits passing or failing evidence without exposin
 The authoritative-catalog qualifier compares a complete dbt snapshot with a strict independent
 catalog export. For every explicitly selected critical asset it checks type, direct dependencies,
 and exact downstream Dashboard paths, recording both input hashes and every comparison result.
+The external-approval qualifier validates a strict transcript exported by an independent service,
+including requester/approver separation, request and tenant binding, self-approval and changed-input
+rejection, ordered timestamps, expiry, one-time consumption, and replay blocking.
