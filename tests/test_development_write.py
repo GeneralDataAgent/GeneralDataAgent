@@ -14,7 +14,7 @@ from generaldataagent.data_engineering import (
     SQLiteDevelopmentWriteRunner,
     build_transformation_proposal,
 )
-from generaldataagent.policy import ApprovalError, InMemoryApprovalStore
+from generaldataagent.policy import ApprovalError, InMemoryApprovalStore, SQLiteApprovalStore
 from generaldataagent.tools import PolicyDeniedError
 
 
@@ -257,3 +257,44 @@ def test_failed_materialization_tests_roll_back_and_consume_approval(tmp_path) -
     assert failures[0]["error_code"] == "validation_failed"
     assert failures[0]["created_target_persisted"] is False
     assert failures[0]["production_write_enabled"] is False
+
+
+def test_durable_approval_executes_once_across_runtime_restarts(tmp_path) -> None:
+    database = tmp_path / "source.sqlite"
+    approval_database = tmp_path / "approvals.sqlite"
+    create_database(database)
+    task_id = uuid4()
+    change = proposal(target="dev_restart_orders")
+    initial = runtime(tmp_path, database, SQLiteApprovalStore(approval_database))
+    approval = initial.request_development_write_approval(
+        task_id=task_id,
+        actor=actor(),
+        proposal=change,
+        impact_scope="Exercise restart-safe development materialization.",
+        cost_estimate="Bounded local SQLite materialization.",
+        expires_at=datetime.now(UTC) + timedelta(minutes=10),
+    )
+    SQLiteApprovalStore(approval_database).approve(
+        approval.approval_id,
+        approver_id="reviewer",
+    )
+
+    restarted = runtime(tmp_path, database, SQLiteApprovalStore(approval_database))
+    report = restarted.materialize_development(
+        task_id=task_id,
+        actor=actor(),
+        proposal=change,
+        approval_id=approval.approval_id,
+        trace_id="after-restart",
+    )
+    assert report.rows_written == 2
+
+    restarted_again = runtime(tmp_path, database, SQLiteApprovalStore(approval_database))
+    with pytest.raises(ApprovalError, match="already been consumed"):
+        restarted_again.materialize_development(
+            task_id=task_id,
+            actor=actor(),
+            proposal=change,
+            approval_id=approval.approval_id,
+            trace_id="after-second-restart",
+        )

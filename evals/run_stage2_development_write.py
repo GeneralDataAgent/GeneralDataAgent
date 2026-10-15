@@ -18,7 +18,12 @@ from generaldataagent.data_engineering import (
     SQLiteDevelopmentWriteRunner,
     build_transformation_proposal,
 )
-from generaldataagent.policy import ApprovalError, InMemoryApprovalStore
+from generaldataagent.policy import (
+    ApprovalError,
+    ApprovalStore,
+    InMemoryApprovalStore,
+    SQLiteApprovalStore,
+)
 from generaldataagent.tools import PolicyDeniedError
 
 
@@ -252,6 +257,63 @@ def run_development_write_evaluation() -> dict[str, Any]:
                 trace_id="failed-validation-replay",
             ),
         )
+        durable_root = root / "durable"
+        approval_database = durable_root / "approvals.sqlite"
+        durable_store = SQLiteApprovalStore(approval_database)
+        durable_runtime = _runtime(
+            durable_root,
+            database,
+            approvals=durable_store,
+            runner=runner,
+        )
+        durable_task = uuid4()
+        durable_proposal = _proposal(target="dev_restart_orders")
+        durable_approval = durable_runtime.request_development_write_approval(
+            task_id=durable_task,
+            actor=actor,
+            proposal=durable_proposal,
+            impact_scope="Exercise restart-safe development materialization.",
+            cost_estimate="Bounded local SQLite execution.",
+            expires_at=datetime.now(UTC) + timedelta(minutes=5),
+        )
+        durable_store.approve(durable_approval.approval_id, approver_id="reviewer")
+        restarted_runtime = _runtime(
+            durable_root,
+            database,
+            approvals=SQLiteApprovalStore(approval_database),
+            runner=runner,
+        )
+        restarted_report = restarted_runtime.materialize_development(
+            task_id=durable_task,
+            actor=actor,
+            proposal=durable_proposal,
+            approval_id=durable_approval.approval_id,
+            trace_id="after-restart",
+        )
+        _record(
+            checks,
+            "durable_approval_executes_after_restart",
+            restarted_report.rows_written == 2,
+        )
+        restarted_again = _runtime(
+            durable_root,
+            database,
+            approvals=SQLiteApprovalStore(approval_database),
+            runner=runner,
+        )
+        _expect_error(
+            checks,
+            "durable_approval_replay_blocked_after_restart",
+            ApprovalError,
+            "already been consumed",
+            lambda: restarted_again.materialize_development(
+                task_id=durable_task,
+                actor=actor,
+                proposal=durable_proposal,
+                approval_id=durable_approval.approval_id,
+                trace_id="after-second-restart",
+            ),
+        )
     failed = [check for check in checks if check["status"] != "passed"]
     return {
         "check_count": len(checks),
@@ -300,7 +362,7 @@ def _runtime(
     root: Path,
     database: Path,
     *,
-    approvals: InMemoryApprovalStore,
+    approvals: ApprovalStore,
     runner: SQLiteDevelopmentWriteRunner | None = None,
 ) -> DataEngineeringRuntime:
     return DataEngineeringRuntime(

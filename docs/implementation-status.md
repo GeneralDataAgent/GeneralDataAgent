@@ -92,9 +92,9 @@ data access:
   `development`/`ci` configuration and new `dev_` targets, reparses the SELECT proposal, generates
   the rollback statement, consumes exact R2 approval once, runs proposal tests transactionally, and
   never exposes production writes.
-- Its 21-check gate covers default closure, connector-path/environment/target restrictions,
+- Its 24-check gate covers default closure, connector-path/environment/target restrictions,
   changed-request and replay rejection, no overwrite, exact result values, test rollback, source
-  preservation, and immutable evidence.
+  preservation, immutable failure evidence, and durable approval execution across restart.
 - Approval requests expose the exact action, target, parameters, impact, cost, classification,
   rollback, and expiry. Grants bind the full request fingerprint and tenant, reject self-approval,
   expire, and are consumed once before execution; request and execution reports are immutable
