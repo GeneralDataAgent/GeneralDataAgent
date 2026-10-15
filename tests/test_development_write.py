@@ -1,5 +1,6 @@
 import json
 import sqlite3
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
@@ -415,3 +416,82 @@ def test_timeout_rolls_back_persists_evidence_and_consumes_approval(tmp_path) ->
             approval_id=approval.approval_id,
             trace_id="timeout-replay",
         )
+
+
+def test_concurrent_approved_writes_create_target_exactly_once(tmp_path) -> None:
+    database = tmp_path / "source.sqlite"
+    create_database(database)
+    approvals = InMemoryApprovalStore()
+    governed = runtime(tmp_path, database, approvals)
+    attempts = []
+    for index in range(2):
+        task_id = uuid4()
+        change = proposal(target="dev_concurrent_orders")
+        approval = governed.request_development_write_approval(
+            task_id=task_id,
+            actor=actor(),
+            proposal=change,
+            impact_scope="Exercise concurrent target creation.",
+            cost_estimate="Bounded local SQLite materialization.",
+            expires_at=datetime.now(UTC) + timedelta(minutes=10),
+        )
+        approvals.approve(approval.approval_id, approver_id=f"reviewer-{index}")
+        attempts.append((task_id, change, approval.approval_id))
+
+    def execute(attempt):
+        task_id, change, approval_id = attempt
+        try:
+            result = governed.materialize_development(
+                task_id=task_id,
+                actor=actor(),
+                proposal=change,
+                approval_id=approval_id,
+                trace_id=f"concurrent-{task_id}",
+            )
+        except DevelopmentWriteError as exc:
+            return task_id, exc
+        return task_id, result
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        outcomes = list(executor.map(execute, attempts))
+
+    successes = [
+        (task_id, result)
+        for task_id, result in outcomes
+        if not isinstance(result, Exception)
+    ]
+    failures = [
+        (task_id, result)
+        for task_id, result in outcomes
+        if isinstance(result, DevelopmentWriteError)
+    ]
+    assert len(successes) == 1
+    assert len(failures) == 1
+    assert successes[0][1].rows_written == 2
+    assert failures[0][1].code == "target_exists"
+
+    with sqlite3.connect(database) as connection:
+        rows = connection.execute(
+            "SELECT channel, order_count FROM dev_concurrent_orders ORDER BY channel"
+        ).fetchall()
+    assert rows == [("app", 2), ("web", 1)]
+
+    successful_artifacts = list((tmp_path / "artifacts" / str(successes[0][0])).glob("*.json"))
+    failed_artifacts = [
+        json.loads(path.read_text())
+        for path in (tmp_path / "artifacts" / str(failures[0][0])).glob("*.json")
+    ]
+    assert len(successful_artifacts) == 2
+    assert len(failed_artifacts) == 2
+    assert [item["error_code"] for item in failed_artifacts if "error_code" in item] == [
+        "target_exists"
+    ]
+    for task_id, change, approval_id in attempts:
+        with pytest.raises(ApprovalError, match="already been consumed"):
+            governed.materialize_development(
+                task_id=task_id,
+                actor=actor(),
+                proposal=change,
+                approval_id=approval_id,
+                trace_id=f"concurrent-replay-{task_id}",
+            )

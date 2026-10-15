@@ -110,13 +110,19 @@ class SQLiteDevelopmentWriteRunner:
                 )
                 test_results = self._run_tests(connection, target_sql, proposal.tests)
         except sqlite3.Error as exc:
-            if "interrupted" in str(exc).casefold():
+            error_message = str(exc)
+            normalized_error = error_message.casefold()
+            if "interrupted" in normalized_error:
                 raise DevelopmentWriteError(
                     "timeout",
                     f"development materialization exceeded {self.timeout_seconds:g} seconds"
                 ) from exc
+            if "already exists" in normalized_error:
+                raise DevelopmentWriteError(
+                    "target_exists", "development target already exists"
+                ) from exc
             raise DevelopmentWriteError(
-                "execution_failed", f"development materialization failed: {exc}"
+                "execution_failed", f"development materialization failed: {error_message}"
             ) from exc
         return DevelopmentWriteReport(
             proposal_id=proposal.proposal_id,

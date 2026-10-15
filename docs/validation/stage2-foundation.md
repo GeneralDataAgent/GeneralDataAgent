@@ -155,14 +155,15 @@ timeouts, production-target and unsafe-selector rejection, exact and single-use 
 and path redaction in commands, stdout, and stderr. It qualifies adapter behavior only; the
 `real_dbt_project` external gate remains `not_run`.
 
-The development-write runner performs 32 checks for default closure, connector-path,
+The development-write runner performs 37 checks for default closure, connector-path,
 production-environment and unsafe-target rejection, exact one-time approval, generated rollback,
 changed-request and replay blocking, no overwrite, correct materialized values, transactional test
 rollback, immutable failure evidence, restart-safe durable approval execution, replay blocking after
 restart, execution-failure classification and rollback, source preservation, and a false
 production-write flag. It also classifies deadline interruption, rolls back the target, persists
 failure evidence, and consumes the approval. This local pilot does not authorize or expose
-production writes.
+production writes. Concurrent approvals for the same target are serialized: one succeeds, one is
+classified as `target_exists`, both approvals are consumed, and task artifacts remain isolated.
 
 The frozen dbt-manifest runner contains 20 cases: ten accepted snapshots (including one explicitly
 incomplete graph) and ten rejected malformed manifests. Every accepted case is loaded twice to

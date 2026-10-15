@@ -3,6 +3,7 @@
 import json
 import sqlite3
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -463,6 +464,116 @@ def run_development_write_evaluation() -> dict[str, Any]:
                 trace_id="timeout-replay",
             ),
         )
+        concurrent_database = root / "concurrent.sqlite"
+        _create_database(concurrent_database)
+        concurrent_approvals = InMemoryApprovalStore()
+        concurrent_root = root / "concurrent"
+        concurrent_runtime = _runtime(
+            concurrent_root,
+            concurrent_database,
+            approvals=concurrent_approvals,
+            runner=SQLiteDevelopmentWriteRunner(
+                concurrent_database,
+                connector_id="warehouse",
+                environment="development",
+            ),
+        )
+        concurrent_attempts = []
+        for index in range(2):
+            concurrent_task = uuid4()
+            concurrent_proposal = _proposal(target="dev_concurrent_orders")
+            concurrent_approval = concurrent_runtime.request_development_write_approval(
+                task_id=concurrent_task,
+                actor=actor,
+                proposal=concurrent_proposal,
+                impact_scope="Exercise concurrent target creation.",
+                cost_estimate="Bounded local SQLite execution.",
+                expires_at=datetime.now(UTC) + timedelta(minutes=5),
+            )
+            concurrent_approvals.approve(
+                concurrent_approval.approval_id,
+                approver_id=f"reviewer-{index}",
+            )
+            concurrent_attempts.append(
+                (concurrent_task, concurrent_proposal, concurrent_approval.approval_id)
+            )
+
+        def execute_concurrently(attempt):
+            concurrent_task, concurrent_proposal, concurrent_approval_id = attempt
+            try:
+                outcome = concurrent_runtime.materialize_development(
+                    task_id=concurrent_task,
+                    actor=actor,
+                    proposal=concurrent_proposal,
+                    approval_id=concurrent_approval_id,
+                    trace_id=f"concurrent-{concurrent_task}",
+                )
+            except DevelopmentWriteError as exc:
+                return concurrent_task, exc
+            return concurrent_task, outcome
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            concurrent_outcomes = list(
+                executor.map(execute_concurrently, concurrent_attempts)
+            )
+        concurrent_successes = [
+            (task_id, outcome)
+            for task_id, outcome in concurrent_outcomes
+            if not isinstance(outcome, Exception)
+        ]
+        concurrent_failures = [
+            (task_id, outcome)
+            for task_id, outcome in concurrent_outcomes
+            if isinstance(outcome, DevelopmentWriteError)
+        ]
+        _record(
+            checks,
+            "concurrent_target_created_once",
+            len(concurrent_successes) == 1 and len(concurrent_failures) == 1,
+        )
+        _record(
+            checks,
+            "concurrent_conflict_classified",
+            len(concurrent_failures) == 1
+            and concurrent_failures[0][1].code == "target_exists",
+        )
+        with sqlite3.connect(concurrent_database) as connection:
+            concurrent_rows = connection.execute(
+                "SELECT channel, order_count FROM dev_concurrent_orders ORDER BY channel"
+            ).fetchall()
+        _record(
+            checks,
+            "concurrent_target_values_correct",
+            concurrent_rows == [("app", 2), ("web", 1)],
+        )
+        concurrent_artifact_counts = [
+            len(
+                list(
+                    (concurrent_root / "artifacts" / str(task_id)).glob("*.json")
+                )
+            )
+            for task_id, _outcome in concurrent_outcomes
+        ]
+        _record(
+            checks,
+            "concurrent_artifacts_isolated",
+            concurrent_artifact_counts == [2, 2],
+        )
+        replay_blocked = True
+        for concurrent_task, concurrent_proposal, concurrent_approval_id in concurrent_attempts:
+            try:
+                concurrent_runtime.materialize_development(
+                    task_id=concurrent_task,
+                    actor=actor,
+                    proposal=concurrent_proposal,
+                    approval_id=concurrent_approval_id,
+                    trace_id=f"concurrent-replay-{concurrent_task}",
+                )
+            except ApprovalError as exc:
+                replay_blocked = replay_blocked and "already been consumed" in str(exc)
+            else:
+                replay_blocked = False
+        _record(checks, "concurrent_approvals_consumed", replay_blocked)
     failed = [check for check in checks if check["status"] != "passed"]
     return {
         "check_count": len(checks),
