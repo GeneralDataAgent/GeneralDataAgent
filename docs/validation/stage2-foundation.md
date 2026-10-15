@@ -185,3 +185,6 @@ the repository does not ship or silently choose a real project, credential, or t
 The authoritative-profiler qualifier consumes two strict `DataProfile` JSON files from explicitly
 different source systems, records both input hashes, applies the existing field-level comparison at
 the 99% default threshold, and emits passing or failing evidence without exposing local paths.
+The authoritative-catalog qualifier compares a complete dbt snapshot with a strict independent
+catalog export. For every explicitly selected critical asset it checks type, direct dependencies,
+and exact downstream Dashboard paths, recording both input hashes and every comparison result.

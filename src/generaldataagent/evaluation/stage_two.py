@@ -8,6 +8,7 @@ from typing import Literal
 
 from pydantic import AwareDatetime, Field, model_validator
 
+from generaldataagent.contracts.data_engineering import LineageAsset
 from generaldataagent.contracts.models import ContractModel
 
 ExternalGateId = Literal[
@@ -56,6 +57,29 @@ class ExternalGateEvidence(ContractModel):
         path = Path(self.evidence_path)
         if path.is_absolute() or ".." in path.parts:
             raise ValueError("external evidence path must stay inside its bundle directory")
+        return self
+
+
+class CatalogLineageExport(ContractModel):
+    source_system: str = Field(min_length=1, max_length=256)
+    assets: tuple[LineageAsset, ...] = Field(min_length=1)
+    observed_at: AwareDatetime
+
+    @model_validator(mode="after")
+    def validate_complete_graph(self) -> "CatalogLineageExport":
+        asset_ids = [asset.asset_id for asset in self.assets]
+        if len(asset_ids) != len(set(asset_ids)):
+            raise ValueError("authoritative catalog asset ids must be unique")
+        unknown = {
+            dependency
+            for asset in self.assets
+            for dependency in asset.depends_on
+            if dependency not in set(asset_ids)
+        }
+        if unknown:
+            raise ValueError(f"authoritative catalog has unknown dependencies: {sorted(unknown)}")
+        if not any(asset.asset_type == "dashboard" for asset in self.assets):
+            raise ValueError("authoritative catalog must include at least one dashboard")
         return self
 
 

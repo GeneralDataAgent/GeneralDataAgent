@@ -271,6 +271,23 @@ uv run python evals/qualify_authoritative_profiler.py \
 The default agreement threshold is 99%. The evidence contains input hashes and field-level
 comparison results, not local file paths, and refuses identical source-system identities.
 
+Generate the `authoritative_catalog` evidence pair from a complete dbt lineage snapshot and an
+independent catalog export with:
+
+```bash
+uv run python evals/qualify_authoritative_catalog.py \
+  --actual-snapshot /path/to/dbt-lineage.json \
+  --authoritative-export /path/to/catalog-lineage.json \
+  --actual-source-system dbt-manifest \
+  --critical-asset source.shop.orders \
+  --environment staging \
+  --output-dir /path/to/evidence \
+  --verifier catalog-reviewer
+```
+
+The comparison checks each critical asset's type, direct dependencies, and exact downstream
+Dashboard paths. Both graphs must be complete, self-contained, and independently sourced.
+
 The gate fails on any failed or cancelled request, missing task artifact, or local end-to-end P95
 above five seconds. It is a development regression, not a production capacity claim.
 The cross-engine gate requires exact agreement across 380 profile fields; it checks connector parity,

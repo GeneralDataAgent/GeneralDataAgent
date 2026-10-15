@@ -122,6 +122,9 @@ data access:
 - An authoritative-profiler qualification command compares strict profile JSON from explicitly
   independent source systems at the 99% default threshold and emits hashed pass/fail evidence. The
   repository still needs a real authoritative profile export to close that gate.
+- An authoritative-catalog qualification command checks selected critical assets, direct
+  dependencies, and downstream Dashboard paths between complete independently sourced graphs and
+  emits hashed pass/fail evidence. A real catalog export is still required to close the gate.
 
 ## Recommended sequence after this increment
 
