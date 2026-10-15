@@ -225,6 +225,18 @@ Aggregate all local Stage 2 evidence while retaining external blockers with:
 uv run python evals/run_stage2_acceptance.py
 ```
 
+When real-environment evidence is available, place one `<gate_id>.manifest.json` plus its referenced
+evidence file in a dedicated directory and run:
+
+```bash
+uv run python evals/run_stage2_acceptance.py --external-evidence-dir /path/to/evidence
+```
+
+The loader verifies exact gate IDs, evidence hashes, relative paths, and validity windows. Missing
+evidence remains `not_run`; expired evidence cannot pass; malformed or tampered bundles fail closed.
+The default command exits on local-gate status; when an evidence directory is supplied, it exits
+successfully only when both local and all external gates pass.
+
 The gate fails on any failed or cancelled request, missing task artifact, or local end-to-end P95
 above five seconds. It is a development regression, not a production capacity claim.
 The cross-engine gate requires exact agreement across 380 profile fields; it checks connector parity,

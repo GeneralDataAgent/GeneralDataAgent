@@ -11,10 +11,18 @@ from generaldataagent.evaluation.stage_one import (
     load_semantic_cases,
     load_stage_one_cases,
 )
+from generaldataagent.evaluation.stage_two import (
+    EXTERNAL_GATE_REQUIREMENTS,
+    ExternalGateEvidence,
+    load_external_gate_results,
+    write_external_gate_manifest,
+)
 
 __all__ = [
     "EvaluationCaseResult",
     "EvaluationReport",
+    "EXTERNAL_GATE_REQUIREMENTS",
+    "ExternalGateEvidence",
     "DuplicateReviewError",
     "LocalHumanReviewStore",
     "SemanticEvalCase",
@@ -23,4 +31,6 @@ __all__ = [
     "evaluate_stage_one",
     "load_semantic_cases",
     "load_stage_one_cases",
+    "load_external_gate_results",
+    "write_external_gate_manifest",
 ]

@@ -1,5 +1,6 @@
-"""Aggregate local Stage 2 evidence without claiming external acceptance."""
+"""Aggregate local Stage 2 evidence and validated real-environment evidence."""
 
+import argparse
 import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -17,6 +18,7 @@ from generaldataagent.contracts import (
     ToolRequest,
 )
 from generaldataagent.data_engineering import SchemaDriftError, require_compatible_schema
+from generaldataagent.evaluation import load_external_gate_results
 from generaldataagent.policy import ApprovalError, SQLiteApprovalStore
 
 EVAL_DIR = Path(__file__).parent
@@ -46,31 +48,11 @@ run_transformation_evaluation = run_path(EVAL_DIR / "run_stage2_transformation.p
 ]
 
 
-EXTERNAL_GATES = (
-    (
-        "authoritative_profiler",
-        "Compare profiles with an independent authoritative profiler at >=99% agreement.",
-    ),
-    (
-        "real_dbt_project",
-        "Qualify dbt compile and selected tests on a real non-production project.",
-    ),
-    (
-        "authoritative_catalog",
-        "Verify critical lineage dependencies against an authoritative catalog and Dashboards.",
-    ),
-    (
-        "external_approval_service",
-        "Replace the local SQLite approval store with an independently authorized service.",
-    ),
-    (
-        "production_scale_load",
-        "Run production-scale capacity, saturation, and recovery tests in the target environment.",
-    ),
-)
-
-
-def run_acceptance_report() -> dict[str, Any]:
+def run_acceptance_report(
+    external_evidence_dir: Path | None = None,
+    *,
+    now: datetime | None = None,
+) -> dict[str, Any]:
     component = run_evaluation()
     cross_engine = run_cross_engine_evaluation()
     dbt_adapter = run_dbt_adapter_evaluation()
@@ -158,16 +140,16 @@ def run_acceptance_report() -> dict[str, Any]:
         },
     )
     development_passed = all(gate["status"] == "passed" for gate in development_gates)
+    external_gates = load_external_gate_results(external_evidence_dir, now=now)
+    external_passed = all(gate["status"] == "passed" for gate in external_gates)
+    stage_complete = development_passed and external_passed
     return {
         "stage": 2,
         "development_gate_status": "passed" if development_passed else "failed",
-        "stage_acceptance_status": "incomplete",
-        "stage_acceptance_complete": False,
+        "stage_acceptance_status": "passed" if stage_complete else "incomplete",
+        "stage_acceptance_complete": stage_complete,
         "development_gates": development_gates,
-        "external_gates": tuple(
-            {"gate_id": gate_id, "status": "not_run", "required_evidence": requirement}
-            for gate_id, requirement in EXTERNAL_GATES
-        ),
+        "external_gates": external_gates,
     }
 
 
@@ -236,6 +218,13 @@ def _approval_gate_probe() -> dict[str, Any]:
 
 
 if __name__ == "__main__":
-    report = run_acceptance_report()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--external-evidence-dir", type=Path)
+    args = parser.parse_args()
+    report = run_acceptance_report(args.external_evidence_dir)
     print(json.dumps(report, indent=2, sort_keys=True))
-    raise SystemExit(0 if report["development_gate_status"] == "passed" else 1)
+    if args.external_evidence_dir is None:
+        succeeded = report["development_gate_status"] == "passed"
+    else:
+        succeeded = report["stage_acceptance_complete"]
+    raise SystemExit(0 if succeeded else 1)

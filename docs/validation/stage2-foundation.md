@@ -176,3 +176,6 @@ The aggregate acceptance runner executes all local development evidence and retu
 process status only when those gates pass. Its report still sets `stage_acceptance_complete` to
 `false` and lists authoritative profiler, real dbt project, authoritative catalog, external approval
 service, and production-scale load gates as `not_run`; local success cannot erase those blockers.
+An optional external-evidence directory can supply one manifest and hashed evidence file per gate.
+The loader rejects unknown IDs, path traversal, hash mismatches, and malformed evidence; expired
+evidence is reported as `expired`. With no directory, the default remains five `not_run` gates.

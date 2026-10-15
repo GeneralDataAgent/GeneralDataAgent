@@ -113,6 +113,9 @@ data access:
   incomplete snapshots, deterministic re-ingestion, and malformed-input rejection.
 - All engineering operations pass through the policy gateway, enforce connector-domain bindings,
   and persist immutable artifacts.
+- The Stage 2 acceptance runner can ingest bounded external evidence bundles with exact gate IDs,
+  content hashes, relative-path confinement, verifier/source metadata, and expiry. It remains
+  fail-closed and defaults every external gate to `not_run` when no evidence directory is supplied.
 
 ## Recommended sequence after this increment
 

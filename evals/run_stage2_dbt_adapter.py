@@ -66,7 +66,9 @@ def run_dbt_adapter_evaluation() -> dict[str, Any]:
             "compile_timeout_enforced",
             DbtCompileError,
             "exceeded",
-            lambda: runner.compile(target="ci", selected_resources=("slow.model",)),
+            lambda: _timeout_runner(runner).compile(
+                target="ci", selected_resources=("slow.model",)
+            ),
         )
         serialized_report = selected_result.model_dump_json()
         _record(
@@ -227,7 +229,18 @@ def _create_runner(root: Path) -> DbtCompileRunner:
         profiles_dir=profiles,
         executable=(sys.executable, str(script)),
         allowed_targets=frozenset({"ci"}),
+        timeout_seconds=1.0,
+    )
+
+
+def _timeout_runner(runner: DbtCompileRunner) -> DbtCompileRunner:
+    return DbtCompileRunner(
+        project_dir=runner.project_dir,
+        profiles_dir=runner.profiles_dir,
+        executable=runner.executable,
+        allowed_targets=runner.allowed_targets,
         timeout_seconds=0.05,
+        environment=runner.environment,
     )
 
 
