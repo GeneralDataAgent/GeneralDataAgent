@@ -405,3 +405,15 @@ class DbtTestReport(ContractModel):
         if self.succeeded != (self.exit_code == 0):
             raise ValueError("dbt test status must match exit_code")
         return self
+
+
+class DevelopmentWriteReport(ContractModel):
+    proposal_id: UUID
+    connector_id: str = Field(min_length=1, max_length=128)
+    target_relation: str = Field(pattern=r"^[A-Za-z_][A-Za-z0-9_]{0,127}$")
+    environment: Literal["development", "ci"]
+    rows_written: int = Field(ge=0)
+    rollback_sql: str = Field(min_length=1, max_length=1_000)
+    succeeded: Literal[True] = True
+    production_write_enabled: Literal[False] = False
+    executed_at: datetime = Field(default_factory=utc_now)

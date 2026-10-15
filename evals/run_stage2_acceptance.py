@@ -27,6 +27,9 @@ run_cross_engine_evaluation = run_path(EVAL_DIR / "run_stage2_cross_engine.py")[
 run_dbt_adapter_evaluation = run_path(EVAL_DIR / "run_stage2_dbt_adapter.py")[
     "run_dbt_adapter_evaluation"
 ]
+run_development_write_evaluation = run_path(EVAL_DIR / "run_stage2_development_write.py")[
+    "run_development_write_evaluation"
+]
 run_load_evaluation = run_path(EVAL_DIR / "run_stage2_load.py")["run_load_evaluation"]
 run_impact_evaluation = run_path(EVAL_DIR / "run_stage2_impact.py")[
     "run_impact_evaluation"
@@ -79,6 +82,7 @@ def run_acceptance_report() -> dict[str, Any]:
     component = run_evaluation()
     cross_engine = run_cross_engine_evaluation()
     dbt_adapter = run_dbt_adapter_evaluation()
+    development_write = run_development_write_evaluation()
     load = run_load_evaluation()
     impact = run_impact_evaluation()
     isolation = run_isolation_evaluation()
@@ -104,6 +108,11 @@ def run_acceptance_report() -> dict[str, Any]:
             "gate_id": "local_dbt_adapter",
             "status": "passed" if dbt_adapter["failed"] == 0 else "failed",
             "evidence": dbt_adapter,
+        },
+        {
+            "gate_id": "development_write_pilot",
+            "status": "passed" if development_write["failed"] == 0 else "failed",
+            "evidence": development_write,
         },
         {
             "gate_id": "impact_analysis_matrix",

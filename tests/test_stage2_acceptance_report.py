@@ -16,6 +16,7 @@ def test_stage2_acceptance_report_separates_local_and_external_gates() -> None:
         "approval_exactly_once",
         "cross_engine_profile_parity",
         "dbt_manifest_lineage_matrix",
+        "development_write_pilot",
         "frozen_components",
         "impact_analysis_matrix",
         "local_parallel_load",

@@ -36,6 +36,9 @@ This increment establishes the first read-only Stage 2 vertical slice:
 - The optional dbt adapter runs `dbt compile` and approval-gated selected `dbt test` against a pinned
   project and profiles directory, accepts only explicit development or CI targets, validates
   selectors, applies a hard timeout, and redacts local paths from persisted commands and output.
+- The optional SQLite development-write runner is absent by default. When explicitly configured for
+  `development` or `ci`, it reparses one approved SELECT proposal and creates only a new `dev_`
+  table in a pinned database; exact R2 approval is consumed once and overwrite is prohibited.
 - R2 approval requests display exact parameters, impact, cost, classification, rollback, and expiry;
   grants bind the tenant and full request fingerprint, reject self-approval, and are consumed once.
   The approval request and test result are immutable artifacts and consumption is audited.
@@ -75,6 +78,7 @@ uv run python evals/run_stage2_impact.py
 uv run python evals/run_stage2_schema.py
 uv run python evals/run_stage2_transformation.py
 uv run python evals/run_stage2_dbt_adapter.py
+uv run python evals/run_stage2_development_write.py
 uv run python evals/run_stage2_lineage.py
 uv run python evals/run_stage2_acceptance.py
 ```
@@ -101,7 +105,6 @@ This is a development foundation, not Stage 2 acceptance. The following remain o
   100-request P95 gate, and connector deadline tests;
 - comparison with an authoritative external profiler and real projects; cross-engine parity alone
   does not establish independent correctness;
-- optional R2 development-write approval trial, which remains disabled;
 - real source credentials, production identity propagation, and production connector hardening.
 
 No production write path is registered by this runtime.
@@ -150,6 +153,11 @@ The local fake-dbt runner performs 16 checks for compile/test success and nonzer
 timeouts, production-target and unsafe-selector rejection, exact and single-use approval binding,
 and path redaction in commands, stdout, and stderr. It qualifies adapter behavior only; the
 `real_dbt_project` external gate remains `not_run`.
+
+The development-write runner performs 16 checks for default closure, production-environment and
+unsafe-target rejection, exact one-time approval, generated rollback, changed-request and replay
+blocking, no overwrite, correct materialized values, source preservation, and a false production
+write flag. This local pilot does not authorize or expose production writes.
 
 The frozen dbt-manifest runner contains 20 cases: ten accepted snapshots (including one explicitly
 incomplete graph) and ten rejected malformed manifests. Every accepted case is loaded twice to

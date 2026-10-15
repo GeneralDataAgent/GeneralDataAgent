@@ -58,6 +58,20 @@ def test_requires_r2_approval_for_dbt_test() -> None:
     assert decision.risk_level == RiskLevel.R2
 
 
+def test_requires_r2_approval_for_development_write() -> None:
+    decision = PolicyEngine().evaluate(
+        request(
+            agent_role=AgentRole.DATA_ENGINEER,
+            tool_name="development.write",
+            action="materialize",
+            requested_risk=RiskLevel.R2,
+        )
+    )
+    assert decision.decision == "require_approval"
+    assert decision.risk_level == RiskLevel.R2
+    assert "no_production_write" in decision.obligations
+
+
 def test_never_allows_permission_changes() -> None:
     decision = PolicyEngine().evaluate(
         request(

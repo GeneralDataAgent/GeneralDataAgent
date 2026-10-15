@@ -5,6 +5,10 @@ from generaldataagent.data_engineering.catalog_lineage import (
     DbtManifestLineageLoader,
 )
 from generaldataagent.data_engineering.dbt import DbtCompileError, DbtCompileRunner
+from generaldataagent.data_engineering.development_write import (
+    DevelopmentWriteError,
+    SQLiteDevelopmentWriteRunner,
+)
 from generaldataagent.data_engineering.impact import analyze_impact
 from generaldataagent.data_engineering.load_gate import run_profile_load_gate
 from generaldataagent.data_engineering.profile import profile_relation
@@ -24,6 +28,8 @@ __all__ = [
     "DbtManifestLineageLoader",
     "DbtCompileError",
     "DbtCompileRunner",
+    "DevelopmentWriteError",
+    "SQLiteDevelopmentWriteRunner",
     "SchemaDriftError",
     "analyze_impact",
     "build_transformation_proposal",

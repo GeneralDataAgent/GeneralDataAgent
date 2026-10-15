@@ -22,6 +22,7 @@ from generaldataagent.contracts.data_engineering import (
     DataProfile,
     DbtCompileReport,
     DbtTestReport,
+    DevelopmentWriteReport,
     ImpactAnalysis,
     LineageAsset,
     LineageSnapshot,
@@ -38,6 +39,7 @@ from generaldataagent.contracts.data_engineering import (
 )
 from generaldataagent.data_engineering.catalog_lineage import DbtManifestLineageLoader
 from generaldataagent.data_engineering.dbt import DbtCompileRunner
+from generaldataagent.data_engineering.development_write import SQLiteDevelopmentWriteRunner
 from generaldataagent.data_engineering.impact import analyze_impact
 from generaldataagent.data_engineering.profile import profile_relation
 from generaldataagent.data_engineering.quality import execute_quality_rules, propose_quality_rules
@@ -62,6 +64,7 @@ class DataEngineeringRuntime:
         connector_domains: Mapping[str, frozenset[str]],
         artifacts: LocalArtifactStore,
         dbt_runner: DbtCompileRunner | None = None,
+        development_write_runner: SQLiteDevelopmentWriteRunner | None = None,
         lineage_loader: DbtManifestLineageLoader | None = None,
         policy: PolicyEngine | None = None,
         audit: JsonlAuditSink | None = None,
@@ -82,6 +85,12 @@ class DataEngineeringRuntime:
                 raise ValueError("every connector must be bound to at least one data domain")
         self.artifacts = artifacts
         self.dbt_runner = dbt_runner
+        self.development_write_runner = development_write_runner
+        if (
+            self.development_write_runner is not None
+            and self.development_write_runner.connector_id not in self.connectors
+        ):
+            raise ValueError("development write runner must reference a registered connector")
         self.lineage_loader = lineage_loader
         self.approvals = approvals
         self._cancel_events: dict[str, Event] = {}
@@ -97,6 +106,8 @@ class DataEngineeringRuntime:
         if self.dbt_runner is not None:
             self.gateway.register("dbt.compile", self._compile_dbt)
             self.gateway.register("dbt.test", self._test_dbt)
+        if self.development_write_runner is not None:
+            self.gateway.register("development.write", self._materialize_development)
         if self.lineage_loader is not None:
             self.gateway.register("lineage.ingest", self._ingest_lineage)
 
@@ -578,6 +589,89 @@ class DataEngineeringRuntime:
             requested_risk=RiskLevel.R2,
         )
 
+    def request_development_write_approval(
+        self,
+        *,
+        task_id: UUID,
+        actor: ActorContext,
+        proposal: TransformationProposal,
+        impact_scope: str,
+        cost_estimate: str,
+        expires_at: datetime,
+    ) -> ApprovalRequest:
+        if self.approvals is None:
+            raise RuntimeError("approval store is not configured")
+        request = self._development_write_request(
+            task_id=task_id,
+            actor=actor,
+            proposal=proposal,
+            require_absent=True,
+        )
+        decision = self.gateway.policy.evaluate(request)
+        if decision.decision != "require_approval":
+            raise RuntimeError("development write policy must require approval")
+        if self.development_write_runner is None:
+            raise RuntimeError("development write is not configured")
+        approval = self.approvals.create_request(
+            request,
+            impact_scope=impact_scope,
+            cost_estimate=cost_estimate,
+            classification=ArtifactClassification.INTERNAL,
+            rollback_plan=self.development_write_runner.rollback_plan(proposal),
+            expires_at=expires_at,
+        )
+        self._store(task_id, "approval_request", approval, "data-engineer")
+        return approval
+
+    def materialize_development(
+        self,
+        *,
+        task_id: UUID,
+        actor: ActorContext,
+        proposal: TransformationProposal,
+        approval_id: UUID | None,
+        trace_id: str,
+    ) -> DevelopmentWriteReport:
+        request = self._development_write_request(
+            task_id=task_id,
+            actor=actor,
+            proposal=proposal,
+            require_absent=False,
+        )
+        result = self.gateway.invoke(
+            request,
+            trace_id=trace_id,
+            approval_id=approval_id,
+        )
+        self._store(task_id, "development_write_report", result, "data-engineer")
+        return result
+
+    def _development_write_request(
+        self,
+        *,
+        task_id: UUID,
+        actor: ActorContext,
+        proposal: TransformationProposal,
+        require_absent: bool,
+    ) -> ToolRequest:
+        if self.development_write_runner is None:
+            raise RuntimeError("development write is not configured")
+        self.development_write_runner.validate(proposal, require_absent=require_absent)
+        authorized_domains = self._authorized_domains(actor, proposal.connector_id)
+        return self._request(
+            task_id=task_id,
+            actor=actor,
+            tool_name="development.write",
+            action="materialize",
+            resource=f"{proposal.connector_id}:{proposal.target_relation}",
+            arguments={
+                "environment": self.development_write_runner.environment,
+                "proposal": proposal.model_dump(mode="json"),
+            },
+            data_domains=authorized_domains,
+            requested_risk=RiskLevel.R2,
+        )
+
     def ingest_dbt_lineage(
         self,
         *,
@@ -694,6 +788,15 @@ class DataEngineeringRuntime:
             selected_resources=tuple(str(item) for item in arguments["selected_resources"]),
         )
 
+    def _materialize_development(self, arguments: dict[str, Any]) -> DevelopmentWriteReport:
+        if self.development_write_runner is None:
+            raise RuntimeError("development write is not configured")
+        if arguments.get("environment") != self.development_write_runner.environment:
+            raise ValueError("development write environment does not match the pinned runner")
+        return self.development_write_runner.materialize(
+            TransformationProposal.model_validate(arguments["proposal"])
+        )
+
     def _ingest_lineage(self, arguments: dict[str, Any]) -> LineageSnapshot:
         if arguments:
             raise ValueError("dbt lineage ingestion does not accept runtime paths")
@@ -742,6 +845,7 @@ class DataEngineeringRuntime:
         value: (
             ApprovalRequest
             | DataProfile
+            | DevelopmentWriteReport
             | DbtCompileReport
             | DbtTestReport
             | ImpactAnalysis
