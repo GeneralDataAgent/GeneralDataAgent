@@ -68,6 +68,14 @@ class SandboxQuota(ContractModel):
     max_output_bytes: int = Field(default=1_000_000, ge=1_024, le=10_000_000)
 
 
+class OCIContainerRuntime(ContractModel):
+    engine: Literal["docker", "podman"]
+    image_ref: str = Field(pattern=r"^[A-Za-z0-9._/-]+(?::[A-Za-z0-9._-]+)?@sha256:[0-9a-f]{64}$")
+    cpu_count: float = Field(default=1.0, ge=0.1, le=8.0)
+    pids_limit: int = Field(default=32, ge=8, le=256)
+    tmpfs_mb: int = Field(default=16, ge=4, le=256)
+
+
 class ExperimentSpec(ContractModel):
     experiment_id: UUID = Field(default_factory=uuid4)
     task_id: UUID

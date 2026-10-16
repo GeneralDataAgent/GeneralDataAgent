@@ -190,6 +190,12 @@ execution or model deployment:
   stored as an immutable artifact descended from the exact snapshot.
 - The optional SQLite experiment tracker is append-only, survives process restart, rejects duplicate
   experiment identifiers, verifies every record hash on read, and lists runs by exact snapshot.
+- A digest-only OCI runtime path accepts Docker or Podman and hard-codes pull-never, no-network,
+  read-only-root, capability-drop, no-new-privileges, non-root-user, PID/CPU/memory, and no-exec
+  temporary-filesystem controls. It exposes no arbitrary mounts, environment, commands, or code.
+- The checked-in OCI build pins the Docker Official Python 3.12.13 slim Linux/amd64 image digest and
+  copies only the fixed worker. Static invocation/build tests pass; no container engine is installed
+  in the current development environment, so a real build/run is not claimed.
 - Deterministic random, temporal, and group splits support majority-classification and
   mean-regression baselines. Output includes EDA, held-out metrics, target distributions,
   standardized mean differences, and error analysis.

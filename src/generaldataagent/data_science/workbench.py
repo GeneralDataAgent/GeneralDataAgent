@@ -16,7 +16,7 @@ from generaldataagent.contracts import (
     ToolRequest,
 )
 from generaldataagent.data_science.checks import split_indices, validate_experiment_data
-from generaldataagent.data_science.sandbox import FixedTemplateSandbox
+from generaldataagent.data_science.sandbox import FixedTemplateSandbox, OCIContainerSandbox
 from generaldataagent.data_science.snapshot import load_snapshot_rows
 from generaldataagent.data_science.tracking import SQLiteExperimentTracker
 from generaldataagent.observability import JsonlAuditSink
@@ -38,7 +38,7 @@ class DataScienceWorkbench:
         *,
         artifact_store: LocalArtifactStore,
         policy: PolicyEngine | None = None,
-        sandbox: FixedTemplateSandbox | None = None,
+        sandbox: FixedTemplateSandbox | OCIContainerSandbox | None = None,
         audit: JsonlAuditSink | None = None,
         tracker: SQLiteExperimentTracker | None = None,
     ) -> None:

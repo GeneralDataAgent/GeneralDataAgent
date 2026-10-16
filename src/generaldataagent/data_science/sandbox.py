@@ -3,6 +3,7 @@
 import contextlib
 import hashlib
 import json
+import math
 import os
 import subprocess
 import sys
@@ -10,7 +11,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from generaldataagent.contracts import ExperimentSpec
+from generaldataagent.contracts import ExperimentSpec, OCIContainerRuntime, SandboxQuota
 
 _WORKER = Path(__file__).with_name("_worker.py")
 
@@ -36,16 +37,7 @@ class FixedTemplateSandbox:
         train_indices: list[int],
         test_indices: list[int],
     ) -> dict[str, Any]:
-        payload = json.dumps(
-            {
-                "rows": rows,
-                "spec": spec.model_dump(mode="json", exclude={"quota"}),
-                "train_indices": train_indices,
-                "test_indices": test_indices,
-            },
-            allow_nan=False,
-            separators=(",", ":"),
-        ).encode()
+        payload = _serialize_payload(rows, spec, train_indices, test_indices)
         if len(payload) > spec.quota.max_input_bytes:
             raise SandboxError("experiment input exceeds sandbox byte quota")
         command = [sys.executable, "-I", "-S", str(_WORKER)]
@@ -72,9 +64,141 @@ class FixedTemplateSandbox:
             result = json.loads(completed.stdout)
         except json.JSONDecodeError as exc:
             raise SandboxError("fixed experiment template returned invalid JSON") from exc
-        if not isinstance(result, dict):
-            raise SandboxError("fixed experiment template returned an invalid result")
-        return result
+        return _validate_template_result(result, spec, len(train_indices), len(test_indices))
+
+
+class OCIContainerSandbox:
+    """Runs the fixed worker from an already-present digest-pinned OCI image."""
+
+    def __init__(self, runtime: OCIContainerRuntime) -> None:
+        self.runtime = runtime
+
+    @property
+    def runtime_fingerprint(self) -> str:
+        return self.runtime.image_ref.rsplit("@", 1)[1]
+
+    def run(
+        self,
+        *,
+        rows: list[dict[str, Any]],
+        spec: ExperimentSpec,
+        train_indices: list[int],
+        test_indices: list[int],
+    ) -> dict[str, Any]:
+        payload = _serialize_payload(rows, spec, train_indices, test_indices)
+        if len(payload) > spec.quota.max_input_bytes:
+            raise SandboxError("experiment input exceeds sandbox byte quota")
+        command = self.build_command(spec.quota)
+        try:
+            completed = subprocess.run(
+                command,
+                input=payload,
+                capture_output=True,
+                timeout=spec.quota.timeout_seconds,
+                check=False,
+            )
+        except FileNotFoundError as exc:
+            raise SandboxError(
+                f"configured OCI engine is unavailable: {self.runtime.engine}"
+            ) from exc
+        except subprocess.TimeoutExpired as exc:
+            raise SandboxError("OCI experiment exceeded sandbox time quota") from exc
+        if completed.returncode != 0:
+            message = completed.stderr.decode(errors="replace")[:2_000]
+            raise SandboxError(f"OCI experiment failed: {message}")
+        if len(completed.stdout) > spec.quota.max_output_bytes:
+            raise SandboxError("OCI experiment output exceeds sandbox byte quota")
+        try:
+            result = json.loads(completed.stdout)
+        except json.JSONDecodeError as exc:
+            raise SandboxError("OCI experiment returned invalid JSON") from exc
+        return _validate_template_result(result, spec, len(train_indices), len(test_indices))
+
+    def build_command(self, quota: SandboxQuota) -> list[str]:
+        """Return the complete immutable OCI invocation without executing it."""
+
+        return [
+            self.runtime.engine,
+            "run",
+            "--rm",
+            "--interactive",
+            "--pull=never",
+            "--network=none",
+            "--read-only",
+            "--cap-drop=ALL",
+            "--security-opt=no-new-privileges:true",
+            f"--pids-limit={self.runtime.pids_limit}",
+            f"--memory={quota.memory_mb}m",
+            f"--cpus={self.runtime.cpu_count}",
+            f"--tmpfs=/tmp:rw,noexec,nosuid,size={self.runtime.tmpfs_mb}m",
+            "--user=65532:65532",
+            self.runtime.image_ref,
+        ]
+
+
+def _serialize_payload(
+    rows: list[dict[str, Any]],
+    spec: ExperimentSpec,
+    train_indices: list[int],
+    test_indices: list[int],
+) -> bytes:
+    return json.dumps(
+        {
+            "rows": rows,
+            "spec": spec.model_dump(mode="json", exclude={"quota"}),
+            "train_indices": train_indices,
+            "test_indices": test_indices,
+        },
+        allow_nan=False,
+        separators=(",", ":"),
+    ).encode()
+
+
+def _validate_template_result(
+    result: object,
+    spec: ExperimentSpec,
+    expected_train_rows: int,
+    expected_test_rows: int,
+) -> dict[str, Any]:
+    if not isinstance(result, dict):
+        raise SandboxError("experiment template returned an invalid result")
+    required = {
+        "template_version",
+        "train_rows",
+        "test_rows",
+        "metrics",
+        "eda",
+        "statistical_checks",
+        "error_analysis",
+        "model",
+    }
+    if set(result) != required:
+        raise SandboxError("experiment template result fields do not match the fixed contract")
+    if result["template_version"] != "1.0":
+        raise SandboxError("experiment template version does not match the fixed contract")
+    if result["train_rows"] != expected_train_rows or result["test_rows"] != expected_test_rows:
+        raise SandboxError("experiment template split counts do not match the request")
+    expected_metrics = (
+        {"accuracy", "precision", "recall", "f1"}
+        if spec.problem_type == "binary_classification"
+        else {"mae", "rmse", "r2"}
+    )
+    metrics = result["metrics"]
+    if not isinstance(metrics, dict) or set(metrics) != expected_metrics:
+        raise SandboxError("experiment template metrics do not match the problem type")
+    if not all(
+        isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+        for value in metrics.values()
+    ):
+        raise SandboxError("experiment template metrics must be finite numbers")
+    if spec.problem_type == "binary_classification" and not all(
+        0 <= value <= 1 for value in metrics.values()
+    ):
+        raise SandboxError("classification metrics must be between zero and one")
+    for field in ("eda", "statistical_checks", "error_analysis", "model"):
+        if not isinstance(result[field], dict):
+            raise SandboxError(f"experiment template field {field} must be an object")
+    return result
 
 
 def _resource_limiter(spec: ExperimentSpec):

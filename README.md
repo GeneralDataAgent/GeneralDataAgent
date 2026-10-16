@@ -37,6 +37,8 @@ GeneralDataAgent is a governed multi-agent foundation for data analytics, data e
 - Canonical immutable data-science snapshots and strict reproducible experiment contracts.
 - Fixed-template, resource-bounded Python experiments for deterministic classification and
   regression baselines; arbitrary code and package installation are not accepted.
+- Optional digest-pinned OCI execution with a fixed worker, no network, read-only root, dropped
+  capabilities, no-new-privileges, non-root user, and explicit CPU/memory/PID limits.
 - Leakage, split-integrity, target-validity, and metric-suitability gates with EDA, statistical
   checks, held-out evaluation, and error analysis.
 - Optional restart-safe, append-only SQLite experiment tracking with per-record integrity checks.

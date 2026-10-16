@@ -1,4 +1,5 @@
 import json
+import subprocess
 from pathlib import Path
 from uuid import uuid4
 
@@ -10,6 +11,7 @@ from generaldataagent.contracts import (
     AgentRole,
     ExperimentSpec,
     ModelRegistrationDraft,
+    OCIContainerRuntime,
     RiskLevel,
     SandboxQuota,
     SnapshotColumn,
@@ -17,7 +19,11 @@ from generaldataagent.contracts import (
     ToolRequest,
 )
 from generaldataagent.data_science.registration import ModelRegistrationWorkflow
-from generaldataagent.data_science.sandbox import FixedTemplateSandbox, SandboxError
+from generaldataagent.data_science.sandbox import (
+    FixedTemplateSandbox,
+    OCIContainerSandbox,
+    SandboxError,
+)
 from generaldataagent.data_science.snapshot import create_dataset_snapshot
 from generaldataagent.data_science.tracking import (
     ExperimentTrackingError,
@@ -259,6 +265,119 @@ def test_sandbox_enforces_input_quota(tmp_path: Path) -> None:
             train_indices=list(range(15)),
             test_indices=list(range(15, 20)),
         )
+
+
+def test_oci_sandbox_uses_digest_and_mandatory_isolation(monkeypatch) -> None:
+    captured = {}
+
+    def fake_run(command, **kwargs):
+        captured["command"] = command
+        captured["kwargs"] = kwargs
+        output = {
+            "template_version": "1.0",
+            "train_rows": 15,
+            "test_rows": 5,
+            "metrics": {"accuracy": 0.5, "precision": 0.0, "recall": 0.0, "f1": 0.0},
+            "eda": {},
+            "statistical_checks": {},
+            "error_analysis": {},
+            "model": {"algorithm": "majority"},
+        }
+        return subprocess.CompletedProcess(command, 0, json.dumps(output).encode(), b"")
+
+    monkeypatch.setattr("generaldataagent.data_science.sandbox.subprocess.run", fake_run)
+    digest = f"sha256:{'b' * 64}"
+    sandbox = OCIContainerSandbox(
+        OCIContainerRuntime(
+            engine="docker",
+            image_ref=f"registry.example/gda-stage3:1.0@{digest}",
+        )
+    )
+    spec = _spec(uuid4(), uuid4())
+    result = sandbox.run(
+        rows=_classification_rows(),
+        spec=spec,
+        train_indices=list(range(15)),
+        test_indices=list(range(15, 20)),
+    )
+    command = captured["command"]
+    assert result["template_version"] == "1.0"
+    assert sandbox.runtime_fingerprint == digest
+    assert "--pull=never" in command
+    assert "--network=none" in command
+    assert "--read-only" in command
+    assert "--cap-drop=ALL" in command
+    assert "--security-opt=no-new-privileges:true" in command
+    assert "--user=65532:65532" in command
+    assert not any(item.startswith("--volume") or item.startswith("--env") for item in command)
+    assert captured["kwargs"]["check"] is False
+
+
+def test_oci_sandbox_rejects_result_with_wrong_split_counts(monkeypatch) -> None:
+    output = {
+        "template_version": "1.0",
+        "train_rows": 999,
+        "test_rows": 5,
+        "metrics": {"accuracy": 0.5, "precision": 0.0, "recall": 0.0, "f1": 0.0},
+        "eda": {},
+        "statistical_checks": {},
+        "error_analysis": {},
+        "model": {},
+    }
+
+    def fake_run(command, **kwargs):
+        return subprocess.CompletedProcess(command, 0, json.dumps(output).encode(), b"")
+
+    monkeypatch.setattr("generaldataagent.data_science.sandbox.subprocess.run", fake_run)
+    sandbox = OCIContainerSandbox(
+        OCIContainerRuntime(
+            engine="docker",
+            image_ref=f"registry.example/gda-stage3@sha256:{'d' * 64}",
+        )
+    )
+    with pytest.raises(SandboxError, match="split counts"):
+        sandbox.run(
+            rows=_classification_rows(),
+            spec=_spec(uuid4(), uuid4()),
+            train_indices=list(range(15)),
+            test_indices=list(range(15, 20)),
+        )
+
+
+def test_oci_runtime_rejects_mutable_image_tag() -> None:
+    with pytest.raises(ValidationError, match="image_ref"):
+        OCIContainerRuntime(engine="docker", image_ref="generaldataagent-stage3:latest")
+
+
+def test_oci_sandbox_fails_closed_when_engine_is_missing(monkeypatch) -> None:
+    def missing_engine(*args, **kwargs):
+        raise FileNotFoundError
+
+    monkeypatch.setattr("generaldataagent.data_science.sandbox.subprocess.run", missing_engine)
+    sandbox = OCIContainerSandbox(
+        OCIContainerRuntime(
+            engine="podman",
+            image_ref=f"registry.example/gda-stage3@sha256:{'c' * 64}",
+        )
+    )
+    with pytest.raises(SandboxError, match="engine is unavailable"):
+        sandbox.run(
+            rows=_classification_rows(),
+            spec=_spec(uuid4(), uuid4()),
+            train_indices=list(range(15)),
+            test_indices=list(range(15, 20)),
+        )
+
+
+def test_stage3_container_build_is_pinned_and_non_root() -> None:
+    dockerfile = (
+        Path(__file__).parents[1] / "infra" / "sandbox" / "stage3" / "Dockerfile"
+    ).read_text()
+    assert "python:3.12.13-slim@sha256:" in dockerfile
+    assert "USER 65532:65532" in dockerfile
+    assert 'ENTRYPOINT ["python", "-I", "-S", "/app/worker.py"]' in dockerfile
+    assert "apt-get" not in dockerfile
+    assert "pip install" not in dockerfile
 
 
 def test_policy_only_allows_fixed_science_template() -> None:

@@ -9,6 +9,8 @@ Status date: 2026-10-16.
 - Canonical immutable JSON snapshots with task binding and content-hash verification.
 - Fixed-template Python subprocess with isolated mode, no site packages, minimal environment,
   temporary working directory, input/output quotas, wall timeout, and POSIX resource limits.
+- Digest-pinned OCI execution contract with pull-never, no network, read-only root, all capabilities
+  dropped, no-new-privileges, non-root user, PID/CPU/memory limits, and no-exec temporary storage.
 - Restart-safe, append-only SQLite experiment tracking with duplicate-ID rejection and record-hash
   verification on every read.
 - Deterministic random, temporal, and group splits for binary classification and regression.
@@ -65,3 +67,5 @@ hardened container or microVM with network namespace isolation, a read-only imag
 identity, external experiment tracking/model registry, resource telemetry, subgroup review, and an
 independent security assessment remain required before production use. No model deployment path is
 present. The external evidence workflow verifies a review; it does not conduct or fabricate one.
+The current host has neither Docker nor Podman, so only the OCI build definition and exact
+invocation contract were tested here; image construction and escape tests remain external evidence.
