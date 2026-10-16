@@ -54,3 +54,9 @@ __all__ = [
     "serialize_attestation_statement",
     "write_external_gate_manifest",
 ]
+from generaldataagent.evaluation.stage_three import (
+    StageThreeEvaluation,
+    run_stage_three_evaluation,
+)
+
+__all__ = ["StageThreeEvaluation", "run_stage_three_evaluation"]

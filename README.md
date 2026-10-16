@@ -34,9 +34,34 @@ GeneralDataAgent is a governed multi-agent foundation for data analytics, data e
 - Hashed, size-limited dbt manifest ingestion for source-to-Dashboard lineage impact.
 - Field-level profile comparison with configurable numeric tolerance and a 99% default gate.
 - Policy-gated data-engineering runtime with immutable schema, profile, diff, and quality artifacts.
+- Canonical immutable data-science snapshots and strict reproducible experiment contracts.
+- Fixed-template, resource-bounded Python experiments for deterministic classification and
+  regression baselines; arbitrary code and package installation are not accepted.
+- Leakage, split-integrity, target-validity, and metric-suitability gates with EDA, statistical
+  checks, held-out evaluation, and error analysis.
+- Optional restart-safe, append-only SQLite experiment tracking with per-record integrity checks.
+- Complete model cards and one-time independently approved registry drafts with deployment fixed
+  off.
 - FastAPI health, capability, contract-validation, and certified-metric endpoints.
 
 Production writes, arbitrary shell execution, model deployment, external delivery, and committed credentials are intentionally excluded from this milestone.
+
+## Run the Stage 3 data-science workbench
+
+```bash
+uv run --frozen python examples/stage3_data_science_demo.py
+uv run --frozen python evals/run_stage3.py
+```
+
+The demo creates an immutable synthetic snapshot and runs the fixed majority-classification
+template. The frozen gate covers 20 accepted and rejected cases across classification, regression,
+random, temporal, and group splits. Unsafe inputs fail before experiment execution. See the
+[Stage 3 validation record](docs/validation/stage3-data-science-workbench.md) and
+[sandbox decision](docs/adr/0005-fixed-template-data-science-sandbox.md).
+
+The local process sandbox is not claimed as a production isolation boundary. A hardened container
+or microVM, network namespace, workload identity, external tracking/registry integration, and
+independent security review remain required. There is no model deployment action.
 
 ## Development
 

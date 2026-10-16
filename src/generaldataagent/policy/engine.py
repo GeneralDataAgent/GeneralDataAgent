@@ -127,6 +127,27 @@ DEFAULT_RULES = (
         ),
     ),
     PolicyRule(
+        tool_name="python.experiment",
+        risk_level=RiskLevel.R1,
+        allowed_actions=frozenset({"run_fixed_template"}),
+        allowed_roles=frozenset({"data_scientist"}),
+        obligations=(
+            "audit",
+            "fixed_template",
+            "resource_quota",
+            "immutable_snapshot",
+            "no_network_tool",
+        ),
+    ),
+    PolicyRule(
+        tool_name="model.registry",
+        risk_level=RiskLevel.R2,
+        allowed_actions=frozenset({"submit_draft"}),
+        allowed_roles=frozenset({"data_scientist"}),
+        requires_approval=True,
+        obligations=("audit", "approval", "draft_only", "no_deployment"),
+    ),
+    PolicyRule(
         tool_name="artifact.write",
         risk_level=RiskLevel.R1,
         allowed_actions=frozenset({"create"}),
@@ -200,6 +221,8 @@ class PolicyEngine:
             "dbt.compile",
             "dbt.test",
             "development.write",
+            "python.experiment",
+            "model.registry",
             "dataset.export",
         }:
             return self._decision(request, "deny", rule.risk_level, "missing_data_domain")

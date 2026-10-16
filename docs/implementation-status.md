@@ -9,7 +9,7 @@ passed. It does not necessarily mean planned repository implementation is missin
 | 0. Baseline and skeleton | Partial | Versioned core contracts, LangGraph skeleton, checkpoint wiring, policy gateway, audit events, API, unit and CI gates | 30-case Phase 0 baseline, 20 checkpoint fault-injection recoveries, failed-tool and approval demonstrations, full trace correlation proof |
 | 1. Read-only analytics | Partial | TLC source, eight certified metrics, authorized deterministic semantic resolution, read-only SQL firewall, query plan, execution and workflow budgets, immutable artifacts, Supervisor role ledger, validated table/chart/claims, 60-case execution regression, 26-case semantic regression, human-review workbench | Real-model success rate, verified SQL-result accuracy corpus, 15-result human review, and P95 under 60 seconds |
 | 2. Data engineering | Partial | Unified read-only SQLite and DuckDB connectors, capability declarations, normalized errors, deadlines and cooperative cancellation, deterministic profiling, schema diff, quality rules, dry-run transformation proposals, deterministic impact analysis, isolated parallel profiling with queued-work cancellation and a reproducible 100-request local P95 gate, pinned non-production dbt compile plus R2-gated selected-test adapters, default-off R2 SQLite development-write pilot, restart-safe local approval store, hashed dbt-manifest lineage ingestion, field-level profile oracle comparison, 20-case/380-field cross-engine parity gate, frozen 25-case component baseline, policy-gated runtime, immutable artifacts | Real-project dbt compile/test qualification, external approval service integration, authoritative catalog and external-profiler comparison, production-scale load tests |
-| 3. Data science | Not started | Data Scientist role specification only | Python sandbox, snapshot and experiment contracts, reproducible baseline training, leakage/split checks, evaluation report and model card |
+| 3. Data science | Partial | Data Scientist role, immutable snapshots, strict experiment contracts, fixed-template bounded Python sandbox, deterministic classification/regression baselines, EDA/statistical/evaluation/error-analysis output, leakage/split/metric gates, complete model cards, approval-gated registry drafts, frozen 20-case gate | Hardened container or microVM, network namespace, workload identity, external experiment tracker/registry, subgroup review, independent sandbox security assessment |
 | 4. Production readiness | Foundation only | Actor context, tenant/project fields, risk levels, audit sink, fail-closed policy | SSO and row/column policy propagation, short-lived credentials, HITL, DLP, durable audit separation, red-team suite, SLO/alerts/runbooks |
 | 5. Business loop | Not started | No external side-effect tools enabled | Per-action approval, idempotency, compensation, kill switch, scheduling, notifications, feedback and cost optimization |
 
@@ -174,6 +174,44 @@ measurements needed to run them:
 Until those inputs are supplied and signed by trusted reviewers, the corresponding gates correctly
 remain `not_run` and Stage 2 must not be described as production-ready.
 
+## Current Stage 3 branch scope
+
+`feat/stage3-production-governance` starts the data-science workbench without adding arbitrary code
+execution or model deployment:
+
+- Dataset snapshots are canonical, immutable, task-bound, content-addressed artifacts with explicit
+  feature, target, group, timestamp, and ignored column roles.
+- Experiment contracts pin the snapshot, problem type, features, target, baseline, primary metric,
+  split, seed, and resource quota. Invalid metric/problem combinations fail during validation.
+- The sandbox accepts no code or command. It runs one repository-owned standard-library template in
+  isolated Python mode, without site packages, in a temporary working directory and minimal
+  environment, with wall-clock, CPU, memory, file, descriptor, and byte limits.
+- The runtime fingerprint binds the fixed worker bytes and Python runtime version. Every result is
+  stored as an immutable artifact descended from the exact snapshot.
+- The optional SQLite experiment tracker is append-only, survives process restart, rejects duplicate
+  experiment identifiers, verifies every record hash on read, and lists runs by exact snapshot.
+- Deterministic random, temporal, and group splits support majority-classification and
+  mean-regression baselines. Output includes EDA, held-out metrics, target distributions,
+  standardized mean differences, and error analysis.
+- Pre-execution gates reject exact target proxies, identical examples crossing the train/test
+  boundary, invalid targets, incorrect schema roles, broken split semantics, task/snapshot mismatch,
+  and metric misuse.
+- Policy allows only the fixed experiment action for the Data Scientist role and records correlated
+  decision/completion or decision/failure audit events when an audit sink is configured.
+- The model-card contract requires intended use, excluded uses, training and evaluation evidence,
+  metrics, ethics, limitations, monitoring, and ownership. Deployment approval is structurally
+  fixed to false.
+- Model registry submission creates only an R2 draft. It requires an exact, expiring, one-time
+  approval from someone other than the requester; the policy exposes no deployment action.
+- A frozen 20-case gate covers eight valid experiments and twelve fail-closed negative cases across
+  both problem types and all split strategies.
+
+Stage 3 repository implementation is intentionally `Partial`: the local bounded process is useful
+for deterministic development but is not a production security boundary. A hardened container or
+microVM, network namespace, read-only image, workload identity, external experiment tracker and
+model registry, subgroup review, resource telemetry, and independent sandbox security assessment
+remain required before the roadmap exit condition can pass.
+
 ## Recommended sequence after this increment
 
 1. Close Stage 0 resilience gaps: durable checkpoint resume and fault injection.
@@ -184,8 +222,10 @@ remain `not_run` and Stage 2 must not be described as production-ready.
    local approval store with an external workflow, and verify manifest lineage against an
    authoritative catalog.
 5. Compare profiles with an authoritative tool and add production-scale load tests.
+6. Qualify the Stage 3 fixed template in a hardened sandbox and complete independent security and
+   subgroup reviews before connecting any external tracker or registry.
 
-Stage 1 implementation is substantially complete, but Stage 1 acceptance is not. The remaining
-gates require external model availability and collected evaluation evidence rather than more core
-feature scaffolding. Stage 2 is now under active development, but neither Stage 1 nor Stage 2
-should be declared production-ready until the open acceptance gates pass.
+Stage 1 implementation is substantially complete, but Stage 1 acceptance is not. Stage 2 repository
+implementation is complete, but its external gates remain open. Stage 3 local implementation has
+started and its deterministic gate passes; none of these stages should be described as
+production-ready until their documented external and security acceptance gates pass.
