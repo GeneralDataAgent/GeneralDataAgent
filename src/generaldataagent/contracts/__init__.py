@@ -54,6 +54,7 @@ from generaldataagent.contracts.data_science import (
     ScienceCheck,
     SnapshotColumn,
     SplitSpec,
+    SubgroupEvaluation,
     TrackedExperiment,
 )
 from generaldataagent.contracts.delivery import (
@@ -140,6 +141,7 @@ __all__ = [
     "ScienceCheck",
     "SnapshotColumn",
     "SplitSpec",
+    "SubgroupEvaluation",
     "TaskPlan",
     "TaskStatus",
     "TaskStep",

@@ -170,6 +170,7 @@ def _validate_template_result(
         "eda",
         "statistical_checks",
         "error_analysis",
+        "subgroups",
         "model",
     }
     if set(result) != required:
@@ -198,6 +199,8 @@ def _validate_template_result(
     for field in ("eda", "statistical_checks", "error_analysis", "model"):
         if not isinstance(result[field], dict):
             raise SandboxError(f"experiment template field {field} must be an object")
+    if not isinstance(result["subgroups"], list):
+        raise SandboxError("experiment template field subgroups must be an array")
     return result
 
 

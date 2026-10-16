@@ -180,7 +180,8 @@ remain `not_run` and Stage 2 must not be described as production-ready.
 execution or model deployment:
 
 - Dataset snapshots are canonical, immutable, task-bound, content-addressed artifacts with explicit
-  feature, target, group, timestamp, and ignored column roles.
+  tenant/project/data-domain scope and explicit feature, target, group, timestamp, and ignored
+  column roles.
 - Experiment contracts pin the snapshot, problem type, features, target, baseline, primary metric,
   split, seed, and resource quota. Invalid metric/problem combinations fail during validation.
 - The sandbox accepts no code or command. It runs one repository-owned standard-library template in
@@ -198,12 +199,18 @@ execution or model deployment:
   in the current development environment, so a real build/run is not claimed.
 - Deterministic random, temporal, and group splits support majority-classification and
   mean-regression baselines. Output includes EDA, held-out metrics, target distributions,
-  standardized mean differences, and error analysis.
+  standardized mean differences, error analysis, and structured held-out subgroup accuracy or MAE.
+- Declared subgroup columns must use snapshot group roles. Small held-out groups emit explicit
+  warnings without inventing a universal fairness threshold, and model cards require a subgroup
+  evaluation statement.
 - Pre-execution gates reject exact target proxies, identical examples crossing the train/test
   boundary, invalid targets, incorrect schema roles, broken split semantics, task/snapshot mismatch,
   and metric misuse.
 - Policy allows only the fixed experiment action for the Data Scientist role and records correlated
   decision/completion or decision/failure audit events when an audit sink is configured.
+- The optional HTTP experiment endpoint is disabled by default. When configured, it accepts only
+  strict snapshot and experiment contracts, enforces caller scope against immutable snapshot
+  tenant/project/domain fields, and returns 403/409/422 without widening sandbox authority.
 - The model-card contract requires intended use, excluded uses, training and evaluation evidence,
   metrics, ethics, limitations, monitoring, and ownership. Deployment approval is structurally
   fixed to false.

@@ -13,6 +13,7 @@ from generaldataagent.contracts import (
     ModelCard,
     RiskLevel,
     ScienceCheck,
+    SubgroupEvaluation,
     ToolRequest,
 )
 from generaldataagent.data_science.checks import split_indices, validate_experiment_data
@@ -61,6 +62,12 @@ class DataScienceWorkbench:
     ) -> ExperimentReport:
         if spec.task_id != snapshot.task_id or spec.snapshot_id != snapshot.snapshot_id:
             raise ValueError("experiment must bind the exact task and snapshot")
+        if (
+            snapshot.tenant_id != tenant_id
+            or snapshot.project_id != project_id
+            or snapshot.data_domain != data_domain
+        ):
+            raise PermissionError("experiment actor scope does not match the immutable snapshot")
         self._validate_schema_binding(snapshot, spec)
         request = ToolRequest(
             task_id=spec.task_id,
@@ -129,6 +136,35 @@ class DataScienceWorkbench:
             MetricValue(name=name, value=float(value))
             for name, value in sorted(result["metrics"].items())
         )
+        subgroups = tuple(
+            SubgroupEvaluation(
+                column=item["column"],
+                value=item["value"],
+                row_count=item["row_count"],
+                metrics=tuple(
+                    MetricValue(name=name, value=float(value))
+                    for name, value in sorted(item["metrics"].items())
+                ),
+            )
+            for item in result["subgroups"]
+        )
+        checks = checks + tuple(
+            ScienceCheck(
+                check_id=f"subgroup_size_{index}",
+                passed=subgroup.row_count >= spec.minimum_subgroup_rows,
+                severity="warning",
+                code=(
+                    "subgroup_size_sufficient"
+                    if subgroup.row_count >= spec.minimum_subgroup_rows
+                    else "subgroup_too_small"
+                ),
+                message=(
+                    f"Subgroup {subgroup.column}={subgroup.value} has "
+                    f"{subgroup.row_count} held-out rows."
+                ),
+            )
+            for index, subgroup in enumerate(subgroups)
+        )
         report = ExperimentReport(
             experiment_id=spec.experiment_id,
             snapshot_id=snapshot.snapshot_id,
@@ -140,6 +176,7 @@ class DataScienceWorkbench:
             eda=result["eda"],
             statistical_checks=result["statistical_checks"],
             error_analysis=result["error_analysis"],
+            subgroups=subgroups,
             checks=checks,
             passed=True,
             output_artifact=result_artifact,
@@ -174,6 +211,7 @@ class DataScienceWorkbench:
         ethical_considerations: tuple[str, ...],
         limitations: tuple[str, ...],
         monitoring_requirements: tuple[str, ...],
+        subgroup_evaluation: str,
     ) -> ModelCard:
         if not report.passed or report.snapshot_id != snapshot.snapshot_id:
             raise ValueError("model card requires a passed report for the exact snapshot")
@@ -192,6 +230,7 @@ class DataScienceWorkbench:
                 f"Held-out deterministic split with {report.test_rows} rows; "
                 f"experiment {report.experiment_id}."
             ),
+            subgroup_evaluation=subgroup_evaluation,
             metrics=report.metrics,
             ethical_considerations=ethical_considerations,
             limitations=limitations,
@@ -207,6 +246,11 @@ class DataScienceWorkbench:
         invalid_features = [name for name in spec.feature_columns if roles.get(name) != "feature"]
         if invalid_features:
             raise ValueError(f"experiment features do not match snapshot roles: {invalid_features}")
+        invalid_subgroups = [name for name in spec.subgroup_columns if roles.get(name) != "group"]
+        if invalid_subgroups:
+            raise ValueError(
+                f"experiment subgroup columns do not match snapshot roles: {invalid_subgroups}"
+            )
         if (
             spec.split.strategy == "temporal"
             and roles.get(spec.split.timestamp_column) != "timestamp"

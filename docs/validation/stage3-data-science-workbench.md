@@ -6,7 +6,8 @@ Status date: 2026-10-16.
 
 - Strict v1 snapshot, split, quota, experiment, check, metric, report, model-card, and registry-draft
   contracts.
-- Canonical immutable JSON snapshots with task binding and content-hash verification.
+- Canonical immutable JSON snapshots with task, tenant, project, and data-domain binding plus
+  content-hash verification.
 - Fixed-template Python subprocess with isolated mode, no site packages, minimal environment,
   temporary working directory, input/output quotas, wall timeout, and POSIX resource limits.
 - Digest-pinned OCI execution contract with pull-never, no network, read-only root, all capabilities
@@ -15,11 +16,13 @@ Status date: 2026-10-16.
   verification on every read.
 - Deterministic random, temporal, and group splits for binary classification and regression.
 - Majority and mean baselines with EDA, held-out metrics, target-distribution checks, standardized
-  mean differences, and error analysis.
+  mean differences, error analysis, structured subgroup accuracy or MAE, and small-group warnings.
 - Fail-closed checks for target leakage, duplicates crossing the split, invalid targets, split
   integrity, schema-role mismatch, task/snapshot mismatch, and metric misuse.
 - Complete model-card contract and R2 one-time independent approval for registry drafts. Deployment
   remains structurally impossible.
+- Default-off HTTP execution endpoint with immutable snapshot scope enforcement and no code,
+  command, package, image, or mount input.
 
 ## Deterministic evidence
 

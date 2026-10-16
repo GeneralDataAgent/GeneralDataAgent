@@ -32,6 +32,9 @@ def canonical_snapshot_bytes(rows: Sequence[dict[str, Any]]) -> bytes:
 def create_dataset_snapshot(
     *,
     task_id: UUID,
+    tenant_id: str,
+    project_id: str,
+    data_domain: str,
     source_name: str,
     rows: Sequence[dict[str, Any]],
     columns: tuple[SnapshotColumn, ...],
@@ -51,6 +54,9 @@ def create_dataset_snapshot(
     )
     return DatasetSnapshot(
         task_id=task_id,
+        tenant_id=tenant_id,
+        project_id=project_id,
+        data_domain=data_domain,
         source_name=source_name,
         content_hash=artifact.content_hash,
         row_count=len(rows),

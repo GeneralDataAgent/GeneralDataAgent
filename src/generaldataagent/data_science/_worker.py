@@ -46,21 +46,37 @@ def _target_shift(train, test, target, problem_type):
         train_counts = Counter(str(row[target]) for row in train)
         test_counts = Counter(str(row[target]) for row in test)
         labels = set(train_counts) | set(test_counts)
+        deltas = {
+            label: train_counts[label] / len(train) - test_counts[label] / len(test)
+            for label in labels
+        }
+        label = max(deltas, key=lambda item: abs(deltas[item]))
+        pooled = (train_counts[label] + test_counts[label]) / (len(train) + len(test))
+        standard_error = math.sqrt(pooled * (1 - pooled) * (1 / len(train) + 1 / len(test)))
+        statistic = deltas[label] / standard_error if standard_error else 0.0
         return {
             "measure": "maximum_class_proportion_delta",
-            "value": max(
-                abs(train_counts[label] / len(train) - test_counts[label] / len(test))
-                for label in labels
-            ),
+            "value": abs(deltas[label]),
+            "label": label,
+            "normal_approximation_statistic": statistic,
+            "two_sided_normal_p_value": math.erfc(abs(statistic) / math.sqrt(2)),
         }
     train_values = [float(row[target]) for row in train]
     test_values = [float(row[target]) for row in test]
     combined = train_values + test_values
     scale = statistics.pstdev(combined)
     value = abs(statistics.fmean(train_values) - statistics.fmean(test_values))
+    train_variance = statistics.variance(train_values) if len(train_values) > 1 else 0.0
+    test_variance = statistics.variance(test_values) if len(test_values) > 1 else 0.0
+    standard_error = math.sqrt(
+        train_variance / len(train_values) + test_variance / len(test_values)
+    )
+    statistic = value / standard_error if standard_error else 0.0
     return {
         "measure": "target_standardized_mean_difference",
         "value": value / scale if scale else 0.0,
+        "normal_approximation_statistic": statistic,
+        "two_sided_normal_p_value": math.erfc(abs(statistic) / math.sqrt(2)),
     }
 
 
@@ -109,6 +125,32 @@ def _regression(train, test, target):
     )
 
 
+def _subgroup_evaluation(test, spec, prediction):
+    results = []
+    for column in spec["subgroup_columns"]:
+        values = sorted({str(row[column]) for row in test})
+        for value in values:
+            group = [row for row in test if str(row[column]) == value]
+            if spec["problem_type"] == "binary_classification":
+                metric_name = "accuracy"
+                metric_value = sum(str(row[spec["target_column"]]) == prediction for row in group)
+                metric_value /= len(group)
+            else:
+                metric_name = "mae"
+                metric_value = statistics.fmean(
+                    abs(float(row[spec["target_column"]]) - prediction) for row in group
+                )
+            results.append(
+                {
+                    "column": column,
+                    "value": value,
+                    "row_count": len(group),
+                    "metrics": {metric_name: metric_value},
+                }
+            )
+    return results
+
+
 def main():
     payload = json.load(sys.stdin)
     rows = payload["rows"]
@@ -145,6 +187,7 @@ def main():
             "target_shift": _target_shift(train, test, spec["target_column"], spec["problem_type"]),
         },
         "error_analysis": errors,
+        "subgroups": _subgroup_evaluation(test, spec, errors["baseline_prediction"]),
         "model": {
             "algorithm": spec["baseline"],
             "parameters": {"random_seed": spec["random_seed"]},

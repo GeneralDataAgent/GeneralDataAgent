@@ -40,7 +40,7 @@ GeneralDataAgent is a governed multi-agent foundation for data analytics, data e
 - Optional digest-pinned OCI execution with a fixed worker, no network, read-only root, dropped
   capabilities, no-new-privileges, non-root user, and explicit CPU/memory/PID limits.
 - Leakage, split-integrity, target-validity, and metric-suitability gates with EDA, statistical
-  checks, held-out evaluation, and error analysis.
+  checks, held-out evaluation, error analysis, and structured subgroup results.
 - Optional restart-safe, append-only SQLite experiment tracking with per-record integrity checks.
 - Complete model cards and one-time independently approved registry drafts with deployment fixed
   off.
@@ -67,6 +67,10 @@ or microVM, network namespace, workload identity, external tracking/registry int
 independent security review remain required. There is no model deployment action.
 The aggregate acceptance report therefore remains incomplete until a real hardened-sandbox review
 is content-hashed and signed by at least two distinct trusted reviewers.
+
+When a workbench is explicitly configured, `POST /v1/science/experiments` runs an existing immutable
+snapshot. The endpoint is disabled by default, accepts no code or command, and requires the caller's
+tenant, project, and data domain to match the snapshot's immutable scope.
 
 ## Development
 

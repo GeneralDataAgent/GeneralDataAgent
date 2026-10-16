@@ -62,6 +62,9 @@ def _snapshot(tmp_path: Path):
     store = LocalArtifactStore(tmp_path / "artifacts")
     snapshot = create_dataset_snapshot(
         task_id=task_id,
+        tenant_id="tenant-a",
+        project_id="project-a",
+        data_domain="commerce",
         source_name="unit-fixture",
         rows=_classification_rows(),
         columns=_columns(),
@@ -111,6 +114,9 @@ def test_snapshot_rejects_values_that_conflict_with_declared_type(tmp_path: Path
     with pytest.raises(ValueError, match="declared type integer"):
         create_dataset_snapshot(
             task_id=uuid4(),
+            tenant_id="tenant-a",
+            project_id="project-a",
+            data_domain="commerce",
             source_name="invalid-types",
             rows=rows,
             columns=_columns(),
@@ -142,6 +148,8 @@ def test_fixed_template_experiment_is_reproducible(tmp_path: Path) -> None:
     assert first.eda == second.eda
     assert "feature_standardized_mean_difference" in first.statistical_checks
     assert "target_shift" in first.statistical_checks
+    target_shift = first.statistical_checks["target_shift"]
+    assert 0 <= target_shift["two_sided_normal_p_value"] <= 1
     assert first.runtime_fingerprint == second.runtime_fingerprint
     assert first.output_artifact.lineage == (snapshot.data_artifact.artifact_id,)
 
@@ -221,6 +229,9 @@ def test_exact_target_proxy_fails_closed(tmp_path: Path) -> None:
     store = LocalArtifactStore(tmp_path / "artifacts")
     snapshot = create_dataset_snapshot(
         task_id=task_id,
+        tenant_id="tenant-a",
+        project_id="project-a",
+        data_domain="commerce",
         source_name="leaky-fixture",
         rows=rows,
         columns=columns,
@@ -240,6 +251,9 @@ def test_duplicate_rows_crossing_random_split_fail_closed(tmp_path: Path) -> Non
     store = LocalArtifactStore(tmp_path / "artifacts")
     snapshot = create_dataset_snapshot(
         task_id=task_id,
+        tenant_id="tenant-a",
+        project_id="project-a",
+        data_domain="commerce",
         source_name="duplicate-fixture",
         rows=rows,
         columns=_columns(),
@@ -281,6 +295,7 @@ def test_oci_sandbox_uses_digest_and_mandatory_isolation(monkeypatch) -> None:
             "eda": {},
             "statistical_checks": {},
             "error_analysis": {},
+            "subgroups": [],
             "model": {"algorithm": "majority"},
         }
         return subprocess.CompletedProcess(command, 0, json.dumps(output).encode(), b"")
@@ -322,6 +337,7 @@ def test_oci_sandbox_rejects_result_with_wrong_split_counts(monkeypatch) -> None
         "eda": {},
         "statistical_checks": {},
         "error_analysis": {},
+        "subgroups": [],
         "model": {},
     }
 
@@ -413,6 +429,19 @@ def test_policy_only_allows_fixed_science_template() -> None:
     assert deployment.decision == "deny"
 
 
+def test_subgroup_evaluation_is_structured_and_warns_on_small_groups(tmp_path: Path) -> None:
+    task_id, store, snapshot = _snapshot(tmp_path)
+    spec = _spec(task_id, snapshot.snapshot_id).model_copy(
+        update={"subgroup_columns": ("customer_group",), "minimum_subgroup_rows": 3}
+    )
+    report = _run(DataScienceWorkbench(artifact_store=store), snapshot, spec)
+    assert report.subgroups
+    assert {group.column for group in report.subgroups} == {"customer_group"}
+    assert all(group.metrics[0].name == "accuracy" for group in report.subgroups)
+    assert any(check.code == "subgroup_too_small" for check in report.checks)
+    assert report.passed is True
+
+
 def test_model_card_and_registration_require_independent_one_time_approval(tmp_path: Path) -> None:
     task_id, store, snapshot = _snapshot(tmp_path)
     workbench = DataScienceWorkbench(artifact_store=store)
@@ -428,6 +457,7 @@ def test_model_card_and_registration_require_independent_one_time_approval(tmp_p
         ethical_considerations=("Evaluate subgroup performance before any pilot.",),
         limitations=("Majority baseline has no individual predictive power.",),
         monitoring_requirements=("Re-evaluate after snapshot drift.",),
+        subgroup_evaluation="Held-out subgroup rows are too small for a deployment decision.",
     )
     approvals = InMemoryApprovalStore()
     workflow = ModelRegistrationWorkflow(approvals=approvals)
@@ -481,6 +511,7 @@ def test_registration_contract_never_permits_deployment(tmp_path: Path) -> None:
         ethical_considerations=("Human review required.",),
         limitations=("Baseline only.",),
         monitoring_requirements=("Check drift.",),
+        subgroup_evaluation="No production subgroup claim; offline baseline only.",
     )
     with pytest.raises(ValidationError):
         ModelRegistrationDraft(

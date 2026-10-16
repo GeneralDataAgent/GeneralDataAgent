@@ -11,11 +11,16 @@ from generaldataagent.agents import SPECIALIST_SPECS
 from generaldataagent.catalog import MetricNotFoundError
 from generaldataagent.contracts import (
     ActorContext,
+    DatasetSnapshot,
+    ExperimentSpec,
     HumanReview,
     MetricQuery,
     NaturalLanguageMetricQuery,
     TaskPlan,
 )
+from generaldataagent.data_science.sandbox import SandboxError
+from generaldataagent.data_science.tracking import ExperimentTrackingError
+from generaldataagent.data_science.workbench import DataScienceWorkbench, ScienceGateError
 from generaldataagent.evaluation import DuplicateReviewError, LocalHumanReviewStore
 from generaldataagent.orchestration import MetricAnalysisRuntime
 from generaldataagent.tools import QueryExecutionError
@@ -27,9 +32,16 @@ class HealthResponse(BaseModel):
     version: str
 
 
+class ScienceExperimentRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    snapshot: DatasetSnapshot
+    experiment: ExperimentSpec
+
+
 def create_app(
     metric_runtime: MetricAnalysisRuntime | None = None,
     review_store: LocalHumanReviewStore | None = None,
+    science_workbench: DataScienceWorkbench | None = None,
 ) -> FastAPI:
     application = FastAPI(
         title="GeneralDataAgent",
@@ -38,6 +50,7 @@ def create_app(
     )
     application.state.metric_runtime = metric_runtime
     application.state.review_store = review_store
+    application.state.science_workbench = science_workbench
 
     @application.get("/health", response_model=HealthResponse)
     def health() -> HealthResponse:
@@ -49,6 +62,7 @@ def create_app(
             "agents": [spec.name for spec in SPECIALIST_SPECS],
             "certified_metric_analysis": metric_runtime is not None,
             "human_review": review_store is not None,
+            "data_science_workbench": science_workbench is not None,
             "production_writes": False,
             "arbitrary_shell": False,
             "implemented_controls": [
@@ -57,8 +71,42 @@ def create_app(
                 "read_only_sql_guard",
                 "artifact_hashing",
                 "validation_gate",
+                "fixed_template_science_sandbox",
             ],
         }
+
+    @application.post("/v1/science/experiments")
+    def run_science_experiment(
+        request: ScienceExperimentRequest,
+        x_user_id: Annotated[str, Header(min_length=1)],
+        x_tenant_id: Annotated[str, Header(min_length=1)],
+        x_project_id: Annotated[str, Header(min_length=1)],
+        x_data_domain: Annotated[str, Header(min_length=1)],
+        x_trace_id: Annotated[str | None, Header(min_length=1)] = None,
+    ) -> dict[str, Any]:
+        workbench = application.state.science_workbench
+        if workbench is None:
+            raise HTTPException(
+                status_code=503,
+                detail="Data-science workbench is not configured for this deployment.",
+            )
+        try:
+            report = workbench.run_experiment(
+                snapshot=request.snapshot,
+                spec=request.experiment,
+                user_id=x_user_id,
+                tenant_id=x_tenant_id,
+                project_id=x_project_id,
+                data_domain=x_data_domain,
+                trace_id=x_trace_id,
+            )
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except ExperimentTrackingError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except (SandboxError, ScienceGateError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return report.model_dump(mode="json")
 
     @application.post("/v1/contracts/task-plan/validate")
     def validate_task_plan(plan: TaskPlan) -> dict[str, Any]:

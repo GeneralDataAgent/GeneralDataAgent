@@ -125,6 +125,9 @@ def _execute_case(case: StageThreeCase, root: Path) -> None:
     store = LocalArtifactStore(root)
     snapshot = create_dataset_snapshot(
         task_id=task_id,
+        tenant_id="evaluation-tenant",
+        project_id="evaluation-project",
+        data_domain="evaluation",
         source_name=case.case_id,
         rows=rows,
         columns=columns,
@@ -142,6 +145,7 @@ def _execute_case(case: StageThreeCase, root: Path) -> None:
         problem_type=case.problem_type,
         target_column=target,
         feature_columns=features,
+        subgroup_columns=("entity_group",),
         baseline=baseline,
         primary_metric=metric,
         split=split,

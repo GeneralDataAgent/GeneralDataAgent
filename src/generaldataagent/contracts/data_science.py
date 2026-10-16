@@ -18,6 +18,9 @@ class SnapshotColumn(ContractModel):
 class DatasetSnapshot(ContractModel):
     snapshot_id: UUID = Field(default_factory=uuid4)
     task_id: UUID
+    tenant_id: str = Field(min_length=1, max_length=128)
+    project_id: str = Field(min_length=1, max_length=128)
+    data_domain: str = Field(min_length=1, max_length=128)
     source_name: str = Field(min_length=1, max_length=256)
     content_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     row_count: int = Field(ge=2)
@@ -83,6 +86,8 @@ class ExperimentSpec(ContractModel):
     problem_type: Literal["binary_classification", "regression"]
     target_column: str = Field(min_length=1, max_length=256)
     feature_columns: tuple[str, ...] = Field(min_length=1)
+    subgroup_columns: tuple[str, ...] = Field(default=(), max_length=10)
+    minimum_subgroup_rows: int = Field(default=5, ge=2, le=10_000)
     baseline: Literal["majority", "mean"]
     primary_metric: Literal["accuracy", "precision", "recall", "f1", "mae", "rmse", "r2"]
     split: SplitSpec = Field(default_factory=SplitSpec)
@@ -95,6 +100,10 @@ class ExperimentSpec(ContractModel):
             raise ValueError("target column cannot also be a feature")
         if len(self.feature_columns) != len(set(self.feature_columns)):
             raise ValueError("experiment feature columns must be unique")
+        if len(self.subgroup_columns) != len(set(self.subgroup_columns)):
+            raise ValueError("experiment subgroup columns must be unique")
+        if self.target_column in self.subgroup_columns:
+            raise ValueError("target column cannot also be a subgroup column")
         classification_metrics = {"accuracy", "precision", "recall", "f1"}
         regression_metrics = {"mae", "rmse", "r2"}
         if self.problem_type == "binary_classification":
@@ -120,6 +129,13 @@ class MetricValue(ContractModel):
     value: float
 
 
+class SubgroupEvaluation(ContractModel):
+    column: str = Field(min_length=1, max_length=256)
+    value: str = Field(min_length=1, max_length=512)
+    row_count: int = Field(ge=1)
+    metrics: tuple[MetricValue, ...] = Field(min_length=1)
+
+
 class ExperimentReport(ContractModel):
     experiment_id: UUID
     snapshot_id: UUID
@@ -131,6 +147,7 @@ class ExperimentReport(ContractModel):
     eda: dict[str, object]
     statistical_checks: dict[str, object]
     error_analysis: dict[str, object]
+    subgroups: tuple[SubgroupEvaluation, ...] = ()
     checks: tuple[ScienceCheck, ...]
     passed: bool
     output_artifact: ArtifactRef
@@ -176,6 +193,7 @@ class ModelCard(ContractModel):
     out_of_scope_uses: tuple[str, ...] = Field(min_length=1)
     training_data: str = Field(min_length=1, max_length=4_000)
     evaluation_data: str = Field(min_length=1, max_length=4_000)
+    subgroup_evaluation: str = Field(min_length=1, max_length=4_000)
     metrics: tuple[MetricValue, ...] = Field(min_length=1)
     ethical_considerations: tuple[str, ...] = Field(min_length=1)
     limitations: tuple[str, ...] = Field(min_length=1)
