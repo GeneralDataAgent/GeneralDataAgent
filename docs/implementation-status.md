@@ -1,6 +1,6 @@
 # Roadmap implementation status
 
-Status date: 2026-10-15. This matrix compares the repository with the original six-stage roadmap.
+Status date: 2026-10-16. This matrix compares the repository with the original six-stage roadmap.
 `Partial` is an acceptance status: useful code exists but the documented exit criteria have not all
 passed. It does not necessarily mean planned repository implementation is missing.
 
@@ -9,7 +9,7 @@ passed. It does not necessarily mean planned repository implementation is missin
 | 0. Baseline and skeleton | Partial | Versioned core contracts, LangGraph skeleton, checkpoint wiring, policy gateway, audit events, API, unit and CI gates | 30-case Phase 0 baseline, 20 checkpoint fault-injection recoveries, failed-tool and approval demonstrations, full trace correlation proof |
 | 1. Read-only analytics | Partial | TLC source, eight certified metrics, authorized deterministic semantic resolution, read-only SQL firewall, query plan, execution and workflow budgets, immutable artifacts, Supervisor role ledger, validated table/chart/claims, 60-case execution regression, 26-case semantic regression, human-review workbench | Real-model success rate, verified SQL-result accuracy corpus, 15-result human review, and P95 under 60 seconds |
 | 2. Data engineering | Partial | Unified read-only SQLite and DuckDB connectors, capability declarations, normalized errors, deadlines and cooperative cancellation, deterministic profiling, schema diff, quality rules, dry-run transformation proposals, deterministic impact analysis, isolated parallel profiling with queued-work cancellation and a reproducible 100-request local P95 gate, pinned non-production dbt compile plus R2-gated selected-test adapters, default-off R2 SQLite development-write pilot, restart-safe local approval store, hashed dbt-manifest lineage ingestion, field-level profile oracle comparison, 20-case/380-field cross-engine parity gate, frozen 25-case component baseline, policy-gated runtime, immutable artifacts | Real-project dbt compile/test qualification, external approval service integration, authoritative catalog and external-profiler comparison, production-scale load tests |
-| 3. Data science | Partial | Data Scientist role, immutable snapshots, strict experiment contracts, fixed-template bounded Python sandbox, deterministic classification/regression baselines, EDA/statistical/evaluation/error-analysis output, leakage/split/metric gates, complete model cards, approval-gated registry drafts, frozen 20-case gate | Hardened container or microVM, network namespace, workload identity, external experiment tracker/registry, subgroup review, independent sandbox security assessment |
+| 3. Data science | Partial | Data Scientist role, immutable snapshots, strict experiment contracts, fixed-template bounded Python sandbox, deterministic classification/regression baselines, EDA/statistical/evaluation/error-analysis output, leakage/split/metric gates, complete model cards, approval-gated registry drafts, append-only experiment tracking, frozen 20-case gate, signed multi-party hardened-sandbox evidence gate | Independently produce and sign a real hardened-sandbox review; add workload identity, external experiment tracker/registry, and domain subgroup review |
 | 4. Production readiness | Foundation only | Actor context, tenant/project fields, risk levels, audit sink, fail-closed policy | SSO and row/column policy propagation, short-lived credentials, HITL, DLP, durable audit separation, red-team suite, SLO/alerts/runbooks |
 | 5. Business loop | Not started | No external side-effect tools enabled | Per-action approval, idempotency, compensation, kill switch, scheduling, notifications, feedback and cost optimization |
 
@@ -205,12 +205,22 @@ execution or model deployment:
   approval from someone other than the requester; the policy exposes no deployment action.
 - A frozen 20-case gate covers eight valid experiments and twelve fail-closed negative cases across
   both problem types and all split strategies.
+- The aggregate acceptance runner keeps local development evidence separate from the external
+  hardened-sandbox gate. A real review must attest a fixed image digest, non-root execution,
+  read-only root filesystem, default-deny networking, syscall filtering, no-new-privileges,
+  enforced resource limits, a secretless workload, rejection of arbitrary code, and at least 20
+  successful escape tests.
+- Hardened-sandbox evidence is content hashed, expires, rejects future-dated or tampered bundles,
+  and requires Ed25519 signatures from at least two distinct trusted reviewers, including the
+  review manifest's declared verifier. Unknown evidence and attestation files fail closed.
 
 Stage 3 repository implementation is intentionally `Partial`: the local bounded process is useful
 for deterministic development but is not a production security boundary. A hardened container or
 microVM, network namespace, read-only image, workload identity, external experiment tracker and
 model registry, subgroup review, resource telemetry, and independent sandbox security assessment
-remain required before the roadmap exit condition can pass.
+remain required before the roadmap exit condition can pass. The repository now contains a strict
+qualification, attestation, and aggregation path for the sandbox review, but does not fabricate the
+external review itself.
 
 ## Recommended sequence after this increment
 

@@ -58,5 +58,24 @@ from generaldataagent.evaluation.stage_three import (
     StageThreeEvaluation,
     run_stage_three_evaluation,
 )
+from generaldataagent.evaluation.stage_three_acceptance import (
+    HardenedSandboxReview,
+    SandboxReviewAttestation,
+    SandboxReviewAttestationStatement,
+    StageThreeGateManifest,
+    TrustedSandboxReviewerRegistry,
+    load_hardened_sandbox_gate,
+    serialize_sandbox_attestation,
+)
 
-__all__ = ["StageThreeEvaluation", "run_stage_three_evaluation"]
+__all__ = [
+    "HardenedSandboxReview",
+    "SandboxReviewAttestation",
+    "SandboxReviewAttestationStatement",
+    "StageThreeEvaluation",
+    "StageThreeGateManifest",
+    "TrustedSandboxReviewerRegistry",
+    "load_hardened_sandbox_gate",
+    "run_stage_three_evaluation",
+    "serialize_sandbox_attestation",
+]

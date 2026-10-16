@@ -51,6 +51,7 @@ Production writes, arbitrary shell execution, model deployment, external deliver
 ```bash
 uv run --frozen python examples/stage3_data_science_demo.py
 uv run --frozen python evals/run_stage3.py
+uv run --frozen python evals/run_stage3_acceptance.py
 ```
 
 The demo creates an immutable synthetic snapshot and runs the fixed majority-classification
@@ -62,6 +63,8 @@ random, temporal, and group splits. Unsafe inputs fail before experiment executi
 The local process sandbox is not claimed as a production isolation boundary. A hardened container
 or microVM, network namespace, workload identity, external tracking/registry integration, and
 independent security review remain required. There is no model deployment action.
+The aggregate acceptance report therefore remains incomplete until a real hardened-sandbox review
+is content-hashed and signed by at least two distinct trusted reviewers.
 
 ## Development
 

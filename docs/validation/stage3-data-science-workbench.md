@@ -1,6 +1,6 @@
 # Stage 3 data-science workbench validation
 
-Status date: 2026-10-15.
+Status date: 2026-10-16.
 
 ## Implemented slice
 
@@ -25,6 +25,7 @@ Run:
 
 ```bash
 uv run --frozen python evals/run_stage3.py
+uv run --frozen python evals/run_stage3_acceptance.py
 uv run --frozen pytest tests/test_data_science.py tests/test_stage3_evaluation.py
 ```
 
@@ -33,10 +34,34 @@ covers both problem types, all three split strategies, exact target proxies, cro
 leakage, invalid targets, invalid group splitting, metric misuse, byte quotas, and task mismatch.
 Success requires every valid case to run and every unsafe case to fail closed.
 
+Without external evidence, `run_stage3_acceptance.py` requires the local gate to pass but reports
+the overall stage as `incomplete`. A real hardened-sandbox review can be qualified and signed with:
+
+```bash
+uv run --frozen python evals/qualify_stage3_sandbox.py \
+  --review /path/to/independent-review.json \
+  --output-dir /path/to/evidence
+
+uv run --frozen python evals/attest_stage3_sandbox.py \
+  --manifest /path/to/evidence/hardened_sandbox_review.manifest.json \
+  --private-key /secure/path/security-reviewer.pem \
+  --key-id security-reviewer-2026 \
+  --verifier security-reviewer
+
+uv run --frozen python evals/run_stage3_acceptance.py \
+  --external-evidence-dir /path/to/evidence \
+  --trusted-reviewers /path/to/trusted-reviewers.json
+```
+
+At least two distinct trusted reviewer identities must sign the exact manifest. The declared
+manifest verifier must be one of them. Keys have explicit activation, expiry, and optional
+revocation times; evidence expires after 30 days. Tampering, unknown bundle files, insufficient
+signers, stale evidence, invalid control flags, or fewer than 20 successful escape tests fail closed.
+
 ## Acceptance boundary
 
 This closes the planned local repository slice; it does not certify a production sandbox. A
 hardened container or microVM with network namespace isolation, a read-only image, workload
 identity, external experiment tracking/model registry, resource telemetry, subgroup review, and an
 independent security assessment remain required before production use. No model deployment path is
-present.
+present. The external evidence workflow verifies a review; it does not conduct or fabricate one.
