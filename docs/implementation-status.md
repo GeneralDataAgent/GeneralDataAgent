@@ -195,8 +195,8 @@ execution or model deployment:
   read-only-root, capability-drop, no-new-privileges, non-root-user, PID/CPU/memory, and no-exec
   temporary-filesystem controls. It exposes no arbitrary mounts, environment, commands, or code.
 - The checked-in OCI build pins the Docker Official Python 3.12.13 slim Linux/amd64 image digest and
-  copies only the fixed worker. Static invocation/build tests pass; no container engine is installed
-  in the current development environment, so a real build/run is not claimed.
+  copies only the fixed worker. A Linux/amd64 Colima Docker VM built the image and passed the frozen
+  20-case matrix plus 24 executable isolation and escape checks on 2026-10-16.
 - Deterministic random, temporal, and group splits support majority-classification and
   mean-regression baselines. Output includes EDA, held-out metrics, target distributions,
   standardized mean differences, error analysis, and structured held-out subgroup accuracy or MAE.
@@ -227,13 +227,12 @@ execution or model deployment:
   and requires Ed25519 signatures from at least two distinct trusted reviewers, including the
   review manifest's declared verifier. Unknown evidence and attestation files fail closed.
 
-Stage 3 repository implementation is intentionally `Partial`: the local bounded process is useful
-for deterministic development but is not a production security boundary. A hardened container or
-microVM, network namespace, read-only image, workload identity, external experiment tracker and
-model registry, subgroup review, resource telemetry, and independent sandbox security assessment
-remain required before the roadmap exit condition can pass. The repository now contains a strict
-qualification, attestation, and aggregation path for the sandbox review, but does not fabricate the
-external review itself.
+Stage 3 repository implementation is intentionally `Partial`: the local process is not a production
+security boundary, while the digest-pinned container path now has repeatable local runtime evidence.
+Workload identity, external experiment tracking and model registry, domain subgroup review, durable
+resource telemetry, and an independent sandbox security assessment remain required before the
+roadmap exit condition can pass. The repository contains strict qualification, attestation, and
+aggregation paths, but does not fabricate the external review itself.
 
 ## Recommended sequence after this increment
 

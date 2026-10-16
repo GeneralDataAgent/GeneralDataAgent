@@ -14,6 +14,7 @@ from generaldataagent.evaluation import (
     load_hardened_sandbox_gate,
     run_stage_three_evaluation,
 )
+from generaldataagent.evaluation.stage_three_runtime import run_stage_three_runtime_security
 
 EVAL_DIR = Path(__file__).parent
 
@@ -23,6 +24,8 @@ def run_acceptance_report(
     *,
     trusted_reviewers_path: Path | None = None,
     now: datetime | None = None,
+    runtime_image_ref: str | None = None,
+    runtime_engine: str = "docker",
 ) -> dict[str, Any]:
     if external_evidence_dir is not None and trusted_reviewers_path is None:
         raise ValueError("external sandbox evidence requires trusted reviewers")
@@ -33,13 +36,35 @@ def run_acceptance_report(
         "status": "passed" if local.failed == 0 else "failed",
         "evidence": local.model_dump(mode="json"),
     }
-    oci_gate = _oci_contract_probe()
+    oci_gate = _oci_contract_probe(runtime_executed=runtime_image_ref is not None)
     external_gate = load_hardened_sandbox_gate(
         external_evidence_dir,
         trusted_reviewers_path=trusted_reviewers_path,
         now=now,
     )
     development_gates = [local_gate, oci_gate]
+    if runtime_image_ref is not None:
+        runtime = OCIContainerRuntime(engine=runtime_engine, image_ref=runtime_image_ref)
+        sandbox = OCIContainerSandbox(runtime)
+        with tempfile.TemporaryDirectory(prefix="gda-stage3-oci-acceptance-") as directory:
+            runtime_matrix = run_stage_three_evaluation(
+                EVAL_DIR / "datasets" / "stage3.jsonl",
+                Path(directory),
+                sandbox=sandbox,
+            )
+        development_gates.extend(
+            [
+                {
+                    "gate_id": "oci_workbench_matrix",
+                    "status": "passed" if runtime_matrix.failed == 0 else "failed",
+                    "evidence": runtime_matrix.model_dump(mode="json"),
+                },
+                run_stage_three_runtime_security(
+                    engine=runtime_engine,
+                    image_ref=runtime_image_ref,
+                ),
+            ]
+        )
     development_passed = all(gate["status"] == "passed" for gate in development_gates)
     complete = development_passed and external_gate["status"] == "passed"
     return {
@@ -52,7 +77,7 @@ def run_acceptance_report(
     }
 
 
-def _oci_contract_probe() -> dict[str, object]:
+def _oci_contract_probe(*, runtime_executed: bool = False) -> dict[str, object]:
     digest = "sha256:" + "0" * 64
     runtime = OCIContainerRuntime(
         engine="docker",
@@ -85,7 +110,7 @@ def _oci_contract_probe() -> dict[str, object]:
             "forbidden_mount_or_environment_flags": no_forbidden_flags,
             "base_image_pinned": pinned_base is not None,
             "non_root_image_user": non_root,
-            "runtime_executed": False,
+            "runtime_executed": runtime_executed,
         },
     }
 
@@ -94,10 +119,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--external-evidence-dir", type=Path)
     parser.add_argument("--trusted-reviewers", type=Path)
+    parser.add_argument("--runtime-image-ref")
+    parser.add_argument("--runtime-engine", choices=("docker", "podman"), default="docker")
     args = parser.parse_args()
     report = run_acceptance_report(
         args.external_evidence_dir,
         trusted_reviewers_path=args.trusted_reviewers,
+        runtime_image_ref=args.runtime_image_ref,
+        runtime_engine=args.runtime_engine,
     )
     print(json.dumps(report, indent=2, sort_keys=True))
     if args.external_evidence_dir is None:

@@ -54,6 +54,8 @@ Production writes, arbitrary shell execution, model deployment, external deliver
 uv run --frozen python examples/stage3_data_science_demo.py
 uv run --frozen python evals/run_stage3.py
 uv run --frozen python evals/run_stage3_acceptance.py
+uv run --frozen python evals/run_stage3_oci.py --image-ref NAME@sha256:DIGEST
+uv run --frozen python evals/run_stage3_sandbox_probe.py --image-ref NAME@sha256:DIGEST
 ```
 
 The demo creates an immutable synthetic snapshot and runs the fixed majority-classification
@@ -62,9 +64,10 @@ random, temporal, and group splits. Unsafe inputs fail before experiment executi
 [Stage 3 validation record](docs/validation/stage3-data-science-workbench.md) and
 [sandbox decision](docs/adr/0005-fixed-template-data-science-sandbox.md).
 
-The local process sandbox is not claimed as a production isolation boundary. A hardened container
-or microVM, network namespace, workload identity, external tracking/registry integration, and
-independent security review remain required. There is no model deployment action.
+The local process sandbox is not claimed as a production isolation boundary. The digest-pinned OCI
+path has been exercised in a Linux/amd64 Colima VM with the frozen 20-case matrix and 24 executable
+isolation checks. Workload identity, external tracking/registry integration, domain subgroup review,
+and an independent security review remain required. There is no model deployment action.
 The aggregate acceptance report therefore remains incomplete until a real hardened-sandbox review
 is content-hashed and signed by at least two distinct trusted reviewers.
 

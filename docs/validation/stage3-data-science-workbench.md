@@ -39,6 +39,19 @@ covers both problem types, all three split strategies, exact target proxies, cro
 leakage, invalid targets, invalid group splitting, metric misuse, byte quotas, and task mismatch.
 Success requires every valid case to run and every unsafe case to fail closed.
 
+On 2026-10-16 the pinned Linux/amd64 image was built and executed in a Colima Docker VM. The exact
+image reference was
+`generaldataagent-stage3@sha256:b6a64048b1d888ca1f376294defe595b6e401987d18ed26254fc238155ace293`.
+The real OCI path passed all 20 frozen workbench cases and all 24 executable isolation checks,
+including non-root identity, a read-only root, default-deny networking, default seccomp filtering,
+zero effective capabilities, no-new-privileges, PID/CPU/memory enforcement, secretless execution,
+and a writable but `noexec,nosuid` temporary filesystem. Reproduce with:
+
+```bash
+uv run --frozen python evals/run_stage3_acceptance.py \
+  --runtime-image-ref generaldataagent-stage3@sha256:b6a64048b1d888ca1f376294defe595b6e401987d18ed26254fc238155ace293
+```
+
 Without external evidence, `run_stage3_acceptance.py` requires the local gate to pass but reports
 the overall stage as `incomplete`. A real hardened-sandbox review can be qualified and signed with:
 
@@ -70,5 +83,6 @@ hardened container or microVM with network namespace isolation, a read-only imag
 identity, external experiment tracking/model registry, resource telemetry, subgroup review, and an
 independent security assessment remain required before production use. No model deployment path is
 present. The external evidence workflow verifies a review; it does not conduct or fabricate one.
-The current host has neither Docker nor Podman, so only the OCI build definition and exact
-invocation contract were tested here; image construction and escape tests remain external evidence.
+The current host now has Docker CLI backed by a Linux/amd64 Colima VM. Local runtime evidence is
+repeatable but is not independent: the signed external review still requires at least two distinct
+trusted reviewers and must not be fabricated by the implementation operator.

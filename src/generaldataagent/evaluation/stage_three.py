@@ -14,7 +14,11 @@ from generaldataagent.contracts import (
     SplitSpec,
 )
 from generaldataagent.contracts.models import ContractModel
-from generaldataagent.data_science.sandbox import SandboxError
+from generaldataagent.data_science.sandbox import (
+    FixedTemplateSandbox,
+    OCIContainerSandbox,
+    SandboxError,
+)
 from generaldataagent.data_science.snapshot import create_dataset_snapshot
 from generaldataagent.data_science.workbench import DataScienceWorkbench, ScienceGateError
 
@@ -66,9 +70,14 @@ def load_stage_three_cases(path: Path) -> tuple[StageThreeCase, ...]:
     return cases
 
 
-def run_stage_three_evaluation(dataset_path: Path, artifact_root: Path) -> StageThreeEvaluation:
+def run_stage_three_evaluation(
+    dataset_path: Path,
+    artifact_root: Path,
+    *,
+    sandbox: FixedTemplateSandbox | OCIContainerSandbox | None = None,
+) -> StageThreeEvaluation:
     results = tuple(
-        _run_case(case, artifact_root / case.case_id)
+        _run_case(case, artifact_root / case.case_id, sandbox=sandbox)
         for case in load_stage_three_cases(dataset_path)
     )
     passed = sum(result.passed for result in results)
@@ -82,9 +91,14 @@ def run_stage_three_evaluation(dataset_path: Path, artifact_root: Path) -> Stage
     )
 
 
-def _run_case(case: StageThreeCase, root: Path) -> StageThreeCaseResult:
+def _run_case(
+    case: StageThreeCase,
+    root: Path,
+    *,
+    sandbox: FixedTemplateSandbox | OCIContainerSandbox | None = None,
+) -> StageThreeCaseResult:
     try:
-        _execute_case(case, root)
+        _execute_case(case, root, sandbox=sandbox)
         actual: Literal["passed", "rejected", "unexpected_error"] = "passed"
         detail = "experiment completed"
     except (ScienceGateError, SandboxError, ValueError) as exc:
@@ -102,7 +116,12 @@ def _run_case(case: StageThreeCase, root: Path) -> StageThreeCaseResult:
     )
 
 
-def _execute_case(case: StageThreeCase, root: Path) -> None:
+def _execute_case(
+    case: StageThreeCase,
+    root: Path,
+    *,
+    sandbox: FixedTemplateSandbox | OCIContainerSandbox | None = None,
+) -> None:
     task_id = uuid4()
     rows, columns, target, features, baseline, metric = _fixture(case.problem_type)
     if case.mutation == "target_proxy":
@@ -152,7 +171,7 @@ def _execute_case(case: StageThreeCase, root: Path) -> None:
         random_seed=case.random_seed,
         quota=quota,
     )
-    DataScienceWorkbench(artifact_store=store).run_experiment(
+    DataScienceWorkbench(artifact_store=store, sandbox=sandbox).run_experiment(
         snapshot=snapshot,
         spec=spec,
         user_id="evaluation-scientist",
