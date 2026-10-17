@@ -19,14 +19,15 @@ audit storage remain separate production requirements.
 
 ## Consequences
 
-No new cryptographic token format or permissive JWT verification is introduced. An external
-SSO adapter and shared revocation store remain required for a real deployment. RLS/CLS must
+No new cryptographic token format or permissive JWT verification is introduced. The implemented
+OIDC adapter and shared revocation store require enrollment with the real provider and deployment
+under protected service identities. RLS/CLS must
 be enforced by source connectors under workload identity, rather than inferred from a valid
 API session. The default development app is not a production entry point. Release evidence
 must be independently authenticated and SLOs observed before controlled-user admission.
 
 ## Rollback
 
-Disable versioned traffic using the service switch. Revoke sessions, or restart a single
-process pilot to invalidate all tokens. Revert the feature commits only in a development
+Disable versioned traffic using the service switch. Explicitly revoke sessions in the shared
+broker; restarting a service does not invalidate durable sessions. Revert the feature commits only in a development
 environment; never restore header-only identity as a production fallback.
