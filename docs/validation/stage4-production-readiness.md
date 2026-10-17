@@ -34,3 +34,13 @@ The switch blocks new requests; draining/cancelling in-flight work is still an o
 90 tasks and 88% success, zero security blockers, at least 100 recovery attempts and 99%
 success, plus the mandatory exercise set. This is a measurement evaluator, not a deployment
 authorizer: evidence signatures, SLO observation and independent approvals remain external.
+
+## Increment 3: minimal audit payloads
+
+`MinimalAuditSink` is an opt-in local audit adapter with a fixed payload allowlist.
+It preserves only nonnegative integer counters and boolean flags, dropping unknown fields,
+free text, nested objects and type-confused values before writing. It does not mutate the
+source event. Envelope identities must be opaque trusted service identifiers. The existing
+development sink remains available; deployments must explicitly inject this restricted sink.
+This is payload minimization, not full DLP: trace providers, artifact contents, retention,
+independent audit authorization and envelope validation still require separate controls.
