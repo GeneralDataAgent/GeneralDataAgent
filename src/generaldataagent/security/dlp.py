@@ -36,7 +36,7 @@ class TextDLPScanner:
             patterns.update(
                 {
                     "email": r"(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b",
-                    "phone": r"(?<!\d)(?:\+?86[- ]?)?1[3-9]\d{9}(?!\d)",
+                    "phone": r"(?<![A-Za-z0-9])(?:\+?86[- ]?)?1[3-9]\d{9}(?![A-Za-z0-9])",
                 }
             )
         for code, pattern in patterns.items():

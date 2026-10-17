@@ -7,7 +7,7 @@ from uuid import UUID
 from generaldataagent.contracts import AuditEvent, ToolRequest
 from generaldataagent.observability import JsonlAuditSink
 from generaldataagent.observability.verified_audit import VerifiedAuditSink
-from generaldataagent.policy import ApprovalStore, PolicyEngine
+from generaldataagent.policy import ApprovalStore, PolicyEngine, request_fingerprint
 
 
 class PolicyDeniedError(PermissionError):
@@ -91,6 +91,6 @@ class ToolGateway:
                 actor_id=request.user_id,
                 tenant_id=request.tenant_id,
                 trace_id=trace_id,
-                payload=payload,
+                payload={**payload, "request_fingerprint": request_fingerprint(request)},
             )
         )

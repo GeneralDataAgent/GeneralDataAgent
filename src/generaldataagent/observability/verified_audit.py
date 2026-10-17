@@ -4,6 +4,7 @@ import base64
 import hashlib
 import hmac
 import json
+import re
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime, timedelta
 from typing import Literal
@@ -81,6 +82,9 @@ class VerifiedAuditSink:
             value = event.payload.get(key)
             if type(value) is int and value >= 0:
                 payload[key] = value
+        fingerprint = event.payload.get("request_fingerprint")
+        if isinstance(fingerprint, str) and re.fullmatch(r"sha256:[0-9a-f]{64}", fingerprint):
+            payload["request_fingerprint"] = fingerprint
         safe = event.model_dump(mode="json")
         for key in ("actor_id", "tenant_id", "trace_id"):
             safe[key] = hmac.new(self.pseudonym_key, safe[key].encode(), hashlib.sha256).hexdigest()

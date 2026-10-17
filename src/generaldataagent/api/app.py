@@ -65,6 +65,10 @@ def create_app(
         raise ValueError("login flow must share the API identity broker")
     if production_mode and session_broker is None:
         raise ValueError("production mode requires an identity broker")
+    if production_mode and metric_runtime is not None and not metric_runtime.production_mode:
+        raise ValueError("production API requires a production-governed analysis runtime")
+    if production_mode and science_workbench is not None and not science_workbench.production_mode:
+        raise ValueError("production API requires a production-governed science workbench")
     application = FastAPI(
         title="GeneralDataAgent",
         version=__version__,

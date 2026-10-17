@@ -7,6 +7,7 @@ from uuid import uuid4
 from langgraph.checkpoint.memory import InMemorySaver
 
 from generaldataagent.artifacts import LocalArtifactStore
+from generaldataagent.artifacts.governed import GovernedArtifactStore
 from generaldataagent.catalog import InMemoryMetricCatalog, MetricDefinition
 from generaldataagent.contracts import (
     ActorContext,
@@ -26,9 +27,11 @@ from generaldataagent.contracts import (
     ValidationStatus,
 )
 from generaldataagent.observability import JsonlAuditSink
+from generaldataagent.observability.verified_audit import VerifiedAuditSink
 from generaldataagent.orchestration.state import PhaseOneState
 from generaldataagent.orchestration.workflow import PhaseOneServices, build_phase_one_graph
 from generaldataagent.policy import PolicyEngine
+from generaldataagent.security.source import ScopedQueryExecutor
 from generaldataagent.tools import SqlGuard, SQLiteReadOnlyExecutor, ToolGateway
 
 
@@ -43,19 +46,26 @@ class MetricAnalysisRuntime:
         self,
         *,
         catalog: InMemoryMetricCatalog,
-        executor: SQLiteReadOnlyExecutor,
+        executor: SQLiteReadOnlyExecutor | ScopedQueryExecutor,
         artifacts: LocalArtifactStore,
         policy: PolicyEngine | None = None,
-        audit: JsonlAuditSink | None = None,
+        audit: JsonlAuditSink | VerifiedAuditSink | None = None,
         narrator: NarrativeGenerator | None = None,
+        production_mode: bool = False,
     ) -> None:
+        if production_mode and (
+            not isinstance(executor, ScopedQueryExecutor)
+            or not isinstance(artifacts, GovernedArtifactStore)
+        ):
+            raise ValueError("production analysis requires scoped source and governed artifacts")
+        self.production_mode = production_mode
         self.catalog = catalog
         self.executor = executor
         self.artifacts = artifacts
         self.audit = audit
         self.narrator = narrator
         self.sql_guard = SqlGuard(dialect="sqlite")
-        self.gateway = ToolGateway(policy or PolicyEngine(), audit)
+        self.gateway = ToolGateway(policy or PolicyEngine(), audit, production_mode=production_mode)
         self.gateway.register("sql.query", self._execute_query)
         self.graph = build_phase_one_graph(
             PhaseOneServices(
@@ -75,6 +85,13 @@ class MetricAnalysisRuntime:
         *,
         thread_id: str | None = None,
     ) -> dict[str, Any]:
+        if isinstance(self.artifacts, GovernedArtifactStore):
+            bound = self.artifacts.actor
+            if (bound.tenant_id, bound.project_id) != (
+                actor.tenant_id,
+                actor.project_id,
+            ) or not set(actor.data_domains) <= set(bound.data_domains):
+                raise PermissionError("artifact_store_actor_scope_mismatch")
         task_id = str(uuid4())
         trace_id = str(uuid4())
         state: PhaseOneState = {
@@ -224,6 +241,7 @@ class MetricAnalysisRuntime:
             resource=plan["allowed_relations"][0],
             arguments={
                 "sql": plan["sql"],
+                "actor_context": actor.model_dump(mode="json"),
                 "parameters": plan["parameters"],
                 "allowed_relations": plan["allowed_relations"],
             },
@@ -441,6 +459,9 @@ class MetricAnalysisRuntime:
         parameters = tuple(arguments.get("parameters", ()))
         allowed_relations = set(arguments.get("allowed_relations", ()))
         self.sql_guard.inspect(sql, allowed_relations=allowed_relations)
+        if isinstance(self.executor, ScopedQueryExecutor):
+            actor = ActorContext.model_validate(arguments["actor_context"])
+            return self.executor.execute_for_actor(sql, parameters, actor)
         return self.executor.execute(sql, parameters)
 
     @staticmethod

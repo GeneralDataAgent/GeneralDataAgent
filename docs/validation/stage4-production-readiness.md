@@ -152,3 +152,17 @@ callback replay. The fixed HTTPS token client refuses redirects and bounds respo
 errors never echo codes or credentials. Provider endpoints, client registration and grant
 resolver are operator configuration. Configure reverse proxy and app access logging to omit
 callback query strings; no real provider login is claimed by the local end-to-end fixture.
+
+## Increment 14: production runtime and native source boundary
+
+`ScopedQueryExecutor` propagates the current actor to a trusted short-lived credential issuer,
+limits leases to 15 minutes, checks source relation grants, and requires the opened native session
+to confirm matching source/role/user/tenant/project/domains with RLS, CLS and read-only enabled,
+without superuser or bypass-RLS. Expiry is checked before and after query execution; source errors
+are sanitized. Native driver implementations remain trusted and must be qualified on the real DB.
+`MetricAnalysisRuntime(production_mode=True)` requires this scoped executor, governed artifacts and
+verified audit; the production API refuses a development runtime. Actor-bound artifact scope is
+checked before analysis. Production science similarly requires governed artifacts, independent
+audit and OCI sandbox. Gateway audit now includes the request fingerprint for action binding.
+An integrated local fixture exercises API -> actor -> credential lease -> live-scope check -> query
+-> governed artifacts -> verified audit. It is not an external database/RLS attestation.

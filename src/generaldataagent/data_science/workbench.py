@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 
 from generaldataagent.artifacts import LocalArtifactStore
+from generaldataagent.artifacts.governed import GovernedArtifactStore
 from generaldataagent.contracts import (
     AgentRole,
     AuditEvent,
@@ -21,6 +22,7 @@ from generaldataagent.data_science.sandbox import FixedTemplateSandbox, OCIConta
 from generaldataagent.data_science.snapshot import load_snapshot_rows
 from generaldataagent.data_science.tracking import SQLiteExperimentTracker
 from generaldataagent.observability import JsonlAuditSink
+from generaldataagent.observability.verified_audit import VerifiedAuditSink
 from generaldataagent.policy import PolicyEngine
 
 
@@ -40,9 +42,19 @@ class DataScienceWorkbench:
         artifact_store: LocalArtifactStore,
         policy: PolicyEngine | None = None,
         sandbox: FixedTemplateSandbox | OCIContainerSandbox | None = None,
-        audit: JsonlAuditSink | None = None,
+        audit: JsonlAuditSink | VerifiedAuditSink | None = None,
         tracker: SQLiteExperimentTracker | None = None,
+        production_mode: bool = False,
     ) -> None:
+        if production_mode and (
+            not isinstance(artifact_store, GovernedArtifactStore)
+            or not isinstance(audit, VerifiedAuditSink)
+            or not isinstance(sandbox, OCIContainerSandbox)
+        ):
+            raise ValueError(
+                "production science requires governed artifacts, independent audit and OCI sandbox"
+            )
+        self.production_mode = production_mode
         self.artifact_store = artifact_store
         self.policy = policy or PolicyEngine()
         self.sandbox = sandbox or FixedTemplateSandbox()
@@ -60,6 +72,13 @@ class DataScienceWorkbench:
         data_domain: str,
         trace_id: str | None = None,
     ) -> ExperimentReport:
+        if isinstance(self.artifact_store, GovernedArtifactStore):
+            actor = self.artifact_store.actor
+            if (actor.tenant_id, actor.project_id) != (
+                tenant_id,
+                project_id,
+            ) or data_domain not in actor.data_domains:
+                raise PermissionError("artifact_store_actor_scope_mismatch")
         if spec.task_id != snapshot.task_id or spec.snapshot_id != snapshot.snapshot_id:
             raise ValueError("experiment must bind the exact task and snapshot")
         if (
