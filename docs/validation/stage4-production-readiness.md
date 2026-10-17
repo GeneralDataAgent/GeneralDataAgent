@@ -118,3 +118,16 @@ sample is diagnostic and is not a monthly uptime measurement. Release evidence n
 requires a 30-day observation, >=99.5% time availability, >=100 event samples, P95 <=3 seconds,
 critical alert delivery <=300 seconds and >=14 clean pilot days. Missing/non-finite values fail
 the gate. Real observation and alert transport remain deployment obligations.
+
+## Increment 11: trusted OIDC identity adapter
+
+`OIDCSessionAdapter` uses pinned RSA keys and PyJWT RS256 verification with exact issuer and
+single audience. It requires subject/expiry/issue-time/nonce claims, rejects untrusted key URLs,
+checks authorized party and token age, and consumes a persisted one-use login challenge before
+issuing the existing short-lived session. Tenant/project/domain grants come only from a trusted
+server-side resolver, never token custom claims. Tests include forged keys, symmetric algorithm
+confusion, key URLs, wrong issuer/audience/nonce, expired/future tokens and 16 concurrent replays.
+The trusted web controller still must implement browser-bound OAuth state, PKCE/code exchange,
+TLS and real provider enrollment; this adapter is deliberately not a public login endpoint.
+Design references: [OIDC Core ID Token Validation](https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation)
+and [PyJWT verification API](https://pyjwt.readthedocs.io/en/stable/api.html#jwt.decode).
