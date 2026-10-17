@@ -6,11 +6,12 @@ import json
 import re
 import secrets
 import sqlite3
+from collections.abc import Mapping
 from contextlib import closing
 from datetime import UTC, datetime
 from pathlib import Path
 
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 from fastapi import FastAPI, Header, HTTPException, Request
 from pydantic import SecretStr
 
@@ -25,9 +26,18 @@ class AuditCollector:
     Collector database, private key, backups and retention belong to audit operators.
     """
 
-    def __init__(self, path: Path, *, signer_id: str, signing_key: Ed25519PrivateKey) -> None:
+    def __init__(
+        self,
+        path: Path,
+        *,
+        signer_id: str,
+        signing_key: Ed25519PrivateKey,
+        trusted_receipt_keys: Mapping[str, Ed25519PublicKey] | None = None,
+    ) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         self.path, self.signer_id, self.signing_key = path, signer_id, signing_key
+        self.trusted_receipt_keys = dict(trusted_receipt_keys or {})
+        self.trusted_receipt_keys[signer_id] = signing_key.public_key()
         with closing(sqlite3.connect(path)) as db, db:
             db.execute(
                 "CREATE TABLE IF NOT EXISTS audit_entries ("
@@ -67,13 +77,13 @@ class AuditCollector:
         with closing(sqlite3.connect(self.path, timeout=10)) as db, db:
             db.execute("BEGIN IMMEDIATE")
             existing = db.execute(
-                "SELECT event_hash, receipt_json FROM audit_entries WHERE event_id = ?",
+                "SELECT event_hash, receipt_json, sequence FROM audit_entries WHERE event_id = ?",
                 (str(event.event_id),),
             ).fetchone()
             if existing is not None:
                 if existing[0] != digest:
                     raise PermissionError("audit_event_id_conflict")
-                return AuditReceipt.model_validate_json(existing[1])
+                return self._verify_receipt(existing[1], str(event.event_id), digest, existing[2])
             last = db.execute(
                 "SELECT sequence, chain_hash FROM audit_entries ORDER BY sequence DESC LIMIT 1"
             ).fetchone()
@@ -108,22 +118,48 @@ class AuditCollector:
             )
         return receipt
 
+    def _verify_receipt(self, raw: str, event_id: str, digest: str, sequence: int) -> AuditReceipt:
+        try:
+            receipt = AuditReceipt.model_validate_json(raw)
+            key = self.trusted_receipt_keys[receipt.signer_id]
+            if (
+                str(receipt.event_id) != event_id
+                or receipt.event_sha256 != digest
+                or receipt.sequence != sequence
+            ):
+                raise ValueError("receipt binding mismatch")
+            key.verify(
+                base64.b64decode(receipt.signature, validate=True), receipt_statement(receipt)
+            )
+            return receipt
+        except Exception:
+            raise PermissionError("audit_stored_receipt_invalid") from None
+
     def verify_chain(
         self, *, expected_sequence: int | None = None, expected_hash: str | None = None
     ) -> bool:
         with closing(sqlite3.connect(self.path)) as db:
             rows = db.execute(
-                "SELECT sequence, event_hash, canonical, previous_hash, chain_hash "
+                "SELECT sequence, event_hash, canonical, previous_hash, chain_hash, "
+                "event_id, receipt_json "
                 "FROM audit_entries ORDER BY sequence"
             ).fetchall()
         previous = "0" * 64
-        for index, (sequence, digest, content, parent, chain) in enumerate(rows, start=1):
+        for index, (sequence, digest, content, parent, chain, event_id, raw) in enumerate(
+            rows, start=1
+        ):
             if (
                 sequence != index
                 or parent != previous
                 or hashlib.sha256(content).hexdigest() != digest
                 or hashlib.sha256(f"{sequence}:{parent}:{digest}".encode()).hexdigest() != chain
             ):
+                return False
+            try:
+                self._verify_receipt(raw, event_id, digest, sequence)
+                if str(AuditEvent.model_validate_json(content).event_id) != event_id:
+                    return False
+            except (PermissionError, ValueError):
                 return False
             previous = chain
         return (expected_sequence is None or len(rows) == expected_sequence) and (

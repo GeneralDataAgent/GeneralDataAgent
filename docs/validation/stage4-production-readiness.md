@@ -334,3 +334,14 @@ Native semantics follow the PostgreSQL 17 documentation for
 [row security](https://www.postgresql.org/docs/17/ddl-rowsecurity.html) and
 [privilege inspection](https://www.postgresql.org/docs/17/functions-info.html), with server-side
 binding through [Psycopg parameters](https://www.psycopg.org/psycopg3/docs/basic/params.html).
+
+## Follow-up 7: signed audit recovery integrity
+
+Collector chain verification now checks each stored receipt's Ed25519 signature and its binding
+to the sequence, event ID and content hash, including canonical event identity. Recomputing an
+altered event's unsigned hash chain no longer passes verification. Idempotent append also rejects
+corrupt stored receipts. Historical signer public keys must be explicitly retained through
+`trusted_receipt_keys` when rotating the collector signing key; unknown historical signers fail
+closed. Tests cover signature, signer, timestamp, sequence and hash corruption, full event rehashing,
+and rotation with/without explicit historical trust. Operators still need independently retained
+sequence/hash anchors to detect tail truncation.
