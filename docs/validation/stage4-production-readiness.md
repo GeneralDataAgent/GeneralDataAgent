@@ -345,3 +345,12 @@ corrupt stored receipts. Historical signer public keys must be explicitly retain
 closed. Tests cover signature, signer, timestamp, sequence and hash corruption, full event rehashing,
 and rotation with/without explicit historical trust. Operators still need independently retained
 sequence/hash anchors to detect tail truncation.
+
+## Follow-up qualification: 2026-10-18
+
+At implementation commit `2cf6bcf`, the full suite with an actual disposable PostgreSQL 17
+container passed 294 tests at 88.35% coverage. The 19 native-source checks are included in this
+suite. Locked dependencies, Ruff lint/format, distribution build and the frozen 91/91 security
+baseline passed. The aggregate development gate passed on the clean committed tree; its only
+production blocker was `missing_independent_release_evidence`. No independent release evidence
+was invented and no production infrastructure was connected.
