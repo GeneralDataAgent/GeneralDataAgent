@@ -62,3 +62,14 @@ processes sharing the protected database observe issuance, expiry and revocation
 no longer invalidates these sessions. Validation covers cross-instance revocation, expiry
 at the exact boundary, restart and absence of raw bearer tokens in the database.
 This is a single-host shared registry, not a distributed identity service.
+
+## Increment 6: original-thread approval resume
+
+`PendingActionCoordinator` persists original request parameters, approval ID and thread ID.
+`POST /v1/actions/{thread_id}/resume` accepts no replacement action parameters and requires
+current authenticated identity. The coordinator revalidates user/tenant/project/domain,
+current risk policy and an unconsumed, unexpired grant before claiming the action. ToolGateway
+then repeats policy and atomic grant consumption. A grant not yet issued leaves the action
+pending. Concurrent resume calls execute at most once; a crash or execution failure requires
+operator reconciliation and is never automatically replayed. R2 and R3 tests use inert fixture
+handlers, not production writes. Pause/approve remain trusted runtime/approval-service ports.

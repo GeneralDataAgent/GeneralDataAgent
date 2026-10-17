@@ -26,6 +26,7 @@ from generaldataagent.data_science.workbench import DataScienceWorkbench, Scienc
 from generaldataagent.evaluation import DuplicateReviewError, LocalHumanReviewStore
 from generaldataagent.evaluation.scoped_reviews import ScopedHumanReviewStore
 from generaldataagent.orchestration import MetricAnalysisRuntime
+from generaldataagent.policy.resume import PendingActionCoordinator
 from generaldataagent.security.identity import SessionBroker
 from generaldataagent.tools import QueryExecutionError
 
@@ -49,7 +50,12 @@ def create_app(
     session_broker: SessionBroker | None = None,
     production_mode: bool = False,
     service_enabled: Callable[[], bool] | None = None,
+    pending_actions: PendingActionCoordinator | None = None,
 ) -> FastAPI:
+    if pending_actions is not None and (
+        session_broker is None or pending_actions.broker is not session_broker
+    ):
+        raise ValueError("action coordinator must share the API identity broker")
     if production_mode and session_broker is None:
         raise ValueError("production mode requires an identity broker")
     application = FastAPI(
@@ -248,6 +254,18 @@ def create_app(
             "delivery": result.get("delivery_package"),
             "errors": result.get("errors", []),
         }
+
+    @application.post("/v1/actions/{thread_id}/resume")
+    def resume_action(thread_id: str, request: Request) -> dict[str, Any]:
+        if pending_actions is None:
+            raise HTTPException(status_code=503, detail="pending_actions_not_configured")
+        authenticated_actor(request)
+        token = request.headers["authorization"].split(" ", 1)[1]
+        try:
+            result = pending_actions.resume(thread_id, token)
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        return {"thread_id": thread_id, "status": "completed", "result": result}
 
     @application.post("/v1/reviews")
     def submit_review(review: HumanReview, request: Request) -> dict[str, Any]:

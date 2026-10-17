@@ -37,6 +37,8 @@ class ApprovalStore(Protocol):
 
     def approve(self, approval_id: UUID, *, approver_id: str) -> ApprovalGrant: ...
 
+    def validate(self, approval_id: UUID, request: ToolRequest) -> ApprovalGrant: ...
+
     def consume(self, approval_id: UUID, request: ToolRequest) -> ApprovalGrant: ...
 
     def reject(
@@ -201,6 +203,18 @@ class InMemoryApprovalStore:
             self._grants[approval_id] = grant
             return grant
 
+    def validate(self, approval_id: UUID, request: ToolRequest) -> ApprovalGrant:
+        with self._lock:
+            if approval_id in self._consumed or approval_id in self._dispositions:
+                raise ApprovalError("approval is closed")
+            try:
+                original = self._requests[approval_id]
+                grant = self._grants[approval_id]
+            except KeyError as exc:
+                raise ApprovalError("approval grant was not found") from exc
+            _validate_grant(original, grant, request, now=self._clock())
+            return grant
+
     def consume(self, approval_id: UUID, request: ToolRequest) -> ApprovalGrant:
         with self._lock:
             if approval_id in self._consumed:
@@ -352,6 +366,23 @@ class SQLiteApprovalStore:
             if updated.rowcount != 1:
                 raise ApprovalError("approval request already has a grant")
         return grant
+
+    def validate(self, approval_id: UUID, request: ToolRequest) -> ApprovalGrant:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT request_json, grant_json, consumed_at, disposition_json "
+                "FROM approvals WHERE approval_id = ?",
+                (str(approval_id),),
+            ).fetchone()
+            if row is None or row[1] is None:
+                raise ApprovalError("approval grant was not found")
+            if row[2] is not None or row[3] is not None:
+                raise ApprovalError("approval is closed")
+            grant = ApprovalGrant.model_validate_json(row[1])
+            _validate_grant(
+                ApprovalRequest.model_validate_json(row[0]), grant, request, now=self._clock()
+            )
+            return grant
 
     def consume(self, approval_id: UUID, request: ToolRequest) -> ApprovalGrant:
         with self._connect() as connection:
