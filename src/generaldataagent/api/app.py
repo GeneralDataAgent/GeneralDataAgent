@@ -24,6 +24,7 @@ from generaldataagent.data_science.sandbox import SandboxError
 from generaldataagent.data_science.tracking import ExperimentTrackingError
 from generaldataagent.data_science.workbench import DataScienceWorkbench, ScienceGateError
 from generaldataagent.evaluation import DuplicateReviewError, LocalHumanReviewStore
+from generaldataagent.evaluation.scoped_reviews import ScopedHumanReviewStore
 from generaldataagent.orchestration import MetricAnalysisRuntime
 from generaldataagent.security.identity import SessionBroker
 from generaldataagent.tools import QueryExecutionError
@@ -43,7 +44,7 @@ class ScienceExperimentRequest(BaseModel):
 
 def create_app(
     metric_runtime: MetricAnalysisRuntime | None = None,
-    review_store: LocalHumanReviewStore | None = None,
+    review_store: LocalHumanReviewStore | ScopedHumanReviewStore | None = None,
     science_workbench: DataScienceWorkbench | None = None,
     session_broker: SessionBroker | None = None,
     production_mode: bool = False,
@@ -88,11 +89,27 @@ def create_app(
             domains = request.headers.getlist("x-data-domain")
             if not domains or not set(domains) <= identity.data_domains:
                 return JSONResponse(status_code=403, content={"detail": "data_domain_denied"})
-            # Review storage has no tenant ownership index yet; deny in secured deployments.
-            if request.url.path.startswith("/v1/reviews"):
+            if request.url.path.startswith("/v1/reviews") and not isinstance(
+                application.state.review_store, ScopedHumanReviewStore
+            ):
                 return JSONResponse(status_code=403, content={"detail": "unscoped_review_store"})
             request.state.identity = identity
         return await call_next(request)
+
+    def authenticated_actor(request: Request) -> ActorContext:
+        identity = getattr(request.state, "identity", None)
+        if identity is None:
+            raise HTTPException(status_code=401, detail="authenticated_identity_required")
+        return ActorContext(
+            user_id=identity.user_id,
+            tenant_id=identity.tenant_id,
+            project_id=identity.project_id,
+            data_domains=tuple(identity.data_domains),
+        )
+
+    def register_review_task(result: dict[str, Any], actor: ActorContext) -> None:
+        if isinstance(review_store, ScopedHumanReviewStore) and result.get("task_id"):
+            review_store.register_task(UUID(str(result["task_id"])), actor)
 
     @application.get("/health", response_model=HealthResponse)
     def health() -> HealthResponse:
@@ -181,6 +198,7 @@ def create_app(
         )
         try:
             result = runtime.run(query, actor)
+            register_review_task(result, actor)
         except MetricNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except PermissionError as exc:
@@ -217,6 +235,7 @@ def create_app(
         )
         try:
             result = runtime.analyze_question(query, actor)
+            register_review_task(result, actor)
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
         except (QueryExecutionError, ValueError) as exc:
@@ -231,7 +250,7 @@ def create_app(
         }
 
     @application.post("/v1/reviews")
-    def submit_review(review: HumanReview) -> dict[str, Any]:
+    def submit_review(review: HumanReview, request: Request) -> dict[str, Any]:
         store = application.state.review_store
         if store is None:
             raise HTTPException(
@@ -239,20 +258,32 @@ def create_app(
                 detail="Human review storage is not configured for this deployment.",
             )
         try:
-            stored = store.submit(review)
+            if isinstance(store, ScopedHumanReviewStore):
+                stored = store.submit_scoped(review, authenticated_actor(request))
+            else:
+                stored = store.submit(review)
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
         except DuplicateReviewError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         return stored.model_dump(mode="json")
 
     @application.get("/v1/reviews/{task_id}/summary")
-    def review_summary(task_id: UUID) -> dict[str, Any]:
+    def review_summary(task_id: UUID, request: Request) -> dict[str, Any]:
         store = application.state.review_store
         if store is None:
             raise HTTPException(
                 status_code=503,
                 detail="Human review storage is not configured for this deployment.",
             )
-        summary = store.summarize(task_id)
+        try:
+            summary = (
+                store.summarize_scoped(task_id, authenticated_actor(request))
+                if isinstance(store, ScopedHumanReviewStore)
+                else store.summarize(task_id)
+            )
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
         if summary.review_count == 0:
             raise HTTPException(status_code=404, detail="No human reviews exist for this task.")
         return summary.model_dump(mode="json")

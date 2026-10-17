@@ -40,34 +40,42 @@ class LocalHumanReviewStore:
 
     def summarize(self, task_id: UUID, *, required_reviews: int = 2) -> HumanReviewSummary:
         reviews = self.list_for_task(task_id)
-        component_scores = [
-            score
-            for item in reviews
-            for score in (
-                item.semantic_score,
-                item.conclusion_score,
-                item.chart_score,
-                item.limitations_score,
-            )
-        ]
-        average = (
-            round(sum(item.average_score for item in reviews) / len(reviews), 2) if reviews else 0.0
+        return summarize_reviews(task_id, reviews, required_reviews=required_reviews)
+
+
+def summarize_reviews(
+    task_id: UUID, reviews: tuple[HumanReview, ...], *, required_reviews: int = 2
+) -> HumanReviewSummary:
+    if required_reviews < 2:
+        raise ValueError("at least two reviews are required")
+    component_scores = [
+        score
+        for item in reviews
+        for score in (
+            item.semantic_score,
+            item.conclusion_score,
+            item.chart_score,
+            item.limitations_score,
         )
-        minimum = min(component_scores) if component_scores else None
-        blockers = sum(item.blocking_issue for item in reviews)
-        passed = (
-            len(reviews) >= required_reviews
-            and average >= 4.0
-            and minimum is not None
-            and minimum > 1
-            and blockers == 0
-        )
-        return HumanReviewSummary(
-            task_id=task_id,
-            review_count=len(reviews),
-            average_score=average,
-            minimum_component_score=minimum,
-            blocking_issue_count=blockers,
-            passed=passed,
-            required_reviews=required_reviews,
-        )
+    ]
+    average = (
+        round(sum(item.average_score for item in reviews) / len(reviews), 2) if reviews else 0.0
+    )
+    minimum = min(component_scores) if component_scores else None
+    blockers = sum(item.blocking_issue for item in reviews)
+    passed = (
+        len(reviews) >= required_reviews
+        and average >= 4.0
+        and minimum is not None
+        and minimum > 1
+        and blockers == 0
+    )
+    return HumanReviewSummary(
+        task_id=task_id,
+        review_count=len(reviews),
+        average_score=average,
+        minimum_component_score=minimum,
+        blocking_issue_count=blockers,
+        passed=passed,
+        required_reviews=required_reviews,
+    )

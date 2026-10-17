@@ -44,3 +44,13 @@ source event. Envelope identities must be opaque trusted service identifiers. Th
 development sink remains available; deployments must explicitly inject this restricted sink.
 This is payload minimization, not full DLP: trace providers, artifact contents, retention,
 independent audit authorization and envelope validation still require separate controls.
+
+## Increment 4: scoped durable human reviews
+
+`ScopedHumanReviewStore` persists immutable task tenant/project/domain ownership in SQLite.
+The analysis runtime registers task scope server-side; no API accepts ownership registration.
+Secured review endpoints authorize that ownership and bind reviewer IDs to authenticated users.
+Duplicate reviews are rejected atomically across independent connections; restarting preserves
+both ownership and the dual-review gate. Unknown and foreign task IDs return the same denial.
+Legacy unscoped JSONL ledgers remain development-only and are never implicitly imported.
+Validation includes cross-scope reads/writes, forged reviewers, restart and 16 racing submissions.
