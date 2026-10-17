@@ -287,3 +287,12 @@ expired/deleted threads reject subsequent checkpoint and pending-write persisten
 independent saver connections, concurrent API resume, stale-owner fencing, lease recovery and
 expiry/cleanup interaction, alongside the existing 100 restart cases. These are read-only analysis
 leases; approvals retain their separate durable one-use side-effect and reconciliation rules.
+
+## Follow-up 3: strict durable identity records
+
+Durable sessions now validate a strict schema for bounded nonempty opaque identity/domain fields,
+explicit permission enums, collection types and timezone-aware expiry. Malformed records (including
+naive expiry and string-valued permissions/domains) produce a fixed 401 instead of a server error
+or implicit coercion. Issuance applies the same bounds; bearer input is bounded before hashing.
+Legacy records without permissions retain no action grants. Regression tests corrupt individual
+stored fields and verify that neither the original record nor validation details reach responses.

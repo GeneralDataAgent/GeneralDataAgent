@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import re
 import secrets
 import sqlite3
 from collections.abc import Callable
@@ -10,6 +11,39 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from threading import Lock
+from typing import Annotated, Literal
+
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StringConstraints
+
+_ScopeID = Annotated[str, StringConstraints(pattern=r"^[^\s\x00-\x1f\x7f]{1,128}$")]
+_Permission = Literal[
+    "analysis:run",
+    "science:run",
+    "actions:resume",
+    "reviews:read",
+    "reviews:submit",
+    "operations:read",
+]
+
+
+class _SessionRecord(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+    user_id: _ScopeID
+    tenant_id: _ScopeID
+    project_id: _ScopeID
+    data_domains: tuple[_ScopeID, ...] = Field(min_length=1, max_length=32)
+    expires_at: AwareDatetime
+    permissions: tuple[_Permission, ...] = Field(default=(), max_length=6)
+
+    def identity(self) -> "SessionIdentity":
+        return SessionIdentity(
+            self.user_id,
+            self.tenant_id,
+            self.project_id,
+            frozenset(self.data_domains),
+            self.expires_at,
+            frozenset(self.permissions),
+        )
 
 
 @dataclass(frozen=True)
@@ -44,29 +78,37 @@ class SessionBroker:
         ttl_seconds: int = 300,
         permissions: frozenset[str] = frozenset(),
     ) -> str:
-        if not all(value.strip() for value in (user_id, tenant_id, project_id)):
-            raise ValueError("identity scope must be nonempty")
-        if not data_domains or any(not domain.strip() for domain in data_domains):
-            raise ValueError("authorized data domains are required")
         if type(ttl_seconds) is not int or not 1 <= ttl_seconds <= 900:
             raise ValueError("session lifetime must be between 1 and 900 seconds")
+        if not isinstance(data_domains, (set, frozenset)) or not isinstance(
+            permissions, (set, frozenset)
+        ):
+            raise ValueError("domains and permissions must be explicit sets")
+        now = self._clock()
+        if now.tzinfo is None:
+            raise ValueError("identity clock must be timezone-aware")
+        identity = _SessionRecord(
+            user_id=user_id,
+            tenant_id=tenant_id,
+            project_id=project_id,
+            data_domains=tuple(data_domains),
+            permissions=tuple(permissions),
+            expires_at=now + timedelta(seconds=ttl_seconds),
+        ).identity()
         token = secrets.token_urlsafe(32)
-        identity = SessionIdentity(
-            user_id,
-            tenant_id,
-            project_id,
-            data_domains,
-            self._clock() + timedelta(seconds=ttl_seconds),
-            frozenset(permissions),
-        )
         with self._lock:
             self._save(self._digest(token), identity)
         return token
 
     def authenticate(self, token: str) -> SessionIdentity:
+        if not isinstance(token, str) or not re.fullmatch(r"[A-Za-z0-9_-]{32,128}", token):
+            raise PermissionError("invalid_or_expired_session")
+        now = self._clock()
+        if now.tzinfo is None:
+            raise PermissionError("invalid_identity_clock")
         with self._lock:
             identity = self._load(self._digest(token))
-            if identity is None or identity.expires_at <= self._clock():
+            if identity is None or identity.expires_at <= now:
                 self._remove(self._digest(token))
                 raise PermissionError("invalid_or_expired_session")
             return identity
@@ -128,17 +170,9 @@ class SQLiteSessionBroker(SessionBroker):
         if row is None:
             return None
         try:
-            value = json.loads(row[0])
-            return SessionIdentity(
-                user_id=value["user_id"],
-                tenant_id=value["tenant_id"],
-                project_id=value["project_id"],
-                data_domains=frozenset(value["data_domains"]),
-                expires_at=datetime.fromisoformat(value["expires_at"]),
-                permissions=frozenset(value.get("permissions", ())),
-            )
-        except (ValueError, TypeError, KeyError) as exc:
-            raise PermissionError("invalid_session_record") from exc
+            return _SessionRecord.model_validate_json(row[0]).identity()
+        except (ValueError, TypeError, KeyError):
+            raise PermissionError("invalid_session_record") from None
 
     def _remove(self, digest: str) -> None:
         with closing(sqlite3.connect(self.path, timeout=5)) as db, db:
