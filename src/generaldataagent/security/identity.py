@@ -19,6 +19,7 @@ class SessionIdentity:
     project_id: str
     data_domains: frozenset[str]
     expires_at: datetime
+    permissions: frozenset[str] = frozenset()
 
 
 class SessionBroker:
@@ -41,12 +42,13 @@ class SessionBroker:
         project_id: str,
         data_domains: frozenset[str],
         ttl_seconds: int = 300,
+        permissions: frozenset[str] = frozenset(),
     ) -> str:
         if not all(value.strip() for value in (user_id, tenant_id, project_id)):
             raise ValueError("identity scope must be nonempty")
         if not data_domains or any(not domain.strip() for domain in data_domains):
             raise ValueError("authorized data domains are required")
-        if not 1 <= ttl_seconds <= 900:
+        if type(ttl_seconds) is not int or not 1 <= ttl_seconds <= 900:
             raise ValueError("session lifetime must be between 1 and 900 seconds")
         token = secrets.token_urlsafe(32)
         identity = SessionIdentity(
@@ -55,6 +57,7 @@ class SessionBroker:
             project_id,
             data_domains,
             self._clock() + timedelta(seconds=ttl_seconds),
+            frozenset(permissions),
         )
         with self._lock:
             self._save(self._digest(token), identity)
@@ -111,6 +114,7 @@ class SQLiteSessionBroker(SessionBroker):
                 "project_id": identity.project_id,
                 "data_domains": sorted(identity.data_domains),
                 "expires_at": identity.expires_at.isoformat(),
+                "permissions": sorted(identity.permissions),
             }
         )
         with closing(sqlite3.connect(self.path, timeout=5)) as db, db:
@@ -131,6 +135,7 @@ class SQLiteSessionBroker(SessionBroker):
                 project_id=value["project_id"],
                 data_domains=frozenset(value["data_domains"]),
                 expires_at=datetime.fromisoformat(value["expires_at"]),
+                permissions=frozenset(value.get("permissions", ())),
             )
         except (ValueError, TypeError, KeyError) as exc:
             raise PermissionError("invalid_session_record") from exc

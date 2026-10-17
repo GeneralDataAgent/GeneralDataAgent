@@ -27,7 +27,7 @@ def test_original_thread_resume_rechecks_identity_approval_and_prevents_replay(
     calls = []
     gateway.register(tool, lambda arguments: calls.append(arguments) or {"ok": True})
     scope = dict(user_id="u", tenant_id="t", project_id="p", data_domains=frozenset({"d"}))
-    token = broker.issue(**scope)
+    token = broker.issue(**scope, permissions=frozenset({"actions:resume"}))
     request = ToolRequest(
         task_id=uuid4(),
         **{**scope, "data_domains": ("d",)},
@@ -60,7 +60,10 @@ def test_original_thread_resume_rechecks_identity_approval_and_prevents_replay(
         {"data_domains": frozenset({"other"})},
     ):
         with pytest.raises(ApprovalError, match="access_denied"):
-            coordinator.resume("original-thread", broker.issue(**{**scope, **change}))
+            coordinator.resume(
+                "original-thread",
+                broker.issue(**{**scope, **change}, permissions=frozenset({"actions:resume"})),
+            )
     with pytest.raises(ApprovalError, match="access_denied"):
         coordinator.resume("different-thread", token)
     coordinator = PendingActionCoordinator(path, broker=broker, gateway=gateway)

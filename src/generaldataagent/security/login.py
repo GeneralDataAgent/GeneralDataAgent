@@ -105,13 +105,13 @@ class OIDCLoginFlow:
 
     def begin(self) -> tuple[str, str]:
         state, cookie, verifier = (secrets.token_urlsafe(32) for _ in range(3))
-        nonce = self.adapter.create_challenge()
         now = datetime.now(UTC).timestamp()
         with closing(sqlite3.connect(self.state_path, timeout=5)) as db, db:
             db.execute("BEGIN IMMEDIATE")
-            db.execute("DELETE FROM login_states WHERE expires <= ?", (now,))
+            db.execute("DELETE FROM login_states WHERE expires <= ? OR consumed = 1", (now,))
             if db.execute("SELECT COUNT(*) FROM login_states").fetchone()[0] >= 1000:
                 raise PermissionError("login_capacity_exceeded")
+            nonce = self.adapter.create_challenge()
             db.execute(
                 "INSERT INTO login_states VALUES (?, ?, ?, ?, ?, 0)",
                 (self._digest(state), self._digest(cookie), nonce, verifier, now + 300),

@@ -5,6 +5,7 @@ import secrets
 import sqlite3
 from collections.abc import Callable, Mapping
 from contextlib import closing
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -13,6 +14,12 @@ from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 
 from generaldataagent.contracts import ActorContext
 from generaldataagent.security.identity import SessionBroker
+
+
+@dataclass(frozen=True)
+class IdentityGrant:
+    actor: ActorContext
+    permissions: frozenset[str]
 
 
 class OIDCSessionAdapter:
@@ -31,7 +38,7 @@ class OIDCSessionAdapter:
         audience: str,
         trusted_keys: Mapping[str, RSAPublicKey],
         broker: SessionBroker,
-        grant_resolver: Callable[[str], ActorContext],
+        grant_resolver: Callable[[str], ActorContext | IdentityGrant],
         challenge_path: Path,
     ) -> None:
         if (
@@ -58,7 +65,8 @@ class OIDCSessionAdapter:
         nonce = secrets.token_urlsafe(32)
         with closing(sqlite3.connect(self.challenge_path, timeout=5)) as db, db:
             db.execute(
-                "DELETE FROM oidc_challenges WHERE expires <= ?", (datetime.now(UTC).timestamp(),)
+                "DELETE FROM oidc_challenges WHERE expires <= ? OR consumed = 1",
+                (datetime.now(UTC).timestamp(),),
             )
             db.execute(
                 "INSERT INTO oidc_challenges VALUES (?, ?, 0)",
@@ -104,7 +112,9 @@ class OIDCSessionAdapter:
                 or not secrets.compare_digest(claims["nonce"], expected_nonce)
             ):
                 raise ValueError("invalid identity claims")
-            actor = self.grant_resolver(claims["sub"])
+            grant = self.grant_resolver(claims["sub"])
+            actor = grant.actor if isinstance(grant, IdentityGrant) else grant
+            permissions = grant.permissions if isinstance(grant, IdentityGrant) else frozenset()
             if not isinstance(actor, ActorContext):
                 raise ValueError("trusted identity grant required")
             with closing(sqlite3.connect(self.challenge_path, timeout=5)) as db, db:
@@ -121,6 +131,7 @@ class OIDCSessionAdapter:
                 tenant_id=actor.tenant_id,
                 project_id=actor.project_id,
                 data_domains=frozenset(actor.data_domains),
+                permissions=permissions,
                 ttl_seconds=min(300, max(1, int(claims["exp"] - now))),
             )
         except Exception:

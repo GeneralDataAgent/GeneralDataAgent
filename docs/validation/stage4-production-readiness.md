@@ -166,3 +166,14 @@ checked before analysis. Production science similarly requires governed artifact
 audit and OCI sandbox. Gateway audit now includes the request fingerprint for action binding.
 An integrated local fixture exercises API -> actor -> credential lease -> live-scope check -> query
 -> governed artifacts -> verified audit. It is not an external database/RLS attestation.
+
+## Increment 15: user permission scopes
+
+Sessions now carry explicit server-issued action permissions. Authentication alone grants no
+analysis/science execution, action resume, review submission/read or operations access. The API
+checks the required permission before dispatch; pending-action resume repeats its permission
+check. `IdentityGrant` lets the trusted OIDC grant resolver supply permissions; an ActorContext-only
+grant issues an unprivileged session. JWT custom permissions and caller headers are ignored.
+Permissions persist in shared session state; old records without them default to no action grants.
+Tests cover cross-role attempts, fake permission headers and shared-store reload. Login transaction
+cleanup now removes expired/consumed state and avoids issuing a nonce when capacity is exhausted.

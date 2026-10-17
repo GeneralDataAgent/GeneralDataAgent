@@ -124,7 +124,11 @@ def test_secured_analysis_propagates_actor_source_lease_native_controls_and_arti
         create_app(metric_runtime=runtime, session_broker=broker, production_mode=True)
     )
     token = broker.issue(
-        user_id="u", tenant_id="t", project_id="p", data_domains=frozenset({"commerce"})
+        user_id="u",
+        tenant_id="t",
+        project_id="p",
+        data_domains=frozenset({"commerce"}),
+        permissions=frozenset({"analysis:run"}),
     )
     headers = {
         "authorization": f"Bearer {token}",

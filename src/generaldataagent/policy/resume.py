@@ -47,6 +47,8 @@ class PendingActionCoordinator:
 
     def resume(self, thread_id: str, token: str) -> Any:
         identity = self.broker.authenticate(token)
+        if "actions:resume" not in identity.permissions:
+            raise ApprovalError("action_access_denied")
         with closing(sqlite3.connect(self.path, timeout=5)) as db, db:
             db.execute("BEGIN IMMEDIATE")
             row = db.execute(
@@ -70,6 +72,7 @@ class PendingActionCoordinator:
                 raise ApprovalError("action_policy_changed")
             if self.gateway.approvals is None:
                 raise ApprovalError("approval service unavailable")
+            self.broker.authenticate(token)
             self.gateway.approvals.validate(UUID(row[1]), request)
             db.execute(
                 "UPDATE pending_actions SET state = 'executing' WHERE thread_id = ?", (thread_id,)

@@ -110,6 +110,20 @@ def create_app(
                 application.state.review_store, ScopedHumanReviewStore
             ):
                 return JSONResponse(status_code=403, content={"detail": "unscoped_review_store"})
+            path = request.url.path
+            required = None
+            if path.startswith("/v1/analysis/"):
+                required = "analysis:run"
+            elif path.startswith("/v1/science/"):
+                required = "science:run"
+            elif path.startswith("/v1/actions/"):
+                required = "actions:resume"
+            elif path.startswith("/v1/operations/"):
+                required = "operations:read"
+            elif path.startswith("/v1/reviews"):
+                required = "reviews:submit" if request.method == "POST" else "reviews:read"
+            if required is not None and required not in identity.permissions:
+                return JSONResponse(status_code=403, content={"detail": "permission_denied"})
             request.state.identity = identity
         return await call_next(request)
 

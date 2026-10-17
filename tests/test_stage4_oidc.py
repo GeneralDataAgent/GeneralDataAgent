@@ -7,7 +7,7 @@ from cryptography.hazmat.primitives.asymmetric.rsa import generate_private_key
 
 from generaldataagent.contracts import ActorContext
 from generaldataagent.security.identity import SQLiteSessionBroker
-from generaldataagent.security.oidc import OIDCSessionAdapter
+from generaldataagent.security.oidc import IdentityGrant, OIDCSessionAdapter
 
 
 def test_oidc_pinned_keys_claims_nonce_replay_and_server_side_grants(tmp_path):
@@ -18,8 +18,11 @@ def test_oidc_pinned_keys_claims_nonce_replay_and_server_side_grants(tmp_path):
     def grants(subject):
         if subject != "trusted-subject":
             raise PermissionError("unknown user")
-        return ActorContext(
-            user_id="internal-user", tenant_id="t", project_id="p", data_domains=("d",)
+        return IdentityGrant(
+            ActorContext(
+                user_id="internal-user", tenant_id="t", project_id="p", data_domains=("d",)
+            ),
+            frozenset({"analysis:run"}),
         )
 
     adapter = OIDCSessionAdapter(
@@ -87,6 +90,7 @@ def test_oidc_pinned_keys_claims_nonce_replay_and_server_side_grants(tmp_path):
     assert len(tokens) == 1
     identity = broker.authenticate(tokens[0])
     assert identity.tenant_id == "t" and identity.data_domains == frozenset({"d"})
+    assert identity.permissions == frozenset({"analysis:run"})
     with pytest.raises(PermissionError):
         adapter.exchange(signed(), expected_nonce=nonce)
     with pytest.raises(ValueError):

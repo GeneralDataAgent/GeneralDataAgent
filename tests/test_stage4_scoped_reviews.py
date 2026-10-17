@@ -80,7 +80,11 @@ def test_secured_review_api_checks_session_owner_and_domains(tmp_path):
 
     def headers(user="reviewer", tenant="t", project="p", domain="commerce"):
         token = broker.issue(
-            user_id=user, tenant_id=tenant, project_id=project, data_domains=frozenset({domain})
+            user_id=user,
+            tenant_id=tenant,
+            project_id=project,
+            data_domains=frozenset({domain}),
+            permissions=frozenset({"reviews:read", "reviews:submit"}),
         )
         return {
             "authorization": f"Bearer {token}",
