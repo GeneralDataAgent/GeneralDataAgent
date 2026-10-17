@@ -24,6 +24,7 @@ dependencies = [
   "sqlglot>=25,<30",
   "uvicorn>=0.38,<1",
   "pyjwt[crypto]>=2.10,<3",
+  "langgraph-checkpoint-sqlite>=3,<4",
 ]
 
 [dependency-groups]

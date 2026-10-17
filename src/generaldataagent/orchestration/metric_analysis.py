@@ -30,6 +30,7 @@ from generaldataagent.contracts import (
 from generaldataagent.observability import JsonlAuditSink
 from generaldataagent.observability.alerts import CriticalAlertRouter
 from generaldataagent.observability.verified_audit import VerifiedAuditSink
+from generaldataagent.orchestration.checkpoints import ProtectedSqliteSaver
 from generaldataagent.orchestration.state import PhaseOneState
 from generaldataagent.orchestration.workflow import PhaseOneServices, build_phase_one_graph
 from generaldataagent.policy import PolicyEngine
@@ -57,9 +58,11 @@ class MetricAnalysisRuntime:
         production_mode: bool = False,
         alerts: CriticalAlertRouter | None = None,
         budgets: TaskBudgetLedger | None = None,
+        checkpointer: ProtectedSqliteSaver | None = None,
     ) -> None:
         if production_mode and (
-            budgets is None
+            not isinstance(checkpointer, ProtectedSqliteSaver)
+            or budgets is None
             or narrator is not None
             or not isinstance(executor, ScopedQueryExecutor)
             or not isinstance(artifacts, GovernedArtifactStore)
@@ -68,6 +71,7 @@ class MetricAnalysisRuntime:
                 "production analysis requires scoped source, governed artifacts and budgets; "
                 "narration must be metered"
             )
+        self.checkpointer = checkpointer
         self.budgets = budgets
         self.production_mode = production_mode
         self.catalog = catalog
@@ -92,7 +96,7 @@ class MetricAnalysisRuntime:
                 validate=self._validate,
                 deliver=self._deliver,
             ),
-            checkpointer=InMemorySaver(),
+            checkpointer=checkpointer or InMemorySaver(),
         )
 
     def run(
@@ -112,6 +116,9 @@ class MetricAnalysisRuntime:
         task_id = str(uuid4())
         if self.budgets is not None:
             self.budgets.register(UUID(task_id), actor, Budget())
+        actual_thread_id = thread_id or task_id
+        if self.checkpointer is not None:
+            self.checkpointer.register_thread(actual_thread_id, actor)
         trace_id = str(uuid4())
         state: PhaseOneState = {
             "task_id": task_id,
@@ -132,7 +139,7 @@ class MetricAnalysisRuntime:
         try:
             result = self.graph.invoke(
                 state,
-                {"configurable": {"thread_id": thread_id or task_id}},
+                {"configurable": {"thread_id": actual_thread_id}},
             )
         except Exception as exc:
             self._emit(
@@ -143,6 +150,23 @@ class MetricAnalysisRuntime:
             raise
         self._emit("analysis.finished", result, {"status": result["status"]})
         return result
+
+    def resume(self, thread_id: str, actor: ActorContext) -> dict[str, Any]:
+        if self.checkpointer is None:
+            raise PermissionError("durable_checkpoint_not_configured")
+        actor = self.checkpointer.authorize_thread(thread_id, actor)
+        config = {"configurable": {"thread_id": thread_id}}
+        snapshot = self.graph.get_state(config)
+        if (
+            not snapshot.values
+            or ActorContext.model_validate(snapshot.values["actor_context"]) != actor
+        ):
+            raise PermissionError("checkpoint_access_denied")
+        if self.budgets is not None:
+            self.budgets.ensure_active(UUID(snapshot.values["task_id"]), actor)
+        if not snapshot.next:
+            return dict(snapshot.values)
+        return self.graph.invoke(None, config)
 
     def resolve_question(
         self,

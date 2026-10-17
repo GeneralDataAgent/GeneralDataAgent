@@ -199,3 +199,18 @@ requires this ledger and currently disables unmetered LLM narration. Tool calls 
 are enforced in the integrated runtime; token/scan/cost accounting requires trusted source/provider
 metering adapters to reserve those amounts and must be independently qualified. Tests race 16
 reservations against a three-call ceiling and verify that exhausted budgets stop tool execution.
+
+## Increment 18: encrypted durable checkpoints and analysis resume
+
+`ProtectedSqliteSaver` uses the official SQLite checkpoint adapter with AES-256-GCM serialization,
+no pickle fallback, encrypted actor scope and minimal plaintext routing metadata. A protected
+runtime key is supplied outside Git; agent/API code has no key-management endpoint. Thread
+ownership is immutable, expired reads are denied and operator sweeps purge checkpoint/write
+rows, preserving scope tombstones; trusted legal holds defer deletion. Keys/backups still need
+operator lifecycle/retention. Production analysis now requires this checkpointer.
+`POST /v1/analysis/tasks/{thread_id}/resume` authenticates current permission and original scope,
+checks the existing budget, and resumes the saved graph with the same task/thread instead of
+creating a replacement. Completed retrieval does not requery. Tests interrupt and reopen 100
+workflows across four node boundaries; all resume without rerunning completed analysis. On-disk
+DB/WAL scans confirm fixture results, questions and tenant IDs are not plaintext. This local
+checkpoint qualification is not a real infrastructure disaster-recovery attestation.

@@ -20,14 +20,22 @@ from generaldataagent.observability.verified_audit import (
     receipt_statement,
 )
 from generaldataagent.orchestration import MetricAnalysisRuntime
+from generaldataagent.orchestration.checkpoints import open_protected_checkpointer
 from generaldataagent.policy.budgets import TaskBudgetLedger
 from generaldataagent.security.identity import SQLiteSessionBroker
 from generaldataagent.security.source import NativeScopeProof, ScopedQueryExecutor, SourceLease
 from generaldataagent.tools.sqlite import QueryResult
 
 
+@pytest.fixture
+def protected_saver(tmp_path):
+    with open_protected_checkpointer(tmp_path / "checkpoints", encryption_key=b"c" * 32) as saver:
+        yield saver
+
+
 def test_secured_analysis_propagates_actor_source_lease_native_controls_and_artifact_scope(
     tmp_path,
+    protected_saver,
 ):
     actor = ActorContext(user_id="u", tenant_id="t", project_id="p", data_domains=("commerce",))
     broker = SQLiteSessionBroker(tmp_path / "sessions")
@@ -116,10 +124,15 @@ def test_secured_analysis_propagates_actor_source_lease_native_controls_and_arti
         audit=audit,
         production_mode=True,
         budgets=TaskBudgetLedger(tmp_path / "budgets"),
+        checkpointer=protected_saver,
     )
     result = runtime.run(MetricQuery(metric_name="order_count", metric_version="v1"), actor)
     assert result["status"] == "completed"
     assert seen == [actor]
+    assert runtime.resume(result["task_id"], actor)["task_id"] == result["task_id"]
+    assert seen == [actor]
+    with pytest.raises(PermissionError):
+        runtime.resume(result["task_id"], actor.model_copy(update={"user_id": "other"}))
     assert any("request_fingerprint" in event["payload"] for event in events)
     with pytest.raises(PermissionError, match="artifact_store_actor"):
         runtime.run(
@@ -143,14 +156,16 @@ def test_secured_analysis_propagates_actor_source_lease_native_controls_and_arti
         "x-project-id": "p",
         "x-data-domain": "commerce",
     }
-    assert (
-        api.post(
-            "/v1/analysis/metrics",
-            headers=headers,
-            json={"metric_name": "order_count", "metric_version": "v1"},
-        ).status_code
-        == 200
+    response = api.post(
+        "/v1/analysis/metrics",
+        headers=headers,
+        json={"metric_name": "order_count", "metric_version": "v1"},
     )
+    assert response.status_code == 200
+    resumed = api.post(f"/v1/analysis/tasks/{response.json()['task_id']}/resume", headers=headers)
+    assert resumed.status_code == 200
+    assert resumed.json()["task_id"] == response.json()["task_id"]
+    assert len(seen) == 2
     with pytest.raises(ValueError):
         MetricAnalysisRuntime(
             catalog=catalog,

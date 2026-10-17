@@ -135,6 +135,10 @@ def create_app(
         available = False
         try:
             response = await call_next(request)
+            if request.url.path.startswith("/v1/") and session_broker is not None:
+                response.headers.update(
+                    {"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"}
+                )
             available = response.status_code < 500
             return response
         finally:
@@ -306,6 +310,23 @@ def create_app(
             "validation": result.get("validation_result"),
             "delivery": result.get("delivery_package"),
             "errors": result.get("errors", []),
+        }
+
+    @application.post("/v1/analysis/tasks/{thread_id}/resume")
+    def resume_analysis(thread_id: UUID, request: Request) -> dict[str, Any]:
+        runtime = application.state.metric_runtime
+        if runtime is None:
+            raise HTTPException(status_code=503, detail="analysis_not_configured")
+        try:
+            result = runtime.resume(str(thread_id), authenticated_actor(request))
+            register_review_task(result, authenticated_actor(request))
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        return {
+            "task_id": result["task_id"],
+            "status": result["status"],
+            "validation": result.get("validation_result"),
+            "delivery": result.get("delivery_package"),
         }
 
     @application.post("/v1/analysis/questions")

@@ -63,6 +63,22 @@ class TaskBudgetLedger:
                 (str(task_id), scope, value, now.timestamp(), max_cost_microunits),
             )
 
+    def ensure_active(self, task_id: UUID, actor: ActorContext) -> None:
+        now = self.clock()
+        with closing(sqlite3.connect(self.path, timeout=5)) as db:
+            row = db.execute(
+                "SELECT scope, budget, started FROM task_budgets WHERE task_id = ?", (str(task_id),)
+            ).fetchone()
+        if row is None or row[0] != self._scope(actor):
+            raise BudgetExceededError("task_budget_access_denied")
+        if (
+            now.tzinfo is None
+            or not 0
+            <= now.timestamp() - row[2]
+            < Budget.model_validate_json(row[1]).max_runtime_seconds
+        ):
+            raise BudgetExceededError("task_runtime_budget_exceeded")
+
     def reserve(
         self,
         task_id: UUID,
