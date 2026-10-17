@@ -141,3 +141,14 @@ missing trust, tampering, stale evidence, dirty source and failed local regressi
 baseline on main, PRs and Stage 4 feature pushes. Private signing keys and evidence stay outside
 Git. [The operations runbook](../operations/stage4-runbook.md) covers cohort rollout, rollback,
 identity/audit/provider outages, approval reconciliation, retention and disaster recovery.
+
+## Increment 13: browser OIDC authorization-code login
+
+`/auth/login` creates a Secure/HttpOnly/SameSite=Lax browser binding and durable state,
+nonce and PKCE S256 challenge. `/auth/callback` consumes matching unexpired browser state
+once before exchanging the code and verifying the ID token. It returns a short-lived bearer
+with no-store/no-referrer headers, clears the login cookie and rejects foreign-browser and
+callback replay. The fixed HTTPS token client refuses redirects and bounds responses/timeouts;
+errors never echo codes or credentials. Provider endpoints, client registration and grant
+resolver are operator configuration. Configure reverse proxy and app access logging to omit
+callback query strings; no real provider login is claimed by the local end-to-end fixture.

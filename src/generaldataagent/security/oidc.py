@@ -58,6 +58,9 @@ class OIDCSessionAdapter:
         nonce = secrets.token_urlsafe(32)
         with closing(sqlite3.connect(self.challenge_path, timeout=5)) as db, db:
             db.execute(
+                "DELETE FROM oidc_challenges WHERE expires <= ?", (datetime.now(UTC).timestamp(),)
+            )
+            db.execute(
                 "INSERT INTO oidc_challenges VALUES (?, ?, 0)",
                 (hashlib.sha256(nonce.encode()).hexdigest(), datetime.now(UTC).timestamp() + 300),
             )

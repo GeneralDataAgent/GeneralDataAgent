@@ -6,7 +6,7 @@ from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import FastAPI, Header, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, ConfigDict
 
 from generaldataagent import __version__
@@ -30,6 +30,7 @@ from generaldataagent.observability.slo import ServiceSLO
 from generaldataagent.orchestration import MetricAnalysisRuntime
 from generaldataagent.policy.resume import PendingActionCoordinator
 from generaldataagent.security.identity import SessionBroker
+from generaldataagent.security.login import OIDCLoginFlow
 from generaldataagent.tools import QueryExecutionError
 
 
@@ -54,11 +55,14 @@ def create_app(
     service_enabled: Callable[[], bool] | None = None,
     pending_actions: PendingActionCoordinator | None = None,
     slo: ServiceSLO | None = None,
+    oidc_login: OIDCLoginFlow | None = None,
 ) -> FastAPI:
     if pending_actions is not None and (
         session_broker is None or pending_actions.broker is not session_broker
     ):
         raise ValueError("action coordinator must share the API identity broker")
+    if oidc_login is not None and oidc_login.adapter.broker is not session_broker:
+        raise ValueError("login flow must share the API identity broker")
     if production_mode and session_broker is None:
         raise ValueError("production mode requires an identity broker")
     application = FastAPI(
@@ -131,6 +135,44 @@ def create_app(
     def register_review_task(result: dict[str, Any], actor: ActorContext) -> None:
         if isinstance(review_store, ScopedHumanReviewStore) and result.get("task_id"):
             review_store.register_task(UUID(str(result["task_id"])), actor)
+
+    @application.get("/auth/login")
+    def begin_login():
+        if oidc_login is None:
+            raise HTTPException(status_code=503, detail="sso_not_configured")
+        try:
+            url, cookie = oidc_login.begin()
+        except PermissionError as exc:
+            raise HTTPException(status_code=503, detail="login_unavailable") from exc
+        response = RedirectResponse(url, status_code=302)
+        response.set_cookie(
+            "gda_login",
+            cookie,
+            secure=True,
+            httponly=True,
+            samesite="lax",
+            path="/auth",
+            max_age=300,
+        )
+        response.headers.update({"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"})
+        return response
+
+    @application.get("/auth/callback")
+    def finish_login(request: Request, state: str = "", code: str = ""):
+        if oidc_login is None:
+            raise HTTPException(status_code=503, detail="sso_not_configured")
+        try:
+            token = oidc_login.finish(
+                state=state, code=code, cookie=request.cookies.get("gda_login", "")
+            )
+            response = JSONResponse({"access_token": token, "token_type": "Bearer"})
+        except PermissionError:
+            response = JSONResponse({"detail": "oidc_login_failed"}, status_code=401)
+        response.delete_cookie(
+            "gda_login", path="/auth", secure=True, httponly=True, samesite="lax"
+        )
+        response.headers.update({"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"})
+        return response
 
     @application.get("/health", response_model=HealthResponse)
     def health() -> HealthResponse:

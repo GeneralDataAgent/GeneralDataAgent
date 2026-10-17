@@ -4,9 +4,11 @@ Status: repository controls implemented incrementally; production admission is n
 
 ## Deployment prerequisites and trust boundaries
 
-The service owner provisions HTTPS ingress, a real OIDC authorization-code client with browser-bound
-state/PKCE, operator-pinned issuer keys and a server-side user/project/domain grant resolver.
-Only the trusted login controller invokes `OIDCSessionAdapter.exchange`. Never accept tenant,
+The service owner provisions HTTPS ingress, an OIDC provider registration, operator-pinned issuer keys and a server-side user/project/domain
+grant resolver. The repository supplies browser state/PKCE and a fixed HTTPS code-exchange client.
+Configure `OIDCLoginFlow` on the API factory with the fixed registered HTTPS redirect URI.
+Disable query strings in proxy/application access logs, especially `/auth/callback`; authorization
+codes and login state must not enter logs. Only the login controller invokes `OIDCSessionAdapter.exchange`. Never accept tenant,
 project, role, source credentials or signing keys directly from JWT custom claims/API bodies.
 
 Use `SQLiteSessionBroker` only on a single host with a shared, protected state volume. Agents
