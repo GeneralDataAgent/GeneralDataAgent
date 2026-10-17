@@ -4,12 +4,29 @@ from datetime import UTC, datetime, timedelta
 from fastapi.testclient import TestClient
 
 from generaldataagent.api.app import create_app
-from generaldataagent.security.release import REQUIRED_EXERCISES, ReleaseEvidence, release_blockers
+from generaldataagent.security.release import (
+    REQUIRED_EXERCISES,
+    ReleaseEvidence,
+    SLOEvidence,
+    release_blockers,
+)
 
 
 def test_release_gate_fails_closed_on_each_missing_production_measurement():
     now = datetime.now(UTC)
-    evidence = ReleaseEvidence("abc", now, 100, 88, 0, 0, 0, 100, 99, REQUIRED_EXERCISES)
+    evidence = ReleaseEvidence(
+        "abc",
+        now,
+        100,
+        88,
+        0,
+        0,
+        0,
+        100,
+        99,
+        REQUIRED_EXERCISES,
+        slo=SLOEvidence(30 * 86400, 0, 100, 1.0, 60.0, 14),
+    )
     assert release_blockers(evidence, revision="abc", now=now) == ()
     mutations = [
         dict(revision="old"),

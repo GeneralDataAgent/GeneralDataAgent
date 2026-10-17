@@ -1,5 +1,6 @@
 """Fail-closed production release evidence checks, independent of model output."""
 
+import math
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -20,6 +21,16 @@ REQUIRED_EXERCISES = frozenset(
 
 
 @dataclass(frozen=True)
+class SLOEvidence:
+    observed_seconds: int
+    unavailable_seconds: int
+    event_samples: int
+    p95_event_seconds: float
+    critical_alert_delivery_seconds: float
+    pilot_clean_days: int
+
+
+@dataclass(frozen=True)
 class ReleaseEvidence:
     revision: str
     recorded_at: datetime
@@ -32,6 +43,7 @@ class ReleaseEvidence:
     recovery_successes: int
     exercises: frozenset[str]
     blocking_findings: int = 0
+    slo: SLOEvidence | None = None
 
 
 def release_blockers(evidence: ReleaseEvidence, *, revision: str, now: datetime) -> tuple[str, ...]:
@@ -65,4 +77,19 @@ def release_blockers(evidence: ReleaseEvidence, *, revision: str, now: datetime)
         reasons.append("recovery_below_threshold")
     if not evidence.exercises >= REQUIRED_EXERCISES:
         reasons.append("missing_exercises")
+    slo = evidence.slo
+    if slo is None:
+        reasons.append("missing_slo_evidence")
+    elif (
+        slo.observed_seconds < 30 * 86400
+        or not 0 <= slo.unavailable_seconds <= slo.observed_seconds
+        or slo.unavailable_seconds / slo.observed_seconds > 0.005
+        or slo.event_samples < 100
+        or not math.isfinite(slo.p95_event_seconds)
+        or not 0 <= slo.p95_event_seconds <= 3
+        or not math.isfinite(slo.critical_alert_delivery_seconds)
+        or not 0 <= slo.critical_alert_delivery_seconds <= 300
+        or slo.pilot_clean_days < 14
+    ):
+        reasons.append("slo_or_pilot_below_threshold")
     return tuple(reasons)

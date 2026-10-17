@@ -108,3 +108,13 @@ never forwarded. Service errors return a fixed denial without echoing remote cre
 acknowledgement. Tests cover forged/replayed/mismatched/expired/future receipts and service
 outage before tool execution. Operators must provision a separate service identity, remote
 append-only storage and signing key; local tests do not attest to that infrastructure.
+
+## Increment 10: SLO measurements and operational release thresholds
+
+`ServiceSLO` keeps a bounded aggregate latency/availability sample window with no request
+payloads or user labels. API middleware records success/error availability and elapsed time;
+the protected operations endpoint exposes aggregate counts and nearest-rank P95. The rolling
+sample is diagnostic and is not a monthly uptime measurement. Release evidence now separately
+requires a 30-day observation, >=99.5% time availability, >=100 event samples, P95 <=3 seconds,
+critical alert delivery <=300 seconds and >=14 clean pilot days. Missing/non-finite values fail
+the gate. Real observation and alert transport remain deployment obligations.

@@ -1,6 +1,7 @@
 """HTTP surface for health, contracts, and certified metric analysis."""
 
 from collections.abc import Callable
+from time import monotonic
 from typing import Annotated, Any
 from uuid import UUID
 
@@ -25,6 +26,7 @@ from generaldataagent.data_science.tracking import ExperimentTrackingError
 from generaldataagent.data_science.workbench import DataScienceWorkbench, ScienceGateError
 from generaldataagent.evaluation import DuplicateReviewError, LocalHumanReviewStore
 from generaldataagent.evaluation.scoped_reviews import ScopedHumanReviewStore
+from generaldataagent.observability.slo import ServiceSLO
 from generaldataagent.orchestration import MetricAnalysisRuntime
 from generaldataagent.policy.resume import PendingActionCoordinator
 from generaldataagent.security.identity import SessionBroker
@@ -51,6 +53,7 @@ def create_app(
     production_mode: bool = False,
     service_enabled: Callable[[], bool] | None = None,
     pending_actions: PendingActionCoordinator | None = None,
+    slo: ServiceSLO | None = None,
 ) -> FastAPI:
     if pending_actions is not None and (
         session_broker is None or pending_actions.broker is not session_broker
@@ -102,6 +105,18 @@ def create_app(
             request.state.identity = identity
         return await call_next(request)
 
+    @application.middleware("http")
+    async def observe_service(request: Request, call_next):
+        started = monotonic()
+        available = False
+        try:
+            response = await call_next(request)
+            available = response.status_code < 500
+            return response
+        finally:
+            if slo is not None and request.url.path.startswith("/v1/"):
+                slo.record(duration_seconds=monotonic() - started, available=available)
+
     def authenticated_actor(request: Request) -> ActorContext:
         identity = getattr(request.state, "identity", None)
         if identity is None:
@@ -139,6 +154,12 @@ def create_app(
                 "fixed_template_science_sandbox",
             ],
         }
+
+    @application.get("/v1/operations/slo")
+    def service_slo() -> dict[str, Any]:
+        if slo is None:
+            raise HTTPException(status_code=503, detail="slo_not_configured")
+        return slo.snapshot()
 
     @application.post("/v1/science/experiments")
     def run_science_experiment(
