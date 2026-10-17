@@ -3,7 +3,8 @@
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict
 
 from generaldataagent import __version__
@@ -23,6 +24,7 @@ from generaldataagent.data_science.tracking import ExperimentTrackingError
 from generaldataagent.data_science.workbench import DataScienceWorkbench, ScienceGateError
 from generaldataagent.evaluation import DuplicateReviewError, LocalHumanReviewStore
 from generaldataagent.orchestration import MetricAnalysisRuntime
+from generaldataagent.security.identity import SessionBroker
 from generaldataagent.tools import QueryExecutionError
 
 
@@ -42,7 +44,11 @@ def create_app(
     metric_runtime: MetricAnalysisRuntime | None = None,
     review_store: LocalHumanReviewStore | None = None,
     science_workbench: DataScienceWorkbench | None = None,
+    session_broker: SessionBroker | None = None,
+    production_mode: bool = False,
 ) -> FastAPI:
+    if production_mode and session_broker is None:
+        raise ValueError("production mode requires an identity broker")
     application = FastAPI(
         title="GeneralDataAgent",
         version=__version__,
@@ -51,6 +57,33 @@ def create_app(
     application.state.metric_runtime = metric_runtime
     application.state.review_store = review_store
     application.state.science_workbench = science_workbench
+
+    @application.middleware("http")
+    async def enforce_identity(request: Request, call_next):
+        if session_broker is not None and request.url.path.startswith("/v1/"):
+            authorization = request.headers.get("authorization", "")
+            try:
+                scheme, token = authorization.split(" ", 1)
+                if scheme.lower() != "bearer" or not token:
+                    raise ValueError("missing bearer token")
+                identity = session_broker.authenticate(token)
+            except (ValueError, PermissionError):
+                return JSONResponse(status_code=401, content={"detail": "invalid_session"})
+            scope = {
+                "x-user-id": identity.user_id,
+                "x-tenant-id": identity.tenant_id,
+                "x-project-id": identity.project_id,
+            }
+            if any(request.headers.get(key) != value for key, value in scope.items()):
+                return JSONResponse(status_code=403, content={"detail": "identity_scope_mismatch"})
+            domains = request.headers.getlist("x-data-domain")
+            if not domains or not set(domains) <= identity.data_domains:
+                return JSONResponse(status_code=403, content={"detail": "data_domain_denied"})
+            # Review storage has no tenant ownership index yet; deny in secured deployments.
+            if request.url.path.startswith("/v1/reviews"):
+                return JSONResponse(status_code=403, content={"detail": "unscoped_review_store"})
+            request.state.identity = identity
+        return await call_next(request)
 
     @application.get("/health", response_model=HealthResponse)
     def health() -> HealthResponse:
