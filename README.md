@@ -453,3 +453,16 @@ src/generaldataagent/
 ```
 
 The parent project documentation in `../docs/` remains the architecture and acceptance source of truth.
+
+### Stage 4 production-readiness development
+
+The Stage 4 branch adds scoped OIDC/PKCE login and user permissions, durable approvals/reviews,
+short-lived native-source permission boundaries, governed text artifacts and retention, encrypted
+checkpoints, independent signed audit collection, task budgets, SLO/alerts, and live signed release
+admission. These are repository controls; production acceptance requires independent real-environment
+evidence. See [implementation/validation](docs/validation/stage4-production-readiness.md) and the
+[rollout/recovery runbook](docs/operations/stage4-runbook.md).
+
+Run the local baseline with `uv run --frozen python evals/run_stage4_acceptance.py`. Add
+`--require-production` in a release pipeline to fail while signed independent admission evidence
+is missing or invalid. Deploy through the released factory, never the development module-level app.

@@ -249,3 +249,21 @@ work and login immediately, while health stays available. The same strict trust 
 the CLI. Tests revoke trust on a running API and verify that new requests stop without restart.
 Deployment must bind the expected revision to immutable build provenance; unsigned source changes
 or handwritten evidence are never a substitute for the signed release pipeline.
+
+## Local qualification: 2026-10-18
+
+At implementation commit `66690ab`:
+
+- Locked dependency consistency, Ruff lint/format and diff whitespace checks passed.
+- Full suite: 262 tests passed; line coverage 87.93% (required >=85%).
+- Frozen security matrix: 91/91 passed, dataset SHA-256
+  `ce97f755e446ddac692bf0e5b1ba7ef45131f6df6e2d3c039c32acac137e02c0`.
+- Encrypted checkpoint interruption/restart exercise: 100/100 resumed without replaying a completed
+  analysis node. This is included in the full suite, not 100 additional top-level test functions.
+- Source and wheel distributions built successfully with the locked environment.
+- Aggregate Stage 4 development gate passed. Production gate remains `incomplete` because independent
+  real-environment release evidence is absent; strict production mode returns a failing exit code.
+
+Remaining requirements are actual provider/native-source integration and independent deployment,
+security/DR/provider drills, real-work success measurements and observed SLO/pilot evidence.
+No real SSO user, production data source, paging recipient or deployed environment was fabricated.
