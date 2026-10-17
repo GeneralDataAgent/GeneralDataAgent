@@ -24,3 +24,13 @@ source RLS/CLS remain required before production acceptance.
 - At least 90 versioned regression tasks, SLO measurement, alerts and recovery runbooks.
 
 Stage acceptance remains incomplete until independent deployment evidence exists.
+
+## Increment 2: service stop and release measurements
+
+The factory accepts a trusted `service_enabled` callback. False, non-boolean values or
+control-plane errors stop all `/v1/` requests with 503, while health remains available.
+The switch blocks new requests; draining/cancelling in-flight work is still an operator duty.
+`security.release.release_blockers` checks revision, 24-hour evidence freshness, at least
+90 tasks and 88% success, zero security blockers, at least 100 recovery attempts and 99%
+success, plus the mandatory exercise set. This is a measurement evaluator, not a deployment
+authorizer: evidence signatures, SLO observation and independent approvals remain external.

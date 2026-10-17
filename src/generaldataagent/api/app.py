@@ -1,5 +1,6 @@
 """HTTP surface for health, contracts, and certified metric analysis."""
 
+from collections.abc import Callable
 from typing import Annotated, Any
 from uuid import UUID
 
@@ -46,6 +47,7 @@ def create_app(
     science_workbench: DataScienceWorkbench | None = None,
     session_broker: SessionBroker | None = None,
     production_mode: bool = False,
+    service_enabled: Callable[[], bool] | None = None,
 ) -> FastAPI:
     if production_mode and session_broker is None:
         raise ValueError("production mode requires an identity broker")
@@ -60,6 +62,13 @@ def create_app(
 
     @application.middleware("http")
     async def enforce_identity(request: Request, call_next):
+        if request.url.path.startswith("/v1/") and service_enabled is not None:
+            try:
+                enabled = service_enabled() is True
+            except Exception:
+                enabled = False
+            if not enabled:
+                return JSONResponse(status_code=503, content={"detail": "service_disabled"})
         if session_broker is not None and request.url.path.startswith("/v1/"):
             authorization = request.headers.get("authorization", "")
             try:
