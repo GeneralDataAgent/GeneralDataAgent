@@ -15,13 +15,12 @@ closed review access and missing production broker. Local sessions invalidate on
 are not suitable for multi-worker deployment; external SSO, shared session storage and native
 source RLS/CLS remain required before production acceptance.
 
-## Remaining slices
+## Remaining production acceptance work
 
-- Service kill switch and fail-closed release gate.
-- DLP and retention/deletion enforcement across artifacts, logs and traces.
-- Independently authorized audit service and native database RLS/CLS propagation.
-- SSO integration, scoped HITL recovery and security/fault-injection exercises.
-- At least 90 versioned regression tasks, SLO measurement, alerts and recovery runbooks.
+Repository increments below provide local controls and executable release checks. Production
+acceptance still requires real OIDC browser/code integration, native source RLS/CLS/workload
+credentials, independently administered audit/storage, actual security/disaster/provider drills,
+90+ real-work tasks and observed SLO/pilot evidence. These cannot be replaced by local fixtures.
 
 Stage acceptance remains incomplete until independent deployment evidence exists.
 
@@ -131,3 +130,14 @@ The trusted web controller still must implement browser-bound OAuth state, PKCE/
 TLS and real provider enrollment; this adapter is deliberately not a public login endpoint.
 Design references: [OIDC Core ID Token Validation](https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation)
 and [PyJWT verification API](https://pyjwt.readthedocs.io/en/stable/api.html#jwt.decode).
+
+## Increment 12: executable signed release gate and operations guide
+
+`ReleaseBundle` binds strict measurements, environment and expiry to the committed revision.
+Verification requires distinct security/operations signers and distinct Ed25519 public keys;
+missing trust, tampering, stale evidence, dirty source and failed local regression block production.
+`evals/run_stage4_acceptance.py` runs the 91-case local baseline and optionally the signed gate;
+`--require-production` returns nonzero while any admission blocker remains. CI now runs the local
+baseline on main, PRs and Stage 4 feature pushes. Private signing keys and evidence stay outside
+Git. [The operations runbook](../operations/stage4-runbook.md) covers cohort rollout, rollback,
+identity/audit/provider outages, approval reconciliation, retention and disaster recovery.

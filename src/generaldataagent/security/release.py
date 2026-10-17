@@ -4,6 +4,8 @@ import math
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
+from pydantic import ConfigDict
+
 REQUIRED_EXERCISES = frozenset(
     {
         "sso_scope",
@@ -22,6 +24,7 @@ REQUIRED_EXERCISES = frozenset(
 
 @dataclass(frozen=True)
 class SLOEvidence:
+    __pydantic_config__ = ConfigDict(extra="forbid", strict=True)
     observed_seconds: int
     unavailable_seconds: int
     event_samples: int
@@ -32,6 +35,7 @@ class SLOEvidence:
 
 @dataclass(frozen=True)
 class ReleaseEvidence:
+    __pydantic_config__ = ConfigDict(extra="forbid", strict=True)
     revision: str
     recorded_at: datetime
     task_count: int

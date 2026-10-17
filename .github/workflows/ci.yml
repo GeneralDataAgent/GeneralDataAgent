@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, "feat/stage4-*"]
   pull_request:
 
 permissions:
@@ -43,6 +43,9 @@ jobs:
 
       - name: Test
         run: uv run --frozen pytest --cov=generaldataagent --cov-fail-under=85
+
+      - name: Stage 4 security baseline
+        run: uv run --frozen python evals/run_stage4_acceptance.py > "$RUNNER_TEMP/stage4-acceptance.json"
 
       - name: Build distributions
         if: matrix.python-version == '3.12'
