@@ -6,6 +6,7 @@ from uuid import UUID
 
 from generaldataagent.contracts import AuditEvent, ToolRequest
 from generaldataagent.observability import JsonlAuditSink
+from generaldataagent.observability.verified_audit import VerifiedAuditSink
 from generaldataagent.policy import ApprovalStore, PolicyEngine
 
 
@@ -17,9 +18,13 @@ class ToolGateway:
     def __init__(
         self,
         policy: PolicyEngine,
-        audit: JsonlAuditSink | None = None,
+        audit: JsonlAuditSink | VerifiedAuditSink | None = None,
         approvals: ApprovalStore | None = None,
+        *,
+        production_mode: bool = False,
     ) -> None:
+        if production_mode and not isinstance(audit, VerifiedAuditSink):
+            raise ValueError("production gateway requires independent verified audit")
         self.policy = policy
         self.audit = audit
         self.approvals = approvals

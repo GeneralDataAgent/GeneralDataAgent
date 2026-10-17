@@ -97,3 +97,14 @@ The evaluator emits case IDs, outcomes and dataset digest, without raw attack co
 SQL inspection now rejects SELECT INTO and external/unreviewed functions, and resolves CTE
 ownership lexically rather than whitelisting CTE names globally. This local security suite is
 not the separate 90-task production success benchmark and not a penetration-test attestation.
+
+## Increment 9: independently signed audit acknowledgements
+
+`VerifiedAuditSink` sends minimal events through an injected append-only transport and checks
+Ed25519 receipts against pinned public keys, event IDs/content hashes and five-minute freshness.
+Envelope identities are HMAC-pseudonymized with a deployment secret; SQL/prompts/free text are
+never forwarded. Service errors return a fixed denial without echoing remote credentials.
+`ToolGateway(production_mode=True)` requires this sink and refuses to execute without a valid
+acknowledgement. Tests cover forged/replayed/mismatched/expired/future receipts and service
+outage before tool execution. Operators must provision a separate service identity, remote
+append-only storage and signing key; local tests do not attest to that infrastructure.
