@@ -29,6 +29,7 @@ from generaldataagent.evaluation.scoped_reviews import ScopedHumanReviewStore
 from generaldataagent.observability.alerts import CriticalAlertRouter
 from generaldataagent.observability.slo import ServiceSLO
 from generaldataagent.orchestration import MetricAnalysisRuntime
+from generaldataagent.orchestration.checkpoints import CheckpointBusyError, CheckpointLeaseLostError
 from generaldataagent.policy.resume import PendingActionCoordinator
 from generaldataagent.security.identity import SessionBroker
 from generaldataagent.security.login import OIDCLoginFlow
@@ -320,6 +321,8 @@ def create_app(
         try:
             result = runtime.resume(str(thread_id), authenticated_actor(request))
             register_review_task(result, authenticated_actor(request))
+        except (CheckpointBusyError, CheckpointLeaseLostError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
         return {

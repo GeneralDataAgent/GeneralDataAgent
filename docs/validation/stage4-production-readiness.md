@@ -276,3 +276,14 @@ normalization and format-character removal. It bounds JSON nesting before parsin
 non-finite structured values. Original artifact bytes are preserved; failed scans never write content.
 Tests cover escaped credentials/email/phone, hidden separators, nested data, safe encoded reports and
 resource-exhaustion input. This closes these specific encoding paths, not arbitrary PII detection.
+
+## Follow-up 2: concurrent analysis resume and retention fencing
+
+Analysis run/resume now claims a shared SQLite execution lease before reading or advancing a graph.
+A second authorized request receives HTTP 409 rather than replaying an active analysis. Heartbeats
+renew the lease; stale leases can be reclaimed after process loss, and the old owner cannot return
+success or append checkpoint writes after losing ownership. Retention sweeps skip active leases;
+expired/deleted threads reject subsequent checkpoint and pending-write persistence. Tests exercise
+independent saver connections, concurrent API resume, stale-owner fencing, lease recovery and
+expiry/cleanup interaction, alongside the existing 100 restart cases. These are read-only analysis
+leases; approvals retain their separate durable one-use side-effect and reconciliation rules.

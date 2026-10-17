@@ -139,10 +139,16 @@ class MetricAnalysisRuntime:
             {"metric": query.metric_name, "version": query.metric_version},
         )
         try:
-            result = self._invoke_graph(
-                state,
-                {"configurable": {"thread_id": actual_thread_id}},
+            execution = (
+                self.checkpointer.execution(actual_thread_id, actor)
+                if self.checkpointer is not None
+                else nullcontext()
             )
+            with execution:
+                result = self._invoke_graph(
+                    state,
+                    {"configurable": {"thread_id": actual_thread_id}},
+                )
         except Exception as exc:
             self._emit(
                 "analysis.failed",
@@ -162,19 +168,20 @@ class MetricAnalysisRuntime:
     def resume(self, thread_id: str, actor: ActorContext) -> dict[str, Any]:
         if self.checkpointer is None:
             raise PermissionError("durable_checkpoint_not_configured")
-        actor = self.checkpointer.authorize_thread(thread_id, actor)
-        config = {"configurable": {"thread_id": thread_id}}
-        snapshot = self.graph.get_state(config)
-        if (
-            not snapshot.values
-            or ActorContext.model_validate(snapshot.values["actor_context"]) != actor
-        ):
-            raise PermissionError("checkpoint_access_denied")
-        if self.budgets is not None:
-            self.budgets.ensure_active(UUID(snapshot.values["task_id"]), actor)
-        if not snapshot.next:
-            return dict(snapshot.values)
-        return self._invoke_graph(None, config)
+        with self.checkpointer.execution(thread_id, actor) as original_actor:
+            actor = original_actor
+            config = {"configurable": {"thread_id": thread_id}}
+            snapshot = self.graph.get_state(config)
+            if (
+                not snapshot.values
+                or ActorContext.model_validate(snapshot.values["actor_context"]) != actor
+            ):
+                raise PermissionError("checkpoint_access_denied")
+            if self.budgets is not None:
+                self.budgets.ensure_active(UUID(snapshot.values["task_id"]), actor)
+            if not snapshot.next:
+                return dict(snapshot.values)
+            return self._invoke_graph(None, config)
 
     def resolve_question(
         self,
