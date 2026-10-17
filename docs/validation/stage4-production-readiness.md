@@ -267,3 +267,12 @@ At implementation commit `66690ab`:
 Remaining requirements are actual provider/native-source integration and independent deployment,
 security/DR/provider drills, real-work success measurements and observed SLO/pilot evidence.
 No real SSO user, production data source, paging recipient or deployed environment was fabricated.
+
+## Follow-up 1: semantic JSON/Unicode DLP checks
+
+A post-integration review reproduced egress bypasses through escaped JSON keys/values and fullwidth
+credential field names. Text DLP now scans both original and decoded JSON representations with NFKC
+normalization and format-character removal. It bounds JSON nesting before parsing and rejects
+non-finite structured values. Original artifact bytes are preserved; failed scans never write content.
+Tests cover escaped credentials/email/phone, hidden separators, nested data, safe encoded reports and
+resource-exhaustion input. This closes these specific encoding paths, not arbitrary PII detection.

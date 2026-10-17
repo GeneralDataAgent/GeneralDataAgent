@@ -1,6 +1,8 @@
 """Deterministic text egress checks; reject unsupported content rather than skip scanning."""
 
+import json
 import re
+import unicodedata
 from dataclasses import dataclass
 
 from generaldataagent.contracts import ArtifactClassification
@@ -24,6 +26,44 @@ class TextDLPScanner:
             text = content.decode("utf-8")
         except UnicodeDecodeError as exc:
             raise DLPDeniedError("dlp_unsupported_encoding") from exc
+        # Inspect the semantic JSON representation as well as the original text: keys and
+        # values encoded with JSON escapes must not become invisible to the text rules.
+        candidates = [text]
+        if text.lstrip().startswith(("{", "[")):
+            depth, quoted, escaped = 0, False, False
+            for char in text:
+                if quoted:
+                    if escaped:
+                        escaped = False
+                    elif char == "\\":
+                        escaped = True
+                    elif char == '"':
+                        quoted = False
+                elif char == '"':
+                    quoted = True
+                elif char in "{[":
+                    depth += 1
+                    if depth > 64:
+                        raise DLPDeniedError("dlp_structure_limit")
+                elif char in "}]":
+                    depth -= 1
+            try:
+                value = json.loads(text)
+            except json.JSONDecodeError:
+                value = None  # Non-JSON text still receives the normal text checks.
+            except (RecursionError, ValueError):
+                raise DLPDeniedError("dlp_structure_limit") from None
+            if value is not None:
+                try:
+                    candidates.append(json.dumps(value, ensure_ascii=False, allow_nan=False))
+                except (RecursionError, ValueError):
+                    raise DLPDeniedError("dlp_structure_limit") from None
+        normalized = []
+        for candidate in candidates:
+            candidate = unicodedata.normalize("NFKC", candidate)
+            normalized.append(
+                "".join(char for char in candidate if unicodedata.category(char) != "Cf")
+            )
         patterns = {
             "private_key": r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----",
             "credential": (
@@ -40,7 +80,7 @@ class TextDLPScanner:
                 }
             )
         for code, pattern in patterns.items():
-            if re.search(pattern, text):
+            if any(re.search(pattern, candidate) for candidate in normalized):
                 raise DLPDeniedError(f"dlp_{code}")
 
     def check_export(self, content: bytes, classification: ArtifactClassification) -> None:
