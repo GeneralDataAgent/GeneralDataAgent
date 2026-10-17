@@ -73,3 +73,16 @@ then repeats policy and atomic grant consumption. A grant not yet issued leaves 
 pending. Concurrent resume calls execute at most once; a crash or execution failure requires
 operator reconciliation and is never automatically replayed. R2 and R3 tests use inert fixture
 handlers, not production writes. Pause/approve remain trusted runtime/approval-service ports.
+
+## Increment 7: governed text artifact lifecycle
+
+`GovernedArtifactStore` implements the existing artifact port with an actor-bound scope,
+DLP-before-write and immutable metadata stored outside the content tree. Reads and exports
+validate tenant/project/domain, reference integrity and expiry. Text scanning rejects private
+keys, credential assignments, bearer tokens and common email/Chinese mobile patterns; unknown
+encoding and oversized input fail closed. Export additionally rejects confidential/restricted
+classification. This is a conservative UTF-8 pilot and does not claim universal PII detection.
+Expired content is denied immediately; an operator sweep deletes bytes with durable tombstones.
+Legal holds prevent deletion but do not grant expired content read access. Tests exercise
+cross-scope reads, forged classification, hash tampering, expiry, restart, legal holds, and
+idempotent deletion. Backup retention and external trace deletion remain separate obligations.
