@@ -48,3 +48,9 @@ def test_matrix_rejects_small_duplicate_and_malformed_fixtures(tmp_path):
 def test_sql_read_only_scope_and_external_io_hardening(sql):
     with pytest.raises(SqlGuardError):
         SqlGuard().inspect(sql, allowed_relations={"analytics.orders"})
+
+
+def test_sql_parser_warnings_do_not_log_untrusted_sql_literals(caplog):
+    with pytest.raises(SqlGuardError):
+        SqlGuard().inspect("CALL private_function('sensitive-literal-credential')")
+    assert "sensitive-literal-credential" not in caplog.text

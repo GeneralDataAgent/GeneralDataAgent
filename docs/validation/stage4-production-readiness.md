@@ -224,3 +224,17 @@ tracing environment variable and checks that the executing source still observes
 The built-in API launcher disables access logging to avoid logging OAuth callback codes/query
 strings. A separately configured proxy/launcher must enforce the same boundary. Approved redacted
 trace export is not enabled by this pilot.
+
+## Increment 20: deployable independent audit collector and HTTPS transports
+
+`services.audit_collector` provides a separately deployed, append-token-only HTTP service.
+It rejects raw/non-minimized identities or payloads, bounds streamed requests, atomically deduplicates
+event IDs, persists an append hash chain and signs durable receipts with a service-owned Ed25519 key.
+There are no read/delete/admin HTTP routes. Operator chain verification can check an independently
+anchored sequence/hash; a self-contained chain does not prove absence of tail truncation without
+that anchor. `AuditHTTPTransport` and `AlertHTTPTransport` pin fixed HTTPS endpoints, refuse redirects,
+bound responses and sanitize failures. Integrated collector/receipt tests cover retries, concurrent
+deduplication, tampering, credential denial, payload limits and absent destructive endpoints.
+Deployment still requires separate OS/service credentials, protected volumes and externally anchored
+backups/retention; in-process tests do not establish that administrative separation.
+SQL parser fallback warnings are also redacted so untrusted literals do not enter ordinary logs.

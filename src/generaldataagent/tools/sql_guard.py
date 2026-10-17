@@ -1,10 +1,21 @@
 """Parsed SQL read-only enforcement."""
 
+import logging
 from dataclasses import dataclass
 
 from sqlglot import exp, parse
 from sqlglot.errors import ParseError
 from sqlglot.optimizer.scope import traverse_scope
+
+
+class _SQLDiagnosticFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        # Parser fallback diagnostics can otherwise contain raw SQL literals/credentials.
+        record.msg, record.args = "SQL parser diagnostic suppressed", ()
+        return True
+
+
+logging.getLogger("sqlglot").addFilter(_SQLDiagnosticFilter())
 
 
 class SqlGuardError(ValueError):
