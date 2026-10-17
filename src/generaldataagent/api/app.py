@@ -1,6 +1,7 @@
 """HTTP surface for health, contracts, and certified metric analysis."""
 
 from collections.abc import Callable
+from contextlib import asynccontextmanager
 from time import monotonic
 from typing import Annotated, Any
 from uuid import UUID
@@ -27,6 +28,7 @@ from generaldataagent.data_science.workbench import DataScienceWorkbench, Scienc
 from generaldataagent.evaluation import DuplicateReviewError, LocalHumanReviewStore
 from generaldataagent.evaluation.scoped_reviews import ScopedHumanReviewStore
 from generaldataagent.observability.alerts import CriticalAlertRouter
+from generaldataagent.observability.maintenance import ServiceMaintenance
 from generaldataagent.observability.slo import ServiceSLO
 from generaldataagent.orchestration import MetricAnalysisRuntime
 from generaldataagent.orchestration.checkpoints import CheckpointBusyError, CheckpointLeaseLostError
@@ -59,6 +61,7 @@ def create_app(
     slo: ServiceSLO | None = None,
     oidc_login: OIDCLoginFlow | None = None,
     alerts: CriticalAlertRouter | None = None,
+    maintenance: ServiceMaintenance | None = None,
 ) -> FastAPI:
     if pending_actions is not None and (
         session_broker is None or pending_actions.broker is not session_broker
@@ -72,8 +75,20 @@ def create_app(
         raise ValueError("production API requires a production-governed analysis runtime")
     if production_mode and science_workbench is not None and not science_workbench.production_mode:
         raise ValueError("production API requires a production-governed science workbench")
+
+    @asynccontextmanager
+    async def lifespan(application: FastAPI):
+        if maintenance is not None:
+            maintenance.start()
+        try:
+            yield
+        finally:
+            if maintenance is not None:
+                maintenance.stop()
+
     application = FastAPI(
         title="GeneralDataAgent",
+        lifespan=lifespan,
         version=__version__,
         description="Governed multi-agent foundation for enterprise data work.",
     )
@@ -227,6 +242,12 @@ def create_app(
         if slo is None:
             raise HTTPException(status_code=503, detail="slo_not_configured")
         return slo.snapshot()
+
+    @application.get("/v1/operations/maintenance")
+    def maintenance_status() -> dict[str, Any]:
+        if maintenance is None:
+            raise HTTPException(status_code=503, detail="maintenance_not_configured")
+        return maintenance.status()
 
     @application.get("/v1/operations/alerts")
     def alert_measurements() -> dict[str, Any]:

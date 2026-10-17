@@ -304,3 +304,13 @@ fraction of a second upward. OIDC rechecks expiry after the trusted grant resolv
 passes the issuer's absolute expiry to the broker, so slow resolution/nonce persistence cannot
 extend an expired identity token into a new session. Tests advance a simulated resolver past token
 expiry and verify no session is created, plus exact fractional deadline and maximum-TTL boundaries.
+
+## Follow-up 5: service-owned retries and retention sweeps
+
+`ServiceMaintenance` is now wired to the API lifespan when explicitly configured. It retries durable
+pending critical alerts with the original event IDs and periodically sweeps the supplied artifact
+and checkpoint stores, without depending on new user traffic. Failures are isolated per job and
+reported as aggregate counters through the protected operations endpoint; no exception payloads or
+sensitive records are exported. Shutdown stops new retry batches and joins the worker. Tests cover
+outage/recovery without new requests, original alert idempotency keys, legal holds, isolated cleanup,
+worker lifecycle and operations authorization. Only configured stores/transports are touched.

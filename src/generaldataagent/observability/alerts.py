@@ -121,6 +121,29 @@ class CriticalAlertRouter:
                 alert = CriticalAlert.model_validate_json(row[0])
         return self.deliver(alert)
 
+    def retry_pending(
+        self, *, limit: int = 10, should_stop: Callable[[], bool] | None = None
+    ) -> dict[str, int]:
+        if type(limit) is not int or not 1 <= limit <= 100:
+            raise ValueError("alert retry batch must be between 1 and 100")
+        with closing(sqlite3.connect(self.path)) as db:
+            rows = db.execute(
+                "SELECT event_json FROM critical_alerts WHERE receipt_json IS NULL "
+                "ORDER BY rowid LIMIT ?",
+                (limit,),
+            ).fetchall()
+        attempted = delivered = failed = 0
+        for (value,) in rows:
+            if should_stop is not None and should_stop():
+                break
+            attempted += 1
+            try:
+                self.deliver(CriticalAlert.model_validate_json(value))
+                delivered += 1
+            except (AlertDeliveryError, ValueError):
+                failed += 1
+        return {"attempted": attempted, "delivered": delivered, "failed": failed}
+
     def measurements(self) -> dict[str, int | float | None]:
         with closing(sqlite3.connect(self.path)) as db:
             rows = db.execute("SELECT event_json, receipt_json FROM critical_alerts").fetchall()
