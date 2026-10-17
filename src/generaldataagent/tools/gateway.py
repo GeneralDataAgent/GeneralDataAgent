@@ -5,11 +5,12 @@ from contextlib import suppress
 from typing import Any
 from uuid import UUID
 
-from generaldataagent.contracts import AuditEvent, ToolRequest
+from generaldataagent.contracts import ActorContext, AuditEvent, ToolRequest
 from generaldataagent.observability import JsonlAuditSink
 from generaldataagent.observability.alerts import AlertDeliveryError, CriticalAlertRouter
 from generaldataagent.observability.verified_audit import AuditUnavailableError, VerifiedAuditSink
 from generaldataagent.policy import ApprovalStore, PolicyEngine, request_fingerprint
+from generaldataagent.policy.budgets import TaskBudgetLedger
 
 
 class PolicyDeniedError(PermissionError):
@@ -25,9 +26,11 @@ class ToolGateway:
         *,
         production_mode: bool = False,
         alerts: CriticalAlertRouter | None = None,
+        budgets: TaskBudgetLedger | None = None,
     ) -> None:
         if production_mode and not isinstance(audit, VerifiedAuditSink):
             raise ValueError("production gateway requires independent verified audit")
+        self.budgets = budgets
         self.alerts = alerts
         self.policy = policy
         self.audit = audit
@@ -56,6 +59,9 @@ class ToolGateway:
                 raise PolicyDeniedError(
                     f"tool request was not allowed: {decision.decision}/{decision.reason_code}"
                 )
+            if self.budgets is not None:
+                self.approvals.validate(approval_id, request)
+                self._reserve(request)
             grant = self.approvals.consume(approval_id, request)
             self._audit(
                 request,
@@ -76,7 +82,19 @@ class ToolGateway:
             handler = self._handlers.get(request.tool_name)
             if handler is None:
                 raise LookupError(f"no handler registered for {request.tool_name!r}")
+        if decision.decision == "allow" and self.budgets is not None:
+            self._reserve(request)
         return handler(request.arguments)
+
+    def _reserve(self, request: ToolRequest) -> None:
+        if self.budgets is not None:
+            actor = ActorContext(
+                user_id=request.user_id,
+                tenant_id=request.tenant_id,
+                project_id=request.project_id,
+                data_domains=request.data_domains,
+            )
+            self.budgets.reserve(request.task_id, actor)
 
     def _audit(
         self,

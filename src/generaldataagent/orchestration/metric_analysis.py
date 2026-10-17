@@ -2,7 +2,7 @@
 
 from collections.abc import Mapping
 from typing import Any, Protocol
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from langgraph.checkpoint.memory import InMemorySaver
 
@@ -13,6 +13,7 @@ from generaldataagent.contracts import (
     ActorContext,
     AgentRole,
     AuditEvent,
+    Budget,
     ChartSpec,
     DeliveryPackage,
     GroundedClaim,
@@ -32,6 +33,7 @@ from generaldataagent.observability.verified_audit import VerifiedAuditSink
 from generaldataagent.orchestration.state import PhaseOneState
 from generaldataagent.orchestration.workflow import PhaseOneServices, build_phase_one_graph
 from generaldataagent.policy import PolicyEngine
+from generaldataagent.policy.budgets import TaskBudgetLedger
 from generaldataagent.security.source import ScopedQueryExecutor
 from generaldataagent.tools import SqlGuard, SQLiteReadOnlyExecutor, ToolGateway
 
@@ -54,12 +56,19 @@ class MetricAnalysisRuntime:
         narrator: NarrativeGenerator | None = None,
         production_mode: bool = False,
         alerts: CriticalAlertRouter | None = None,
+        budgets: TaskBudgetLedger | None = None,
     ) -> None:
         if production_mode and (
-            not isinstance(executor, ScopedQueryExecutor)
+            budgets is None
+            or narrator is not None
+            or not isinstance(executor, ScopedQueryExecutor)
             or not isinstance(artifacts, GovernedArtifactStore)
         ):
-            raise ValueError("production analysis requires scoped source and governed artifacts")
+            raise ValueError(
+                "production analysis requires scoped source, governed artifacts and budgets; "
+                "narration must be metered"
+            )
+        self.budgets = budgets
         self.production_mode = production_mode
         self.catalog = catalog
         self.executor = executor
@@ -68,7 +77,11 @@ class MetricAnalysisRuntime:
         self.narrator = narrator
         self.sql_guard = SqlGuard(dialect="sqlite")
         self.gateway = ToolGateway(
-            policy or PolicyEngine(), audit, production_mode=production_mode, alerts=alerts
+            policy or PolicyEngine(),
+            audit,
+            production_mode=production_mode,
+            alerts=alerts,
+            budgets=budgets,
         )
         self.gateway.register("sql.query", self._execute_query)
         self.graph = build_phase_one_graph(
@@ -97,6 +110,8 @@ class MetricAnalysisRuntime:
             ) or not set(actor.data_domains) <= set(bound.data_domains):
                 raise PermissionError("artifact_store_actor_scope_mismatch")
         task_id = str(uuid4())
+        if self.budgets is not None:
+            self.budgets.register(UUID(task_id), actor, Budget())
         trace_id = str(uuid4())
         state: PhaseOneState = {
             "task_id": task_id,

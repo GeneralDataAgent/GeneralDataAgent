@@ -20,6 +20,7 @@ from generaldataagent.observability.verified_audit import (
     receipt_statement,
 )
 from generaldataagent.orchestration import MetricAnalysisRuntime
+from generaldataagent.policy.budgets import TaskBudgetLedger
 from generaldataagent.security.identity import SQLiteSessionBroker
 from generaldataagent.security.source import NativeScopeProof, ScopedQueryExecutor, SourceLease
 from generaldataagent.tools.sqlite import QueryResult
@@ -109,7 +110,12 @@ def test_secured_analysis_propagates_actor_source_lease_native_controls_and_arti
         ]
     )
     runtime = MetricAnalysisRuntime(
-        catalog=catalog, executor=executor, artifacts=artifacts, audit=audit, production_mode=True
+        catalog=catalog,
+        executor=executor,
+        artifacts=artifacts,
+        audit=audit,
+        production_mode=True,
+        budgets=TaskBudgetLedger(tmp_path / "budgets"),
     )
     result = runtime.run(MetricQuery(metric_name="order_count", metric_version="v1"), actor)
     assert result["status"] == "completed"

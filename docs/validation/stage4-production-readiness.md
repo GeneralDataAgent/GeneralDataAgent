@@ -188,3 +188,14 @@ Repeated gateway audit outages produce one notification per five-minute category
 keeping tools blocked. `/v1/operations/alerts` exposes aggregate status under operations permission.
 No real recipient/endpoint is configured or contacted by tests; external paging and independent
 monitoring of pending notifications remain deployment obligations.
+
+## Increment 17: durable task budgets
+
+`TaskBudgetLedger` fixes task actor scope, deadline and call/token/scan/cost ceilings at registration.
+Atomic reservations across workers survive restart; repeated registration cannot reset usage or
+extend deadlines. Negative/type-confused usage and cross-actor reservations are rejected. Gateway
+checks reservations before handler execution (and before consuming an approval). Production analysis
+requires this ledger and currently disables unmetered LLM narration. Tool calls and task deadlines
+are enforced in the integrated runtime; token/scan/cost accounting requires trusted source/provider
+metering adapters to reserve those amounts and must be independently qualified. Tests race 16
+reservations against a three-call ceiling and verify that exhausted budgets stop tool execution.
