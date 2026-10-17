@@ -177,3 +177,14 @@ grant issues an unprivileged session. JWT custom permissions and caller headers 
 Permissions persist in shared session state; old records without them default to no action grants.
 Tests cover cross-role attempts, fake permission headers and shared-store reload. Login transaction
 cleanup now removes expired/consumed state and avoids issuing a nonce when capacity is exhausted.
+
+## Increment 16: durable critical alerts
+
+`CriticalAlertRouter` persists notification intent, accepts only fixed critical event categories,
+and passes the event UUID as a destination idempotency key. Delivery receipts bind that event,
+measure actual notification latency and distinguish pending/late (>300-second) notifications.
+Restart/retry preserves intent; acknowledgement loss requires destination-side idempotency.
+Repeated gateway audit outages produce one notification per five-minute category window while
+keeping tools blocked. `/v1/operations/alerts` exposes aggregate status under operations permission.
+No real recipient/endpoint is configured or contacted by tests; external paging and independent
+monitoring of pending notifications remain deployment obligations.

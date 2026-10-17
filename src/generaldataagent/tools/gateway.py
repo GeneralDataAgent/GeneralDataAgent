@@ -1,12 +1,14 @@
 """Tool gateway that makes policy evaluation unavoidable."""
 
 from collections.abc import Callable
+from contextlib import suppress
 from typing import Any
 from uuid import UUID
 
 from generaldataagent.contracts import AuditEvent, ToolRequest
 from generaldataagent.observability import JsonlAuditSink
-from generaldataagent.observability.verified_audit import VerifiedAuditSink
+from generaldataagent.observability.alerts import AlertDeliveryError, CriticalAlertRouter
+from generaldataagent.observability.verified_audit import AuditUnavailableError, VerifiedAuditSink
 from generaldataagent.policy import ApprovalStore, PolicyEngine, request_fingerprint
 
 
@@ -22,9 +24,11 @@ class ToolGateway:
         approvals: ApprovalStore | None = None,
         *,
         production_mode: bool = False,
+        alerts: CriticalAlertRouter | None = None,
     ) -> None:
         if production_mode and not isinstance(audit, VerifiedAuditSink):
             raise ValueError("production gateway requires independent verified audit")
+        self.alerts = alerts
         self.policy = policy
         self.audit = audit
         self.approvals = approvals
@@ -84,13 +88,20 @@ class ToolGateway:
     ) -> None:
         if self.audit is None:
             return
-        self.audit.emit(
-            AuditEvent(
-                event_type=event_type,
-                task_id=request.task_id,
-                actor_id=request.user_id,
-                tenant_id=request.tenant_id,
-                trace_id=trace_id,
-                payload={**payload, "request_fingerprint": request_fingerprint(request)},
+        try:
+            self.audit.emit(
+                AuditEvent(
+                    event_type=event_type,
+                    task_id=request.task_id,
+                    actor_id=request.user_id,
+                    tenant_id=request.tenant_id,
+                    trace_id=trace_id,
+                    payload={**payload, "request_fingerprint": request_fingerprint(request)},
+                )
             )
-        )
+        except AuditUnavailableError:
+            if self.alerts is not None:
+                # Pending intent survives a delivery outage for independent retry.
+                with suppress(AlertDeliveryError):
+                    self.alerts.signal("audit_outage")
+            raise

@@ -26,6 +26,7 @@ from generaldataagent.data_science.tracking import ExperimentTrackingError
 from generaldataagent.data_science.workbench import DataScienceWorkbench, ScienceGateError
 from generaldataagent.evaluation import DuplicateReviewError, LocalHumanReviewStore
 from generaldataagent.evaluation.scoped_reviews import ScopedHumanReviewStore
+from generaldataagent.observability.alerts import CriticalAlertRouter
 from generaldataagent.observability.slo import ServiceSLO
 from generaldataagent.orchestration import MetricAnalysisRuntime
 from generaldataagent.policy.resume import PendingActionCoordinator
@@ -56,6 +57,7 @@ def create_app(
     pending_actions: PendingActionCoordinator | None = None,
     slo: ServiceSLO | None = None,
     oidc_login: OIDCLoginFlow | None = None,
+    alerts: CriticalAlertRouter | None = None,
 ) -> FastAPI:
     if pending_actions is not None and (
         session_broker is None or pending_actions.broker is not session_broker
@@ -220,6 +222,12 @@ def create_app(
         if slo is None:
             raise HTTPException(status_code=503, detail="slo_not_configured")
         return slo.snapshot()
+
+    @application.get("/v1/operations/alerts")
+    def alert_measurements() -> dict[str, Any]:
+        if alerts is None:
+            raise HTTPException(status_code=503, detail="alerts_not_configured")
+        return alerts.measurements()
 
     @application.post("/v1/science/experiments")
     def run_science_experiment(

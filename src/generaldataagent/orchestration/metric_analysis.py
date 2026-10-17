@@ -27,6 +27,7 @@ from generaldataagent.contracts import (
     ValidationStatus,
 )
 from generaldataagent.observability import JsonlAuditSink
+from generaldataagent.observability.alerts import CriticalAlertRouter
 from generaldataagent.observability.verified_audit import VerifiedAuditSink
 from generaldataagent.orchestration.state import PhaseOneState
 from generaldataagent.orchestration.workflow import PhaseOneServices, build_phase_one_graph
@@ -52,6 +53,7 @@ class MetricAnalysisRuntime:
         audit: JsonlAuditSink | VerifiedAuditSink | None = None,
         narrator: NarrativeGenerator | None = None,
         production_mode: bool = False,
+        alerts: CriticalAlertRouter | None = None,
     ) -> None:
         if production_mode and (
             not isinstance(executor, ScopedQueryExecutor)
@@ -65,7 +67,9 @@ class MetricAnalysisRuntime:
         self.audit = audit
         self.narrator = narrator
         self.sql_guard = SqlGuard(dialect="sqlite")
-        self.gateway = ToolGateway(policy or PolicyEngine(), audit, production_mode=production_mode)
+        self.gateway = ToolGateway(
+            policy or PolicyEngine(), audit, production_mode=production_mode, alerts=alerts
+        )
         self.gateway.register("sql.query", self._execute_query)
         self.graph = build_phase_one_graph(
             PhaseOneServices(
