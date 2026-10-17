@@ -214,3 +214,13 @@ creating a replacement. Completed retrieval does not requery. Tests interrupt an
 workflows across four node boundaries; all resume without rerunning completed analysis. On-disk
 DB/WAL scans confirm fixture results, questions and tenant IDs are not plaintext. This local
 checkpoint qualification is not a real infrastructure disaster-recovery attestation.
+
+## Increment 19: production trace and access-log boundary
+
+Production graph execution/resume explicitly disables environment-enabled external LangSmith
+tracing so raw checkpoint state and query results cannot leak through an ambient trace exporter.
+Independent minimal signed audit and aggregate SLOs remain available. A regression enables the
+tracing environment variable and checks that the executing source still observes tracing disabled.
+The built-in API launcher disables access logging to avoid logging OAuth callback codes/query
+strings. A separately configured proxy/launcher must enforce the same boundary. Approved redacted
+trace export is not enabled by this pilot.

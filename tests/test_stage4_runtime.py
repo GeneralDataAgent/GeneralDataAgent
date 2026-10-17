@@ -36,7 +36,9 @@ def protected_saver(tmp_path):
 def test_secured_analysis_propagates_actor_source_lease_native_controls_and_artifact_scope(
     tmp_path,
     protected_saver,
+    monkeypatch,
 ):
+    monkeypatch.setenv("LANGSMITH_TRACING", "true")
     actor = ActorContext(user_id="u", tenant_id="t", project_id="p", data_domains=("commerce",))
     broker = SQLiteSessionBroker(tmp_path / "sessions")
     private = Ed25519PrivateKey.generate()
@@ -91,6 +93,9 @@ def test_secured_analysis_propagates_actor_source_lease_native_controls_and_arti
             )
 
         def execute(self, sql, parameters):
+            from langsmith.run_helpers import get_tracing_context
+
+            assert get_tracing_context()["enabled"] is False
             assert "orders" in sql
             return QueryResult(("metric_value",), ((3,),), 1.0, ())
 

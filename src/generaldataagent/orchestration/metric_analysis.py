@@ -1,10 +1,12 @@
 """Certified metric analysis wired through the phase-one LangGraph."""
 
 from collections.abc import Mapping
+from contextlib import nullcontext
 from typing import Any, Protocol
 from uuid import UUID, uuid4
 
 from langgraph.checkpoint.memory import InMemorySaver
+from langsmith import tracing_context
 
 from generaldataagent.artifacts import LocalArtifactStore
 from generaldataagent.artifacts.governed import GovernedArtifactStore
@@ -137,7 +139,7 @@ class MetricAnalysisRuntime:
             {"metric": query.metric_name, "version": query.metric_version},
         )
         try:
-            result = self.graph.invoke(
+            result = self._invoke_graph(
                 state,
                 {"configurable": {"thread_id": actual_thread_id}},
             )
@@ -150,6 +152,12 @@ class MetricAnalysisRuntime:
             raise
         self._emit("analysis.finished", result, {"status": result["status"]})
         return result
+
+    def _invoke_graph(self, state, config):
+        # Production raw state/results never enter an environment-enabled external tracer.
+        context = tracing_context(enabled=False) if self.production_mode else nullcontext()
+        with context:
+            return self.graph.invoke(state, config)
 
     def resume(self, thread_id: str, actor: ActorContext) -> dict[str, Any]:
         if self.checkpointer is None:
@@ -166,7 +174,7 @@ class MetricAnalysisRuntime:
             self.budgets.ensure_active(UUID(snapshot.values["task_id"]), actor)
         if not snapshot.next:
             return dict(snapshot.values)
-        return self.graph.invoke(None, config)
+        return self._invoke_graph(None, config)
 
     def resolve_question(
         self,
