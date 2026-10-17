@@ -117,6 +117,9 @@ class OIDCSessionAdapter:
             permissions = grant.permissions if isinstance(grant, IdentityGrant) else frozenset()
             if not isinstance(actor, ActorContext):
                 raise ValueError("trusted identity grant required")
+            now = datetime.now(UTC).timestamp()
+            if now >= claims["exp"]:
+                raise ValueError("identity token expired during grant resolution")
             with closing(sqlite3.connect(self.challenge_path, timeout=5)) as db, db:
                 db.execute("BEGIN IMMEDIATE")
                 changed = db.execute(
@@ -132,7 +135,8 @@ class OIDCSessionAdapter:
                 project_id=actor.project_id,
                 data_domains=frozenset(actor.data_domains),
                 permissions=permissions,
-                ttl_seconds=min(300, max(1, int(claims["exp"] - now))),
+                ttl_seconds=300,
+                not_after=datetime.fromtimestamp(claims["exp"], UTC),
             )
         except Exception:
             raise PermissionError("oidc_authentication_failed") from None

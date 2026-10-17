@@ -296,3 +296,11 @@ naive expiry and string-valued permissions/domains) produce a fixed 401 instead 
 or implicit coercion. Issuance applies the same bounds; bearer input is bounded before hashing.
 Legacy records without permissions retain no action grants. Regression tests corrupt individual
 stored fields and verify that neither the original record nor validation details reach responses.
+
+## Follow-up 4: absolute SSO/session deadlines
+
+Session issuance accepts a strict aware absolute `not_after` ceiling and never rounds a remaining
+fraction of a second upward. OIDC rechecks expiry after the trusted grant resolver returns and
+passes the issuer's absolute expiry to the broker, so slow resolution/nonce persistence cannot
+extend an expired identity token into a new session. Tests advance a simulated resolver past token
+expiry and verify no session is created, plus exact fractional deadline and maximum-TTL boundaries.

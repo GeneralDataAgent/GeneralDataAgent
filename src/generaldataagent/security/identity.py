@@ -77,6 +77,7 @@ class SessionBroker:
         data_domains: frozenset[str],
         ttl_seconds: int = 300,
         permissions: frozenset[str] = frozenset(),
+        not_after: datetime | None = None,
     ) -> str:
         if type(ttl_seconds) is not int or not 1 <= ttl_seconds <= 900:
             raise ValueError("session lifetime must be between 1 and 900 seconds")
@@ -87,13 +88,18 @@ class SessionBroker:
         now = self._clock()
         if now.tzinfo is None:
             raise ValueError("identity clock must be timezone-aware")
+        expires_at = now + timedelta(seconds=ttl_seconds)
+        if not_after is not None:
+            if not_after.tzinfo is None or not_after <= now:
+                raise ValueError("session hard expiry must be aware and in the future")
+            expires_at = min(expires_at, not_after)
         identity = _SessionRecord(
             user_id=user_id,
             tenant_id=tenant_id,
             project_id=project_id,
             data_domains=tuple(data_domains),
             permissions=tuple(permissions),
-            expires_at=now + timedelta(seconds=ttl_seconds),
+            expires_at=expires_at,
         ).identity()
         token = secrets.token_urlsafe(32)
         with self._lock:
