@@ -86,3 +86,14 @@ Expired content is denied immediately; an operator sweep deletes bytes with dura
 Legal holds prevent deletion but do not grant expired content read access. Tests exercise
 cross-scope reads, forged classification, hash tampering, expiry, restart, legal holds, and
 idempotent deletion. Backup retention and external trace deletion remain separate obligations.
+
+## Increment 8: frozen security regression and SQL boundary fixes
+
+`evals/datasets/stage4-security.jsonl` freezes 91 local cases spanning SQL mutation,
+CTE-scope bypass, file/network table functions, unreviewed scalar functions, prompt-like
+untrusted text, DLP egress, forbidden tools, role escalation and mandatory R2/R3 approval.
+Positive read-only/aggregate and safe-text cases guard against blanket-denial regressions.
+The evaluator emits case IDs, outcomes and dataset digest, without raw attack content.
+SQL inspection now rejects SELECT INTO and external/unreviewed functions, and resolves CTE
+ownership lexically rather than whitelisting CTE names globally. This local security suite is
+not the separate 90-task production success benchmark and not a penetration-test attestation.

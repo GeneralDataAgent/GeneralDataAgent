@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from sqlglot import exp, parse
 from sqlglot.errors import ParseError
+from sqlglot.optimizer.scope import traverse_scope
 
 
 class SqlGuardError(ValueError):
@@ -55,16 +56,33 @@ class SqlGuard:
         if mutation is not None:
             raise SqlGuardError(f"mutation node {mutation.key!r} is not allowed")
 
+        if any(isinstance(node, exp.Into) for node in statement.walk()):
+            raise SqlGuardError("SELECT INTO is not read-only")
+        for function in statement.find_all(exp.Func):
+            if isinstance(function, exp.Anonymous):
+                raise SqlGuardError("unreviewed SQL functions are not allowed")
+            if function.sql_name().upper() in {
+                "READ_CSV",
+                "READ_CSV_AUTO",
+                "READ_JSON",
+                "READ_PARQUET",
+                "NEXT_VALUE_FOR",
+            }:
+                raise SqlGuardError("external I/O and stateful functions are not allowed")
+        if any(
+            not isinstance(table.this, exp.Identifier) for table in statement.find_all(exp.Table)
+        ):
+            raise SqlGuardError("table-valued functions are not allowed")
+
         if any(isinstance(node, exp.Lock) for node in statement.walk()):
             raise SqlGuardError("locking queries are not allowed")
 
-        cte_aliases = {
-            cte.alias_or_name.lower() for cte in statement.find_all(exp.CTE) if cte.alias_or_name
-        }
+        # Resolve CTEs lexically; a name in a nested CTE must not whitelist a physical table.
         relations = frozenset(
-            name
-            for table in statement.find_all(exp.Table)
-            if (name := self._relation_name(table)) and name.lower() not in cte_aliases
+            self._relation_name(source)
+            for scope in traverse_scope(statement)
+            for source in scope.sources.values()
+            if isinstance(source, exp.Table)
         )
         if allowed_relations is not None:
             normalized_allowed = {name.lower() for name in allowed_relations}
