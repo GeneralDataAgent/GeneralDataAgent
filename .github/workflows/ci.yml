@@ -16,7 +16,22 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
+    services:
+      postgres:
+        image: postgres@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+        env:
+          POSTGRES_DB: stage4_synthetic
+          # Public disposable CI fixture credential; never used by a deployed service.
+          POSTGRES_PASSWORD: stage4_ci_synthetic_only
+        ports:
+          - 5432/tcp
+        options: >-
+          --health-cmd "pg_isready -U postgres -d stage4_synthetic"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+          --memory 512m --cpus 1
     env:
+      GDA_TEST_POSTGRES_PORT: ${{ job.services.postgres.ports[5432] }}
+      GDA_TEST_POSTGRES_PASSWORD: stage4_ci_synthetic_only
       UV_PYTHON: ${{ matrix.python-version }}
 
     steps:

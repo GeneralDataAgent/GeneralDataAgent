@@ -26,6 +26,7 @@ dependencies = [
   "pyjwt[crypto]>=2.10,<3",
   "langgraph-checkpoint-sqlite>=3,<4",
   "langsmith>=0.14,<0.15",
+  "psycopg[binary]>=3.2,<4",
 ]
 
 [dependency-groups]

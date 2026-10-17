@@ -264,7 +264,7 @@ At implementation commit `66690ab`:
 - Aggregate Stage 4 development gate passed. Production gate remains `incomplete` because independent
   real-environment release evidence is absent; strict production mode returns a failing exit code.
 
-Remaining requirements are actual provider/native-source integration and independent deployment,
+Remaining requirements are actual provider/native-source enrollment and independent deployment,
 security/DR/provider drills, real-work success measurements and observed SLO/pilot evidence.
 No real SSO user, production data source, paging recipient or deployed environment was fabricated.
 
@@ -314,3 +314,23 @@ reported as aggregate counters through the protected operations endpoint; no exc
 sensitive records are exported. Shutdown stops new retry batches and joins the worker. Tests cover
 outage/recovery without new requests, original alert idempotency keys, legal holds, isolated cleanup,
 worker lifecycle and operations authorization. Only configured stores/transports are touched.
+
+## Follow-up 6: concrete PostgreSQL native permission adapter
+
+`PostgresNativeDriver` opens a fresh read-only transaction with the short-lived workload role.
+It checks native role expiry/privileges, immutable operator-owned scope registration, FORCE RLS,
+the independently provisioned policy digest, and exact effective column SELECT privileges before
+executing guarded SQL. Row visibility comes from PostgreSQL policies. Parameter conversion retains
+lexical binding order through CTEs and preserves literal percent signs. TLS verification defaults
+to `verify-full`; plaintext requires an explicit loopback development setting.
+
+The digest-pinned PostgreSQL 17 disposable runner exercises 19 real-database checks, including
+cross-tenant rows, private columns, role/actor substitution, policy and ACL drift, BYPASSRLS,
+mutable scope metadata, row bounds, and parameter ordering. CI runs this integration inside the full
+coverage suite on Python 3.11/3.12/3.13. All fixtures are synthetic and local/CI only; production
+credential issuance, provider enrollment, TLS and independent source qualification remain open.
+
+Native semantics follow the PostgreSQL 17 documentation for
+[row security](https://www.postgresql.org/docs/17/ddl-rowsecurity.html) and
+[privilege inspection](https://www.postgresql.org/docs/17/functions-info.html), with server-side
+binding through [Psycopg parameters](https://www.psycopg.org/psycopg3/docs/basic/params.html).

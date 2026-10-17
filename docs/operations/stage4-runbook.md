@@ -38,6 +38,37 @@ short-lived workload credentials and native database row/column permissions, and
 cross-user/cross-tenant source-query evidence. An authenticated API session alone is insufficient.
 Likewise an OCI contract or a local fixed-template sandbox is not a real sandbox penetration review.
 
+### PostgreSQL native source setup
+
+The concrete `connectors.postgres_native.PostgresNativeDriver` can supply the native probe to
+`ScopedQueryExecutor`. Configure a fixed endpoint/database, relation and column allowlists, trusted
+CA and operator-approved policy digests. Capture `postgres_policy_digest` using a trusted provisioning
+connection only, and review that policy's intended scope; never accept a digest sampled from an
+untrusted runtime session as its own approval.
+
+Provision expiring non-owner LOGIN roles without superuser, BYPASSRLS, CREATEROLE, CREATEDB or
+replication privileges. Grant SELECT on only the approved columns, enable and FORCE RLS, and put
+the role's user/tenant/project/domain mapping in an operator-owned `governance.role_scopes` table
+with `role_name`, `user_id`, `tenant_id`, `project_id`, `data_domains` columns. The workload role
+must be able to read its mapping and unable to mutate it. The trusted lease provider supplies
+that role's protected credential and a deadline at least as short as the maximum 15-minute lease;
+the database role expiry must not outlive that lease. The driver does not mint roles or run admin
+SQL. Configure `ServiceMaintenance` for the intended artifact/checkpoint stores and alert router;
+its protected operations snapshot reports retry/sweep failures without exposing record contents.
+
+For the synthetic local qualification, first obtain the pinned official image below, then run:
+
+```sh
+docker pull postgres@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+uv run --frozen python evals/run_stage4_postgres.py
+uv run --frozen python evals/run_stage4_postgres.py --pytest
+```
+
+The runner creates and removes its own constrained temporary container, publishes only a random
+loopback port, and generates disposable credentials in a protected temporary file. It never connects
+to an existing production database. These results qualify local adapter behavior; real endpoint,
+credential lifecycle, native policies and TLS still need independent deployment evidence.
+
 ## Admission and staged rollout
 
 1. Run the normal formatting, lint, test/coverage and locked-build checks.
