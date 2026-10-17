@@ -1,14 +1,12 @@
 """Stage 4 local security baseline and independently signed production release gate."""
 
 import argparse
-import base64
 import json
 import subprocess
 from pathlib import Path
 
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
-
 from generaldataagent.evaluation.stage_four import run_security_regression
+from generaldataagent.security.admission import load_release_keys
 from generaldataagent.security.release_bundle import ReleaseBundle, verify_release_bundle
 
 
@@ -29,15 +27,7 @@ def main() -> int:
     if args.release_bundle is not None and args.trusted_signers is not None:
         try:
             bundle = ReleaseBundle.model_validate_json(args.release_bundle.read_text())
-            records = json.loads(args.trusted_signers.read_text())
-            keys = {}
-            for record in records:
-                identity = (record["signer_id"], record["role"])
-                if identity in keys:
-                    raise ValueError("duplicate signer identity")
-                keys[identity] = Ed25519PublicKey.from_public_bytes(
-                    base64.b64decode(record["public_key"], validate=True)
-                )
+            keys = load_release_keys(args.trusted_signers)
             blockers = list(
                 verify_release_bundle(
                     bundle, revision=revision, environment=args.environment, trusted_keys=keys

@@ -238,3 +238,14 @@ deduplication, tampering, credential denial, payload limits and absent destructi
 Deployment still requires separate OS/service credentials, protected volumes and externally anchored
 backups/retention; in-process tests do not establish that administrative separation.
 SQL parser fallback warnings are also redacted so untrusted literals do not enter ordinary logs.
+
+## Increment 21: live release admission on service startup and requests
+
+`create_released_app` is the deployment factory. It requires a shared single-host session broker,
+valid independent release evidence for the exact built revision/environment and a live service
+switch; development-mode override is rejected. `FileReleaseAdmission` reloads operator-owned
+bundle/trust files without a permissive cache. Expired/revoked/changed/missing proof blocks new API
+work and login immediately, while health stays available. The same strict trust loader is used by
+the CLI. Tests revoke trust on a running API and verify that new requests stop without restart.
+Deployment must bind the expected revision to immutable build provenance; unsigned source changes
+or handwritten evidence are never a substitute for the signed release pipeline.

@@ -17,12 +17,20 @@ For multiple hosts replace these local ports with an external identity/state ser
 concurrency, revocation and recovery qualification. Backups contain identity metadata and require
 access controls and independent retention. Remove revoked OIDC keys from the trusted key map.
 
-Use a secured `create_app` factory with `production_mode=True`; the module-level `app` is a local
-development entry point. Configure a fail-closed service switch, scoped review store, bounded SLO
+Deploy through `api.production.create_released_app` with `FileReleaseAdmission` bound to the
+immutable build revision and protected signed bundle/trust files. It validates admission at startup
+and on new work/login. `create_app(production_mode=True)` is the composition/testing port; the
+module-level `app` is a local development entry point. Configure a fail-closed service switch, scoped review store, bounded SLO
 collector and matching pending-action/session brokers. Inject `GovernedArtifactStore` into each
 runtime using the same tenant/project/domain scope as its actor. Never reuse an actor-bound store
-for another tenant. Use `VerifiedAuditSink` with an independently administered append-only service,
+for another tenant. Use `VerifiedAuditSink` + `AuditHTTPTransport` with the separately deployed
+`services.audit_collector` service,
 append-only application credentials, operator-pinned public keys and a runtime-only HMAC secret.
+Configure `CriticalAlertRouter` + `AlertHTTPTransport` with an operator-approved paging service that
+honors event-ID idempotency. Do not expose collector storage, signing key or administration to agents.
+Production analysis also requires `TaskBudgetLedger` and `ProtectedSqliteSaver`; supply its 32-byte
+AES key from protected runtime configuration, retain the key for authorized recovery, and invoke
+checkpoint/artifact expiry sweeps under operator control. Ambient raw LangSmith export is disabled.
 No private signing keys, bearer tokens or pseudonym secrets belong in Git or ordinary logs.
 
 The existing SQLite/DuckDB connectors do not establish native RLS/CLS. Before production, provision
