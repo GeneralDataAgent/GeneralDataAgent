@@ -54,3 +54,11 @@ Duplicate reviews are rejected atomically across independent connections; restar
 both ownership and the dual-review gate. Unknown and foreign task IDs return the same denial.
 Legacy unscoped JSONL ledgers remain development-only and are never implicitly imported.
 Validation includes cross-scope reads/writes, forged reviewers, restart and 16 racing submissions.
+
+## Increment 5: shared local sessions
+
+`SQLiteSessionBroker` persists only bearer digests and identity grants. Independent API
+processes sharing the protected database observe issuance, expiry and revocation; restart
+no longer invalidates these sessions. Validation covers cross-instance revocation, expiry
+at the exact boundary, restart and absence of raw bearer tokens in the database.
+This is a single-host shared registry, not a distributed identity service.
