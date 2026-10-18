@@ -23,6 +23,8 @@ _Permission = Literal[
     "reviews:read",
     "reviews:submit",
     "operations:read",
+    "business:propose",
+    "business:read",
 ]
 
 
@@ -33,7 +35,7 @@ class _SessionRecord(BaseModel):
     project_id: _ScopeID
     data_domains: tuple[_ScopeID, ...] = Field(min_length=1, max_length=32)
     expires_at: AwareDatetime
-    permissions: tuple[_Permission, ...] = Field(default=(), max_length=6)
+    permissions: tuple[_Permission, ...] = Field(default=(), max_length=8)
 
     def identity(self) -> "SessionIdentity":
         return SessionIdentity(
