@@ -3,16 +3,18 @@
 from typing import Annotated, Literal
 from uuid import UUID, uuid4
 
-from pydantic import AwareDatetime, Field, model_validator
+from pydantic import AwareDatetime, Field, StringConstraints, model_validator
 
 from generaldataagent.contracts.models import ContractModel, utc_now
+
+Digest = Annotated[str, StringConstraints(pattern=r"^sha256:[0-9a-f]{64}$")]
 
 
 class DashboardDraft(ContractModel):
     kind: Literal["dashboard"] = "dashboard"
     title: str = Field(min_length=1, max_length=200)
     metric_names: tuple[str, ...] = Field(min_length=1, max_length=20)
-    evidence_hashes: tuple[str, ...] = Field(min_length=1, max_length=20)
+    evidence_hashes: tuple[Digest, ...] = Field(min_length=1, max_length=20)
 
 
 class TicketDraft(ContractModel):

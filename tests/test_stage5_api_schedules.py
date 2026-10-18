@@ -127,3 +127,37 @@ def test_schedule_expired_occurrences_and_scope(setup, tmp_path):
     )
     with pytest.raises(PermissionError):
         scheduler.tick(spec.schedule_id, foreign)
+
+
+def test_feedback_api_requires_registered_result_and_scope(setup, tmp_path):
+    from test_stage5_actions import HASH
+
+    from generaldataagent.business.governance import Feedback, FeedbackRegistry
+    from generaldataagent.contracts import ActorContext
+
+    _, _, broker, token = setup
+    registry = FeedbackRegistry(tmp_path / "feedback.db")
+    app = TestClient(create_app(session_broker=broker, feedback_registry=registry))
+    item = Feedback(
+        task_id=uuid4(),
+        result_hash=HASH,
+        category="grounding",
+        rating=3,
+        redacted_question="Regional revenue",
+        expected_outcome="Include citations",
+    )
+    path = "/v1/business/feedback"
+    assert (
+        app.post(path, json=item.model_dump(mode="json"), headers=headers(token)).status_code == 403
+    )
+    actor = ActorContext(user_id="alice", tenant_id="t", project_id="p", data_domains=("sales",))
+    registry.register_task(item.task_id, actor, HASH)
+    assert (
+        app.post(path, json=item.model_dump(mode="json"), headers=headers(token)).json()["state"]
+        == "awaiting_independent_review"
+    )
+    assert (
+        app.post(path, json=item.model_dump(mode="json"), headers=headers(token)).status_code == 409
+    )
+    with pytest.raises(ValueError, match="sessions"):
+        create_app(feedback_registry=registry)

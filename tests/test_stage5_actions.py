@@ -194,3 +194,70 @@ def test_expiry_dlp_and_integrity(setup):
     with runtime._db() as db, db:
         db.execute("UPDATE business_events SET event='changed'")
     assert not runtime.verify_audit()
+
+
+def test_consumption_failure_quarantines_claim_and_never_replays(setup, monkeypatch):
+    runtime, approvals, _, token = setup
+    from uuid import UUID
+
+    action = intent()
+    proposal = runtime.propose(action, token)
+    approvals.approve(UUID(proposal["approval_id"]), approver_id="bob")
+
+    def fail(*args):
+        raise ConnectionError("approval service unavailable")
+
+    monkeypatch.setattr(approvals, "consume", fail)
+    with pytest.raises(ConnectionError):
+        runtime.execute(action.action_id, token)
+    assert runtime.get(action.action_id, token)["state"] == "uncertain"
+    with pytest.raises(ValueError, match="reconciliation"):
+        runtime.execute(action.action_id, token)
+    with runtime._db() as db:
+        assert db.execute("SELECT COUNT(*) FROM business_resources").fetchone()[0] == 0
+    assert runtime.verify_audit()
+
+
+def test_policy_and_scope_change_block_without_consumption(setup):
+    runtime, approvals, _, token = setup
+    from dataclasses import replace
+    from uuid import UUID
+
+    from generaldataagent.policy.engine import PolicyEngine
+
+    action = intent()
+    proposal = runtime.propose(action, token)
+    approvals.approve(UUID(proposal["approval_id"]), approver_id="bob")
+    policy = runtime.policy
+    runtime.policy = PolicyEngine([])
+    with pytest.raises(PermissionError, match="policy"):
+        runtime.execute(action.action_id, token)
+    runtime.policy = policy
+    key = (action.payload.kind, action.destination)
+    runtime.controls[key] = replace(runtime.controls[key], data_domains=frozenset({"other"}))
+    with pytest.raises(PermissionError):
+        runtime.execute(action.action_id, token)
+    assert runtime.get(action.action_id, token)["state"] == "pending"
+
+
+def test_compensation_cannot_retract_newer_revision(setup):
+    runtime, approvals, _, token = setup
+    from uuid import UUID
+
+    first, second = intent(), intent(expected_revision=1)
+    for action in (first, second):
+        proposed = runtime.propose(action, token)
+        approvals.approve(UUID(proposed["approval_id"]), approver_id="bob")
+        runtime.execute(action.action_id, token)
+    compensation = intent(operation="compensate", compensates=first.action_id, expected_revision=2)
+    proposed = runtime.propose(compensation, token)
+    approvals.approve(UUID(proposed["approval_id"]), approver_id="bob")
+    with pytest.raises(ValueError, match="resource_changed"):
+        runtime.execute(compensation.action_id, token)
+
+
+def test_contract_revalidation_rejects_model_copy_bypass(setup):
+    runtime, _, _, token = setup
+    action = intent()
+    with pytest.raises(ValueError):
+        runtime.propose(action.model_copy(update={"operation": "deploy"}), token)

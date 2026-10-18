@@ -13,7 +13,8 @@ from pydantic import BaseModel, ConfigDict
 from generaldataagent import __version__
 from generaldataagent.agents import SPECIALIST_SPECS
 from generaldataagent.api.business import business_router
-from generaldataagent.business.actions import BusinessActionRuntime
+from generaldataagent.business.actions import BusinessActionRuntime, content_hash
+from generaldataagent.business.governance import Feedback, FeedbackRegistry
 from generaldataagent.business.schedules import ReportScheduler
 from generaldataagent.catalog import MetricNotFoundError
 from generaldataagent.contracts import (
@@ -67,7 +68,12 @@ def create_app(
     maintenance: ServiceMaintenance | None = None,
     business_actions: BusinessActionRuntime | None = None,
     report_scheduler: ReportScheduler | None = None,
+    feedback_registry: FeedbackRegistry | None = None,
 ) -> FastAPI:
+    if feedback_registry is not None and session_broker is None:
+        raise ValueError("feedback requires authenticated sessions")
+    if feedback_registry is not None and production_mode:
+        raise ValueError("local feedback registry is not qualified for production")
     if business_actions is not None:
         if session_broker is None or business_actions.broker is not session_broker:
             raise ValueError("business actions must share the API identity broker")
@@ -192,8 +198,29 @@ def create_app(
         )
 
     def register_review_task(result: dict[str, Any], actor: ActorContext) -> None:
+        if (
+            feedback_registry is not None
+            and result.get("task_id")
+            and result.get("status") == "completed"
+            and result.get("delivery_package")
+        ):
+            feedback_registry.register_task(
+                UUID(str(result["task_id"])), actor, content_hash(result["delivery_package"])
+            )
         if isinstance(review_store, ScopedHumanReviewStore) and result.get("task_id"):
             review_store.register_task(UUID(str(result["task_id"])), actor)
+
+    @application.post("/v1/business/feedback")
+    def submit_feedback(feedback: Feedback, request: Request):
+        if feedback_registry is None:
+            raise HTTPException(status_code=503, detail="feedback_not_configured")
+        try:
+            feedback_id = feedback_registry.submit(feedback, authenticated_actor(request))
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail="feedback_access_denied") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail="feedback_state_conflict") from exc
+        return {"feedback_id": feedback_id, "state": "awaiting_independent_review"}
 
     @application.get("/auth/login")
     def begin_login():
@@ -244,6 +271,7 @@ def create_app(
             "certified_metric_analysis": metric_runtime is not None,
             "human_review": review_store is not None,
             "data_science_workbench": science_workbench is not None,
+            "feedback_curation": feedback_registry is not None,
             "business_drafts": business_actions is not None,
             "periodic_report_drafts": report_scheduler is not None,
             "external_business_delivery": False,

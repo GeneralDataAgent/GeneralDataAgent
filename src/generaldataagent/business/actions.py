@@ -168,6 +168,7 @@ class BusinessActionRuntime:
         )
 
     def propose(self, intent: ActionIntent, token: str) -> dict:
+        intent = ActionIntent.model_validate_json(intent.model_dump_json())
         identity = self._identity(token, "business:propose")
         control = self._control(intent, identity)
         now = self._now()
@@ -240,7 +241,11 @@ class BusinessActionRuntime:
         row, intent, _ = self._row(db, action_id, identity)
         receipt = ActionReceipt.model_validate_json(row["receipt"]) if row["receipt"] else None
         if receipt and (
-            receipt.intent_hash != row["intent_hash"]
+            receipt.action_id != intent.action_id
+            or receipt.destination != intent.destination
+            or receipt.operation != intent.operation
+            or receipt.revision != intent.expected_revision + 1
+            or receipt.intent_hash != row["intent_hash"]
             or receipt.payload_hash != content_hash(intent.payload.model_dump(mode="json"))
         ):
             raise PermissionError("business_receipt_integrity_failure")
@@ -320,7 +325,9 @@ class BusinessActionRuntime:
             with self._db() as db, db:
                 db.execute("BEGIN IMMEDIATE")
                 identity = self._identity(token, "actions:resume")
-                self._control(intent, identity)
+                final_control = self._control(intent, identity)
+                if set(request.data_domains) != final_control.data_domains:
+                    raise PermissionError("business_control_scope_changed")
                 if intent.expires_at <= self._now():
                     raise PermissionError("action_expired")
                 if self.policy.evaluate(request).decision != "require_approval":
