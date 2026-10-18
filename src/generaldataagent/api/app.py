@@ -12,6 +12,9 @@ from pydantic import BaseModel, ConfigDict
 
 from generaldataagent import __version__
 from generaldataagent.agents import SPECIALIST_SPECS
+from generaldataagent.api.business import business_router
+from generaldataagent.business.actions import BusinessActionRuntime
+from generaldataagent.business.schedules import ReportScheduler
 from generaldataagent.catalog import MetricNotFoundError
 from generaldataagent.contracts import (
     ActorContext,
@@ -62,7 +65,17 @@ def create_app(
     oidc_login: OIDCLoginFlow | None = None,
     alerts: CriticalAlertRouter | None = None,
     maintenance: ServiceMaintenance | None = None,
+    business_actions: BusinessActionRuntime | None = None,
+    report_scheduler: ReportScheduler | None = None,
 ) -> FastAPI:
+    if business_actions is not None:
+        if session_broker is None or business_actions.broker is not session_broker:
+            raise ValueError("business actions must share the API identity broker")
+        if production_mode:
+            raise ValueError("local business outbox is not qualified for production")
+        application_business_router = business_router(business_actions, report_scheduler)
+    if report_scheduler is not None and report_scheduler.actions is not business_actions:
+        raise ValueError("scheduler must share the API business runtime")
     if pending_actions is not None and (
         session_broker is None or pending_actions.broker is not session_broker
     ):
@@ -92,6 +105,8 @@ def create_app(
         version=__version__,
         description="Governed multi-agent foundation for enterprise data work.",
     )
+    if business_actions is not None:
+        application.include_router(application_business_router)
     application.state.metric_runtime = metric_runtime
     application.state.review_store = review_store
     application.state.science_workbench = science_workbench
@@ -130,7 +145,11 @@ def create_app(
                 return JSONResponse(status_code=403, content={"detail": "unscoped_review_store"})
             path = request.url.path
             required = None
-            if path.startswith("/v1/analysis/"):
+            if path.startswith("/v1/business/"):
+                required = "business:read" if request.method == "GET" else "business:propose"
+                if path.endswith("/execute"):
+                    required = "actions:resume"
+            elif path.startswith("/v1/analysis/"):
                 required = "analysis:run"
             elif path.startswith("/v1/science/"):
                 required = "science:run"
@@ -225,6 +244,9 @@ def create_app(
             "certified_metric_analysis": metric_runtime is not None,
             "human_review": review_store is not None,
             "data_science_workbench": science_workbench is not None,
+            "business_drafts": business_actions is not None,
+            "periodic_report_drafts": report_scheduler is not None,
+            "external_business_delivery": False,
             "production_writes": False,
             "arbitrary_shell": False,
             "implemented_controls": [
