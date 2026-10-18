@@ -63,6 +63,9 @@ jobs:
       - name: Stage 4 security baseline
         run: uv run --frozen python evals/run_stage4_acceptance.py > "$RUNNER_TEMP/stage4-acceptance.json"
 
+      - name: Stage 5 local business baseline
+        run: uv run --frozen python evals/run_stage5_acceptance.py > "$RUNNER_TEMP/stage5-acceptance.json"
+
       - name: Build distributions
         if: matrix.python-version == '3.12'
         run: uv build

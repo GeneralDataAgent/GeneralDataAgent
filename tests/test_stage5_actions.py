@@ -261,3 +261,27 @@ def test_contract_revalidation_rejects_model_copy_bypass(setup):
     action = intent()
     with pytest.raises(ValueError):
         runtime.propose(action.model_copy(update={"operation": "deploy"}), token)
+
+
+def test_kill_switch_between_consumption_and_commit_leaves_no_effect(setup, monkeypatch):
+    from dataclasses import replace
+    from uuid import UUID
+
+    runtime, approvals, _, token = setup
+    action = intent()
+    proposal = runtime.propose(action, token)
+    approvals.approve(UUID(proposal["approval_id"]), approver_id="bob")
+    consume = approvals.consume
+
+    def consume_then_disable(*args):
+        grant = consume(*args)
+        key = (action.payload.kind, action.destination)
+        runtime.controls[key] = replace(runtime.controls[key], enabled=False)
+        return grant
+
+    monkeypatch.setattr(approvals, "consume", consume_then_disable)
+    with pytest.raises(PermissionError, match="disabled"):
+        runtime.execute(action.action_id, token)
+    assert runtime.get(action.action_id, token)["state"] == "uncertain"
+    with runtime._db() as db:
+        assert db.execute("SELECT COUNT(*) FROM business_resources").fetchone()[0] == 0

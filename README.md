@@ -472,3 +472,18 @@ For the real PostgreSQL adapter's 19 synthetic isolation checks, use
 `uv run --frozen python evals/run_stage4_postgres.py` after obtaining the pinned official image as
 documented in the runbook. Add `--pytest` to run the full coverage suite against a fresh disposable
 database. CI runs this integration on Python 3.11, 3.12 and 3.13.
+
+
+## Stage 5 business-loop pilot
+
+The optional authenticated business API supports structured Dashboard/ticket/scheduling-PR/model
+registration/IM/report drafts through a durable local outbox. Exact approvals, idempotency,
+compensation, independent switches/rate limits and per-occurrence report approvals are included.
+Feedback curation and capability admission remain separate trusted review workflows. An opt-in
+async model executor adds budgeted routing and encrypted short-lived scoped caching.
+
+External publishing/sending/deployment is disabled, and production mode rejects the local pilot.
+See the [runbook](docs/operations/stage5-runbook.md) and
+[development/acceptance evidence](docs/validation/stage5-business-loop.md). Run the local matrix with
+`uv run --frozen python evals/run_stage5_acceptance.py`; missing independent external evidence keeps
+aggregate production acceptance incomplete.

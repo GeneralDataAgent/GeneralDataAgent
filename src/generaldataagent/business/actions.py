@@ -157,6 +157,8 @@ class BusinessActionRuntime:
 
     @staticmethod
     def _event(db, action_id, event):
+        if not BusinessActionRuntime._verify_audit_db(db):
+            raise PermissionError("business_audit_integrity_failure")
         previous = db.execute(
             "SELECT digest FROM business_events ORDER BY seq DESC LIMIT 1"
         ).fetchone()
@@ -249,6 +251,19 @@ class BusinessActionRuntime:
             or receipt.payload_hash != content_hash(intent.payload.model_dump(mode="json"))
         ):
             raise PermissionError("business_receipt_integrity_failure")
+        if row["state"] == "completed":
+            completion = (
+                "completed:" + content_hash(receipt.model_dump(mode="json")) if receipt else ""
+            )
+            if (
+                not receipt
+                or db.execute(
+                    "SELECT 1 FROM business_events WHERE action_id=? AND event=?",
+                    (str(action_id), completion),
+                ).fetchone()
+                is None
+            ):
+                raise PermissionError("business_completion_integrity_failure")
         return {
             "intent": intent.model_dump(mode="json"),
             "state": row["state"],
@@ -388,13 +403,17 @@ class BusinessActionRuntime:
         ):
             raise ValueError("compensation_resource_changed")
 
+    @staticmethod
+    def _verify_audit_db(db) -> bool:
+        previous = "genesis"
+        for action_id, event, prev, digest in db.execute(
+            "SELECT action_id,event,previous,digest FROM business_events ORDER BY seq"
+        ):
+            if prev != previous or digest != content_hash([action_id, event, prev]):
+                return False
+            previous = digest
+        return True
+
     def verify_audit(self) -> bool:
         with self._db() as db:
-            previous = "genesis"
-            for action_id, event, prev, digest in db.execute(
-                "SELECT action_id,event,previous,digest FROM business_events ORDER BY seq"
-            ):
-                if prev != previous or digest != content_hash([action_id, event, prev]):
-                    return False
-                previous = digest
-        return True
+            return self._verify_audit_db(db)

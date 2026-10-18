@@ -192,6 +192,20 @@ class FeedbackRegistry:
                 raise ValueError("dataset_is_immutable") from exc
         return {**body, "content_hash": digest}
 
+    def read_dataset(self, dataset_id: UUID, actor: ActorContext) -> dict:
+        with closing(sqlite3.connect(self.path, timeout=5)) as db:
+            row = db.execute(
+                "SELECT body,hash FROM feedback_datasets WHERE id=?", (str(dataset_id),)
+            ).fetchone()
+        if row is None:
+            raise PermissionError("dataset_access_denied")
+        body = json.loads(row[0])
+        if body.get("scope_hash") != content_hash(json.loads(actor_scope(actor))):
+            raise PermissionError("dataset_access_denied")
+        if content_hash(body) != row[1]:
+            raise PermissionError("dataset_integrity_failure")
+        return {**body, "content_hash": row[1]}
+
 
 class CapabilityRegistry:
     def __init__(self, path: Path, *, clock):

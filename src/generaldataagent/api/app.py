@@ -215,7 +215,10 @@ def create_app(
         if feedback_registry is None:
             raise HTTPException(status_code=503, detail="feedback_not_configured")
         try:
-            feedback_id = feedback_registry.submit(feedback, authenticated_actor(request))
+            actor = authenticated_actor(request).model_copy(
+                update={"data_domains": tuple(request.headers.getlist("x-data-domain"))}
+            )
+            feedback_id = feedback_registry.submit(feedback, actor)
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail="feedback_access_denied") from exc
         except ValueError as exc:

@@ -145,3 +145,30 @@ def test_feedback_dlp_tampering_and_negative_review(tmp_path):
         db.execute("UPDATE feedback SET hash='changed'")
     with pytest.raises(PermissionError, match="integrity"):
         registry.review(item.feedback_id, reviewer_id="third", accepted=True)
+
+
+def test_frozen_dataset_read_integrity_and_authorization(tmp_path):
+    registry = FeedbackRegistry(tmp_path / "feedback")
+    feedback = Feedback(
+        task_id=uuid4(),
+        result_hash=HASH,
+        category="usability",
+        rating=3,
+        redacted_question="Revenue",
+        expected_outcome="Cite the source",
+    )
+    registry.register_task(feedback.task_id, ACTOR, HASH)
+    registry.submit(feedback, ACTOR)
+    for reviewer in ("q", "s"):
+        registry.review(feedback.feedback_id, reviewer_id=reviewer, accepted=True)
+    dataset_id = uuid4()
+    frozen = registry.freeze(dataset_id, (feedback.feedback_id,), split="evaluation")
+    assert registry.read_dataset(dataset_id, ACTOR) == frozen
+    with pytest.raises(PermissionError):
+        registry.read_dataset(dataset_id, ACTOR.model_copy(update={"user_id": "other"}))
+    import sqlite3
+
+    with sqlite3.connect(registry.path) as db:
+        db.execute("UPDATE feedback_datasets SET hash='changed'")
+    with pytest.raises(PermissionError, match="integrity"):
+        registry.read_dataset(dataset_id, ACTOR)

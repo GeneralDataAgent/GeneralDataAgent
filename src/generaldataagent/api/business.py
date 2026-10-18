@@ -13,7 +13,7 @@ def business_router(actions: BusinessActionRuntime, scheduler: ReportScheduler |
     router = APIRouter(prefix="/v1/business", tags=["Business drafts"])
 
     def token(request):
-        return request.headers.get("authorization", "").removeprefix("Bearer ")
+        return request.headers.get("authorization", "").split(" ", 1)[-1]
 
     def invoke(call, *args):
         try:

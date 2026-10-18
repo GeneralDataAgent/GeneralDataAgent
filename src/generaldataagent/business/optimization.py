@@ -100,6 +100,12 @@ class ScopedResponseCache:
                 "key TEXT PRIMARY KEY, encrypted BLOB, expires REAL, created REAL)"
             )
 
+    def _now(self):
+        now = self.clock()
+        if now.tzinfo is None:
+            raise PermissionError("cache_requires_aware_clock")
+        return now
+
     @staticmethod
     def cache_key(request: RoutingRequest, actor: ActorContext, route: ModelRoute):
         return content_hash(
@@ -114,7 +120,7 @@ class ScopedResponseCache:
 
     def get(self, key: str) -> ProviderResult | None:
         with closing(sqlite3.connect(self.path, timeout=5)) as db, db:
-            now = self.clock().timestamp()
+            now = self._now().timestamp()
             db.execute("DELETE FROM response_cache WHERE expires<=?", (now,))
             row = db.execute(
                 "SELECT encrypted,expires,created FROM response_cache WHERE key=?", (key,)
@@ -133,7 +139,7 @@ class ScopedResponseCache:
 
     def put(self, key: str, result: ProviderResult):
         TextDLPScanner().check(result.model_dump_json().encode())
-        created = self.clock().timestamp()
+        created = self._now().timestamp()
         expires = created + self.ttl_seconds
         body = json.dumps(
             {
@@ -154,7 +160,7 @@ class ScopedResponseCache:
     def purge(self) -> int:
         with closing(sqlite3.connect(self.path, timeout=5)) as db, db:
             return db.execute(
-                "DELETE FROM response_cache WHERE expires<=?", (self.clock().timestamp(),)
+                "DELETE FROM response_cache WHERE expires<=?", (self._now().timestamp(),)
             ).rowcount
 
 
@@ -244,6 +250,8 @@ class GovernedModelExecutor:
         return self._result(result, route, False, cost, started)
 
     def _recheck(self, task_id, actor, request, route):
+        if route not in self.routes or route.enabled is not True:
+            raise PermissionError("model_route_disabled_or_changed")
         if self.enabled() is not True or self.authorized(actor, request) is not True:
             raise PermissionError("model_access_denied")
         self.registry.require(route.name, route.version, route.content_hash, actor)
