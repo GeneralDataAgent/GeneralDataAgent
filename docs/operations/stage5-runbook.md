@@ -540,3 +540,49 @@ as not externally delivered. An external authenticated human approval service re
 Browser validation used synthetic local records, including literal HTML-injection text, cancellation,
 approved execution, receipts, compensation proposal, disconnect and a 390-pixel mobile viewport.
 No real external action was performed.
+
+
+## Independent approval authority and reviewer console (2026-10-19)
+
+`create_approval_service` is a separate FastAPI application and trust boundary. The business API
+still has no grant endpoint. Operate the authority under a separate identity with its own protected
+`SQLiteApprovalStore`; never mount its database or reviewer credentials into the business process.
+The authority authenticates current opaque sessions issued by the trusted identity provider. New
+permissions `approvals:request`, `approvals:review` and `approvals:delegate` are explicit operator
+grants; they are not added to existing sessions or read from identity-token claims.
+
+A request carries its exact `ToolRequest`, impact, cost, classification, rollback and finite expiry.
+The authority binds tenant/project/data domains, checks DLP and persists the request. Empty-domain
+legacy requests remain readable by the trusted local store but cannot enter remote review queues.
+Reviewer enrollment (`reviewer_admitted`) is current trusted configuration, separate from the session
+permission. Only an enrolled reviewer in the same scope can approve/reject; the applicant cannot
+review their own action. Review requires `confirmed=true` plus the exact request fingerprint. The
+actor ID comes from the authenticated session, never request JSON. The `/review` Chinese console
+shows scoped requests, complete content/impact and an explicit confirmation checkbox.
+
+Business assembly uses `RemoteApprovalStore(transport=HTTPSApprovalTransport(origin=...),
+credential=...)`. The credential callback resolves a current requester session or explicitly
+enrolled delegated service credential; secrets stay outside Git. Delegation is denied by default
+and needs both `approvals:delegate` and the operator's current `delegation_allowed` decision. The
+client cannot approve/reject; real humans use the independently authenticated authority. Replies
+are checked against exact request/grant bindings. TLS hostname/certificate verification is mandatory;
+operators may supply a verified SSL context for mTLS. Origins are fixed, redirects are disabled,
+requests/responses/timeouts are bounded, errors are sanitized and no transport retry is automatic.
+
+`/v1/approval-requests` creates requests or lists a bounded reviewer queue. Requester-only inspect,
+validate, consume and cancel operations recheck current scope and requester/delegation. Grant
+consumption is atomic and one-time. Identity/enrollment is checked again after the pre-operation
+audit call. An audit failure prevents the mutation; a lost post-operation audit/response may leave
+an approval consumed and must be investigated without replaying an external delivery. Approval
+records do not themselves establish that any downstream action succeeded.
+
+Production authority construction requires `SQLiteSessionBroker`, `VerifiedAuditSink` and
+`FileReleaseAdmission`. Admission/kill switches are evaluated on every request; audit acknowledgements
+are verified by the existing independently signed append-receipt protocol. Use a TLS reverse proxy,
+separate service identities, restrictive filesystem permissions, operator-managed backups/retention
+and genuine reviewer enrollment. `production_mode=False` is for isolated development only.
+The new authority does not qualify the local business outbox for production: that guard remains
+closed until independently operated business state/audit/retention and receiver admission exist.
+
+The 16 focused integration/transport cases and browser checks use synthetic accounts, fake network
+transports and local state. No real reviewer was enrolled and no real business action was approved.

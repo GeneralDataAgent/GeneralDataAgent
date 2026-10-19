@@ -481,6 +481,8 @@ registration/IM/report drafts through a durable local outbox. Exact approvals, i
 compensation, independent switches/rate limits and per-occurrence report approvals are included.
 The Chinese console at `/business` supports scoped browsing, cancellation, approved execution,
 receipt review, read-only recovery and separately approved compensation proposals.
+A separate approval authority serves the reviewer console at `/review`; the business process uses a
+verified HTTPS client without grant authority. Real reviewer/identity/audit enrollment is required.
 Feedback curation and capability admission remain separate trusted review workflows. An opt-in
 async model executor adds budgeted routing and encrypted short-lived scoped caching.
 

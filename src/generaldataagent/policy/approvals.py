@@ -17,6 +17,7 @@ from generaldataagent.contracts import (
     ArtifactClassification,
     ToolRequest,
 )
+from generaldataagent.contracts.approval import ApprovalRecord
 
 
 class ApprovalError(PermissionError):
@@ -90,6 +91,7 @@ def _approval_request(
         action=request.action,
         resource=request.resource,
         parameters=request.arguments,
+        data_domains=request.data_domains,
         impact_scope=impact_scope,
         cost_estimate=cost_estimate,
         classification=classification,
@@ -312,6 +314,54 @@ class SQLiteApprovalStore:
             }
             if "disposition_json" not in columns:
                 connection.execute("ALTER TABLE approvals ADD COLUMN disposition_json TEXT")
+
+    def inspect(self, approval_id: UUID) -> ApprovalRecord:
+        """Trusted service port; the caller must enforce session/scope before disclosure."""
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT request_json, grant_json, consumed_at, disposition_json "
+                "FROM approvals WHERE approval_id=?",
+                (str(approval_id),),
+            ).fetchone()
+        if row is None:
+            raise ApprovalError("unknown approval request")
+        return ApprovalRecord(
+            request=ApprovalRequest.model_validate_json(row[0]),
+            grant=ApprovalGrant.model_validate_json(row[1]) if row[1] else None,
+            consumed=row[2] is not None,
+            disposition=ApprovalDisposition.model_validate_json(row[3]) if row[3] else None,
+        )
+
+    def review_page(
+        self,
+        *,
+        tenant: str,
+        project: str,
+        domains: frozenset[str],
+        before: int | None = None,
+        limit: int = 25,
+    ) -> dict:
+        if (
+            type(limit) is not int
+            or not 1 <= limit <= 100
+            or (before is not None and (type(before) is not int or before <= 0))
+        ):
+            raise ValueError("invalid_approval_page")
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT rowid,approval_id FROM approvals "
+                "WHERE json_extract(request_json,'$.tenant_id')=? "
+                "AND json_extract(request_json,'$.project_id')=? "
+                "AND json_array_length(json_extract(request_json,'$.data_domains'))>0 "
+                "AND NOT EXISTS (SELECT 1 FROM json_each(request_json,'$.data_domains') d "
+                "WHERE d.value NOT IN (SELECT value FROM json_each(?))) "
+                "AND (? IS NULL OR rowid<?) ORDER BY rowid DESC LIMIT ?",
+                (tenant, project, json.dumps(sorted(domains)), before, before, limit + 1),
+            ).fetchall()
+        return {
+            "items": [self.inspect(UUID(row[1])) for row in rows[:limit]],
+            "next_cursor": rows[limit - 1][0] if len(rows) > limit else None,
+        }
 
     def create_request(
         self,

@@ -25,6 +25,9 @@ _Permission = Literal[
     "operations:read",
     "business:propose",
     "business:read",
+    "approvals:request",
+    "approvals:review",
+    "approvals:delegate",
 ]
 
 

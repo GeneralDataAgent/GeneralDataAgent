@@ -41,6 +41,12 @@ Updated: 2026-10-19. Development branch: `feat/stage5-business-loop`.
    proposals. Desktop/mobile interaction is verified with synthetic local records; no credential
    persistence or approval-grant endpoint is introduced.
 
+10. A separate authenticated approval authority and Chinese reviewer console now support scoped
+    queues, explicit exact confirmation, independent reviewer enrollment, reject/cancel and atomic
+    consumption. `RemoteApprovalStore` keeps approval authority out of the business process; verified
+    HTTPS, live session/delegation checks and independent-audit/release ports are implemented.
+    Actual identity/reviewer/audit deployment remains unconfigured.
+
 ## Remaining code/integration work
 
 | Work | Present boundary | Input needed |
@@ -50,7 +56,7 @@ Updated: 2026-10-19. Development branch: `feat/stage5-business-loop`.
 | Autonomous periodic service execution | Durable polling, mounted service-JWT validation, schedule-bound revocable session issuance and API/action constraints exist; no user token is stored or renewed | Enroll the actual issuer/audience/keys/service delegation and deploy with a process manager; each external action still needs explicit exact approval |
 | Full orchestration-model routing and metering | Narration and opt-in native Supervisor/specialist routing, shared orchestration budget and usage audit are implemented | Enroll approved provider/model configurations and run the real held-out billing/latency benchmark before enabling; deployment routes within one native provider family |
 | Production business API assembly | Pilot works and qualification checks exist; production factory still rejects local business/feedback state | Independently operated approval/audit/retention infrastructure and a qualified production receiver; do not remove this guard just to make deployment pass |
-| Independent approval-service integration | End-user draft/control console is implemented; approval decisions remain on the trusted operator port | Enroll actual independent reviewers and an authenticated external approval service; the business API cannot grant approvals |
+| Independent approval-service enrollment/deployment | Separate authenticated authority, reviewer console and remote client are implemented and isolated-tested; requester/reviewer separation is enforced | Enroll actual reviewers and identity/delegation grants, HTTPS origin, protected authority state and independent audit/release keys; business API cannot grant approvals |
 
 ## Operator work before expanding the Feishu pilot
 

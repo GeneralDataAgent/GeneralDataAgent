@@ -257,8 +257,8 @@ production-ready until their documented external and security acceptance gates p
 
 `feat/stage5-business-loop` starts the business loop with the local workflows, governance and
 qualification tooling mapped in [Stage 5 evidence](validation/stage5-business-loop.md). All 42 frozen
-local action cases pass and the current full suite passes (515 passed, one opt-in PostgreSQL skip;
-87.96% coverage). Review and operation steps are in the [Stage 5 runbook](operations/stage5-runbook.md).
+local action cases pass and the current full suite passes (531 passed, one opt-in PostgreSQL skip;
+88.25% coverage). Review and operation steps are in the [Stage 5 runbook](operations/stage5-runbook.md).
 External effects are disabled by default; a configured Feishu pilot sent one user-approved bot-to-self
 notification and verified its receiver content, with replay returning the original receipt. A GitHub
 JSON scheduling draft-PR receiver now has isolated validation for exact approved changes, readback,
@@ -266,7 +266,8 @@ no-resend quarantine, read-only reconciliation and separate closure approval. Re
 enrollment, direct BI/registry integrations, Feishu cloud-document/file publication and production
 service activation remain open.
 GitHub Issues review queues now deliver Dashboard drafts, tickets and model-registration requests
-without executing queries or registering models.
+without executing queries or registering models. Separate scoped business/reviewer consoles and an
+authenticated approval authority/remote client now have isolated integration and browser validation.
 Frozen report IM publication and short-lived service-JWT identity adapters have isolated end-to-end
 validation; their live target/provider enrollment remains separate. This implementation does not close independent production
 or business-value acceptance and does not change earlier stages' outstanding external gates.

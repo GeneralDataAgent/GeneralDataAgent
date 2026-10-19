@@ -20,6 +20,7 @@ class ApprovalRequest(ContractModel):
     action: str = Field(min_length=1, max_length=128)
     resource: str = Field(min_length=1, max_length=1_024)
     parameters: dict[str, Any] = Field(default_factory=dict)
+    data_domains: tuple[str, ...] = Field(default=(), max_length=100)
     impact_scope: str = Field(min_length=1, max_length=2_000)
     cost_estimate: str = Field(min_length=1, max_length=1_000)
     classification: ArtifactClassification
@@ -57,3 +58,10 @@ class ApprovalDisposition(ContractModel):
     tenant_id: str = Field(min_length=1, max_length=128)
     reason: str = Field(min_length=1, max_length=2_000)
     recorded_at: AwareDatetime = Field(default_factory=utc_now)
+
+
+class ApprovalRecord(ContractModel):
+    request: ApprovalRequest
+    grant: ApprovalGrant | None = None
+    disposition: ApprovalDisposition | None = None
+    consumed: bool = False

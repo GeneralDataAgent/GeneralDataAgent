@@ -211,3 +211,19 @@ Implementation commits: `4694b46` (Feishu frozen-report IM publication) and `cf5
   synthetic records: connection, literal hostile HTML rendering, cancel, approved execution/receipt,
   separate compensation proposal and disconnect. No JavaScript errors/dialogs or horizontal overflow.
 - Console assets are included in the built wheel. No real delivery or production admission occurred.
+
+
+## Independent approval authority continuation (2026-10-19)
+
+- Full frozen suite: **531 passed, 1 skipped**, **88.25%** coverage.
+- **16 focused cases** verify remote exact binding, same-scope enrolled independent reviewers, explicit
+  confirmation, one-time consumption, cancellation/rejection, changed payload/scope, mid-audit session
+  revocation, disabled service/audit failures, response tampering, explicit revocable delegation, body
+  bounds, production prerequisites and verified HTTPS without redirect/retry or local grant authority.
+- A real local business runtime uses the remote protocol against an isolated authority and cannot
+  execute until a different authenticated fixture user explicitly approves. No real grant is created.
+- A headless browser verified the reviewer console on desktop/mobile: scoped queue, full content,
+  confirmation checkbox, explicit approval, post-decision controls and disconnect. No script errors
+  or horizontal overflow. Both consoles' assets ship in the wheel.
+- This implements the approval-service integration code; real identity/reviewer enrollment, signed
+  audit infrastructure, independent receiver qualification and production business state remain open.
