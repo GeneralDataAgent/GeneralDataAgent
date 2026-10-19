@@ -155,17 +155,17 @@ def test_langchain_provider_preserves_usage_and_rejects_missing_usage():
     import asyncio
 
     class Model:
-        def with_structured_output(self, schema, *, include_raw):
-            assert schema is Narrative and include_raw is True
+        def bind_tools(self, schemas, *, tool_choice, **kwargs):
+            assert schemas == [Narrative] and tool_choice == "Narrative"
+            assert kwargs["max_tokens"] == 1024
             return self
 
-        async def ainvoke(self, messages, **kwargs):
-            assert kwargs["max_tokens"] == 1024
-            return {
-                "parsed": Narrative(summary="Evidence-bound prose"),
-                "parsing_error": None,
-                "raw": SimpleNamespace(usage_metadata=self.usage),
-            }
+        async def ainvoke(self, messages):
+            return SimpleNamespace(
+                tool_calls=[{"name": "Narrative", "args": {"summary": "Evidence-bound prose"}}],
+                invalid_tool_calls=[],
+                usage_metadata=self.usage,
+            )
 
     model = Model()
     model.usage = {"input_tokens": 123, "output_tokens": 20}
@@ -178,3 +178,45 @@ def test_langchain_provider_preserves_usage_and_rejects_missing_usage():
     model.usage = None
     with pytest.raises(LlmInvocationError):
         asyncio.run(bridge.invoke(req))
+
+
+def test_real_langchain_binding_passes_output_cap_to_model(monkeypatch):
+    import asyncio
+
+    from langchain_anthropic import ChatAnthropic
+    from langchain_core.messages import AIMessage
+    from langchain_core.outputs import ChatGeneration, ChatResult
+    from test_stage5_optimization import request
+
+    captured = []
+
+    async def generate(self, messages, stop=None, run_manager=None, **kwargs):
+        captured.append(kwargs)
+        return ChatResult(
+            generations=[
+                ChatGeneration(
+                    message=AIMessage(
+                        content="",
+                        tool_calls=[
+                            {
+                                "name": "Narrative",
+                                "args": {"summary": "Bounded prose"},
+                                "id": "fixture",
+                            }
+                        ],
+                        usage_metadata={
+                            "input_tokens": 100,
+                            "output_tokens": 20,
+                            "total_tokens": 120,
+                        },
+                    )
+                )
+            ]
+        )
+
+    monkeypatch.setattr(ChatAnthropic, "_agenerate", generate)
+    model = ChatAnthropic(model="claude-fixture", api_key="synthetic-local-test-only")
+    result = asyncio.run(LangChainRoutedProvider(model).invoke(request(output_token_bound=123)))
+    assert result.output_tokens == 20
+    assert captured[0]["max_tokens"] == 123
+    assert captured[0]["tool_choice"] == {"type": "tool", "name": "Narrative"}

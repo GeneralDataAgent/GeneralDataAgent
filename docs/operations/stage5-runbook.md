@@ -210,3 +210,27 @@ cleared on failure; calling an admitted connector directly outside the gateway f
 Revocation blocks subsequent reads, including repeated aggregate queries within profiling. This
 local enforcement is code-backed; production still requires independently authenticated reviews
 and evidence, not synthetic test fixture enrollments.
+
+## Measured optimization and complete acceptance (2026-10-19)
+
+The aggregate runner now consumes `--optimization-evidence` with operator-pinned
+`--routing-configuration-hash` and `--evaluation-dataset-hash`, plus `--stage4-release-bundle`.
+Both reuse the operator-owned `--trusted-signers` registry. Optimization evidence binds exact
+revision/environment/configuration/held-out dataset, at least 90 tasks, baseline and optimized
+quality, measured billing, P95 latency, safety/cache-authorization/budget checks and positive
+predeclared reduction targets. Quality and safety may not regress; cost and latency may not worsen.
+Security and operations signatures must come from distinct identities and keys; proofs expire
+within one day. Estimated prices or cached-token counters alone cannot qualify as measured billing.
+
+Acceptance is computed from all six independently qualified action gates, optimization and the
+existing Stage 4 release verifier, plus the clean-tree/local regression checks. With every valid
+proof it can return `passed`; missing, stale, changed, untrusted or below-target evidence remains
+`incomplete`. `--require-production` now exits according to those actual blockers rather than
+always failing. This verifies admission evidence; it does not deploy or widen runtime permissions.
+The real environment remains incomplete: this development run has a single authorized Feishu
+connectivity sample, not the independent multi-party production evidence those gates require.
+
+A local SDK integration test also found that invocation kwargs are dropped by LangChain's raw
+structured-output `RunnableMap` branch. The provider bridge now binds the output-token cap directly
+on the model's forced Narrative tool request. A test using the installed ChatAnthropic runnable
+verifies the cap reaches the model call, in addition to the existing returned-usage bound checks.

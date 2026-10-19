@@ -107,7 +107,15 @@ def main() -> int:
         if args.reconcile_message_id:
             result = runtime.reconcile(request.action_id, token, args.reconcile_message_id)
         else:
-            result = runtime.propose(request, token)
+            with runtime._db() as db:
+                exists = db.execute(
+                    "SELECT 1 FROM business_actions WHERE id=?", (str(request.action_id),)
+                ).fetchone()
+            result = (
+                runtime.get(request.action_id, token) if exists else runtime.propose(request, token)
+            )
+            if ActionIntent.model_validate(result["intent"]) != backend.bind(request):
+                raise PermissionError("prepared smoke content changed after persistence")
             if args.execute_confirmed:
                 if result["state"] == "pending":
                     # This is the actual verified human who confirmed the prepared content,

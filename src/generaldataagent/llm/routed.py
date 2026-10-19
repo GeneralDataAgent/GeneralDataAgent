@@ -100,19 +100,30 @@ class LangChainRoutedProvider:
     ):
         if output_token_parameter not in {"max_tokens", "max_completion_tokens"}:
             raise ValueError("unsupported output-token parameter")
-        self.structured = model.with_structured_output(Narrative, include_raw=True)
+        self.model = model
         self.output_token_parameter = output_token_parameter
 
     async def invoke(self, request: RoutingRequest) -> ProviderResult:
         try:
-            response = await self.structured.ainvoke(
-                [("system", LangChainNarrator.SYSTEM_PROMPT), ("human", request.prompt)],
+            # Bind the limit to the model itself. LangChain's include_raw structured-output
+            # RunnableMap does not forward invocation kwargs to its raw model branch.
+            bounded = self.model.bind_tools(
+                [Narrative],
+                tool_choice="Narrative",
                 **{self.output_token_parameter: request.output_token_bound},
             )
-            if response.get("parsing_error") is not None:
-                raise ValueError("structured response parsing failed")
-            narrative = Narrative.model_validate(response["parsed"])
-            usage = response["raw"].usage_metadata
+            response = await bounded.ainvoke(
+                [("system", LangChainNarrator.SYSTEM_PROMPT), ("human", request.prompt)]
+            )
+            calls = response.tool_calls
+            if (
+                len(calls) != 1
+                or calls[0].get("name") != "Narrative"
+                or getattr(response, "invalid_tool_calls", ())
+            ):
+                raise ValueError("one valid Narrative tool result is required")
+            narrative = Narrative.model_validate(calls[0]["args"])
+            usage = response.usage_metadata
             if not isinstance(usage, dict) or any(
                 type(usage.get(k)) is not int or usage[k] < 0
                 for k in ("input_tokens", "output_tokens")
