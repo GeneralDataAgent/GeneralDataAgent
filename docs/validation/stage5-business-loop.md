@@ -11,8 +11,8 @@ Updated: 2026-10-19 (Asia/Shanghai). Branch: `feat/stage5-business-loop`.
 | Compensation/rollback | Separately approved compensation referencing original content and current revision | Retracts the matching local resource only; cannot overwrite a later revision |
 | Execution guards | Current session, scope, DLP, policy, destination revision, per-kind owner/switch/rate and global switch | Controls are trusted configuration; no approval/control mutation HTTP endpoint |
 | Delivery evidence and audit | Intent/payload/receipt hashes, transactional resource/receipt/completion and chained local events | Independent external audit/retention and receiver reconciliation still required |
-| Periodic reports | Durable finite schedule, bounded tick, stable occurrence IDs, independent approval per occurrence, skip expired periods | Optional certified query refresh with fixed or rolling windows, immutable generated artifact and per-occurrence approval; external publication and autonomous service identity remain separate work |
-| Cost/latency, routing/cache | Opt-in async admitted-model executor, bounded tokens/cost/deadline, live authorization checks, deterministic configured-cost route, encrypted 15-minute-max scoped cache | Integrated into the analysis narration node reached by Supervisor tools; orchestration model remains separately configured. Operator/provider enrollment and measured billing qualification are still required |
+| Periodic reports | Durable finite schedule, bounded tick, stable occurrence IDs, independent approval per occurrence, skip expired periods | Optional certified query refresh with fixed or rolling windows, immutable generated artifact and per-occurrence approval; a durable worker supports fresh scoped sessions and restart-safe leases; deployment identity and external publication remain operator work |
+| Cost/latency, routing/cache | Opt-in async admitted-model executor, bounded tokens/cost/deadline, live authorization checks, deterministic configured-cost route, encrypted 15-minute-max scoped cache | Integrated into the analysis narration node reached by Supervisor tools; native Supervisor/specialist routing now shares durable orchestration budgets and per-turn usage audit. Operator/provider enrollment and measured billing qualification are still required |
 | User feedback/evaluation governance | Completed metric deliveries register scoped hashes; authenticated feedback, DLP, two independent reviews, immutable datasets and task/evidence holdout separation | Local trusted reviewer ports; no automatic training or production review service |
 | Agent/Skill/connector admission | Pinned immutable version/evidence/owner/scope/expiry/rollback, independent quality/security reviewers, activation and permanent revocation | Enforced in specialist/Skill factory and connector assembly/native reads, with live revocation checks. No dynamic imports or automatic tool-permission expansion |
 | Independent per-action acceptance | Signed, revision/configuration/environment-bound external receiver measurements, safety/compensation/audit/business targets, separate result for every action kind | Missing evidence stays `not_run`/incomplete; no fixture can establish a production claim |
@@ -115,3 +115,29 @@ prove the required 20-trial independent receiver qualification, real recall succ
 business improvement, complete production audit/retention or prior-stage production admission.
 See the current [remaining-work list](../stage5-remaining-work.md) for concrete implementation and
 operator dependencies, and the [runbook](../operations/stage5-runbook.md) for configuration details.
+
+
+## Background execution and orchestration continuation (2026-10-19)
+
+Implementation commits: `b4af8a0` (background worker), `fe957b4` (native orchestration routing),
+`58ab49b` (missed-period revision recovery). No new real messages or model requests were sent.
+
+- Full frozen suite: **381 passed, 1 skipped**, **87.74%** coverage. The single skip remains the
+  optional live local PostgreSQL environment; it is not an unimplemented report/model feature.
+- Stage 4 security matrix: **91/91**. Stage 5 local lifecycle matrix: **42/42**.
+- Durable report worker: exact schedule/configuration/scope binding, finite delegation expiry,
+  fresh least-privilege sessions revoked after every tick, no persisted bearer tokens, concurrent
+  poller exclusion, expired lease recovery, sanitized failures and cancellation. Deployment needs
+  a workload identity issuer and process manager; the tests do not establish either live service.
+- Native model governance: real installed Deep Agents graphs with offline Anthropic/OpenAI
+  provider responses exercise a Supervisor → discovery specialist → Supervisor round trip. All
+  three turns share one durable budget and each native cap reaches the provider call boundary.
+  SDK retries, streaming and automatic unmetered summarization are disabled. No response/tool-call
+  cache or automatic route fallback is used. Scope changes, revoked models, missing usage, token
+  overruns, DLP, unsupported multimedia, deadlines and retry/concurrency budgets are exercised.
+- Optional current-at-proposal report revision policy supports skipped/cancelled periods. Lost
+  acknowledgment replay preserves the original intent/version/approval, and execution still blocks
+  intervening resource changes. Existing sequential scheduling remains the default.
+- Independent production gates remain incomplete. These tests are local engineering evidence;
+  real reviewer enrollment, held-out provider billing/latency comparison, receiver targets and
+  deployment/approval/audit infrastructure remain necessary. See the remaining-work inventory.
