@@ -12,8 +12,10 @@ from langgraph.checkpoint.memory import InMemorySaver
 from generaldataagent.agents.contracts import SpecialistResult, SupervisorResult
 from generaldataagent.agents.factory import build_supervisor
 from generaldataagent.agents.specs import SPECIALIST_SPECS
+from generaldataagent.business.actions import content_hash
 from generaldataagent.catalog import InMemoryMetricCatalog
 from generaldataagent.contracts import ActorContext, MetricQuery
+from generaldataagent.llm.orchestration import OrchestrationRouter
 from generaldataagent.orchestration import MetricAnalysisRuntime
 
 _PHASE_ONE_ROLES = frozenset({"discovery", "data-analyst", "verifier", "reporter"})
@@ -42,10 +44,12 @@ class MetricSupervisorRuntime:
         model: Any,
         catalog: InMemoryMetricCatalog,
         metric_runtime: MetricAnalysisRuntime,
+        orchestration_router: OrchestrationRouter | None = None,
     ) -> None:
         self.model = model
         self.catalog = catalog
         self.metric_runtime = metric_runtime
+        self.orchestration_router = orchestration_router
 
     def run(
         self,
@@ -78,8 +82,22 @@ class MetricSupervisorRuntime:
         role_events: list[str] = []
         tool_groups = self._build_actor_tools(actor, candidates, role_events)
         specs = tuple(spec for spec in SPECIALIST_SPECS if spec.name in _PHASE_ONE_ROLES)
+        middleware = (
+            (
+                self.orchestration_router.for_task(
+                    actor,
+                    thread_id=thread_id,
+                    source_hash=content_hash(query.model_dump(mode="json")),
+                ),
+            )
+            if self.orchestration_router
+            else ()
+        )
         supervisor = build_supervisor(
-            model=self.model,
+            model=self.orchestration_router.bootstrap_model
+            if self.orchestration_router
+            else self.model,
+            model_middleware=middleware,
             tool_groups=tool_groups,
             backend=StateBackend(),
             checkpointer=InMemorySaver(),

@@ -43,6 +43,7 @@ def build_supervisor(
     agent_versions: Mapping[str, str] | None = None,
     specialist_skills: Mapping[str, SkillDefinition] | None = None,
     skill_context: Mapping[str, str] | None = None,
+    model_middleware: Sequence[Any] = (),
 ) -> Any:
     """Create a model-provider-neutral Deep Agents supervisor.
 
@@ -85,6 +86,8 @@ def build_supervisor(
             subagent["system_prompt"] += "\n\n" + rendered
         if response_formats and spec.name in response_formats:
             subagent["response_format"] = response_formats[spec.name]
+        if model_middleware:
+            subagent["middleware"] = list(model_middleware)
         subagents.append(subagent)
 
     kwargs: dict[str, Any] = {
@@ -99,6 +102,8 @@ def build_supervisor(
         kwargs["checkpointer"] = checkpointer
     if response_format is not None:
         kwargs["response_format"] = response_format
+    if model_middleware:
+        kwargs["middleware"] = list(model_middleware)
     graph = create_deep_agent(**kwargs)
     return AdmittedGraph(graph, admission, actor, references) if references else graph
 
@@ -109,6 +114,8 @@ def _register_governed_profiles() -> None:
         return
     profile = HarnessProfile(
         excluded_tools=_GOVERNED_EXCLUDED_TOOLS,
+        # Automatic summarization calls the provider outside model-call governance.
+        excluded_middleware=frozenset({"SummarizationMiddleware"}),
         general_purpose_subagent=GeneralPurposeSubagentProfile(enabled=False),
     )
     register_harness_profile("anthropic", profile)

@@ -5,8 +5,9 @@ Updated: 2026-10-19. Development branch: `feat/stage5-business-loop`.
 ## Implemented in this continuation
 
 1. Metered narrative routing/cache is part of the certified analysis node reached by Supervisor
-   tools. SQL/authorization remain fresh; the selected orchestration model itself is still separately
-   configured. A LangChain provider bridge binds actual output caps and requires provider usage.
+   tools. SQL/authorization remain fresh. Supervisor and specialist native model calls can now
+   opt into shared durable budgets, per-call admission/routing, native output caps and provider
+   usage audit; automatic unmetered summarization is excluded.
 2. Periodic schedules can refresh certified data, generate immutable report packages and request
    exact separate approvals. Fixed and rolling windows, crash-safe frozen content, cancellation
    during generation and artifact checks are implemented.
@@ -26,7 +27,7 @@ Updated: 2026-10-19. Development branch: `feat/stage5-business-loop`.
 |---|---|---|
 | Real Dashboard/ticket/scheduling-PR/registry/report publication receivers | Typed local drafts and lifecycle exist; only Feishu notifications have a real receiver | Choose target systems and test resources. GitHub repository/branch/schedule file is not yet identified, so that integration was deferred by the user in favor of Feishu |
 | Autonomous periodic service execution | Durable polling and scoped short-lived token-provider integration exist; no user token is stored or renewed | Deploy the worker with an authenticated workload identity/token issuer and process manager; each external action still needs explicit exact approval |
-| Full orchestration-model routing and metering | Routed narration is integrated; the Supervisor's planning model is separately selected | Approved provider/model routes, whole-agent token accounting and a real bounded benchmark before enabling that extra autonomy |
+| Full orchestration-model routing and metering | Narration and opt-in native Supervisor/specialist routing, shared orchestration budget and usage audit are implemented | Enroll approved provider/model configurations and run the real held-out billing/latency benchmark before enabling; deployment routes within one native provider family |
 | Production business API assembly | Pilot works and qualification checks exist; production factory still rejects local business/feedback state | Independently operated approval/audit/retention infrastructure and a qualified production receiver; do not remove this guard just to make deployment pass |
 | End-user review/control UI | Scoped APIs and trusted operator review ports exist | Product review flow and authenticated external approval service; no public endpoint can grant an approval |
 

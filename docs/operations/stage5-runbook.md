@@ -260,3 +260,36 @@ stored token. Expired or completed jobs are disabled. Stop the process gracefull
 `worker.cancel(schedule_id, owner_token)` also cancels the schedule, including in-flight refresh.
 This worker only proposes drafts. Approval, delivery and compensation use their existing separate
 permissions and exact approvals. No message or downstream change is sent by polling.
+
+## Metered Supervisor and specialist models
+
+Pass an opt-in `OrchestrationRouter` as `MetricSupervisorRuntime(orchestration_router=...)` to
+route every Supervisor/specialist chat turn through current capability admission, authorization,
+a shared durable token/cost/call budget and a transport deadline. Supply explicit `Budget`,
+`NarrationSettings`, audit sink, fresh authorization/version callbacks and `enabled` switch.
+The default switch denies execution. Model routes need actual independent quality/security
+admission using `OrchestrationModelConfig.fingerprint`; the default HTTPS endpoint, chosen endpoint,
+model name, deadline and retry/streaming policy are bound into that fingerprint. Credentials remain
+in the provider's protected environment. Environment endpoint variables cannot redirect a route.
+
+A deployment routes within one native provider family (Anthropic or OpenAI). Clients stay native,
+so the existing filesystem/shell/general-purpose-subagent exclusions remain active. The factory
+also excludes automatic summarization, which otherwise makes unmetered model calls outside agent
+middleware. Large histories fail their bounded envelope instead. Text and native tool-use messages
+are supported; image/file content is refused. Actual tool-call messages are returned intact and
+are not cached. Framework structured-output retries and specialist calls are charged individually;
+SDK retries are disabled and transport failures do not trigger automatic route fallback.
+
+The reservation includes a conservative serialized-byte input allowance (messages, system prompt,
+tools, response schema and framing) plus the enforced native output cap. Configure the task budget
+for all anticipated turns: it is deliberately more conservative than a provider tokenizer. Failed
+calls keep their reservation. Reported provider input/output usage is mandatory and checked against
+the reservation, recorded in audit without prompts/results, and rechecked against authorization,
+model admission and task deadline before the response is accepted. The same actor/thread always
+reuses its task budget across retries and restarts; changing a query does not reset that budget.
+Child certified analysis/narration retains its separately registered deterministic workflow budget.
+
+Offline tests exercise native Anthropic and OpenAI agent graphs, including a real specialist
+handoff and the exact cap reaching the provider invocation boundary. No real model route has been
+enrolled or billed by these tests. A held-out real billing/latency benchmark and qualified operator
+configuration remain required before enabling this routing in production.

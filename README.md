@@ -487,7 +487,9 @@ supports exact-approved sending, readback, durable receiver hints and read-only 
 A durable background worker can poll report schedules with freshly issued scoped sessions and
 restart-safe leases; its deployment identity provider remains an operator integration.
 Certified report refresh and model routing/cache are integrated into the analysis path, and
-new Agent/Skill/connector assembly enforces pinned admission. Production mode still rejects the
+new Agent/Skill/connector assembly enforces pinned admission. An opt-in native model router also
+meters Supervisor and specialist turns under a shared durable budget with current admission checks.
+Production mode still rejects the
 local business pilot until independently qualified service integration is available.
 See the [runbook](docs/operations/stage5-runbook.md) and
 [development/acceptance evidence](docs/validation/stage5-business-loop.md). Run the local matrix with
