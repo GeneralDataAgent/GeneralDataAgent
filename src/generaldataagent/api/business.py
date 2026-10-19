@@ -3,10 +3,17 @@
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request
+from pydantic import Field
 
 from generaldataagent.business.actions import BusinessActionRuntime
+from generaldataagent.business.feishu import RecallConfirmationRequired
 from generaldataagent.business.schedules import ReportSchedule, ReportScheduler
 from generaldataagent.contracts.business import ActionIntent
+from generaldataagent.contracts.models import ContractModel
+
+
+class ReceiverReconciliationRequest(ContractModel):
+    message_id: str = Field(pattern=r"^om_[A-Za-z0-9]{1,128}$")
 
 
 def business_router(actions: BusinessActionRuntime, scheduler: ReportScheduler | None) -> APIRouter:
@@ -18,6 +25,10 @@ def business_router(actions: BusinessActionRuntime, scheduler: ReportScheduler |
     def invoke(call, *args):
         try:
             return call(*args)
+        except RecallConfirmationRequired as exc:
+            raise HTTPException(
+                status_code=409, detail="feishu_recall_confirmation_required"
+            ) from exc
         except PermissionError as exc:
             # Details never include draft bodies or credentials.
             raise HTTPException(status_code=403, detail="business_access_denied") from exc
@@ -35,6 +46,10 @@ def business_router(actions: BusinessActionRuntime, scheduler: ReportScheduler |
     @router.post("/drafts/{action_id}/execute")
     def execute(action_id: UUID, request: Request):
         return invoke(actions.execute, action_id, token(request))
+
+    @router.post("/drafts/{action_id}/reconcile")
+    def reconcile(action_id: UUID, body: ReceiverReconciliationRequest, request: Request):
+        return invoke(actions.reconcile, action_id, token(request), body.message_id)
 
     @router.post("/drafts/{action_id}/cancel")
     def cancel(action_id: UUID, request: Request):

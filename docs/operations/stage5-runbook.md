@@ -118,3 +118,43 @@ input/output token usage from the provider and fails closed on missing usage or 
 Use existing CC Switch model constructors to resolve credentials without copying secrets into Git.
 Pin the model route to reviewed configuration and set transport deadlines/retries on the model.
 Provider enrollment and review are trusted operator steps; the code never auto-approves a model.
+
+## Feishu notification receiver (2026-10-19)
+
+Supply a `FeishuNotificationBackend` for an explicit notification destination in
+`BusinessActionRuntime(feishu_backends=...)`. `FeishuTarget` pins application, sender identity,
+receiver type/ID and configuration version. The final persisted approval includes a `delivery_binding`
+with these fields, the exact wire-content hash and configuration hash. Changing sender/recipient/
+configuration after approval blocks execution. The normal owner/scope/switch/rate controls still apply.
+
+`LarkCLITransport` resolves the installed CLI and uses argument arrays, explicit user/bot identity,
+bounded timeouts and the documented `ok=true` service envelope. Credentials stay in the CLI's own
+protected store. Error messages never include raw CLI diagnostics. Notification text has a stable
+action/evidence marker; the 36-character action UUID is the receiver idempotency key. Feishu's
+native duplicate window is limited, so uncertain/claimed actions are never automatically resent.
+
+Before any send, current application/sender and admission are checked. The runtime reserves the
+local destination and persists exact approval consumption before crossing the receiver boundary.
+A send acknowledgement is saved as a receiver hint before readback. Completion requires matching
+message ID, sender, conversation and exact text from a receiver read. If send/readback is uncertain,
+`POST /v1/business/drafts/{action_id}/reconcile` accepts a `message_id` and only reads the receiver;
+it never sends a replacement. Expired executing claims may be reconciled after process loss, but
+an active claim cannot be overtaken. Other actions to an unresolved destination are blocked.
+
+A separately approved compensation recalls only the original matching message. A second explicit
+human confirmation port (`recall_confirmed`) is required for the CLI's high-risk recall operation;
+there is no automatic `--yes` retry on exit 10. Receiver readback must verify the recalled/deleted
+state. If a platform/CLI version cannot expose that evidence, compensation remains uncertain for
+manual verification rather than claiming success. Real recall has not been exercised in this pilot.
+
+`examples/feishu_notification_smoke.py --state-dir .state/feishu-pilot` prepares a local request to
+the currently verified user's own account and prints the exact sender/recipient/content. Only after
+that human confirms it may an operator add `--execute-confirmed`. The local requester is the pilot
+service; the approval records the actual verified human ID, never invented independent reviewers.
+`--reconcile-message-id` supports read-only recovery. The helper is explicitly a development live
+smoke; it cannot provide production admission or the required independent multi-party qualification.
+
+A user-authorized bot-to-self message was sent and read back successfully on 2026-10-19. Repeating
+the completed action returned the same message ID and resource revision, with no second send.
+No group message, recall, or GitHub PR was created. Private receiver IDs and runtime databases remain
+under the ignored `.state/` directory; no bearer token/app secret was copied into the repository.

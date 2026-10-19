@@ -5,7 +5,7 @@ from uuid import UUID, uuid4
 
 from pydantic import AwareDatetime, Field, StringConstraints, model_validator
 
-from generaldataagent.contracts.models import ContractModel, utc_now
+from generaldataagent.contracts.models import ArtifactRef, ContractModel, utc_now
 
 Digest = Annotated[str, StringConstraints(pattern=r"^sha256:[0-9a-f]{64}$")]
 
@@ -50,6 +50,16 @@ class ReportDraft(ContractModel):
     title: str = Field(min_length=1, max_length=200)
     report_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     period: str = Field(min_length=1, max_length=128)
+    report_artifact: ArtifactRef | None = None
+
+    @model_validator(mode="after")
+    def report_hash_matches_artifact(self):
+        if self.report_artifact is not None and (
+            self.report_artifact.content_hash != self.report_hash
+            or self.report_artifact.artifact_type != "scheduled_report"
+        ):
+            raise ValueError("report draft must match its frozen report artifact")
+        return self
 
 
 DraftPayload = Annotated[
@@ -66,6 +76,27 @@ ActionKind = Literal[
 ]
 
 
+class FeishuBinding(ContractModel):
+    backend: Literal["feishu"] = "feishu"
+    app_id: str = Field(pattern=r"^cli_[A-Za-z0-9]{1,64}$")
+    sender_id: str = Field(pattern=r"^ou_[A-Za-z0-9]{1,128}$")
+    identity: Literal["bot", "user"]
+    receiver_type: Literal["chat_id", "open_id"]
+    receiver_id: str = Field(pattern=r"^(oc|ou)_[A-Za-z0-9]{1,128}$")
+    wire_content_hash: Digest
+    configuration_hash: Digest
+
+
+class ExternalMessageReceipt(ContractModel):
+    backend: Literal["feishu"] = "feishu"
+    message_id: str = Field(pattern=r"^om_[A-Za-z0-9]{1,128}$")
+    chat_id: str = Field(pattern=r"^oc_[A-Za-z0-9]{1,128}$")
+    sender_id: str = Field(pattern=r"^ou_[A-Za-z0-9]{1,128}$")
+    wire_content_hash: Digest
+    configuration_hash: Digest
+    state: Literal["delivered", "recalled"]
+
+
 class ActionIntent(ContractModel):
     action_id: UUID = Field(default_factory=uuid4)
     task_id: UUID
@@ -74,6 +105,7 @@ class ActionIntent(ContractModel):
     destination: str = Field(pattern=r"^[a-z][a-z0-9_.-]{0,127}$")
     expected_revision: int = Field(default=0, ge=0)
     payload: DraftPayload
+    delivery_binding: FeishuBinding | None = None
     operation: Literal["deliver", "compensate"] = "deliver"
     compensates: UUID | None = None
     expires_at: AwareDatetime
@@ -95,6 +127,20 @@ class ActionReceipt(ContractModel):
     destination: str
     revision: int = Field(ge=1)
     operation: Literal["deliver", "compensate"]
-    backend: Literal["local_draft"] = "local_draft"
-    external_delivery: Literal[False] = False
+    backend: Literal["local_draft", "feishu"] = "local_draft"
+    external_delivery: bool = False
+    external: ExternalMessageReceipt | None = None
     recorded_at: AwareDatetime = Field(default_factory=utc_now)
+
+    @model_validator(mode="after")
+    def validate_receiver_evidence(self) -> "ActionReceipt":
+        if self.backend == "local_draft":
+            if self.external_delivery or self.external is not None:
+                raise ValueError("local draft cannot claim external delivery")
+        elif not self.external_delivery or self.external is None:
+            raise ValueError("external delivery requires a receiver receipt")
+        if self.external is not None and self.external.state != (
+            "delivered" if self.operation == "deliver" else "recalled"
+        ):
+            raise ValueError("receiver receipt must match action operation")
+        return self

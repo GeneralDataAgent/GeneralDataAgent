@@ -153,7 +153,7 @@ def create_app(
             required = None
             if path.startswith("/v1/business/"):
                 required = "business:read" if request.method == "GET" else "business:propose"
-                if path.endswith("/execute"):
+                if path.endswith(("/execute", "/reconcile")):
                     required = "actions:resume"
             elif path.startswith("/v1/analysis/"):
                 required = "analysis:run"
@@ -277,7 +277,9 @@ def create_app(
             "feedback_curation": feedback_registry is not None,
             "business_drafts": business_actions is not None,
             "periodic_report_drafts": report_scheduler is not None,
-            "external_business_delivery": False,
+            "external_business_delivery": bool(
+                business_actions and business_actions.feishu_backends
+            ),
             "production_writes": False,
             "arbitrary_shell": False,
             "implemented_controls": [
