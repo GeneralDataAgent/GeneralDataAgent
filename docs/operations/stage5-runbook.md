@@ -96,3 +96,25 @@ Use fresh authorization/source versions from trusted systems, never user-supplie
 `purge` during maintenance; expired records are also removed on reads/writes. Cache ciphertext and
 keys are runtime state and must not be committed. The existing Supervisor is unchanged: this port
 must be explicitly wired by a qualified deployment. Do not enable the local pilot in production.
+
+## Routed narration in the analysis workflow (2026-10-19)
+
+`MetricAnalysisRuntime(routed_narrator=..., budgets=...)` now invokes the governed executor from
+its normal analyze node; the existing Supervisor's certified-query tool uses that same runtime.
+The routed narrator must share the exact task budget ledger with SQL execution. Legacy and routed
+narrators are mutually exclusive. Each successful narrative is preserved as a task artifact with
+lineage to the fresh query result. `analysis.model_usage` records route/version/cache/cost/tokens/
+latency without raw rows or prompts. A cache hit reports zero new provider tokens/cost.
+
+Construct a `RoutedNarrator` with `NarrationSettings` and a trusted current authorization-version
+resolver. Its cache snapshot binds query conditions, certified metric definition and freshly
+computed result values; variable query timing is excluded. SQL, source authorization and validation
+still run on every task, so changed source values invalidate the cached prose. Permission changes,
+model revocation and expired budgets block cached results as well as new calls.
+
+`LangChainRoutedProvider(model).invoke` is an async adapter suitable for the executor's provider map.
+It requests structured `Narrative` output with a bounded output token parameter, requires actual
+input/output token usage from the provider and fails closed on missing usage or invalid structure.
+Use existing CC Switch model constructors to resolve credentials without copying secrets into Git.
+Pin the model route to reviewed configuration and set transport deadlines/retries on the model.
+Provider enrollment and review are trusted operator steps; the code never auto-approves a model.

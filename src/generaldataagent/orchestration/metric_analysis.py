@@ -10,6 +10,7 @@ from langsmith import tracing_context
 
 from generaldataagent.artifacts import LocalArtifactStore
 from generaldataagent.artifacts.governed import GovernedArtifactStore
+from generaldataagent.business.actions import content_hash
 from generaldataagent.catalog import InMemoryMetricCatalog, MetricDefinition
 from generaldataagent.contracts import (
     ActorContext,
@@ -29,6 +30,7 @@ from generaldataagent.contracts import (
     ValidationResult,
     ValidationStatus,
 )
+from generaldataagent.llm.routed import RoutedNarrator
 from generaldataagent.observability import JsonlAuditSink
 from generaldataagent.observability.alerts import CriticalAlertRouter
 from generaldataagent.observability.verified_audit import VerifiedAuditSink
@@ -57,11 +59,19 @@ class MetricAnalysisRuntime:
         policy: PolicyEngine | None = None,
         audit: JsonlAuditSink | VerifiedAuditSink | None = None,
         narrator: NarrativeGenerator | None = None,
+        routed_narrator: RoutedNarrator | None = None,
         production_mode: bool = False,
         alerts: CriticalAlertRouter | None = None,
         budgets: TaskBudgetLedger | None = None,
         checkpointer: ProtectedSqliteSaver | None = None,
     ) -> None:
+        if narrator is not None and routed_narrator is not None:
+            raise ValueError("choose either a legacy or a routed narrator")
+        if routed_narrator is not None and (
+            budgets is None or routed_narrator.executor.budgets is not budgets
+        ):
+            raise ValueError("routed narration must share the analysis task budget ledger")
+        self.routed_narrator = routed_narrator
         if production_mode and (
             not isinstance(checkpointer, ProtectedSqliteSaver)
             or budgets is None
@@ -334,21 +344,37 @@ class MetricAnalysisRuntime:
         analysis["table"] = table.model_dump(mode="json")
         analysis["chart"] = chart.model_dump(mode="json")
         analysis["chart_artifact"] = chart_artifact.model_dump(mode="json")
-        if self.narrator is not None:
-            narrative = self.narrator.generate(
-                {
-                    "metric": plan["metric"],
-                    "columns": payload["columns"],
-                    "rows": payload["rows"],
-                    "row_count": payload["row_count"],
-                }
-            )
+        if self.narrator is not None or self.routed_narrator is not None:
+            narrative_evidence = {
+                "metric": plan["metric"],
+                "columns": payload["columns"],
+                "rows": payload["rows"],
+                "row_count": payload["row_count"],
+                "query": state["metric_query"],
+            }
+            if self.routed_narrator is not None:
+                narrative, usage = self.routed_narrator.generate(
+                    narrative_evidence,
+                    task_id=request.task_id,
+                    actor=actor,
+                    source_hash=content_hash(
+                        {
+                            "semantic_context": state["semantic_context"],
+                            "evidence": narrative_evidence,
+                        }
+                    ),
+                )
+                analysis["model_usage"] = usage
+                self._emit("analysis.model_usage", state, usage)
+            else:
+                narrative = self.narrator.generate(narrative_evidence)
             narrative_payload = narrative.model_dump(mode="json")
             narrative_artifact = self.artifacts.put_json(
                 task_id=request.task_id,
                 artifact_type="llm_narrative",
                 value=narrative_payload,
                 created_by="llm-narrator",
+                lineage=(artifact.artifact_id,),
             )
             analysis["narrative"] = narrative_payload
             analysis["narrative_artifact"] = narrative_artifact.model_dump(mode="json")
