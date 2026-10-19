@@ -9,7 +9,7 @@ import json
 import sqlite3
 from collections.abc import Callable
 from contextlib import closing
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -137,7 +137,10 @@ class BusinessActionRuntime:
             if self.artifact_reader is None:
                 raise PermissionError("scoped_report_artifact_reader_required")
             ref = intent.payload.report_artifact
-            content = self.artifact_reader(ref, identity)
+            control = self._control(intent, identity)
+            content = self.artifact_reader(
+                ref, replace(identity, data_domains=control.data_domains)
+            )
             if "sha256:" + hashlib.sha256(content).hexdigest() != ref.content_hash:
                 raise PermissionError("report_artifact_content_changed")
             self.scanner.check_export(content, ref.classification)
@@ -146,6 +149,11 @@ class BusinessActionRuntime:
 
     def _verify_references(self, intent, identity):
         content = self._report_content(intent, identity)
+        if (
+            identity.business_constraint is not None
+            and identity.business_constraint(intent, content, True) is not True
+        ):
+            raise PermissionError("workload_business_scope_denied")
         backend = self.feishu_backends.get((intent.payload.kind, intent.destination))
         if backend is not None and backend.prepare(intent, content) != intent:
             raise PermissionError("external_report_approved_content_changed")
@@ -166,6 +174,11 @@ class BusinessActionRuntime:
         return identity
 
     def _control(self, intent, identity):
+        if (
+            identity.business_constraint is not None
+            and identity.business_constraint(intent, None, False) is not True
+        ):
+            raise PermissionError("workload_business_scope_denied")
         control = self.controls.get((intent.payload.kind, intent.destination))
         if (
             control is None
@@ -348,7 +361,12 @@ class BusinessActionRuntime:
         identity = self._identity(token, "business:propose")
         with self._db() as db, db:
             db.execute("BEGIN IMMEDIATE")
-            row, _, _ = self._row(db, action_id, identity)
+            row, intent, _ = self._row(db, action_id, identity)
+            if (
+                identity.business_constraint is not None
+                and identity.business_constraint(intent, None, False) is not True
+            ):
+                raise PermissionError("workload_business_scope_denied")
             if row["state"] != "pending":
                 raise ValueError("action_not_pending")
             self.approvals.cancel(

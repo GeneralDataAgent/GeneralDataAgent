@@ -338,3 +338,45 @@ All report-delivery/recall tests use isolated fake receivers with actual local r
 No new real send or recall is authorized by previous notification smoke consent. Live publication
 still requires an exact human-reviewed report, sender and recipient, and independent qualification
 is separate from a successful message smoke test.
+
+## Service JWT identity for report jobs
+
+`OIDCWorkloadSessionIssuer` and `WorkloadSessionBroker` implement the worker's short-lived identity
+port. Enroll an HTTPS issuer, exact audience, RSA public keys (RS256, at least 2048 bits), and an
+operator-owned service-principal → exact workload delegation policy. JWT-selected keys/discovery,
+unknown keys, unsigned tokens, extra audiences, future/expired claims and credentials lasting more
+than 900 seconds are refused. A single configured audience may be encoded as a string or one-item
+array. Claims cannot select the report owner, tenant, domains, permissions or schedule.
+
+Use `ProjectedWorkloadToken(absolute_operator_mount_path)` for a mounted projected service JWT,
+or provide an operator-owned SDK credential source with its own finite transport deadline.
+Each call rereads the mounted token, allowing rotation. Raw service JWTs and minted bearer tokens
+are never stored in the worker/broker databases. The minted session lasts at most 300 seconds,
+clamped to both source credential and workload expiry, and grants only `business:propose`.
+The worker revokes it after each tick.
+
+Wire the broker's required trusted callbacks as follows:
+
+- `allowed(workload, subject)` must verify the currently enrolled service principal for the full
+  workload fingerprint, AND `worker.authorizes_workload(workload)`. The enrollment registry must
+  be operator-owned and consistently checked by every process; do not use JWT scope/role claims.
+- `action_allowed(workload, subject, intent, content, final)` must check the same delegation and
+  call `worker.authorizes_action(workload, intent, content, final)`.
+- Use that same broker for `BusinessActionRuntime`, the API and identity issuer. Set
+  `ReportWorker(token_provider=issuer)` after constructing the scheduler and worker callbacks.
+  Resolve construction dependencies through a trusted holder/factory, never agent-supplied code.
+
+The worker helpers check its protected registered job, owner/domain/expiry, current schedule hash,
+active controls and cancellation, then constrain service actions to exact deterministic occurrence
+IDs, destination, title, period and time bounds. Final proposal checks also bind fresh artifact
+schedule/index/query (including rolling windows), or the exact fixed-snapshot template. Sessions
+cannot propose unrelated drafts, cancel another owned draft, run another schedule, submit feedback,
+approve, reconcile or deliver messages. The API exposes only relevant draft/schedule POST operations
+to these constrained identities. Human SSO sessions retain their existing permissions and behavior.
+
+Delegation is rechecked on every session authentication and business use, including across broker
+restarts. Revoked/tampered service sessions are permanently invalidated. Service records have a
+strict extra binding marker; an ordinary SQLite broker rejects them rather than interpreting them
+as unrestricted human sessions. Production use still needs the actual identity-provider enrollment,
+shared delegation policy, deployment/process manager and independent service qualification; this
+adapter does not lift the production business-API guard or create external approvals.

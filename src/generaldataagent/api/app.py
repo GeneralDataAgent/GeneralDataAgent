@@ -150,6 +150,19 @@ def create_app(
             ):
                 return JSONResponse(status_code=403, content={"detail": "unscoped_review_store"})
             path = request.url.path
+            if identity.business_constraint is not None:
+                scoped_worker_route = request.method == "POST" and (
+                    path == "/v1/business/drafts"
+                    or (path.startswith("/v1/business/drafts/") and path.endswith("/cancel"))
+                    or (
+                        path.startswith("/v1/business/schedules/")
+                        and path.endswith(("/tick", "/cancel"))
+                    )
+                )
+                if not scoped_worker_route:
+                    return JSONResponse(
+                        status_code=403, content={"detail": "service_session_route_denied"}
+                    )
             required = None
             if path.startswith("/v1/business/"):
                 required = "business:read" if request.method == "GET" else "business:propose"

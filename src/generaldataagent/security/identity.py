@@ -56,6 +56,8 @@ class SessionIdentity:
     data_domains: frozenset[str]
     expires_at: datetime
     permissions: frozenset[str] = frozenset()
+    # Trusted runtime constraint; never accepted from session/JWT claims or persisted as code.
+    business_constraint: Callable[[object, bytes | None, bool], bool] | None = None
 
 
 class SessionBroker:

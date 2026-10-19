@@ -18,7 +18,9 @@ Updated: 2026-10-19. Development branch: `feat/stage5-business-loop`.
 4. Agent/Skill/connector admission is enforced in normal assembly and use paths. Changed definitions,
    unauthorized scope, expiration and revocation block use.
 5. A durable background report worker now polls with fresh scoped sessions, expiry, cancellation,
-   multi-process leases, restart recovery and sanitized status. It only proposes drafts.
+   multi-process leases, restart recovery and sanitized status. A pinned service-JWT adapter now
+   supplies revocable short-lived sessions constrained to the enrolled schedule and its exact report
+   occurrences. It only proposes drafts.
 6. Aggregate acceptance now verifies independently signed held-out optimization measurements and
    the existing Stage 4 release proof, rather than permanently returning incomplete.
 
@@ -27,7 +29,7 @@ Updated: 2026-10-19. Development branch: `feat/stage5-business-loop`.
 | Work | Present boundary | Input needed |
 |---|---|---|
 | Real Dashboard/ticket/scheduling-PR/registry/report publication receivers | Typed local drafts and lifecycle exist; notification and bounded report IM publication adapters support Feishu. Report publication is locally tested; cloud-document/file publication and other receivers are still missing | Choose target systems and test resources. GitHub repository/branch/schedule file is not yet identified, so that integration was deferred by the user in favor of Feishu |
-| Autonomous periodic service execution | Durable polling and scoped short-lived token-provider integration exist; no user token is stored or renewed | Deploy the worker with an authenticated workload identity/token issuer and process manager; each external action still needs explicit exact approval |
+| Autonomous periodic service execution | Durable polling, mounted service-JWT validation, schedule-bound revocable session issuance and API/action constraints exist; no user token is stored or renewed | Enroll the actual issuer/audience/keys/service delegation and deploy with a process manager; each external action still needs explicit exact approval |
 | Full orchestration-model routing and metering | Narration and opt-in native Supervisor/specialist routing, shared orchestration budget and usage audit are implemented | Enroll approved provider/model configurations and run the real held-out billing/latency benchmark before enabling; deployment routes within one native provider family |
 | Production business API assembly | Pilot works and qualification checks exist; production factory still rejects local business/feedback state | Independently operated approval/audit/retention infrastructure and a qualified production receiver; do not remove this guard just to make deployment pass |
 | End-user review/control UI | Scoped APIs and trusted operator review ports exist | Product review flow and authenticated external approval service; no public endpoint can grant an approval |

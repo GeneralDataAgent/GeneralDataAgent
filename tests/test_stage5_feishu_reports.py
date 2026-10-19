@@ -234,3 +234,26 @@ def test_missing_report_snapshot_is_not_sent_as_a_hash_only_notice(tmp_path):
     with pytest.raises(PermissionError, match="requires_frozen_scoped_artifact"):
         scheduler.actions.propose(bare, token)
     assert transport.sends == 0
+
+
+def test_report_export_uses_destination_scope_even_for_broadly_authorized_owner(tmp_path):
+    from dataclasses import replace
+
+    connected = connected_report(tmp_path)
+    scheduler, _, _, _, _, transport, _ = connected
+    _, action = propose_report(connected)
+    runtime = scheduler.actions
+    runtime.controls[("report", "report")] = replace(
+        runtime.controls[("report", "report")], data_domains=frozenset({"finance"})
+    )
+    broad_token = runtime.broker.issue(
+        user_id=actor().user_id,
+        tenant_id=actor().tenant_id,
+        project_id=actor().project_id,
+        data_domains=frozenset({"commerce", "finance"}),
+        permissions=frozenset({"business:propose"}),
+    )
+    # Owner can read commerce data, but this destination may export only finance data.
+    with pytest.raises(PermissionError, match="artifact_access_denied"):
+        runtime.propose(intent(action.payload), broad_token)
+    assert transport.sends == 0

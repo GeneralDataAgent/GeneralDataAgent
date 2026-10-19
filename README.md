@@ -487,7 +487,9 @@ supports exact-approved sending, readback, durable receiver hints and read-only 
 A separate Feishu report adapter publishes bounded frozen report content as an approved IM message;
 cloud-document/file publication is not implemented.
 A durable background worker can poll report schedules with freshly issued scoped sessions and
-restart-safe leases; its deployment identity provider remains an operator integration.
+restart-safe leases. A pinned service-JWT adapter validates mounted workload credentials and issues
+revocable sessions constrained to the assigned schedule; actual provider enrollment and deployment
+remain operator integrations.
 Certified report refresh and model routing/cache are integrated into the analysis path, and
 new Agent/Skill/connector assembly enforces pinned admission. An opt-in native model router also
 meters Supervisor and specialist turns under a shared durable budget with current admission checks.

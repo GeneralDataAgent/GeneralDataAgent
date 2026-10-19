@@ -16,7 +16,9 @@ from pydantic import AwareDatetime, Field
 
 from generaldataagent.business.actions import content_hash
 from generaldataagent.business.schedules import ReportScheduler
+from generaldataagent.contracts.business import ActionIntent, ScheduledReport
 from generaldataagent.contracts.models import ContractModel
+from generaldataagent.security.identity import SessionIdentity
 
 
 class ScheduleWorkload(ContractModel):
@@ -25,7 +27,7 @@ class ScheduleWorkload(ContractModel):
     tenant_id: str = Field(min_length=1, max_length=128)
     project_id: str = Field(min_length=1, max_length=128)
     data_domains: tuple[str, ...] = Field(min_length=1, max_length=32)
-    schedule_hash: str
+    schedule_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     expires_at: AwareDatetime
 
 
@@ -98,6 +100,104 @@ class ReportWorker:
         self.scheduler.cancel(schedule_id, token)
         with self._db() as db, db:
             db.execute("UPDATE report_jobs SET enabled=0 WHERE id=?", (str(schedule_id),))
+
+    def _authorized_spec(self, workload: ScheduleWorkload):
+        if workload.expires_at <= self.scheduler.actions._now():
+            raise PermissionError("workload_expired")
+        with self._db() as db:
+            row = db.execute(
+                "SELECT workload,enabled FROM report_jobs WHERE id=?", (str(workload.schedule_id),)
+            ).fetchone()
+        if row is None or row[1] != 1 or ScheduleWorkload.model_validate_json(row[0]) != workload:
+            raise PermissionError("workload_not_registered_or_disabled")
+        identity = SessionIdentity(
+            workload.user_id,
+            workload.tenant_id,
+            workload.project_id,
+            frozenset(workload.data_domains),
+            workload.expires_at,
+            frozenset({"business:propose"}),
+        )
+        with closing(sqlite3.connect(self.scheduler.path)) as db:
+            row, spec = self.scheduler._row(db, workload.schedule_id, identity)
+        control = self.scheduler.actions._control(self.scheduler._intent(spec, 0), identity)
+        if not row[5] or content_hash(spec.model_dump(mode="json")) != workload.schedule_hash:
+            raise PermissionError("workload_schedule_changed_or_disabled")
+        if control.data_domains != frozenset(workload.data_domains):
+            raise PermissionError("workload_control_scope_changed")
+        return spec
+
+    def authorizes_workload(self, workload: ScheduleWorkload) -> bool:
+        """Trusted identity-issuer port; also require an enrolled service principal."""
+        try:
+            self._authorized_spec(workload)
+            return True
+        except (ValueError, PermissionError):
+            return False
+
+    def authorizes_action(
+        self, workload: ScheduleWorkload, intent: object, content: bytes | None, final: bool
+    ) -> bool:
+        """Constrain delegated sessions to exact report occurrences of their enrolled job."""
+        try:
+            spec = self._authorized_spec(workload)
+            if not isinstance(intent, ActionIntent) or intent.payload.kind != "report":
+                return False
+            prefix = f"schedule:{spec.schedule_id}:"
+            if not intent.thread_id.startswith(prefix):
+                return False
+            index = int(intent.thread_id[len(prefix) :])
+            if not 0 <= index < spec.occurrences:
+                return False
+            expected = self.scheduler._intent(spec, index)
+            fields = (
+                "action_id",
+                "task_id",
+                "thread_id",
+                "idempotency_key",
+                "destination",
+                "operation",
+                "compensates",
+                "created_at",
+                "expires_at",
+            )
+            if any(getattr(intent, field) != getattr(expected, field) for field in fields):
+                return False
+            if (
+                spec.revision_policy == "sequential"
+                and intent.expected_revision != expected.expected_revision
+            ):
+                return False
+            if (intent.payload.title, intent.payload.period) != (
+                expected.payload.title,
+                expected.payload.period,
+            ):
+                return False
+            if not final:
+                return True
+            if spec.query is None:
+                return intent.payload.model_copy(
+                    update={"publication_text": None}
+                ) == expected.payload.model_copy(update={"publication_text": None})
+            if content is None or intent.payload.report_artifact is None:
+                return False
+            frozen = ScheduledReport.model_validate_json(content)
+            query = spec.query
+            if spec.lookback_minutes is not None:
+                query = query.model_copy(
+                    update={
+                        "start_time": expected.created_at
+                        - timedelta(minutes=spec.lookback_minutes),
+                        "end_time": expected.created_at,
+                    }
+                )
+            return (
+                frozen.schedule_id == spec.schedule_id
+                and frozen.index == index
+                and frozen.query == query
+            )
+        except (ValueError, PermissionError):
+            return False
 
     def _check(self, workload: ScheduleWorkload, token: str) -> None:
         actions = self.scheduler.actions
