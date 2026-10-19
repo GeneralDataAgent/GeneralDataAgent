@@ -70,11 +70,12 @@ class OrchestrationModelConfig(ContractModel):
                 "adapter_version": "native-chat-v1",
                 "max_retries": 0,
                 "streaming": False,
+                "cache": False,
             }
         )
 
     def build(self):
-        options = dict(max_retries=0, timeout=self.timeout_seconds, streaming=False)
+        options = dict(max_retries=0, timeout=self.timeout_seconds, streaming=False, cache=False)
         options["base_url"] = self.effective_base_url
         if self.provider == "anthropic":
             return ChatAnthropic(model_name=self.model_name, **options)

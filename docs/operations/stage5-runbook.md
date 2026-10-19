@@ -278,7 +278,8 @@ also excludes automatic summarization, which otherwise makes unmetered model cal
 middleware. Large histories fail their bounded envelope instead. Text and native tool-use messages
 are supported; image/file content is refused. Actual tool-call messages are returned intact and
 are not cached. Framework structured-output retries and specialist calls are charged individually;
-SDK retries are disabled and transport failures do not trigger automatic route fallback.
+SDK retries and native/global LangChain response caches are disabled, and transport failures do
+not trigger automatic route fallback.
 
 The reservation includes a conservative serialized-byte input allowance (messages, system prompt,
 tools, response schema and framing) plus the enforced native output cap. Configure the task budget

@@ -132,7 +132,7 @@ Implementation commits: `b4af8a0` (background worker), `fe957b4` (native orchest
 - Native model governance: real installed Deep Agents graphs with offline Anthropic/OpenAI
   provider responses exercise a Supervisor → discovery specialist → Supervisor round trip. All
   three turns share one durable budget and each native cap reaches the provider call boundary.
-  SDK retries, streaming and automatic unmetered summarization are disabled. No response/tool-call
+  SDK retries, streaming, native/global response caches and automatic unmetered summarization are disabled. No response/tool-call
   cache or automatic route fallback is used. Scope changes, revoked models, missing usage, token
   overruns, DLP, unsupported multimedia, deadlines and retry/concurrency budgets are exercised.
 - Optional current-at-proposal report revision policy supports skipped/cancelled periods. Lost

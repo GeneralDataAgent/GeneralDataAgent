@@ -102,9 +102,11 @@ def reply(*, tokens=10, output=8):
 def test_native_deepagents_supervisor_and_specialist_share_budget(tmp_path, monkeypatch, provider):
     monkeypatch.setenv("OPENAI_API_KEY", "local-offline-test")
     router, middleware, _ = prepare(tmp_path, provider=provider)
+    assert router.bootstrap_model.cache is False
     calls = []
 
     async def generate(self, messages, stop=None, run_manager=None, **kwargs):
+        assert self.cache is False
         calls.append(kwargs)
         cap = "max_tokens" if provider == "anthropic" else "max_completion_tokens"
         assert kwargs[cap] == 128
