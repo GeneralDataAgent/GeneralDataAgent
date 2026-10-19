@@ -22,6 +22,7 @@ from generaldataagent.contracts.business import (
     ActionReceipt,
     GitHubPRBinding,
     GitHubReceiverHint,
+    GitHubReviewBinding,
 )
 from generaldataagent.policy.approvals import ApprovalStore
 from generaldataagent.policy.engine import PolicyEngine, PolicyRule
@@ -527,7 +528,22 @@ class BusinessActionRuntime:
     def _record_receiver_hint(self, action_id, hint):
         import re
 
-        if hint.get("backend") == "github":
+        if hint.get("backend") == "github_review":
+            if (
+                set(hint) != {"backend", "issue_number"}
+                or type(hint["issue_number"]) is not int
+                or not 0 < hint["issue_number"] <= 9999999999
+            ):
+                raise PermissionError("invalid_receiver_hint")
+            with self._db() as db:
+                row = db.execute(
+                    "SELECT intent FROM business_actions WHERE id=?", (str(action_id),)
+                ).fetchone()
+            if not isinstance(
+                ActionIntent.model_validate_json(row[0]).delivery_binding, GitHubReviewBinding
+            ):
+                raise PermissionError("invalid_receiver_hint")
+        elif hint.get("backend") == "github":
             parsed = GitHubReceiverHint.model_validate(hint)
             with self._db() as db:
                 row = db.execute(

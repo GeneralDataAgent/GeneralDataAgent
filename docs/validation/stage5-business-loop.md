@@ -188,3 +188,15 @@ Implementation commits: `4694b46` (Feishu frozen-report IM publication) and `cf5
 - Tests use synthetic manifests and a stateful fake GitHub transport. No real target repository has
   been enrolled and no live PR, merge or closure was performed. The adapter currently supports only
   github.com and a pinned non-secret JSON object interval; see the runbook for assembly and limits.
+
+
+## Remaining draft receiver continuation (2026-10-19)
+
+- GitHub Issues review queues now support Dashboard drafts, ticket drafts and model-registration
+  requests. They publish frozen human-review requests; they do not execute a BI query or register
+  a model version. All external tests remain isolated, with no live issue creation/closure.
+- **57 focused cases** cover all three kinds, exact content, identity/configuration changes, separate
+  compensation, altered metadata/content/author, PR masquerading, concurrent execution and lost
+  creation/closure acknowledgements with read-only recovery.
+- Full frozen suite: **510 passed, 1 skipped**, **87.91%** coverage. The optional local PostgreSQL
+  test remains skipped; independent receiver/production gates remain incomplete.

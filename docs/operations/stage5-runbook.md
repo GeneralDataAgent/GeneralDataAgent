@@ -482,3 +482,34 @@ Protocol references: [Git refs](https://docs.github.com/en/rest/git/refs),
 [GitHub CLI API](https://cli.github.com/manual/gh_api).
 The implementation pins REST API version `2026-03-10`; target enrollment and live independent
 receiver qualification remain required. No real GitHub PR has been created in this continuation.
+
+
+## GitHub review queues for remaining draft kinds (2026-10-19)
+
+The roadmap's Dashboard draft, ticket draft and model-registration request can now be delivered
+to a pinned GitHub Issues review repository using `GitHubReviewBackend`. This publishes a **review
+artifact**, not an operational BI dashboard, registered model version or deployment. Dashboard
+panels contain names/evidence hashes and `query_enabled=false`; registration requests retain
+`deployment_allowed=false` and the experiment/model-card reference. Hashes remain references, not
+claims that independent evidence or a registered model has been verified.
+
+Configure `GitHubReviewTarget(repository=..., repository_id=..., actor_id=..., kind=...,
+configuration_version=...)` for each of `ticket`, `dashboard`, `model_registration`. Supply the existing
+`GitHubCLITransport`, a current admission callback and a distinct enabled `ActionControl`/destination
+in `BusinessActionRuntime(external_backends=...)`. Credentials stay in the CLI store. Enrollment needs
+Issues write permission, enabled Issues and actual repository/account IDs; no live target is enrolled
+here. GitHub creation can notify watchers and trigger repository automation.
+
+The approved binding contains exact title/body, kind and repository/account/configuration IDs.
+The body holds a fenced JSON snapshot and stable original action marker. Control characters/mentions
+in the unfenced title are rejected. Readback checks API repository URL, author, issue ID/number,
+exact title/body, open/closed state, no assignees/labels/milestone and no PR masquerading as an issue.
+An uncertain write never retries. Reconcile with `{"issue_number":123}` through the existing business
+reconciliation endpoint; it only reads. Compensation needs separate exact approval and closes only
+the original unchanged issue as `not_planned`. It does not remove artifacts or undo decisions made
+by downstream human reviewers. No generic assignment, label editing, model activation or BI query
+execution operation is exposed. Protocol: [GitHub Issues REST API](https://docs.github.com/en/rest/issues/issues).
+
+This completes receiver code for the six **roadmap draft/request** kinds. Direct Grafana/dashboard
+publishing, MLflow model-version creation and cloud-document/file publishing are separate optional
+integrations beyond these draft/request endpoints; they are not implemented by a review issue.

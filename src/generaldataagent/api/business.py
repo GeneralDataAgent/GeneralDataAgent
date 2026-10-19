@@ -16,15 +16,21 @@ class ReceiverReconciliationRequest(ContractModel):
     message_id: str | None = Field(default=None, pattern=r"^om_[A-Za-z0-9]{1,128}$")
     pull_number: int | None = Field(default=None, gt=0)
 
+    issue_number: int | None = Field(default=None, gt=0, le=9999999999, strict=True)
+
     @model_validator(mode="after")
     def exact_receiver_identifier(self):
-        if (self.message_id is None) == (self.pull_number is None):
+        if sum(v is not None for v in (self.message_id, self.pull_number, self.issue_number)) != 1:
             raise ValueError("provide exactly one receiver identifier")
         return self
 
     @property
     def receiver_id(self):
-        return self.message_id if self.message_id is not None else str(self.pull_number)
+        return (
+            self.message_id
+            if self.message_id is not None
+            else str(self.pull_number if self.pull_number is not None else self.issue_number)
+        )
 
 
 def business_router(actions: BusinessActionRuntime, scheduler: ReportScheduler | None) -> APIRouter:

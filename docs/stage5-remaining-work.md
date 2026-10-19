@@ -30,11 +30,17 @@ Updated: 2026-10-19. Development branch: `feat/stage5-business-loop`.
    approved closure of the unchanged unmerged draft are implemented and isolated-tested. No real
    target was configured and no real GitHub PR was created.
 
+8. Dashboard drafts, ticket drafts and model-registration requests now have an exact-approved
+   GitHub Issues review-queue receiver with receiver readback, no-resend quarantine and separately
+   approved closure. These are review artifacts, never executed BI queries or registered/deployed models.
+   All six roadmap draft/request kinds now have receiver implementations; actual target enrollment
+   and independent qualification remain open.
+
 ## Remaining code/integration work
 
 | Work | Present boundary | Input needed |
 |---|---|---|
-| Real Dashboard/ticket/registry/cloud-document or file publication receivers | Typed local drafts and lifecycle exist; Feishu notification/report IM and GitHub JSON schedule draft-PR adapters are implemented. The latter two have isolated validation only; Dashboard/ticket/registry/cloud-document or file adapters are still missing | Choose target systems and test resources; qualify each receiver independently |
+| Review-queue target enrollment | GitHub Issues now receives Dashboard drafts, tickets and model-registration requests with exact payload readback and separately approved closure; direct BI publishing/registry activation/cloud-document publishing remain optional integrations outside these draft endpoints | Choose the review repository/account IDs and independently qualify each kind; do not interpret a review issue as an executed dashboard or registered model |
 | GitHub schedule target enrollment | One configured JSON object key can change an integer interval in an existing regular UTF-8 file, at most 8 KiB; no YAML/workflow/cron editor | Identify repository, numeric repository/account IDs, base branch, JSON file and interval key path. Keep credentials in the protected CLI store; review exact proposed bytes and repository automation before any write |
 | Autonomous periodic service execution | Durable polling, mounted service-JWT validation, schedule-bound revocable session issuance and API/action constraints exist; no user token is stored or renewed | Enroll the actual issuer/audience/keys/service delegation and deploy with a process manager; each external action still needs explicit exact approval |
 | Full orchestration-model routing and metering | Narration and opt-in native Supervisor/specialist routing, shared orchestration budget and usage audit are implemented | Enroll approved provider/model configurations and run the real held-out billing/latency benchmark before enabling; deployment routes within one native provider family |

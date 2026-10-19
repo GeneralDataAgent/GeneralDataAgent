@@ -170,9 +170,38 @@ class GitHubReceiverHint(ContractModel):
         return self
 
 
-ReceiverBinding = Annotated[FeishuBinding | GitHubPRBinding, Field(discriminator="backend")]
+class GitHubReviewBinding(ContractModel):
+    backend: Literal["github_review"] = "github_review"
+    repository: str
+    repository_id: int = Field(gt=0, strict=True)
+    actor_id: int = Field(gt=0, strict=True)
+    kind: Literal["ticket", "dashboard", "model_registration"]
+    title: str = Field(min_length=1, max_length=200)
+    body: str = Field(min_length=1, max_length=20000)
+    configuration_hash: Digest
+
+
+class GitHubReviewReceipt(ContractModel):
+    backend: Literal["github_review"] = "github_review"
+    repository: str
+    repository_id: int = Field(gt=0, strict=True)
+    actor_id: int = Field(gt=0, strict=True)
+    issue_number: int = Field(gt=0, le=9999999999, strict=True)
+    issue_id: int = Field(gt=0, strict=True)
+    binding_hash: Digest
+    configuration_hash: Digest
+    state: Literal["delivered", "recalled"]
+
+    @property
+    def receiver_id(self) -> str:
+        return str(self.issue_number)
+
+
+ReceiverBinding = Annotated[
+    FeishuBinding | GitHubPRBinding | GitHubReviewBinding, Field(discriminator="backend")
+]
 ReceiverReceipt = Annotated[
-    ExternalMessageReceipt | GitHubPRReceipt, Field(discriminator="backend")
+    ExternalMessageReceipt | GitHubPRReceipt | GitHubReviewReceipt, Field(discriminator="backend")
 ]
 
 
@@ -206,7 +235,7 @@ class ActionReceipt(ContractModel):
     destination: str
     revision: int = Field(ge=1)
     operation: Literal["deliver", "compensate"]
-    backend: Literal["local_draft", "feishu", "github"] = "local_draft"
+    backend: Literal["local_draft", "feishu", "github", "github_review"] = "local_draft"
     external_delivery: bool = False
     external: ReceiverReceipt | None = None
     recorded_at: AwareDatetime = Field(default_factory=utc_now)

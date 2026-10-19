@@ -487,6 +487,8 @@ supports exact-approved sending, readback, durable receiver hints and read-only 
 A separate Feishu report adapter publishes bounded frozen report content as an approved IM message;
 cloud-document/file publication is not implemented. A separately configured GitHub receiver prepares
 an exact single-file JSON schedule change, creates an approved draft PR and verifies its contents.
+GitHub Issues review queues also accept Dashboard drafts, tickets and model-registration requests;
+these are human-review artifacts without query execution or model deployment.
 Lost acknowledgements quarantine the action for read-only reconciliation; a separately approved
 compensation can close only the original unchanged, unmerged draft PR. Actual GitHub target
 enrollment and live qualification remain open.
