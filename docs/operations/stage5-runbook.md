@@ -305,3 +305,36 @@ content and approval after a scheduler restart or lost acknowledgment, even if a
 has since changed the resource. Execution still rejects any intervening resource change; a stale
 approval never rebases itself. The default `sequential` policy preserves the original strict
 `initial_revision + occurrence_index` behavior for schedules which require every prior occurrence.
+
+## Feishu report publication
+
+An explicitly configured `FeishuReportBackend` can publish a generated `ReportDraft` through the
+existing `feishu_backends={("report", destination): backend}` runtime port. Add a matching enabled
+report `ActionControl` and use `MetricReportRefresher.read_artifact` as the scoped artifact reader.
+Its target, transport, admission check and recall confirmation port work like the notification
+backend. No destination or credential is embedded in the implementation or enabled by default.
+
+The report must have a registered frozen `scheduled_report` artifact. Proposal reads it under the
+requester's identity, checks actual bytes/classification/hash, validates the strict snapshot and
+its evidence task/lineage/classification, and renders summary, complete table, claims/citations,
+insights and limitations. `payload.publication_text` contains the full exact plain-text preview;
+`delivery_binding` pins recipient/sender/configuration/final wire hash. Human review must cover
+this text and its final action/evidence footer, recipient and sender identity. Approval impact
+metadata identifies Feishu delivery rather than describing it as a local draft.
+
+The renderer accepts at most 12,000 characters and 18,000 UTF-8 bytes before the short footer.
+Oversized reports fail before approval; no implicit truncation, attachments or multi-message split
+is performed. Explicit plain-text message type avoids Markdown image downloads/rewrites, and
+report mention tags are refused. Internal artifact references are evidence identifiers, not public
+links. This adapter publishes report content in IM; it does not create a Feishu cloud document.
+
+Before consuming an approval and again immediately before the external write, the runtime rereads
+the scoped artifact and rederives the approved text. After readback it checks references again.
+Receiver hints, exact readback, uncertainty quarantine, no automatic resend, restart receipt replay,
+read-only reconciliation and independently approved/explicitly confirmed recall remain in force.
+Reconciliation also requires the source artifact to remain available and authorized.
+
+All report-delivery/recall tests use isolated fake receivers with actual local report generation.
+No new real send or recall is authorized by previous notification smoke consent. Live publication
+still requires an exact human-reviewed report, sender and recipient, and independent qualification
+is separate from a successful message smoke test.

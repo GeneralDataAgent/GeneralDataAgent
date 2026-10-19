@@ -5,6 +5,8 @@ from uuid import UUID, uuid4
 
 from pydantic import AwareDatetime, Field, StringConstraints, model_validator
 
+from generaldataagent.contracts.analytics import MetricQuery
+from generaldataagent.contracts.delivery import DeliveryPackage
 from generaldataagent.contracts.models import ArtifactRef, ContractModel, utc_now
 
 Digest = Annotated[str, StringConstraints(pattern=r"^sha256:[0-9a-f]{64}$")]
@@ -45,15 +47,25 @@ class NotificationDraft(ContractModel):
     evidence_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
 
 
+class ScheduledReport(ContractModel):
+    schedule_id: UUID
+    index: int = Field(ge=0, le=99)
+    query: MetricQuery
+    delivery: DeliveryPackage
+
+
 class ReportDraft(ContractModel):
     kind: Literal["report"] = "report"
     title: str = Field(min_length=1, max_length=200)
     report_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     period: str = Field(min_length=1, max_length=128)
     report_artifact: ArtifactRef | None = None
+    publication_text: str | None = Field(default=None, min_length=1, max_length=12000)
 
     @model_validator(mode="after")
     def report_hash_matches_artifact(self):
+        if self.publication_text is not None and self.report_artifact is None:
+            raise ValueError("report publication requires a frozen artifact")
         if self.report_artifact is not None and (
             self.report_artifact.content_hash != self.report_hash
             or self.report_artifact.artifact_type != "scheduled_report"

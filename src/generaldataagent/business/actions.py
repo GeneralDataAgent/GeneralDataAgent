@@ -80,10 +80,10 @@ class BusinessActionRuntime:
         self.controls = {(c.kind, c.destination): c for c in controls}
         self.feishu_backends = dict(feishu_backends or {})
         if any(
-            kind != "notification" or (kind, destination) not in self.controls
-            for kind, destination in self.feishu_backends
+            kind != backend.action_kind or (kind, destination) not in self.controls
+            for (kind, destination), backend in self.feishu_backends.items()
         ):
-            raise ValueError("Feishu backends require an explicit notification destination control")
+            raise ValueError("Feishu backends require a matching explicit destination control")
         if len(self.controls) != len(controls):
             raise ValueError("duplicate action control")
         self.policy = policy or PolicyEngine(
@@ -132,7 +132,7 @@ class BusinessActionRuntime:
             raise PermissionError("external_approved_binding_changed")
         return backend
 
-    def _verify_references(self, intent, identity):
+    def _report_content(self, intent, identity) -> bytes | None:
         if intent.payload.kind == "report" and intent.payload.report_artifact is not None:
             if self.artifact_reader is None:
                 raise PermissionError("scoped_report_artifact_reader_required")
@@ -141,6 +141,14 @@ class BusinessActionRuntime:
             if "sha256:" + hashlib.sha256(content).hexdigest() != ref.content_hash:
                 raise PermissionError("report_artifact_content_changed")
             self.scanner.check_export(content, ref.classification)
+            return content
+        return None
+
+    def _verify_references(self, intent, identity):
+        content = self._report_content(intent, identity)
+        backend = self.feishu_backends.get((intent.payload.kind, intent.destination))
+        if backend is not None and backend.prepare(intent, content) != intent:
+            raise PermissionError("external_report_approved_content_changed")
 
     def _db(self):
         return closing(sqlite3.connect(self.path, timeout=5))
@@ -215,6 +223,7 @@ class BusinessActionRuntime:
         control = self._control(intent, identity)
         backend = self.feishu_backends.get((intent.payload.kind, intent.destination))
         if backend is not None:
+            intent = backend.prepare(intent, self._report_content(intent, identity))
             intent = backend.bind(intent)
         self._backend(intent)
         self._verify_references(intent, identity)
@@ -262,8 +271,18 @@ class BusinessActionRuntime:
                     raise ValueError("invalid_compensation_target")
             approval = self.approvals.create_request(
                 request,
-                impact_scope=f"Local {intent.payload.kind} draft at {intent.destination}",
-                cost_estimate="No external API calls",
+                impact_scope=(
+                    f"Feishu {intent.operation}: {intent.payload.kind} to "
+                    f"{intent.delivery_binding.receiver_id} as {intent.delivery_binding.identity} "
+                    f"({intent.delivery_binding.sender_id})"
+                    if intent.delivery_binding is not None
+                    else f"Local {intent.payload.kind} draft at {intent.destination}"
+                ),
+                cost_estimate=(
+                    "One Feishu send or recall with bounded identity/readback calls; no model call"
+                    if intent.delivery_binding is not None
+                    else "No external API calls"
+                ),
                 classification="internal",
                 rollback_plan="Submit a separately approved compensation bound to this receipt",
                 expires_at=intent.expires_at,
@@ -506,6 +525,8 @@ class BusinessActionRuntime:
                 raise PermissionError("external_execution_recheck_failed")
             self._check_resource(db, intent, identity)
 
+            self._verify_references(intent, identity)
+
     def reconcile(self, action_id: UUID, token: str, message_id: str) -> dict:
         identity = self._identity(token, "actions:resume")
         with self._db() as db:
@@ -525,6 +546,7 @@ class BusinessActionRuntime:
             original_state = row["state"]
             if self.policy.evaluate(request).decision != "require_approval":
                 raise PermissionError("business_policy_changed")
+            self._verify_references(intent, identity)
         external = backend.reconcile(intent, message_id)
         identity = self._identity(token, "actions:resume")
         with self._db() as db, db:
@@ -536,6 +558,7 @@ class BusinessActionRuntime:
                 raise ValueError("reconciliation_state_changed")
             if self.policy.evaluate(request).decision != "require_approval":
                 raise PermissionError("business_policy_changed")
+            self._verify_references(current, identity)
             receipt = ActionReceipt(
                 action_id=action_id,
                 intent_hash=row["intent_hash"],

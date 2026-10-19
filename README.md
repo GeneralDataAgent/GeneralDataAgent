@@ -484,6 +484,8 @@ async model executor adds budgeted routing and encrypted short-lived scoped cach
 
 External delivery is disabled by default. An explicitly configured Feishu notification receiver now
 supports exact-approved sending, readback, durable receiver hints and read-only reconciliation.
+A separate Feishu report adapter publishes bounded frozen report content as an approved IM message;
+cloud-document/file publication is not implemented.
 A durable background worker can poll report schedules with freshly issued scoped sessions and
 restart-safe leases; its deployment identity provider remains an operator integration.
 Certified report refresh and model routing/cache are integrated into the analysis path, and

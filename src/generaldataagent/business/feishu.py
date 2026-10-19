@@ -7,6 +7,7 @@ secret-bearing errors. Recall confirmation is a separate trusted human approval 
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 from collections.abc import Callable
@@ -15,7 +16,12 @@ from typing import Literal, Protocol
 from pydantic import Field, model_validator
 
 from generaldataagent.business.actions import content_hash
-from generaldataagent.contracts.business import ActionIntent, ExternalMessageReceipt, FeishuBinding
+from generaldataagent.contracts.business import (
+    ActionIntent,
+    ExternalMessageReceipt,
+    FeishuBinding,
+    ScheduledReport,
+)
 from generaldataagent.contracts.models import ContractModel
 from generaldataagent.security.dlp import TextDLPScanner
 
@@ -121,6 +127,8 @@ class LarkCLITransport:
                 target.identity,
                 "--content",
                 json.dumps({"text": text}, ensure_ascii=False),
+                "--msg-type",
+                "text",
                 "--idempotency-key",
                 key,
                 "--format",
@@ -169,6 +177,8 @@ class LarkCLITransport:
 
 
 class FeishuNotificationBackend:
+    action_kind = "notification"
+
     def __init__(
         self,
         *,
@@ -179,6 +189,9 @@ class FeishuNotificationBackend:
     ):
         self.target, self.transport = target, transport
         self.admitted, self.recall_confirmed = admitted, recall_confirmed
+
+    def prepare(self, intent: ActionIntent, report_content: bytes | None = None) -> ActionIntent:
+        return intent
 
     @staticmethod
     def wire_text(intent: ActionIntent) -> str:
@@ -303,4 +316,74 @@ class FeishuNotificationBackend:
             intent,
             self.transport.fetch(message_id, self.target.identity),
             recalled=intent.operation == "compensate",
+        )
+
+
+class FeishuReportBackend(FeishuNotificationBackend):
+    """Publish one bounded frozen report as exact plain text, using the IM lifecycle.
+
+    Runtime supplies scoped, hash/DLP-checked artifact bytes. Full rendered text is part
+    of the approved payload, and is rederived before execution. Oversized reports fail
+    before approval; there is no implicit truncation, upload, or multi-message split.
+    """
+
+    action_kind = "report"
+
+    def prepare(self, intent: ActionIntent, report_content: bytes | None = None) -> ActionIntent:
+        report = intent.payload
+        if report.kind != "report" or report.report_artifact is None or report_content is None:
+            raise PermissionError("feishu_report_requires_frozen_scoped_artifact")
+        frozen = ScheduledReport.model_validate_json(report_content)
+        delivery = frozen.delivery
+        if set(report.report_artifact.lineage) != {ref.artifact_id for ref in delivery.evidence}:
+            raise PermissionError("feishu_report_evidence_lineage_mismatch")
+        for ref in delivery.evidence:
+            if ref.task_id != report.report_artifact.task_id:
+                raise PermissionError("feishu_report_evidence_task_mismatch")
+            TextDLPScanner().check_export(report_content, ref.classification)
+        lines = [
+            report.title,
+            f"周期：{report.period}",
+            f"指标：{delivery.metric}",
+            "",
+            "摘要",
+            delivery.summary,
+            "",
+            f"数据（{delivery.row_count} 行）",
+            json.dumps({"columns": delivery.columns, "rows": delivery.rows}, ensure_ascii=False),
+            "",
+            "结论与依据",
+        ]
+        for claim in delivery.claims:
+            lines.append(f"{claim.text} [{', '.join(claim.evidence_uris)}]")
+        if delivery.insights:
+            lines += ["", "洞察", *delivery.insights]
+        if delivery.limitations:
+            lines += ["", "限制", *delivery.limitations]
+        lines += ["", "证据"]
+        lines += [f"{ref.uri} {ref.content_hash}" for ref in delivery.evidence]
+        text = "\n".join(lines)
+        if re.search(r"<\s*at\b", text, re.IGNORECASE):
+            raise PermissionError("feishu_report_mentions_not_supported")
+        if len(text) > 12000 or len(text.encode()) > 18000:
+            raise ValueError("feishu_report_exceeds_single_message_limit")
+        TextDLPScanner().check(text.encode())
+        if report.publication_text is not None and report.publication_text != text:
+            raise PermissionError("feishu_report_publication_content_changed")
+        return intent.model_copy(
+            update={"payload": report.model_copy(update={"publication_text": text})}
+        )
+
+    @staticmethod
+    def wire_text(intent: ActionIntent) -> str:
+        report = intent.payload
+        if (
+            report.kind != "report"
+            or report.report_artifact is None
+            or report.publication_text is None
+        ):
+            raise PermissionError("feishu_report_publication_not_prepared")
+        action_id = intent.compensates or intent.action_id
+        return (
+            f"{report.publication_text}\n\n[DataAgent:{action_id}; evidence:{report.report_hash}]"
         )

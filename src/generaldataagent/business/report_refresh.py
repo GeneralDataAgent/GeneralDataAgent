@@ -8,6 +8,7 @@ from uuid import UUID, uuid5
 
 from generaldataagent.business.governance import actor_scope
 from generaldataagent.contracts import ActorContext, ArtifactRef, DeliveryPackage, MetricQuery
+from generaldataagent.contracts.business import ScheduledReport
 from generaldataagent.orchestration.metric_analysis import MetricAnalysisRuntime
 from generaldataagent.security.dlp import TextDLPScanner
 
@@ -69,13 +70,9 @@ class MetricReportRefresher:
             ):
                 raise ValueError("report_analysis_did_not_pass")
             delivery = DeliveryPackage.model_validate(result["delivery_package"])
-            payload = {
-                "schema_version": "1.0",
-                "schedule_id": str(schedule_id),
-                "index": index,
-                "query": query.model_dump(mode="json"),
-                "delivery": delivery.model_dump(mode="json"),
-            }
+            payload = ScheduledReport(
+                schedule_id=schedule_id, index=index, query=query, delivery=delivery
+            ).model_dump(mode="json")
             TextDLPScanner().check(json.dumps(payload, ensure_ascii=False).encode())
             ref = self.analysis.artifacts.put_json(
                 task_id=UUID(result["task_id"]),

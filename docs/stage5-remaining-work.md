@@ -12,7 +12,7 @@ Updated: 2026-10-19. Development branch: `feat/stage5-business-loop`.
    exact separate approvals. Fixed and rolling windows, crash-safe frozen content, cancellation
    during generation and artifact checks are implemented. An explicit current-at-proposal revision
    policy supports missed/cancelled periods while preserving existing exact approvals on replay.
-3. Feishu notification delivery, receiver readback, durable hints, no-resend quarantine,
+3. Feishu notification and frozen-report IM publication, receiver readback, durable hints, no-resend quarantine,
    read-only reconciliation and separately confirmed recall code are implemented. One explicitly
    authorized bot-to-self message and same-receipt replay were tested live. Recall is only locally tested.
 4. Agent/Skill/connector admission is enforced in normal assembly and use paths. Changed definitions,
@@ -26,7 +26,7 @@ Updated: 2026-10-19. Development branch: `feat/stage5-business-loop`.
 
 | Work | Present boundary | Input needed |
 |---|---|---|
-| Real Dashboard/ticket/scheduling-PR/registry/report publication receivers | Typed local drafts and lifecycle exist; only Feishu notifications have a real receiver | Choose target systems and test resources. GitHub repository/branch/schedule file is not yet identified, so that integration was deferred by the user in favor of Feishu |
+| Real Dashboard/ticket/scheduling-PR/registry/report publication receivers | Typed local drafts and lifecycle exist; notification and bounded report IM publication adapters support Feishu. Report publication is locally tested; cloud-document/file publication and other receivers are still missing | Choose target systems and test resources. GitHub repository/branch/schedule file is not yet identified, so that integration was deferred by the user in favor of Feishu |
 | Autonomous periodic service execution | Durable polling and scoped short-lived token-provider integration exist; no user token is stored or renewed | Deploy the worker with an authenticated workload identity/token issuer and process manager; each external action still needs explicit exact approval |
 | Full orchestration-model routing and metering | Narration and opt-in native Supervisor/specialist routing, shared orchestration budget and usage audit are implemented | Enroll approved provider/model configurations and run the real held-out billing/latency benchmark before enabling; deployment routes within one native provider family |
 | Production business API assembly | Pilot works and qualification checks exist; production factory still rejects local business/feedback state | Independently operated approval/audit/retention infrastructure and a qualified production receiver; do not remove this guard just to make deployment pass |
