@@ -298,7 +298,7 @@ class BusinessActionRuntime:
             or receipt.operation != intent.operation
             or receipt.revision != intent.expected_revision + 1
             or receipt.intent_hash != row["intent_hash"]
-            or receipt.payload_hash != content_hash(intent.payload.model_dump(mode="json"))
+            or receipt.payload_hash != content_hash(json.loads(row["intent"])["payload"])
         ):
             raise PermissionError("business_receipt_integrity_failure")
         if row["state"] == "completed":
@@ -429,7 +429,7 @@ class BusinessActionRuntime:
                 receipt = ActionReceipt(
                     action_id=action_id,
                     intent_hash=row["intent_hash"],
-                    payload_hash=content_hash(intent.payload.model_dump(mode="json")),
+                    payload_hash=content_hash(request.arguments["payload"]),
                     destination=intent.destination,
                     revision=intent.expected_revision + 1,
                     operation=intent.operation,
@@ -539,7 +539,7 @@ class BusinessActionRuntime:
             receipt = ActionReceipt(
                 action_id=action_id,
                 intent_hash=row["intent_hash"],
-                payload_hash=content_hash(intent.payload.model_dump(mode="json")),
+                payload_hash=content_hash(request.arguments["payload"]),
                 destination=intent.destination,
                 revision=intent.expected_revision + 1,
                 operation=intent.operation,

@@ -6,9 +6,11 @@ from datetime import timedelta
 from pathlib import Path
 from uuid import UUID, uuid5
 
-from pydantic import AwareDatetime, Field
+from pydantic import AwareDatetime, Field, model_validator
 
 from generaldataagent.business.actions import BusinessActionRuntime
+from generaldataagent.business.report_refresh import MetricReportRefresher
+from generaldataagent.contracts import ActorContext, MetricQuery
 from generaldataagent.contracts.business import ActionIntent, ReportDraft
 from generaldataagent.contracts.models import ContractModel
 
@@ -21,11 +23,34 @@ class ReportSchedule(ContractModel):
     interval_minutes: int = Field(ge=60, le=525600)
     occurrences: int = Field(ge=1, le=100)
     initial_revision: int = Field(default=0, ge=0)
+    query: MetricQuery | None = None
+    lookback_minutes: int | None = Field(default=None, ge=1, le=525600)
+
+    @model_validator(mode="after")
+    def validate_rolling_window(self):
+        if self.lookback_minutes is not None and (
+            self.query is None
+            or self.query.start_time is not None
+            or self.query.end_time is not None
+        ):
+            raise ValueError("rolling reports require a query without fixed time bounds")
+        return self
 
 
 class ReportScheduler:
-    def __init__(self, path: Path, *, actions: BusinessActionRuntime):
-        self.path, self.actions = path, actions
+    def __init__(
+        self,
+        path: Path,
+        *,
+        actions: BusinessActionRuntime,
+        refresher: MetricReportRefresher | None = None,
+    ):
+        self.path, self.actions, self.refresher = path, actions, refresher
+        if refresher is not None and refresher.path.resolve() in {
+            path.resolve(),
+            actions.path.resolve(),
+        }:
+            raise ValueError("report generation metadata needs a separate protected database")
         path.parent.mkdir(parents=True, exist_ok=True)
         with closing(sqlite3.connect(path)) as db, db:
             db.executescript(
@@ -37,6 +62,10 @@ class ReportScheduler:
     def register(self, spec: ReportSchedule, token: str) -> dict:
         identity = self.actions._identity(token, "business:propose")
         self.actions._control(self._intent(spec, 0), identity)
+        if spec.query is not None and (
+            self.refresher is None or self.actions.artifact_reader is None
+        ):
+            raise ValueError("fresh reports require a refresher and a scoped artifact reader")
         self.actions.scanner.check(spec.model_dump_json().encode())
         if spec.starts_at < self.actions._now():
             raise ValueError("schedule_must_start_in_future")
@@ -95,28 +124,67 @@ class ReportScheduler:
             raise ValueError("invalid_tick_limit")
         identity = self.actions._identity(token, "business:propose")
         emitted, expired = [], []
-        with closing(sqlite3.connect(self.path, timeout=5)) as db, db:
-            db.execute("BEGIN IMMEDIATE")
-            row, spec = self._row(db, schedule_id, identity)
-            if not row[5]:
-                raise PermissionError("schedule_disabled")
-            index = row[4]
-            for _ in range(limit):
+        index = 0
+        for _ in range(limit):
+            with closing(sqlite3.connect(self.path, timeout=5)) as db:
+                row, spec = self._row(db, schedule_id, identity)
+                if not row[5]:
+                    raise PermissionError("schedule_disabled")
+                index = row[4]
                 if index >= spec.occurrences:
                     break
                 intent = self._intent(spec, index)
                 now = self.actions._now()
                 if intent.created_at > now:
                     break
-                if intent.expires_at <= now:
+            # Query/model work runs outside the schedule transaction, so cancellation is available.
+            if intent.expires_at > now and spec.query is not None:
+                if self.refresher is None:
+                    raise ValueError("report_refresher_unavailable")
+                query = spec.query
+                if spec.lookback_minutes is not None:
+                    query = query.model_copy(
+                        update={
+                            "start_time": intent.created_at
+                            - timedelta(minutes=spec.lookback_minutes),
+                            "end_time": intent.created_at,
+                        }
+                    )
+                control = self.actions._control(intent, identity)
+                actor = ActorContext(
+                    user_id=identity.user_id,
+                    tenant_id=identity.tenant_id,
+                    project_id=identity.project_id,
+                    data_domains=tuple(sorted(control.data_domains)),
+                )
+                ref = self.refresher.prepare(
+                    schedule_id=spec.schedule_id, index=index, query=query, actor=actor
+                )
+                report = intent.payload.model_copy(
+                    update={"report_hash": ref.content_hash, "report_artifact": ref}
+                )
+                intent = intent.model_copy(update={"payload": report})
+            identity = self.actions._identity(token, "business:propose")
+            with closing(sqlite3.connect(self.path, timeout=5)) as db, db:
+                db.execute("BEGIN IMMEDIATE")
+                current, _ = self._row(db, schedule_id, identity)
+                if not current[5]:
+                    raise PermissionError("schedule_disabled")
+                if current[4] != index:
+                    continue
+                if intent.expires_at <= self.actions._now():
                     expired.append(index)
                 else:
-                    # Deterministic action identity survives a crash between these databases.
                     emitted.append(self.actions.propose(intent, token))
                 index += 1
-            db.execute(
-                "UPDATE business_schedules SET next_index=? WHERE id=?", (index, str(schedule_id))
-            )
+                db.execute(
+                    "UPDATE business_schedules SET next_index=? WHERE id=?",
+                    (index, str(schedule_id)),
+                )
+        with closing(sqlite3.connect(self.path, timeout=5)) as db:
+            index = db.execute(
+                "SELECT next_index FROM business_schedules WHERE id=?", (str(schedule_id),)
+            ).fetchone()[0]
         return {
             "schedule_id": str(schedule_id),
             "drafts": emitted,

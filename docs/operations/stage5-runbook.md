@@ -158,3 +158,28 @@ A user-authorized bot-to-self message was sent and read back successfully on 202
 the completed action returned the same message ID and resource revision, with no second send.
 No group message, recall, or GitHub PR was created. Private receiver IDs and runtime databases remain
 under the ignored `.state/` directory; no bearer token/app secret was copied into the repository.
+
+## Fresh periodic reports (2026-10-19)
+
+A `ReportSchedule` can now pin a certified `query`. Supply a `MetricReportRefresher` backed by the
+existing analysis workflow, plus its `read_artifact` method as the action runtime's `artifact_reader`.
+Use separate protected databases for schedules, refresh metadata, approvals and action state.
+Schedules without a query retain the earlier fixed-snapshot behavior.
+
+Each due occurrence executes the certified read-only query and normal validation, then freezes the
+complete delivery package as a `scheduled_report` artifact with source lineage. The generated draft
+binds the actual report hash and `ArtifactRef`. Fixed query bounds are preserved; `lookback_minutes`
+with an unbounded query creates a rolling window ending at the scheduled due time. Every occurrence
+still needs its own exact action approval. This refreshes and generates reports but does not enable
+unattended external publication or bypass the report receiver's future qualification.
+
+Report generation runs outside the schedule transaction, so cancellation remains available during
+query/model work. Scope, enabled state, token and expiry are rechecked before queueing a draft.
+A generated occurrence is pinned before proposal: a failure while creating the approval does not
+regenerate different content when the source changes. Concurrent requests cannot run the same
+occurrence twice. A crashed `generating` record needs operator reconciliation; failed read-only
+runs may retry. Artifact ownership, classification and actual bytes/hash are rechecked before
+proposal and action execution; missing or modified report evidence blocks delivery.
+
+Previously persisted local actions remain readable. Integrity and completion checks use the exact
+stored approved JSON rather than materializing newly added optional schema fields into old hashes.
