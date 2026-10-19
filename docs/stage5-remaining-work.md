@@ -47,6 +47,10 @@ Updated: 2026-10-19. Development branch: `feat/stage5-business-loop`.
     HTTPS, live session/delegation checks and independent-audit/release ports are implemented.
     Actual identity/reviewer/audit deployment remains unconfigured.
 
+11. A report process entry point now checks trusted factory/identity wiring, supports one-shot and
+    continuous polling, sanitized status and graceful SIGTERM/SIGINT. Disabled Linux service
+    templates are provided for separate report and approval identities; nothing was installed.
+
 ## Remaining code/integration work
 
 | Work | Present boundary | Input needed |

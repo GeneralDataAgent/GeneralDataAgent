@@ -1,0 +1,30 @@
+# Template only: install after operator factory/identity enrollment and admission.
+[Unit]
+Description=GeneralDataAgent report draft worker
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=gda-reports
+Group=gda-reports
+WorkingDirectory=/opt/generaldataagent
+Environment=PYTHONPATH=/etc/generaldataagent/operator
+Environment=LANGSMITH_TRACING=false
+Environment=LANGCHAIN_TRACING_V2=false
+ExecStart=/opt/generaldataagent/.venv/bin/python -m generaldataagent.services.report_worker --factory report_runtime:create_worker
+Restart=on-failure
+RestartSec=15
+TimeoutStopSec=180
+UMask=0077
+StateDirectoryMode=0700
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+StateDirectory=generaldataagent-reports
+ReadWritePaths=/var/lib/generaldataagent-reports
+ReadOnlyPaths=/etc/generaldataagent/operator /run/generaldataagent/workload
+
+[Install]
+WantedBy=multi-user.target

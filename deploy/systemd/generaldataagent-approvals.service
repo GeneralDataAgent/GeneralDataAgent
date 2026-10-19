@@ -1,0 +1,28 @@
+# Template only: authority database/keys/identity belong to independent operators.
+[Unit]
+Description=GeneralDataAgent independent approval authority
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=gda-approvals
+Group=gda-approvals
+WorkingDirectory=/opt/generaldataagent
+Environment=PYTHONPATH=/etc/generaldataagent/operator
+ExecStart=/opt/generaldataagent/.venv/bin/python -m uvicorn approval_runtime:create_authority --factory --host 127.0.0.1 --port 8081 --no-access-log
+Restart=on-failure
+RestartSec=15
+TimeoutStopSec=30
+UMask=0077
+StateDirectoryMode=0700
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+StateDirectory=generaldataagent-approvals
+ReadWritePaths=/var/lib/generaldataagent-approvals
+ReadOnlyPaths=/etc/generaldataagent/operator /run/generaldataagent/approvals
+
+[Install]
+WantedBy=multi-user.target

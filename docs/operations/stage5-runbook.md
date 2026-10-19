@@ -586,3 +586,26 @@ closed until independently operated business state/audit/retention and receiver 
 
 The 16 focused integration/transport cases and browser checks use synthetic accounts, fake network
 transports and local state. No real reviewer was enrolled and no real business action was approved.
+
+
+## Report worker deployment entry point (2026-10-19)
+
+An operator-owned factory can return the fully assembled `ReportWorker`. Run
+`python -m generaldataagent.services.report_worker --factory report_runtime:create_worker --check-config`
+to check wiring without polling, or replace `--check-config` with `--once` for one bounded batch.
+Omit both flags to poll until SIGTERM/SIGINT; the process finishes the current bounded batch and
+restores signal handlers. The default requires `OIDCWorkloadSessionIssuer`, a shared
+`WorkloadSessionBroker` and matching issuer/worker broker. `--development` explicitly permits
+isolated local test identity factories and must not appear in the deployed unit. Factories are
+trusted operator Python code, never a caller/agent-selected HTTP parameter.
+
+Status output contains job counts only. A one-shot batch with failures exits nonzero; startup
+failures use a fixed sanitized error. The worker still only proposes report drafts, never grants
+approval or sends a report. No human token is retained or refreshed.
+
+Disabled, uninstalled Linux templates live in `deploy/systemd/`. They use different report/approval
+service accounts, private state directories, restrictive umasks, read-only credential mounts and
+graceful shutdown. Operators must supply the installed environment, protected factory modules,
+real service JWT/identity/audit enrollment and TLS proxy before installation. The approval unit
+listens on loopback only. These templates have not been installed or run on a real host; local
+verification used macOS and isolated signed service credentials, with no external report delivery.

@@ -227,3 +227,11 @@ Implementation commits: `4694b46` (Feishu frozen-report IM publication) and `cf5
   or horizontal overflow. Both consoles' assets ship in the wheel.
 - This implements the approval-service integration code; real identity/reviewer enrollment, signed
   audit infrastructure, independent receiver qualification and production business state remain open.
+
+
+## Report worker process continuation (2026-10-19)
+
+- Six focused cases verify trusted factory validation, default schedule-constrained workload identity,
+  a real isolated RSA-signed fresh-report tick, one-shot failure exit status, no-poll configuration
+  checking, sanitized status and SIGTERM/SIGINT handler restoration.
+- The process entry point and disabled Linux unit templates do not deploy or enroll anything.
