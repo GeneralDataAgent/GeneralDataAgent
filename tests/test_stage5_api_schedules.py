@@ -161,3 +161,98 @@ def test_feedback_api_requires_registered_result_and_scope(setup, tmp_path):
     )
     with pytest.raises(ValueError, match="sessions"):
         create_app(feedback_registry=registry)
+
+
+def recovering_schedule(tmp_path, runtime, token):
+    spec = ReportSchedule(
+        schedule_id=uuid4(),
+        destination="report",
+        report=PAYLOADS[-1],
+        starts_at=datetime.now(UTC) + timedelta(minutes=1),
+        interval_minutes=60,
+        occurrences=3,
+        revision_policy="current_at_proposal",
+    )
+    scheduler = ReportScheduler(tmp_path / "schedules.db", actions=runtime)
+    scheduler.register(spec, token)
+    return scheduler, spec
+
+
+def test_report_recovers_after_expired_or_cancelled_occurrence(setup, tmp_path):
+    runtime, approvals, _, token = setup
+    scheduler, spec = recovering_schedule(tmp_path, runtime, token)
+    runtime.clock = lambda: spec.starts_at + timedelta(minutes=61)
+    result = scheduler.tick(spec.schedule_id, token)
+    assert result["expired"] == [0]
+    second = result["drafts"][0]
+    assert second["intent"]["expected_revision"] == 0
+    runtime.cancel(UUID(second["intent"]["action_id"]), token)
+    runtime.clock = lambda: spec.starts_at + timedelta(minutes=121)
+    third = scheduler.tick(spec.schedule_id, token)["drafts"][0]
+    assert third["intent"]["expected_revision"] == 0
+    approvals.approve(UUID(third["approval_id"]), approver_id="bob")
+    assert runtime.execute(UUID(third["intent"]["action_id"]), token)["state"] == "completed"
+
+
+def test_report_retry_keeps_original_revision_and_approval_after_lost_ack(
+    setup, tmp_path, monkeypatch
+):
+    runtime, approvals, _, token = setup
+    scheduler, spec = recovering_schedule(tmp_path, runtime, token)
+    runtime.clock = lambda: spec.starts_at + timedelta(seconds=1)
+    propose = runtime.propose
+    original = []
+
+    def lose_ack(intent, token):
+        original.append(propose(intent, token))
+        raise ConnectionError("lost scheduler acknowledgment")
+
+    monkeypatch.setattr(runtime, "propose", lose_ack)
+    with pytest.raises(ConnectionError):
+        scheduler.tick(spec.schedule_id, token)
+    first = original[0]
+    approvals.approve(UUID(first["approval_id"]), approver_id="bob")
+    runtime.execute(UUID(first["intent"]["action_id"]), token)
+    monkeypatch.setattr(runtime, "propose", propose)
+    restarted = ReportScheduler(scheduler.path, actions=runtime)
+    replay = restarted.tick(spec.schedule_id, token)["drafts"][0]
+    assert replay["approval_id"] == first["approval_id"]
+    assert replay["intent"]["expected_revision"] == 0
+    runtime.clock = lambda: spec.starts_at + timedelta(minutes=61)
+    second = restarted.tick(spec.schedule_id, token)["drafts"][0]
+    assert second["intent"]["expected_revision"] == 1
+    assert second["approval_id"] != first["approval_id"]
+
+
+def test_pending_approval_is_not_rebased_by_later_report(setup, tmp_path):
+    runtime, approvals, _, token = setup
+    scheduler, spec = recovering_schedule(tmp_path, runtime, token)
+    runtime.clock = lambda: spec.starts_at + timedelta(seconds=1)
+    first = scheduler.tick(spec.schedule_id, token)["drafts"][0]
+    runtime.clock = lambda: spec.starts_at + timedelta(minutes=61)
+    second = scheduler.tick(spec.schedule_id, token)["drafts"][0]
+    # Both were proposed against the same current resource; only one may win execution.
+    assert first["intent"]["expected_revision"] == second["intent"]["expected_revision"] == 0
+    approvals.approve(UUID(second["approval_id"]), approver_id="bob")
+    runtime.execute(UUID(second["intent"]["action_id"]), token)
+    # The first draft has expired, and is never silently rebased or approved again.
+    assert (
+        runtime.get(UUID(first["intent"]["action_id"]), token)["intent"]["expected_revision"] == 0
+    )
+
+
+def test_resource_change_requires_new_approval_instead_of_rebasing(setup, tmp_path):
+    runtime, approvals, _, token = setup
+    scheduler, spec = recovering_schedule(tmp_path, runtime, token)
+    runtime.clock = lambda: spec.starts_at + timedelta(seconds=1)
+    pending = scheduler.tick(spec.schedule_id, token)["drafts"][0]
+    other = intent(PAYLOADS[-1])
+    other_draft = runtime.propose(other, token)
+    approvals.approve(UUID(other_draft["approval_id"]), approver_id="bob")
+    runtime.execute(other.action_id, token)
+    approvals.approve(UUID(pending["approval_id"]), approver_id="bob")
+    with pytest.raises(ValueError, match="revision_changed"):
+        runtime.execute(UUID(pending["intent"]["action_id"]), token)
+    assert (
+        runtime.get(UUID(pending["intent"]["action_id"]), token)["intent"]["expected_revision"] == 0
+    )

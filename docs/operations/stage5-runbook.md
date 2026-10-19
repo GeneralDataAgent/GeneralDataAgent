@@ -293,3 +293,14 @@ Offline tests exercise native Anthropic and OpenAI agent graphs, including a rea
 handoff and the exact cap reaching the provider invocation boundary. No real model route has been
 enrolled or billed by these tests. A held-out real billing/latency benchmark and qualified operator
 configuration remain required before enabling this routing in production.
+
+### Recovering report versions after missed periods
+
+For schedules which should continue after a missed or cancelled occurrence, explicitly set
+`ReportSchedule(revision_policy="current_at_proposal", ...)`. Each new occurrence captures the
+current destination resource revision before creating its own approval. If no resource exists it
+uses the configured initial revision. Already persisted proposals keep their original revision,
+content and approval after a scheduler restart or lost acknowledgment, even if another action
+has since changed the resource. Execution still rejects any intervening resource change; a stale
+approval never rebases itself. The default `sequential` policy preserves the original strict
+`initial_revision + occurrence_index` behavior for schedules which require every prior occurrence.

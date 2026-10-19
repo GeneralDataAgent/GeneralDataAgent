@@ -4,6 +4,7 @@ import sqlite3
 from contextlib import closing
 from datetime import timedelta
 from pathlib import Path
+from typing import Literal
 from uuid import UUID, uuid5
 
 from pydantic import AwareDatetime, Field, model_validator
@@ -23,6 +24,7 @@ class ReportSchedule(ContractModel):
     interval_minutes: int = Field(ge=60, le=525600)
     occurrences: int = Field(ge=1, le=100)
     initial_revision: int = Field(default=0, ge=0)
+    revision_policy: Literal["sequential", "current_at_proposal"] = "sequential"
     query: MetricQuery | None = None
     lookback_minutes: int | None = Field(default=None, ge=1, le=525600)
 
@@ -100,6 +102,26 @@ class ReportScheduler:
             expires_at=due + timedelta(minutes=min(spec.interval_minutes, 1440)),
         )
 
+    def _proposal_intent(self, spec, intent, identity):
+        if spec.revision_policy == "sequential":
+            return intent
+        with self.actions._db() as db:
+            # If a proposal committed before a scheduler crash, keep its exact approval binding.
+            existing = db.execute(
+                "SELECT id FROM business_actions WHERE id=?", (str(intent.action_id),)
+            ).fetchone()
+            if existing is not None:
+                _, original, _ = self.actions._row(db, existing[0], identity)
+                return original
+            resource = db.execute(
+                "SELECT revision FROM business_resources "
+                "WHERE tenant=? AND project=? AND destination=?",
+                (identity.tenant_id, identity.project_id, intent.destination),
+            ).fetchone()
+        revision = resource[0] if resource is not None else spec.initial_revision
+        # This is a NEW draft, before approval. Execution still rejects later resource changes.
+        return intent.model_copy(update={"expected_revision": revision})
+
     def _row(self, db, schedule_id, identity):
         row = db.execute(
             "SELECT owner,tenant,project,spec,next_index,enabled "
@@ -175,6 +197,7 @@ class ReportScheduler:
                 if intent.expires_at <= self.actions._now():
                     expired.append(index)
                 else:
+                    intent = self._proposal_intent(spec, intent, identity)
                     emitted.append(self.actions.propose(intent, token))
                 index += 1
                 db.execute(

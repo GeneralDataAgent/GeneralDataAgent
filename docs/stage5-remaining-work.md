@@ -10,7 +10,8 @@ Updated: 2026-10-19. Development branch: `feat/stage5-business-loop`.
    usage audit; automatic unmetered summarization is excluded.
 2. Periodic schedules can refresh certified data, generate immutable report packages and request
    exact separate approvals. Fixed and rolling windows, crash-safe frozen content, cancellation
-   during generation and artifact checks are implemented.
+   during generation and artifact checks are implemented. An explicit current-at-proposal revision
+   policy supports missed/cancelled periods while preserving existing exact approvals on replay.
 3. Feishu notification delivery, receiver readback, durable hints, no-resend quarantine,
    read-only reconciliation and separately confirmed recall code are implemented. One explicitly
    authorized bot-to-self message and same-receipt replay were tested live. Recall is only locally tested.
