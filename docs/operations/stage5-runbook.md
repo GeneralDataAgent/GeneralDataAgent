@@ -183,3 +183,30 @@ proposal and action execution; missing or modified report evidence blocks delive
 
 Previously persisted local actions remain readable. Integrity and completion checks use the exact
 stored approved JSON rather than materializing newly added optional schema fields into old hashes.
+
+## Enforcing extension admission at assembly/use (2026-10-19)
+
+`build_supervisor` now rejects new or modified specialist definitions unless an `ExtensionAdmission`,
+actor and pinned `agent_versions` are supplied. Existing checked-in specialist definitions remain
+the core baseline. The reviewed hash includes the full specialist definition. An admitted graph
+rechecks version/scope/expiry/revocation before and after sync/async calls and during streaming.
+
+`specialist_skills` applies reviewed `SkillDefinition` templates through the same factory. Skill
+context is literal text; no Python formatting/attribute evaluation, filesystem import or arbitrary
+code loading occurs. A skill may reduce its specialist's explicit tools, but cannot add tools absent
+from that tool group. The skill is pinned and rechecked with its graph; altered prompts/tool lists
+need a new reviewed version. Existing tool policy and source authorization remain mandatory.
+
+`DataEngineeringRuntime` accepts the two checked-in read-only SQLite/DuckDB implementations as its
+core baseline. A new connector implementation/subclass requires `admission`, a pinned
+`connector_versions` entry and non-secret `connector_configurations`. The digest binds class and
+method implementation source, current capabilities, source path/timeout and declared configuration.
+The wrapper exposes only the read-only connector interface and carries no dynamic imports.
+
+The policy gateway establishes a request-local actor context from the actual `ToolRequest`.
+Every admitted connector native read checks that context, current registry state and unchanged
+implementation/configuration before and after the read. Context is isolated across threads and
+cleared on failure; calling an admitted connector directly outside the gateway fails closed.
+Revocation blocks subsequent reads, including repeated aggregate queries within profiling. This
+local enforcement is code-backed; production still requires independently authenticated reviews
+and evidence, not synthetic test fixture enrollments.

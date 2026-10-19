@@ -1,7 +1,7 @@
 """Tool gateway that makes policy evaluation unavoidable."""
 
 from collections.abc import Callable
-from contextlib import suppress
+from contextlib import nullcontext, suppress
 from typing import Any
 from uuid import UUID
 
@@ -27,10 +27,12 @@ class ToolGateway:
         production_mode: bool = False,
         alerts: CriticalAlertRouter | None = None,
         budgets: TaskBudgetLedger | None = None,
+        request_scope: Callable | None = None,
     ) -> None:
         if production_mode and not isinstance(audit, VerifiedAuditSink):
             raise ValueError("production gateway requires independent verified audit")
         self.budgets = budgets
+        self.request_scope = request_scope
         self.alerts = alerts
         self.policy = policy
         self.audit = audit
@@ -48,6 +50,13 @@ class ToolGateway:
         *,
         trace_id: str,
         approval_id: UUID | None = None,
+    ) -> Any:
+        scope = self.request_scope(request) if self.request_scope is not None else nullcontext()
+        with scope:
+            return self._invoke_scoped(request, trace_id=trace_id, approval_id=approval_id)
+
+    def _invoke_scoped(
+        self, request: ToolRequest, *, trace_id: str, approval_id: UUID | None
     ) -> Any:
         decision = self.policy.evaluate(request)
         self._audit(request, decision.model_dump(mode="json"), trace_id)

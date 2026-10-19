@@ -604,8 +604,32 @@ def test_parallel_profiling_cancels_queued_requests(tmp_path) -> None:
     started = Event()
     release = Event()
     cancel = Event()
+    from datetime import UTC, datetime
+
+    from admission_helpers import enroll
+
+    from generaldataagent.business.extensions import ExtensionAdmission
+    from generaldataagent.business.governance import CapabilityRegistry
+
+    connector = BlockingConnector(started, release)
+    registered_actor = ActorContext(
+        user_id="user-1", tenant_id="tenant-1", project_id="project-1", data_domains=("commerce",)
+    )
+    registry = CapabilityRegistry(tmp_path / "admission", clock=lambda: datetime.now(UTC))
+    admission = ExtensionAdmission(registry)
+    configuration = {"fixture": "queued-cancellation"}
+    enroll(
+        registry,
+        registered_actor,
+        "connector",
+        "blocking",
+        admission.connector_hash(connector, configuration),
+    )
     runtime = DataEngineeringRuntime(
-        connectors={"blocking": BlockingConnector(started, release)},
+        connectors={"blocking": connector},
+        admission=admission,
+        connector_versions={"blocking": "v1"},
+        connector_configurations={"blocking": configuration},
         connector_domains={"blocking": frozenset({"commerce"})},
         artifacts=LocalArtifactStore(tmp_path / "artifacts"),
     )

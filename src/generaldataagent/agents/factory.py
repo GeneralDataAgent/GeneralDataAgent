@@ -11,6 +11,8 @@ from deepagents import (
 )
 
 from generaldataagent.agents.specs import SPECIALIST_SPECS, SpecialistSpec
+from generaldataagent.business.extensions import AdmittedGraph, ExtensionAdmission, SkillDefinition
+from generaldataagent.contracts import ActorContext
 
 SUPERVISOR_PROMPT = """You coordinate governed data work.
 
@@ -36,6 +38,11 @@ def build_supervisor(
     response_formats: Mapping[str, Any] | None = None,
     response_format: Any | None = None,
     system_prompt: str = SUPERVISOR_PROMPT,
+    admission: ExtensionAdmission | None = None,
+    actor: ActorContext | None = None,
+    agent_versions: Mapping[str, str] | None = None,
+    specialist_skills: Mapping[str, SkillDefinition] | None = None,
+    skill_context: Mapping[str, str] | None = None,
 ) -> Any:
     """Create a model-provider-neutral Deep Agents supervisor.
 
@@ -43,6 +50,21 @@ def build_supervisor(
     specialist's tools when the field is supplied.
     """
 
+    if len({s.name for s in specialist_specs}) != len(specialist_specs):
+        raise ValueError("specialist names must be unique")
+    if admission is None and (
+        any(s not in SPECIALIST_SPECS for s in specialist_specs)
+        or specialist_skills
+        or agent_versions
+    ):
+        raise PermissionError("custom agents and skills require explicit admission")
+    if specialist_skills and (
+        actor is None or not set(specialist_skills) <= {s.name for s in specialist_specs}
+    ):
+        raise ValueError("skill assignments require an actor and a selected specialist")
+    references = (
+        admission.agents(specialist_specs, actor, agent_versions or {}) if admission else []
+    )
     _register_governed_profiles()
     subagents = []
     for spec in specialist_specs:
@@ -52,6 +74,15 @@ def build_supervisor(
             "system_prompt": spec.system_prompt,
             "tools": list(tool_groups.get(spec.tool_group, ())),
         }
+        if specialist_skills and spec.name in specialist_skills:
+            skill = specialist_skills[spec.name]
+            rendered, reference = admission.render_skill(skill, actor, skill_context or {})
+            references.append(reference)
+            tools_by_name = {getattr(tool, "name", ""): tool for tool in subagent["tools"]}
+            if not set(skill.allowed_tools) <= tools_by_name.keys():
+                raise PermissionError("skill cannot grant tools absent from its specialist")
+            subagent["tools"] = [tools_by_name[name] for name in skill.allowed_tools]
+            subagent["system_prompt"] += "\n\n" + rendered
         if response_formats and spec.name in response_formats:
             subagent["response_format"] = response_formats[spec.name]
         subagents.append(subagent)
@@ -68,7 +99,8 @@ def build_supervisor(
         kwargs["checkpointer"] = checkpointer
     if response_format is not None:
         kwargs["response_format"] = response_format
-    return create_deep_agent(**kwargs)
+    graph = create_deep_agent(**kwargs)
+    return AdmittedGraph(graph, admission, actor, references) if references else graph
 
 
 def _register_governed_profiles() -> None:

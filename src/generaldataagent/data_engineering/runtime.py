@@ -9,7 +9,10 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from generaldataagent.artifacts import LocalArtifactStore
+from generaldataagent.business.extensions import ExtensionAdmission
 from generaldataagent.connectors import ReadOnlyConnector
+from generaldataagent.connectors.duckdb import DuckDBConnector
+from generaldataagent.connectors.sqlite import SQLiteConnector
 from generaldataagent.contracts import (
     ActorContext,
     AgentRole,
@@ -73,9 +76,27 @@ class DataEngineeringRuntime:
         policy: PolicyEngine | None = None,
         audit: JsonlAuditSink | None = None,
         approvals: ApprovalStore | None = None,
+        admission: ExtensionAdmission | None = None,
+        connector_versions: Mapping[str, str] | None = None,
+        connector_configurations: Mapping[str, dict] | None = None,
     ) -> None:
         self.connectors = dict(connectors)
         self.connector_domains = dict(connector_domains)
+        for name, connector in tuple(self.connectors.items()):
+            pinned = (connector_versions or {}).get(name)
+            if type(connector) not in {SQLiteConnector, DuckDBConnector} or pinned is not None:
+                if (
+                    admission is None
+                    or pinned is None
+                    or name not in (connector_configurations or {})
+                ):
+                    raise PermissionError("custom connectors require pinned capability admission")
+                self.connectors[name] = admission.connector(
+                    connector,
+                    name=name,
+                    version=pinned,
+                    configuration=connector_configurations[name],
+                )
         if not self.connectors:
             raise ValueError("at least one connector is required")
         if self.connectors.keys() != self.connector_domains.keys():
@@ -106,7 +127,12 @@ class DataEngineeringRuntime:
         self.approvals = approvals
         self._cancel_events: dict[str, Event] = {}
         self._cancel_events_lock = Lock()
-        self.gateway = ToolGateway(policy or PolicyEngine(), audit, approvals)
+        self.gateway = ToolGateway(
+            policy or PolicyEngine(),
+            audit,
+            approvals,
+            request_scope=admission.tool_scope if admission else None,
+        )
         self.gateway.register("connector.inspect", self._inspect)
         self.gateway.register("data.profile", self._profile)
         self.gateway.register("data.quality", self._quality)
