@@ -113,6 +113,9 @@ def create_app(
     )
     if business_actions is not None:
         application.include_router(application_business_router)
+        from generaldataagent.api.business_ui import business_ui_router
+
+        application.include_router(business_ui_router(business_actions))
     application.state.metric_runtime = metric_runtime
     application.state.review_store = review_store
     application.state.science_workbench = science_workbench

@@ -36,6 +36,11 @@ Updated: 2026-10-19. Development branch: `feat/stage5-business-loop`.
    All six roadmap draft/request kinds now have receiver implementations; actual target enrollment
    and independent qualification remain open.
 
+9. A Chinese scoped user console at `/business` now supports draft browsing, exact content review,
+   cancellation, approved execution, receiver reconciliation, receipts and separate compensation
+   proposals. Desktop/mobile interaction is verified with synthetic local records; no credential
+   persistence or approval-grant endpoint is introduced.
+
 ## Remaining code/integration work
 
 | Work | Present boundary | Input needed |
@@ -45,7 +50,7 @@ Updated: 2026-10-19. Development branch: `feat/stage5-business-loop`.
 | Autonomous periodic service execution | Durable polling, mounted service-JWT validation, schedule-bound revocable session issuance and API/action constraints exist; no user token is stored or renewed | Enroll the actual issuer/audience/keys/service delegation and deploy with a process manager; each external action still needs explicit exact approval |
 | Full orchestration-model routing and metering | Narration and opt-in native Supervisor/specialist routing, shared orchestration budget and usage audit are implemented | Enroll approved provider/model configurations and run the real held-out billing/latency benchmark before enabling; deployment routes within one native provider family |
 | Production business API assembly | Pilot works and qualification checks exist; production factory still rejects local business/feedback state | Independently operated approval/audit/retention infrastructure and a qualified production receiver; do not remove this guard just to make deployment pass |
-| End-user review/control UI | Scoped APIs and trusted operator review ports exist | Product review flow and authenticated external approval service; no public endpoint can grant an approval |
+| Independent approval-service integration | End-user draft/control console is implemented; approval decisions remain on the trusted operator port | Enroll actual independent reviewers and an authenticated external approval service; the business API cannot grant approvals |
 
 ## Operator work before expanding the Feishu pilot
 

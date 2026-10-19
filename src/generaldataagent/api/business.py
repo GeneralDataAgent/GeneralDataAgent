@@ -2,7 +2,7 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import Field, model_validator
 
 from generaldataagent.business.actions import BusinessActionRuntime
@@ -53,6 +53,14 @@ def business_router(actions: BusinessActionRuntime, scheduler: ReportScheduler |
             raise HTTPException(status_code=409, detail="business_state_conflict") from exc
         except (TimeoutError, ConnectionError) as exc:
             raise HTTPException(status_code=503, detail="business_receiver_unavailable") from exc
+
+    @router.get("/drafts")
+    def list_drafts(
+        request: Request,
+        before: int | None = Query(default=None, gt=0),
+        limit: int = Query(default=25, ge=1, le=100),
+    ):
+        return invoke(lambda: actions.list(token(request), before=before, limit=limit))
 
     @router.post("/drafts")
     def propose(intent: ActionIntent, request: Request):

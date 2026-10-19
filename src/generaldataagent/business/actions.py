@@ -395,6 +395,36 @@ class BusinessActionRuntime:
         with self._db() as db:
             return self._view(db, action_id, identity)
 
+    def list(self, token: str, *, before: int | None = None, limit: int = 25) -> dict:
+        identity = self._identity(token, "business:read")
+        if (
+            type(limit) is not int
+            or not 1 <= limit <= 100
+            or (before is not None and (type(before) is not int or before <= 0))
+        ):
+            raise ValueError("invalid_business_page")
+        # Filter domains in SQL before pagination; hidden rows never enter the result page.
+        with self._db() as db:
+            rows = db.execute(
+                "SELECT rowid,id FROM business_actions WHERE user_id=? AND tenant=? AND project=? "
+                "AND NOT EXISTS (SELECT 1 FROM json_each(domains) d WHERE d.value NOT IN "
+                "(SELECT value FROM json_each(?))) AND (? IS NULL OR rowid<?) "
+                "ORDER BY rowid DESC LIMIT ?",
+                (
+                    identity.user_id,
+                    identity.tenant_id,
+                    identity.project_id,
+                    json.dumps(sorted(identity.data_domains)),
+                    before,
+                    before,
+                    limit + 1,
+                ),
+            ).fetchall()
+            return {
+                "items": [self._view(db, UUID(row[1]), identity) for row in rows[:limit]],
+                "next_cursor": rows[limit - 1][0] if len(rows) > limit else None,
+            }
+
     def cancel(self, action_id: UUID, token: str) -> dict:
         identity = self._identity(token, "business:propose")
         with self._db() as db, db:

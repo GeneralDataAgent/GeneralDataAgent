@@ -513,3 +513,30 @@ execution operation is exposed. Protocol: [GitHub Issues REST API](https://docs.
 This completes receiver code for the six **roadmap draft/request** kinds. Direct Grafana/dashboard
 publishing, MLflow model-version creation and cloud-document/file publishing are separate optional
 integrations beyond these draft/request endpoints; they are not implemented by a review issue.
+
+
+## Scoped business console (2026-10-19)
+
+A configured pilot business API serves the Chinese console at `/business`. It has no frontend
+build step or external scripts/fonts. Connect with an existing short-lived user session, issued by
+the configured login service. `/business/session` only authenticates and describes that existing
+session; it cannot issue credentials or grant permissions. Tokens stay in memory, not cookies,
+URLs or local storage; refresh/disconnect clears the connection. Workload-only sessions cannot
+use this human console. Deploy only behind the application's trusted HTTPS endpoint.
+
+The console lists only the current actor/tenant/project/domain's drafts with bounded keyset
+pagination. It shows exact bound PR/issue text, schedule before/after content, frozen report text
+and receiver receipts. Draft content uses literal DOM text, never HTML/Markdown execution.
+CSP, no-store, no-referrer, nosniff and anti-framing headers apply to all console assets/session data.
+The application middleware and business runtime keep all execution/cancellation/reconciliation
+checks. No approval-grant endpoint is added to the business API.
+
+Users can cancel pending drafts, execute after independent approval, reconcile uncertain receiver
+results without resending, and create a separate compensation draft for a completed delivery.
+A compensation draft still needs a new approval and current-resource checks. The console does not
+clear quarantines or offer merge/deployment controls. Local-only receipts are explicitly labelled
+as not externally delivered. An external authenticated human approval service remains separate.
+
+Browser validation used synthetic local records, including literal HTML-injection text, cancellation,
+approved execution, receipts, compensation proposal, disconnect and a 390-pixel mobile viewport.
+No real external action was performed.

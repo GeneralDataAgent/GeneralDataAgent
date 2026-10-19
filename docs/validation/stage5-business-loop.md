@@ -200,3 +200,14 @@ Implementation commits: `4694b46` (Feishu frozen-report IM publication) and `cf5
   creation/closure acknowledgements with read-only recovery.
 - Full frozen suite: **510 passed, 1 skipped**, **87.91%** coverage. The optional local PostgreSQL
   test remains skipped; independent receiver/production gates remain incomplete.
+
+
+## User console continuation (2026-10-19)
+
+- Full frozen suite: **515 passed, 1 skipped**, **87.96%** coverage. Five new integration cases
+  verify bounded actor/domain-scoped pagination, session introspection/revocation, service shutdown,
+  packaged no-store/CSP assets and unchanged exact approval enforcement.
+- A headless browser exercised the actual local API at desktop and 390-pixel mobile sizes with
+  synthetic records: connection, literal hostile HTML rendering, cancel, approved execution/receipt,
+  separate compensation proposal and disconnect. No JavaScript errors/dialogs or horizontal overflow.
+- Console assets are included in the built wheel. No real delivery or production admission occurred.

@@ -257,8 +257,8 @@ production-ready until their documented external and security acceptance gates p
 
 `feat/stage5-business-loop` starts the business loop with the local workflows, governance and
 qualification tooling mapped in [Stage 5 evidence](validation/stage5-business-loop.md). All 42 frozen
-local action cases pass and the current full suite passes (510 passed, one opt-in PostgreSQL skip;
-87.91% coverage). Review and operation steps are in the [Stage 5 runbook](operations/stage5-runbook.md).
+local action cases pass and the current full suite passes (515 passed, one opt-in PostgreSQL skip;
+87.96% coverage). Review and operation steps are in the [Stage 5 runbook](operations/stage5-runbook.md).
 External effects are disabled by default; a configured Feishu pilot sent one user-approved bot-to-self
 notification and verified its receiver content, with replay returning the original receipt. A GitHub
 JSON scheduling draft-PR receiver now has isolated validation for exact approved changes, readback,

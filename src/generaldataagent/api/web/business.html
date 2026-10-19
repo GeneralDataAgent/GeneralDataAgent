@@ -1,0 +1,8 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>行动台 · GeneralDataAgent</title><link rel="stylesheet" href="/business/console.css"><script src="/business/console.js" defer></script></head>
+<body><header><a class="brand" href="/business">G<span>↗</span>DA</a><div class="heading"><span class="eyebrow">业务闭环 / 人工审批</span><h1>行动台</h1></div><button id="logout" hidden>断开连接</button></header>
+<main><section id="connection" class="connection"><span class="tag">开发试点</span><h2>查看你的待办与交付</h2><p>连接后查看当前账号下的草稿。每次执行都会重新核验审批、权限和有效期。</p><form id="connect-form"><label for="credential">访问凭证</label><div class="connect-row"><input id="credential" type="password" autocomplete="off" spellcheck="false" required maxlength="4096"><button type="submit" class="primary">连接</button></div></form><p class="hint">使用登录服务签发的短期凭证，仅在本页内存中使用。刷新页面后需重新连接。</p></section>
+<section id="workspace" hidden><div class="scope-bar"><div><span class="eyebrow">当前工作范围</span><p id="scope"></p></div><button id="refresh">刷新记录</button></div><div class="layout"><aside aria-label="草稿列表"><div class="list-heading"><h2>我的行动</h2><span id="count"></span></div><div id="drafts"></div><button id="more" hidden>加载更早记录</button></aside><article id="detail" aria-label="行动详情"><div class="empty"><span class="empty-mark">↗</span><h2>选择一条行动</h2><p>在这里核对批准内容、查看交付凭据和后续处理方式。</p></div></article></div></section>
+<p id="notice" role="status" aria-live="polite"></p></main><footer><span>GeneralDataAgent / 受审批的业务行动</span><span>真实环境验收仍需独立完成</span></footer>
+</body></html>
