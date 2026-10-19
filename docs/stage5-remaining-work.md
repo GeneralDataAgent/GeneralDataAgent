@@ -15,7 +15,9 @@ Updated: 2026-10-19. Development branch: `feat/stage5-business-loop`.
    authorized bot-to-self message and same-receipt replay were tested live. Recall is only locally tested.
 4. Agent/Skill/connector admission is enforced in normal assembly and use paths. Changed definitions,
    unauthorized scope, expiration and revocation block use.
-5. Aggregate acceptance now verifies independently signed held-out optimization measurements and
+5. A durable background report worker now polls with fresh scoped sessions, expiry, cancellation,
+   multi-process leases, restart recovery and sanitized status. It only proposes drafts.
+6. Aggregate acceptance now verifies independently signed held-out optimization measurements and
    the existing Stage 4 release proof, rather than permanently returning incomplete.
 
 ## Remaining code/integration work
@@ -23,7 +25,7 @@ Updated: 2026-10-19. Development branch: `feat/stage5-business-loop`.
 | Work | Present boundary | Input needed |
 |---|---|---|
 | Real Dashboard/ticket/scheduling-PR/registry/report publication receivers | Typed local drafts and lifecycle exist; only Feishu notifications have a real receiver | Choose target systems and test resources. GitHub repository/branch/schedule file is not yet identified, so that integration was deferred by the user in favor of Feishu |
-| Autonomous periodic service execution | Fresh generation works when ticked; no long-lived user token is stored or automatically renewed | A scoped service identity and deployment scheduler/token provider; each external action still needs explicit exact approval |
+| Autonomous periodic service execution | Durable polling and scoped short-lived token-provider integration exist; no user token is stored or renewed | Deploy the worker with an authenticated workload identity/token issuer and process manager; each external action still needs explicit exact approval |
 | Full orchestration-model routing and metering | Routed narration is integrated; the Supervisor's planning model is separately selected | Approved provider/model routes, whole-agent token accounting and a real bounded benchmark before enabling that extra autonomy |
 | Production business API assembly | Pilot works and qualification checks exist; production factory still rejects local business/feedback state | Independently operated approval/audit/retention infrastructure and a qualified production receiver; do not remove this guard just to make deployment pass |
 | End-user review/control UI | Scoped APIs and trusted operator review ports exist | Product review flow and authenticated external approval service; no public endpoint can grant an approval |

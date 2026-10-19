@@ -234,3 +234,29 @@ A local SDK integration test also found that invocation kwargs are dropped by La
 structured-output `RunnableMap` branch. The provider bridge now binds the output-token cap directly
 on the model's forced Narrative tool request. A test using the installed ChatAnthropic runnable
 verifies the cap reaches the model call, in addition to the existing returned-usage bound checks.
+
+## Background report worker
+
+`generaldataagent.business.worker.ReportWorker` provides a bounded durable polling loop over
+`ReportScheduler`. Register an existing owned schedule with a future delegation expiry (at most
+30 days), then run `worker.run(stop_event, on_result=operator_status_sink)`. The worker database
+must be protected like the schedule and approval databases and kept outside agent-visible storage.
+
+Deployment must inject `token_provider(workload) -> new_short_lived_token` using its authenticated
+workload identity and a revocable grant for that exact schedule hash/owner/project/domains/expiry.
+The provider is a trusted operator port, not an agent callback or public API. Never reuse a user's
+session or persist bearer/refresh credentials. It must return a fresh broker session with exactly
+`business:propose`, exactly the workload domains and owner, and `not_after=workload.expires_at`.
+The worker checks these constraints, rechecks schedule configuration, and revokes the session after
+every tick. Service-provider grant revocation must also revoke any outstanding broker session.
+A deployment identity provider and process manager still need operator configuration.
+
+Each tick handles at most one occurrence per claim; SQLite leases coordinate multiple pollers.
+Leases expire after 900 seconds following a crash, while deterministic occurrence IDs and the
+scheduler's own transaction prevent duplicate proposals. Existing report-generation quarantine
+still requires reconciliation after an interrupted generation; the worker does not bypass it.
+Provider failures emit exception types only, retry after the polling interval, and never renew a
+stored token. Expired or completed jobs are disabled. Stop the process gracefully via its stop event;
+`worker.cancel(schedule_id, owner_token)` also cancels the schedule, including in-flight refresh.
+This worker only proposes drafts. Approval, delivery and compensation use their existing separate
+permissions and exact approvals. No message or downstream change is sent by polling.
