@@ -177,6 +177,7 @@ class LarkCLITransport:
 
 
 class FeishuNotificationBackend:
+    backend_name = "feishu"
     action_kind = "notification"
 
     def __init__(
@@ -192,6 +193,13 @@ class FeishuNotificationBackend:
 
     def prepare(self, intent: ActionIntent, report_content: bytes | None = None) -> ActionIntent:
         return intent
+
+    def impact(self, intent: ActionIntent) -> tuple[str, str]:
+        return (
+            f"Feishu {intent.operation}: {intent.payload.kind} to {self.target.receiver_id} "
+            f"as {self.target.identity} ({self.target.sender_id})",
+            "One Feishu send or recall with bounded identity/readback calls; no model call",
+        )
 
     @staticmethod
     def wire_text(intent: ActionIntent) -> str:
@@ -311,6 +319,8 @@ class FeishuNotificationBackend:
         return verified
 
     def reconcile(self, intent: ActionIntent, message_id: str) -> ExternalMessageReceipt:
+        if not re.fullmatch(r"om_[A-Za-z0-9]{1,128}", message_id):
+            raise ValueError("invalid_feishu_receiver_id")
         self.check(intent)
         return self._verify(
             intent,

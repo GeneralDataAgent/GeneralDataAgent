@@ -16,7 +16,13 @@ from typing import TYPE_CHECKING
 from uuid import UUID
 
 from generaldataagent.contracts import ArtifactRef, ToolRequest
-from generaldataagent.contracts.business import ActionIntent, ActionKind, ActionReceipt
+from generaldataagent.contracts.business import (
+    ActionIntent,
+    ActionKind,
+    ActionReceipt,
+    GitHubPRBinding,
+    GitHubReceiverHint,
+)
 from generaldataagent.policy.approvals import ApprovalStore
 from generaldataagent.policy.engine import PolicyEngine, PolicyRule
 from generaldataagent.security.dlp import TextDLPScanner
@@ -24,6 +30,7 @@ from generaldataagent.security.identity import SessionBroker, SessionIdentity
 
 if TYPE_CHECKING:
     from generaldataagent.business.feishu import FeishuNotificationBackend
+    from generaldataagent.business.receivers import BusinessReceiver
 
 
 def content_hash(value: object) -> str:
@@ -69,6 +76,7 @@ class BusinessActionRuntime:
         service_enabled: Callable[[], bool] = lambda: True,
         feishu_backends: dict[tuple[str, str], "FeishuNotificationBackend"] | None = None,
         artifact_reader: Callable[[ArtifactRef, SessionIdentity], bytes] | None = None,
+        external_backends: dict[tuple[str, str], "BusinessReceiver"] | None = None,
     ):
         if (
             getattr(approvals, "path", None) is not None
@@ -79,6 +87,14 @@ class BusinessActionRuntime:
         self.artifact_reader = artifact_reader
         self.controls = {(c.kind, c.destination): c for c in controls}
         self.feishu_backends = dict(feishu_backends or {})
+        self.external_backends = dict(external_backends or {})
+        if self.feishu_backends.keys() & self.external_backends.keys():
+            raise ValueError("duplicate business receiver destination")
+        if any(
+            kind != backend.action_kind or (kind, destination) not in self.controls
+            for (kind, destination), backend in self.external_backends.items()
+        ):
+            raise ValueError("external backends require matching explicit destination controls")
         if any(
             kind != backend.action_kind or (kind, destination) not in self.controls
             for (kind, destination), backend in self.feishu_backends.items()
@@ -124,8 +140,14 @@ class BusinessActionRuntime:
             if "receiver_hint" not in columns:
                 db.execute("ALTER TABLE business_actions ADD COLUMN receiver_hint TEXT")
 
+    def _receiver(self, intent):
+        key = (intent.payload.kind, intent.destination)
+        if key in self.feishu_backends and key in self.external_backends:
+            raise PermissionError("ambiguous_business_receiver")
+        return self.feishu_backends.get(key) or self.external_backends.get(key)
+
     def _backend(self, intent):
-        backend = self.feishu_backends.get((intent.payload.kind, intent.destination))
+        backend = self._receiver(intent)
         if backend is None and intent.delivery_binding is not None:
             raise PermissionError("external_backend_unavailable")
         if backend is not None and backend.bind(intent) != intent:
@@ -154,7 +176,7 @@ class BusinessActionRuntime:
             and identity.business_constraint(intent, content, True) is not True
         ):
             raise PermissionError("workload_business_scope_denied")
-        backend = self.feishu_backends.get((intent.payload.kind, intent.destination))
+        backend = self._receiver(intent)
         if backend is not None and backend.prepare(intent, content) != intent:
             raise PermissionError("external_report_approved_content_changed")
 
@@ -234,8 +256,31 @@ class BusinessActionRuntime:
         intent = ActionIntent.model_validate_json(intent.model_dump_json())
         identity = self._identity(token, "business:propose")
         control = self._control(intent, identity)
-        backend = self.feishu_backends.get((intent.payload.kind, intent.destination))
+        backend = self._receiver(intent)
         if backend is not None:
+            if intent.compensates is not None and intent.delivery_binding is None:
+                with self._db() as db:
+                    _, original, _ = self._row(db, intent.compensates, identity)
+                if original.payload != intent.payload or original.destination != intent.destination:
+                    raise ValueError("invalid_compensation_target")
+                intent = intent.model_copy(update={"delivery_binding": original.delivery_binding})
+            # Retry an unbound original request against its already pinned plan, without replanning.
+            if intent.delivery_binding is None:
+                with self._db() as db:
+                    existing = db.execute(
+                        "SELECT id FROM business_actions WHERE user_id=? AND tenant=? "
+                        "AND project=? AND idem=?",
+                        (
+                            identity.user_id,
+                            identity.tenant_id,
+                            identity.project_id,
+                            intent.idempotency_key,
+                        ),
+                    ).fetchone()
+                    if existing:
+                        _, pinned, _ = self._row(db, existing[0], identity)
+                        if pinned.model_copy(update={"delivery_binding": None}) == intent:
+                            intent = pinned
             intent = backend.prepare(intent, self._report_content(intent, identity))
             intent = backend.bind(intent)
         self._backend(intent)
@@ -284,18 +329,10 @@ class BusinessActionRuntime:
                     raise ValueError("invalid_compensation_target")
             approval = self.approvals.create_request(
                 request,
-                impact_scope=(
-                    f"Feishu {intent.operation}: {intent.payload.kind} to "
-                    f"{intent.delivery_binding.receiver_id} as {intent.delivery_binding.identity} "
-                    f"({intent.delivery_binding.sender_id})"
-                    if intent.delivery_binding is not None
-                    else f"Local {intent.payload.kind} draft at {intent.destination}"
-                ),
-                cost_estimate=(
-                    "One Feishu send or recall with bounded identity/readback calls; no model call"
-                    if intent.delivery_binding is not None
-                    else "No external API calls"
-                ),
+                impact_scope=backend.impact(intent)[0]
+                if backend
+                else f"Local {intent.payload.kind} draft at {intent.destination}",
+                cost_estimate=backend.impact(intent)[1] if backend else "No external API calls",
                 classification="internal",
                 rollback_plan="Submit a separately approved compensation bound to this receipt",
                 expires_at=intent.expires_at,
@@ -384,6 +421,7 @@ class BusinessActionRuntime:
         identity = self._identity(token, "actions:resume")
         with self._db() as db:
             _, preview, _ = self._row(db, action_id, identity)
+            self._control(preview, identity)
             backend = self._backend(preview)
         if backend is not None:
             backend.check(preview)
@@ -470,7 +508,7 @@ class BusinessActionRuntime:
                     destination=intent.destination,
                     revision=intent.expected_revision + 1,
                     operation=intent.operation,
-                    backend="feishu" if external is not None else "local_draft",
+                    backend=external.backend if external is not None else "local_draft",
                     external_delivery=external is not None,
                     external=external,
                 )
@@ -489,7 +527,16 @@ class BusinessActionRuntime:
     def _record_receiver_hint(self, action_id, hint):
         import re
 
-        if not re.fullmatch(
+        if hint.get("backend") == "github":
+            parsed = GitHubReceiverHint.model_validate(hint)
+            with self._db() as db:
+                row = db.execute(
+                    "SELECT intent FROM business_actions WHERE id=?", (str(action_id),)
+                ).fetchone()
+            binding = ActionIntent.model_validate_json(row[0]).delivery_binding
+            if not isinstance(binding, GitHubPRBinding) or binding.branch != parsed.branch:
+                raise PermissionError("invalid_receiver_hint")
+        elif not re.fullmatch(
             r"om_[A-Za-z0-9]{1,128}", hint.get("message_id", "")
         ) or not re.fullmatch(r"oc_[A-Za-z0-9]{1,128}", hint.get("chat_id") or ""):
             raise PermissionError("invalid_receiver_hint")
@@ -555,7 +602,7 @@ class BusinessActionRuntime:
                 raise ValueError("local_action_has_no_external_reconciliation")
             if row["state"] == "completed":
                 view = self._view(db, action_id, identity)
-                if view["receipt"]["external"]["message_id"] != message_id:
+                if ActionReceipt.model_validate(view["receipt"]).external.receiver_id != message_id:
                     raise PermissionError("reconciliation_message_mismatch")
                 return view
             crashed_claim = row["state"] == "executing" and intent.expires_at <= self._now()
@@ -584,7 +631,7 @@ class BusinessActionRuntime:
                 destination=intent.destination,
                 revision=intent.expected_revision + 1,
                 operation=intent.operation,
-                backend="feishu",
+                backend=external.backend,
                 external_delivery=True,
                 external=external,
             )

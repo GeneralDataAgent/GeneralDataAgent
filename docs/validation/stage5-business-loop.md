@@ -6,7 +6,7 @@ Updated: 2026-10-19 (Asia/Shanghai). Branch: `feat/stage5-business-loop`.
 
 | Roadmap delivery | Implementation | Boundary |
 |---|---|---|
-| Dashboard, ticket, scheduling PR, registration, IM and report actions | Six discriminated strict payloads, authenticated draft/status/execute/cancel API, persisted task/thread and exact payload | Local drafts for all six kinds; explicit Feishu notification and bounded frozen-report IM receivers support send/readback; only the notification smoke has been exercised live. Other receiver types and production deployment remain unavailable |
+| Dashboard, ticket, scheduling PR, registration, IM and report actions | Six discriminated strict payloads, authenticated draft/status/execute/cancel API, persisted task/thread and exact payload | Local drafts for all six kinds; explicit Feishu notification and bounded frozen-report IM receivers support send/readback; a single-file JSON scheduling GitHub draft-PR receiver supports approved creation/readback/closure. Only the notification smoke has been exercised live. Other receiver types and production deployment remain unavailable |
 | Idempotency, approval, expiry, cancellation | Durable actor-scoped key/content conflict detection, exact one-time approval, separate requester/reviewer, replay receipt | Interrupted consumed/claimed actions quarantine for reconciliation |
 | Compensation/rollback | Separately approved compensation referencing original content and current revision | Retracts the matching local resource only; cannot overwrite a later revision |
 | Execution guards | Current session, scope, DLP, policy, destination revision, per-kind owner/switch/rate and global switch | Controls are trusted configuration; no approval/control mutation HTTP endpoint |
@@ -168,3 +168,23 @@ Implementation commits: `4694b46` (Feishu frozen-report IM publication) and `cf5
 - These are engineering/integration tests with local synthetic data and isolated receivers/keys.
   Actual report sending, real identity-provider enrollment/deployment, independent reviewer and
   receiver qualification, cost/business comparisons and production admission remain separate.
+
+
+## GitHub scheduling draft-PR continuation (2026-10-19)
+
+- Full frozen suite: **453 passed, 1 skipped**, **87.84%** coverage (85% required). The skip remains
+  the opt-in local PostgreSQL environment.
+- GitHub receiver: **37 isolated cases**, including exact before/after approval, pinned repository/actor/
+  base identity, one-file content readback, default-branch preservation, idempotent replay after base
+  advance, occupied branch refusal, concurrent execution, mid-operation revocation, deadlines, partial
+  writes/lost acknowledgements and read-only recovery. Unexpected extra files, symlinks, executable
+  files, submodules, changed PR metadata/head, auto-merge and ready/merged PRs fail closed.
+- A separately approved compensation closes only the verified unchanged unmerged draft PR. It never
+  deletes a branch or reverts a merged change. Partial branch/commit writes without a PR stay quarantined
+  for operator investigation; no retry or cleanup is automated.
+- Stage 4 local security baseline: **91/91**; Stage 5 local lifecycle baseline: **42/42**. Independent
+  external acceptance remains incomplete, including GitHub receiver qualification.
+- Ruff lint/format, whitespace, frozen lock consistency and offline source/wheel builds pass.
+- Tests use synthetic manifests and a stateful fake GitHub transport. No real target repository has
+  been enrolled and no live PR, merge or closure was performed. The adapter currently supports only
+  github.com and a pinned non-secret JSON object interval; see the runbook for assembly and limits.

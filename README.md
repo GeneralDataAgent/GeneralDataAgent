@@ -485,7 +485,11 @@ async model executor adds budgeted routing and encrypted short-lived scoped cach
 External delivery is disabled by default. An explicitly configured Feishu notification receiver now
 supports exact-approved sending, readback, durable receiver hints and read-only reconciliation.
 A separate Feishu report adapter publishes bounded frozen report content as an approved IM message;
-cloud-document/file publication is not implemented.
+cloud-document/file publication is not implemented. A separately configured GitHub receiver prepares
+an exact single-file JSON schedule change, creates an approved draft PR and verifies its contents.
+Lost acknowledgements quarantine the action for read-only reconciliation; a separately approved
+compensation can close only the original unchanged, unmerged draft PR. Actual GitHub target
+enrollment and live qualification remain open.
 A durable background worker can poll report schedules with freshly issued scoped sessions and
 restart-safe leases. A pinned service-JWT adapter validates mounted workload credentials and issues
 revocable sessions constrained to the assigned schedule; actual provider enrollment and deployment

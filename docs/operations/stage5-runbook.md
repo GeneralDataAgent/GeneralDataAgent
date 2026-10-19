@@ -380,3 +380,105 @@ strict extra binding marker; an ordinary SQLite broker rejects them rather than 
 as unrestricted human sessions. Production use still needs the actual identity-provider enrollment,
 shared delegation policy, deployment/process manager and independent service qualification; this
 adapter does not lift the production business-API guard or create external approvals.
+
+
+## GitHub JSON scheduling draft PR receiver (2026-10-19)
+
+`GitHubSchedulePRBackend` implements `schedule_pr` for one operator-pinned github.com repository,
+base branch, pipeline and JSON object key path. This version supports an existing non-secret UTF-8
+JSON object file up to 8 KiB, with a positive integer interval measured in minutes. The source integer
+must match `rollback_interval_minutes`. It rejects duplicate keys, non-finite values, missing keys,
+no-op changes, symlinks, executable files, submodules and unsupported paths. It does not edit YAML,
+cron expressions or GitHub workflows. Serialization uses two-space indentation and a trailing newline;
+review the exact whole-file before/after bytes because formatting can change.
+
+Trusted assembly example (all names and IDs below are synthetic, not enrolled resources):
+
+```python
+from generaldataagent.business.actions import ActionControl, BusinessActionRuntime
+from generaldataagent.business.github import (
+    GitHubCLITransport,
+    GitHubSchedulePRBackend,
+    GitHubScheduleTarget,
+)
+
+target = GitHubScheduleTarget(
+    repository="acme/jobs",
+    repository_id=22,
+    actor_id=11,
+    base_branch="main",
+    path="schedule.json",
+    pipeline="daily",
+    interval_path=("pipelines", "daily", "interval_minutes"),
+    configuration_version="operator-reviewed-v1",
+)
+backend = GitHubSchedulePRBackend(
+    target=target,
+    transport=GitHubCLITransport(),
+    admitted=current_receiver_admission,
+)
+runtime = BusinessActionRuntime(
+    action_state_path,
+    broker=broker,
+    approvals=approval_store,
+    controls=(
+        ActionControl(
+            kind="schedule_pr",
+            destination="daily_schedule",
+            owner="operator",
+            tenant_id="tenant",
+            project_id="project",
+            data_domains=frozenset({"sales"}),
+            enabled=True,
+        ),
+    ),
+    external_backends={("schedule_pr", "daily_schedule"): backend},
+)
+```
+
+The sample manifest is `{"pipelines":{"daily":{"interval_minutes":1440}}}`. The trusted
+application supplies the state path, identity broker, separate approval store and a current admission
+callback; these are not caller-controlled HTTP fields. Bind the runtime to the existing business API
+factory for pilot use. Production mode continues rejecting local business/feedback state.
+
+Before enabling this destination, enroll the repository's numeric ID, the authenticated human user's
+numeric account ID, the exact branch/file/key and protected GitHub CLI authentication. The adapter
+uses `GET /user`, so installation-only GitHub App tokens are not supported. Grant only the enrolled
+repository's required Contents write and Pull requests write permissions. Credentials remain outside
+Git and draft bodies; diagnostic output is sanitized. Account/repository identity and admission are
+checked during preparation and before each mutation. Transport calls have bounded timeouts; a
+whole operation defaults to 90 seconds and can be configured up to 120 seconds.
+
+Proposing reads the base ref, immutable Git trees/blob and source content without writing to GitHub.
+The exact approval includes repository/account/configuration IDs, base commit, file path, old/new
+content and blob hashes, action-specific branch, PR title and body. Unbound replay reuses that plan.
+After explicit exact approval, execution creates a new branch, updates only its configured file and
+opens a **draft** PR. Branch/commit/PR writes can trigger repository automation: include that impact
+in the human review. There is no merge, force-push, deletion or automatic retry operation.
+
+Before publishing the PR, readback verifies the new commit's sole parent, sole changed file, actual
+blob and full bytes. Completion additionally verifies PR author/repository IDs, draft/open/unmerged
+state, disabled auto-merge, base/head refs and SHAs, exact title/body and current branch head. Base
+advancement or any mismatch blocks acceptance. Branch, commit and PR acknowledgement stages are
+durably recorded as hints. A lost acknowledgement or partial operation quarantines the destination.
+Do not rerun the write sequence, delete branches or clear the reservation automatically.
+
+For an existing PR, `POST /v1/business/drafts/{action_id}/reconcile` accepts
+`{"pull_number":123}` and performs only reads. Supply exactly one receiver identifier; `message_id`
+is reserved for Feishu. If failure left only a branch or commit with no PR, this receiver cannot
+complete reconciliation: investigate and retain unresolved state until independently adjudicated.
+Local hints and fixtures alone do not establish external success.
+
+Compensation is a new action referencing the original completed action, with a new exact approval
+and the original payload/binding. It closes only the verified original unchanged unmerged draft PR,
+then verifies the closed state. A merged/ready PR, edited metadata/content, enabled auto-merge or
+changed branch/base is rejected. Closing a proposal does not roll back a merged schedule and leaves
+its branch intact. Lost closure acknowledgements can be reconciled by readback.
+
+Protocol references: [Git refs](https://docs.github.com/en/rest/git/refs),
+[Git trees](https://docs.github.com/en/rest/git/trees),
+[file contents](https://docs.github.com/en/rest/repos/contents),
+[pull requests](https://docs.github.com/en/rest/pulls/pulls) and
+[GitHub CLI API](https://cli.github.com/manual/gh_api).
+The implementation pins REST API version `2026-03-10`; target enrollment and live independent
+receiver qualification remain required. No real GitHub PR has been created in this continuation.

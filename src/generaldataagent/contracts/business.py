@@ -108,6 +108,73 @@ class ExternalMessageReceipt(ContractModel):
     configuration_hash: Digest
     state: Literal["delivered", "recalled"]
 
+    @property
+    def receiver_id(self) -> str:
+        return self.message_id
+
+
+GitSHA = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{40}$")]
+
+
+class GitHubPRBinding(ContractModel):
+    backend: Literal["github"] = "github"
+    configuration_hash: Digest
+    repository: str
+    repository_id: int = Field(gt=0)
+    actor_id: int = Field(gt=0)
+    base_branch: str
+    base_sha: GitSHA
+    branch: str
+    path: str
+    old_content: str = Field(min_length=1, max_length=8192)
+    new_content: str = Field(min_length=1, max_length=8192)
+    old_blob_sha: GitSHA
+    new_blob_sha: GitSHA
+    title: str = Field(min_length=1, max_length=200)
+    body: str = Field(min_length=1, max_length=20000)
+
+
+class GitHubPRReceipt(ContractModel):
+    backend: Literal["github"] = "github"
+    repository: str
+    repository_id: int = Field(gt=0)
+    actor_id: int = Field(gt=0)
+    pull_number: int = Field(gt=0)
+    head_sha: GitSHA
+    binding_hash: Digest
+    configuration_hash: Digest
+    state: Literal["delivered", "recalled"]
+
+    @property
+    def receiver_id(self) -> str:
+        return str(self.pull_number)
+
+
+class GitHubReceiverHint(ContractModel):
+    backend: Literal["github"] = "github"
+    branch: str = Field(min_length=1, max_length=128)
+    stage: Literal["branch_created", "commit_created", "pr_created"]
+    head_sha: GitSHA | None = None
+    pull_number: int | None = Field(default=None, gt=0)
+
+    @model_validator(mode="after")
+    def matching_stage(self):
+        if self.stage == "branch_created" and (
+            self.head_sha is not None or self.pull_number is not None
+        ):
+            raise ValueError("branch hint cannot claim a commit or PR")
+        if self.stage != "branch_created" and self.head_sha is None:
+            raise ValueError("commit/PR hint requires a head SHA")
+        if (self.stage == "pr_created") != (self.pull_number is not None):
+            raise ValueError("PR hint requires a pull number")
+        return self
+
+
+ReceiverBinding = Annotated[FeishuBinding | GitHubPRBinding, Field(discriminator="backend")]
+ReceiverReceipt = Annotated[
+    ExternalMessageReceipt | GitHubPRReceipt, Field(discriminator="backend")
+]
+
 
 class ActionIntent(ContractModel):
     action_id: UUID = Field(default_factory=uuid4)
@@ -117,7 +184,7 @@ class ActionIntent(ContractModel):
     destination: str = Field(pattern=r"^[a-z][a-z0-9_.-]{0,127}$")
     expected_revision: int = Field(default=0, ge=0)
     payload: DraftPayload
-    delivery_binding: FeishuBinding | None = None
+    delivery_binding: ReceiverBinding | None = None
     operation: Literal["deliver", "compensate"] = "deliver"
     compensates: UUID | None = None
     expires_at: AwareDatetime
@@ -139,9 +206,9 @@ class ActionReceipt(ContractModel):
     destination: str
     revision: int = Field(ge=1)
     operation: Literal["deliver", "compensate"]
-    backend: Literal["local_draft", "feishu"] = "local_draft"
+    backend: Literal["local_draft", "feishu", "github"] = "local_draft"
     external_delivery: bool = False
-    external: ExternalMessageReceipt | None = None
+    external: ReceiverReceipt | None = None
     recorded_at: AwareDatetime = Field(default_factory=utc_now)
 
     @model_validator(mode="after")
@@ -151,6 +218,8 @@ class ActionReceipt(ContractModel):
                 raise ValueError("local draft cannot claim external delivery")
         elif not self.external_delivery or self.external is None:
             raise ValueError("external delivery requires a receiver receipt")
+        if self.external is not None and self.external.backend != self.backend:
+            raise ValueError("external receipt must match its backend")
         if self.external is not None and self.external.state != (
             "delivered" if self.operation == "deliver" else "recalled"
         ):

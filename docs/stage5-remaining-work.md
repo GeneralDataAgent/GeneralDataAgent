@@ -24,11 +24,18 @@ Updated: 2026-10-19. Development branch: `feat/stage5-business-loop`.
 6. Aggregate acceptance now verifies independently signed held-out optimization measurements and
    the existing Stage 4 release proof, rather than permanently returning incomplete.
 
+7. A GitHub scheduling receiver now pins the repository/account IDs, base commit and exact before/after
+   bytes for one non-secret JSON schedule manifest. Exact-approved branch/commit/draft-PR creation,
+   full receiver readback, durable partial-write hints, read-only PR reconciliation and separately
+   approved closure of the unchanged unmerged draft are implemented and isolated-tested. No real
+   target was configured and no real GitHub PR was created.
+
 ## Remaining code/integration work
 
 | Work | Present boundary | Input needed |
 |---|---|---|
-| Real Dashboard/ticket/scheduling-PR/registry/report publication receivers | Typed local drafts and lifecycle exist; notification and bounded report IM publication adapters support Feishu. Report publication is locally tested; cloud-document/file publication and other receivers are still missing | Choose target systems and test resources. GitHub repository/branch/schedule file is not yet identified, so that integration was deferred by the user in favor of Feishu |
+| Real Dashboard/ticket/registry/cloud-document or file publication receivers | Typed local drafts and lifecycle exist; Feishu notification/report IM and GitHub JSON schedule draft-PR adapters are implemented. The latter two have isolated validation only; Dashboard/ticket/registry/cloud-document or file adapters are still missing | Choose target systems and test resources; qualify each receiver independently |
+| GitHub schedule target enrollment | One configured JSON object key can change an integer interval in an existing regular UTF-8 file, at most 8 KiB; no YAML/workflow/cron editor | Identify repository, numeric repository/account IDs, base branch, JSON file and interval key path. Keep credentials in the protected CLI store; review exact proposed bytes and repository automation before any write |
 | Autonomous periodic service execution | Durable polling, mounted service-JWT validation, schedule-bound revocable session issuance and API/action constraints exist; no user token is stored or renewed | Enroll the actual issuer/audience/keys/service delegation and deploy with a process manager; each external action still needs explicit exact approval |
 | Full orchestration-model routing and metering | Narration and opt-in native Supervisor/specialist routing, shared orchestration budget and usage audit are implemented | Enroll approved provider/model configurations and run the real held-out billing/latency benchmark before enabling; deployment routes within one native provider family |
 | Production business API assembly | Pilot works and qualification checks exist; production factory still rejects local business/feedback state | Independently operated approval/audit/retention infrastructure and a qualified production receiver; do not remove this guard just to make deployment pass |

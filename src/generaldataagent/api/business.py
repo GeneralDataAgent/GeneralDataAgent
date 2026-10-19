@@ -3,7 +3,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from generaldataagent.business.actions import BusinessActionRuntime
 from generaldataagent.business.feishu import RecallConfirmationRequired
@@ -13,7 +13,18 @@ from generaldataagent.contracts.models import ContractModel
 
 
 class ReceiverReconciliationRequest(ContractModel):
-    message_id: str = Field(pattern=r"^om_[A-Za-z0-9]{1,128}$")
+    message_id: str | None = Field(default=None, pattern=r"^om_[A-Za-z0-9]{1,128}$")
+    pull_number: int | None = Field(default=None, gt=0)
+
+    @model_validator(mode="after")
+    def exact_receiver_identifier(self):
+        if (self.message_id is None) == (self.pull_number is None):
+            raise ValueError("provide exactly one receiver identifier")
+        return self
+
+    @property
+    def receiver_id(self):
+        return self.message_id if self.message_id is not None else str(self.pull_number)
 
 
 def business_router(actions: BusinessActionRuntime, scheduler: ReportScheduler | None) -> APIRouter:
@@ -34,6 +45,8 @@ def business_router(actions: BusinessActionRuntime, scheduler: ReportScheduler |
             raise HTTPException(status_code=403, detail="business_access_denied") from exc
         except ValueError as exc:
             raise HTTPException(status_code=409, detail="business_state_conflict") from exc
+        except (TimeoutError, ConnectionError) as exc:
+            raise HTTPException(status_code=503, detail="business_receiver_unavailable") from exc
 
     @router.post("/drafts")
     def propose(intent: ActionIntent, request: Request):
@@ -49,7 +62,7 @@ def business_router(actions: BusinessActionRuntime, scheduler: ReportScheduler |
 
     @router.post("/drafts/{action_id}/reconcile")
     def reconcile(action_id: UUID, body: ReceiverReconciliationRequest, request: Request):
-        return invoke(actions.reconcile, action_id, token(request), body.message_id)
+        return invoke(actions.reconcile, action_id, token(request), body.receiver_id)
 
     @router.post("/drafts/{action_id}/cancel")
     def cancel(action_id: UUID, request: Request):

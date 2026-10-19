@@ -291,7 +291,8 @@ def create_app(
             "business_drafts": business_actions is not None,
             "periodic_report_drafts": report_scheduler is not None,
             "external_business_delivery": bool(
-                business_actions and business_actions.feishu_backends
+                business_actions
+                and (business_actions.feishu_backends or business_actions.external_backends)
             ),
             "production_writes": False,
             "arbitrary_shell": False,
