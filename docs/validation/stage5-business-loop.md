@@ -6,7 +6,7 @@ Updated: 2026-10-19 (Asia/Shanghai). Branch: `feat/stage5-business-loop`.
 
 | Roadmap delivery | Implementation | Boundary |
 |---|---|---|
-| Dashboard, ticket, scheduling PR, registration, IM and report actions | Six discriminated strict payloads, authenticated draft/status/execute/cancel API, persisted task/thread and exact payload | Local drafts for all six kinds; explicit Feishu notification receiver now supports real send/readback. Other real receivers and production deployment remain unavailable |
+| Dashboard, ticket, scheduling PR, registration, IM and report actions | Six discriminated strict payloads, authenticated draft/status/execute/cancel API, persisted task/thread and exact payload | Local drafts for all six kinds; explicit Feishu notification and bounded frozen-report IM receivers support send/readback; only the notification smoke has been exercised live. Other receiver types and production deployment remain unavailable |
 | Idempotency, approval, expiry, cancellation | Durable actor-scoped key/content conflict detection, exact one-time approval, separate requester/reviewer, replay receipt | Interrupted consumed/claimed actions quarantine for reconciliation |
 | Compensation/rollback | Separately approved compensation referencing original content and current revision | Retracts the matching local resource only; cannot overwrite a later revision |
 | Execution guards | Current session, scope, DLP, policy, destination revision, per-kind owner/switch/rate and global switch | Controls are trusted configuration; no approval/control mutation HTTP endpoint |
@@ -141,3 +141,30 @@ Implementation commits: `b4af8a0` (background worker), `fe957b4` (native orchest
 - Independent production gates remain incomplete. These tests are local engineering evidence;
   real reviewer enrollment, held-out provider billing/latency comparison, receiver targets and
   deployment/approval/audit infrastructure remain necessary. See the remaining-work inventory.
+
+
+## Report publication and service-identity continuation (2026-10-19)
+
+Implementation commits: `4694b46` (Feishu frozen-report IM publication) and `cf5c0dd`
+(schedule-bound service JWT identity). These changes did not send any new real message or recall.
+
+- Full frozen suite: **416 passed, 1 skipped**, **87.92%** coverage. The skip is the optional local
+  PostgreSQL environment; remote CI supplies its disposable native PostgreSQL service.
+- Stage 4 security baseline remains **91/91**, Stage 5 local lifecycle baseline remains **42/42**.
+- Frozen-report publication has **14 isolated cases**: real local query/report generation followed
+  by an exact full-text approval, fake receiver send/readback, durable receipt replay, lost-ack
+  quarantine, read-only reconciliation, separately approved and confirmed recall, source/content/
+  scope/classification/lineage/task/schema/size/mention checks and last-moment preflight changes.
+  Report bytes are read under destination data-domain scope even when the owner has broader access.
+- Service identity has **21 isolated cases**: ephemeral test RSA-signed service JWTs, exact audience
+  and issuer/key constraints, short credential/session TTLs, mounted credential rotation, fresh
+  report generation and Feishu report preview under a scoped service session, cross-process grant
+  revocation, cancellation, permanent session invalidation, binding/job/control-scope tampering,
+  and revocation during generation. Token actor/permission claims cannot grant authority.
+- Service sessions can only propose exact enrolled schedule occurrences. Other owned schedules,
+  unrelated drafts/cancellation, feedback and delivery actions are denied in runtime/API paths.
+  An ordinary broker fails closed on service records rather than losing their constraints.
+- Ruff lint/format, lock consistency, whitespace and offline source/wheel build checks pass.
+- These are engineering/integration tests with local synthetic data and isolated receivers/keys.
+  Actual report sending, real identity-provider enrollment/deployment, independent reviewer and
+  receiver qualification, cost/business comparisons and production admission remain separate.
