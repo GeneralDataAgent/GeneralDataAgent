@@ -482,7 +482,11 @@ compensation, independent switches/rate limits and per-occurrence report approva
 Feedback curation and capability admission remain separate trusted review workflows. An opt-in
 async model executor adds budgeted routing and encrypted short-lived scoped caching.
 
-External publishing/sending/deployment is disabled, and production mode rejects the local pilot.
+External delivery is disabled by default. An explicitly configured Feishu notification receiver now
+supports exact-approved sending, readback, durable receiver hints and read-only reconciliation.
+Certified report refresh and model routing/cache are integrated into the analysis path, and
+new Agent/Skill/connector assembly enforces pinned admission. Production mode still rejects the
+local business pilot until independently qualified service integration is available.
 See the [runbook](docs/operations/stage5-runbook.md) and
 [development/acceptance evidence](docs/validation/stage5-business-loop.md). Run the local matrix with
 `uv run --frozen python evals/run_stage5_acceptance.py`; missing independent external evidence keeps
