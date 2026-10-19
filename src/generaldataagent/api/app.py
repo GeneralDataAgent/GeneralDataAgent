@@ -15,6 +15,8 @@ from generaldataagent.agents import SPECIALIST_SPECS
 from generaldataagent.api.business import business_router
 from generaldataagent.business.actions import BusinessActionRuntime, content_hash
 from generaldataagent.business.governance import Feedback, FeedbackRegistry
+from generaldataagent.business.production import QualifiedBusinessActionRuntime
+from generaldataagent.business.production_feedback import QualifiedFeedbackRegistry
 from generaldataagent.business.schedules import ReportScheduler
 from generaldataagent.catalog import MetricNotFoundError
 from generaldataagent.contracts import (
@@ -72,12 +74,23 @@ def create_app(
 ) -> FastAPI:
     if feedback_registry is not None and session_broker is None:
         raise ValueError("feedback requires authenticated sessions")
-    if feedback_registry is not None and production_mode:
+    if (
+        feedback_registry is not None
+        and production_mode
+        and (
+            not isinstance(feedback_registry, QualifiedFeedbackRegistry)
+            or feedback_registry.broker is not session_broker
+            or not feedback_registry.production_ready()
+        )
+    ):
         raise ValueError("local feedback registry is not qualified for production")
     if business_actions is not None:
         if session_broker is None or business_actions.broker is not session_broker:
             raise ValueError("business actions must share the API identity broker")
-        if production_mode:
+        if production_mode and (
+            not isinstance(business_actions, QualifiedBusinessActionRuntime)
+            or not business_actions.production_ready()
+        ):
             raise ValueError("local business outbox is not qualified for production")
         application_business_router = business_router(business_actions, report_scheduler)
     if report_scheduler is not None and report_scheduler.actions is not business_actions:
@@ -234,7 +247,12 @@ def create_app(
             actor = authenticated_actor(request).model_copy(
                 update={"data_domains": tuple(request.headers.getlist("x-data-domain"))}
             )
-            feedback_id = feedback_registry.submit(feedback, actor)
+            if isinstance(feedback_registry, QualifiedFeedbackRegistry):
+                feedback_id = feedback_registry.submit_authenticated(
+                    feedback, actor, request.headers["authorization"].split(" ", 1)[1]
+                )
+            else:
+                feedback_id = feedback_registry.submit(feedback, actor)
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail="feedback_access_denied") from exc
         except ValueError as exc:

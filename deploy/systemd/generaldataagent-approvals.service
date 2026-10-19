@@ -10,6 +10,8 @@ User=gda-approvals
 Group=gda-approvals
 WorkingDirectory=/opt/generaldataagent
 Environment=PYTHONPATH=/etc/generaldataagent/operator
+Environment=LANGSMITH_TRACING=false
+Environment=LANGCHAIN_TRACING_V2=false
 ExecStart=/opt/generaldataagent/.venv/bin/python -m uvicorn approval_runtime:create_authority --factory --host 127.0.0.1 --port 8081 --no-access-log
 Restart=on-failure
 RestartSec=15

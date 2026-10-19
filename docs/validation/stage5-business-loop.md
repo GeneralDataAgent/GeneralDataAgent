@@ -6,14 +6,14 @@ Updated: 2026-10-19 (Asia/Shanghai). Branch: `feat/stage5-business-loop`.
 
 | Roadmap delivery | Implementation | Boundary |
 |---|---|---|
-| Dashboard, ticket, scheduling PR, registration, IM and report actions | Six discriminated strict payloads, authenticated draft/status/execute/cancel API, persisted task/thread and exact payload | Local drafts for all six kinds; explicit Feishu notification and bounded frozen-report IM receivers support send/readback; a single-file JSON scheduling GitHub draft-PR receiver supports approved creation/readback/closure. Only the notification smoke has been exercised live. Other receiver types and production deployment remain unavailable |
+| Dashboard, ticket, scheduling PR, registration, IM and report actions | Six discriminated strict payloads, authenticated draft/status/execute/cancel API, persisted task/thread and exact payload | Local drafts for all six kinds; explicit Feishu notification and bounded frozen-report IM receivers support send/readback; a single-file JSON scheduling GitHub draft-PR receiver supports approved creation/readback/closure. GitHub Issues review queues also deliver Dashboard drafts, tickets and model-registration requests. Only the notification smoke has been exercised live. Direct BI/registry/cloud-document publication and actual production deployment remain unavailable |
 | Idempotency, approval, expiry, cancellation | Durable actor-scoped key/content conflict detection, exact one-time approval, separate requester/reviewer, replay receipt | Interrupted consumed/claimed actions quarantine for reconciliation |
-| Compensation/rollback | Separately approved compensation referencing original content and current revision | Retracts the matching local resource only; cannot overwrite a later revision |
-| Execution guards | Current session, scope, DLP, policy, destination revision, per-kind owner/switch/rate and global switch | Controls are trusted configuration; no approval/control mutation HTTP endpoint |
-| Delivery evidence and audit | Intent/payload/receipt hashes, transactional resource/receipt/completion and chained local events | Independent external audit/retention and receiver reconciliation still required |
+| Compensation/rollback | Separately approved compensation referencing original content, receiver receipt and current revision | Retracts the matching local resource, recalls the exact approved Feishu message or closes the unchanged original draft PR/review issue; cannot overwrite a later revision, merge a PR or revert a deployed model |
+| Execution guards | Current session, scope, DLP, policy, destination revision, per-kind owner/switch/rate and global switch | Controls are trusted configuration; no grant/control mutation endpoint on the business API; the separate authority authenticates enrolled independent reviewers |
+| Delivery evidence and audit | Intent/payload/receipt hashes, transactional resource/receipt/completion and chained local events | Qualified variants verify independently signed transition/snapshot acknowledgements; actual auditor deployment, retention operations and receiver qualification still required |
 | Periodic reports | Durable finite schedule, bounded tick, stable occurrence IDs, independent approval per occurrence, skip expired periods | Optional certified query refresh with fixed or rolling windows, immutable generated artifact and per-occurrence approval; a durable worker supports fresh scoped sessions and restart-safe leases; deployment identity and external publication remain operator work |
 | Cost/latency, routing/cache | Opt-in async admitted-model executor, bounded tokens/cost/deadline, live authorization checks, deterministic configured-cost route, encrypted 15-minute-max scoped cache | Integrated into the analysis narration node reached by Supervisor tools; native Supervisor/specialist routing now shares durable orchestration budgets and per-turn usage audit. Operator/provider enrollment and measured billing qualification are still required |
-| User feedback/evaluation governance | Completed metric deliveries register scoped hashes; authenticated feedback, DLP, two independent reviews, immutable datasets and task/evidence holdout separation | Local trusted reviewer ports; no automatic training or production review service |
+| User feedback/evaluation governance | Completed metric deliveries register scoped hashes; authenticated feedback, DLP, two independent reviews, immutable datasets and task/evidence holdout separation | Local trusted review ports plus an authenticated qualified registry with signed snapshots; real reviewer enrollment/deployment required, with no automatic training |
 | Agent/Skill/connector admission | Pinned immutable version/evidence/owner/scope/expiry/rollback, independent quality/security reviewers, activation and permanent revocation | Enforced in specialist/Skill factory and connector assembly/native reads, with live revocation checks. No dynamic imports or automatic tool-permission expansion |
 | Independent per-action acceptance | Signed, revision/configuration/environment-bound external receiver measurements, safety/compensation/audit/business targets, separate result for every action kind | Missing evidence stays `not_run`/incomplete; no fixture can establish a production claim |
 
@@ -235,3 +235,27 @@ Implementation commits: `4694b46` (Feishu frozen-report IM publication) and `cf5
   a real isolated RSA-signed fresh-report tick, one-shot failure exit status, no-poll configuration
   checking, sanitized status and SIGTERM/SIGINT handler restoration.
 - The process entry point and disabled Linux unit templates do not deploy or enroll anything.
+
+
+## Qualified production assembly continuation (2026-10-19)
+
+- Full frozen suite: **576 passed, 1 skipped**, **88.45%** coverage.
+- **22 action/authority assembly cases** cover protected state, remote authority, signed independent transition
+  receipts, completed-resource integrity, current source/configuration/owner/trust binding, mid-flight
+  revocation, audit outages, no pilot/authority history promotion, signed authority initialization, same API/business release context, restart/replay,
+  compensation and read-only recovery after lost completion acknowledgements.
+- **13 feedback assembly cases** cover authenticated submission, two currently enrolled independent
+  reviewers, explicit curation, immutable datasets/holdout separation, cross-scope/self/revoked identity,
+  tampered state/votes, release/audit outages, mid-audit revocation, thread/process exclusion and
+  quarantine after unacknowledged native changes. Direct unverified review/curation ports stay denied.
+- Source and wheel builds, frozen lock, Ruff lint/format and whitespace checks pass. Previous Stage 4
+  and Stage 5 frozen baselines remain **91/91** and **42/42**; independent acceptance remains incomplete.
+- Signing keys, reviewer accounts, release evidence and measured receiver bundles in these cases are
+  synthetic local fixtures. They are not operator enrollment or independent production acceptance.
+
+- Two additional authority cases bind a logical business action to its original approval even after
+  consumption, and reject changed approval content for the same action UUID. This fence belongs to
+  the independent authority and survives loss/restoration of the business process state.
+
+- Two grant-revocation timings (before validation and during the audit call) verify that outstanding
+  approvals cannot be consumed after reviewer enrollment is revoked.

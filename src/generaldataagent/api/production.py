@@ -25,6 +25,26 @@ def create_released_app(
     if "production_mode" in runtime_ports:
         raise ValueError("released factory does not permit a development-mode override")
 
+    business = runtime_ports.get("business_actions")
+    if business is not None:
+        from generaldataagent.business.production import QualifiedBusinessActionRuntime
+
+        if isinstance(business, QualifiedBusinessActionRuntime) and (
+            business.release.revision != admission.revision
+            or business.release.environment != admission.environment
+        ):
+            raise ValueError("business and API release context must match")
+
+    feedback = runtime_ports.get("feedback_registry")
+    if feedback is not None:
+        from generaldataagent.business.production_feedback import QualifiedFeedbackRegistry
+
+        if isinstance(feedback, QualifiedFeedbackRegistry) and (
+            feedback.release.revision != admission.revision
+            or feedback.release.environment != admission.environment
+        ):
+            raise ValueError("feedback and API release context must match")
+
     def enabled() -> bool:
         return admission.allowed() and service_enabled() is True
 

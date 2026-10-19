@@ -41,6 +41,7 @@ def authority(tmp_path):
         store=store,
         broker=broker,
         reviewer_admitted=lambda who, req: who.user_id in enrolled,
+        grant_admitted=lambda who, req: who in enrolled,
         audit=Audit(),
         service_enabled=lambda: enabled[0],
         production_mode=False,
@@ -69,6 +70,7 @@ def authority(tmp_path):
         arguments={"exact": "frozen"},
         requested_risk="r2",
     )
+    expiry = datetime.now(UTC) + timedelta(hours=1)
     return SimpleNamespace(**locals())
 
 
@@ -79,7 +81,7 @@ def create(a):
         cost_estimate="One write",
         classification="internal",
         rollback_plan="Separate approval",
-        expires_at=datetime.now(UTC) + timedelta(hours=1),
+        expires_at=a.expiry,
     )
 
 
@@ -183,6 +185,7 @@ def test_cancellation_rejection_and_requester_inspection(authority):
     result = a.remote.cancel(approval.approval_id, requester_id="alice", reason="Cancel")
     assert result.disposition == "cancelled"
     assert review(a, approval).status_code == 409
+    a.request = a.request.model_copy(update={"arguments": {"exact": "second action"}})
     second = create(a)
     response = a.client.post(
         f"/v1/approval-reviews/{second.approval_id}/reject",
@@ -356,3 +359,54 @@ def test_https_transport_stdin_equivalent_bounds_and_no_retry(monkeypatch):
     with pytest.raises(ApprovalError, match="remote_approval_denied"):
         t("POST", "/v1/approval-requests", {}, "private")
     assert len(calls) == 2
+
+
+def test_business_approval_fence_reuses_pending_and_consumed_request(authority):
+    a = authority
+    expiry = datetime.now(UTC) + timedelta(hours=1)
+    metadata = dict(
+        impact_scope="Frozen action",
+        cost_estimate="One call",
+        classification="internal",
+        rollback_plan="Separate request",
+        expires_at=expiry,
+    )
+    first = a.remote.create_request(a.request, **metadata)
+    assert a.remote.create_request(a.request, **metadata) == first
+    assert review(a, first).status_code == 200
+    a.remote.consume(first.approval_id, a.request)
+    assert a.remote.create_request(a.request, **metadata) == first
+    with pytest.raises(ApprovalError):
+        a.remote.validate(first.approval_id, a.request)
+    with pytest.raises(ApprovalError):
+        a.remote.create_request(a.request, **{**metadata, "impact_scope": "Different scope"})
+
+
+def test_action_uuid_cannot_acquire_a_second_approval_for_changed_content(authority):
+    a = authority
+    a.request = a.request.model_copy(
+        update={"arguments": {"action_id": str(uuid4()), "exact": "original"}}
+    )
+    first = create(a)
+    a.request = a.request.model_copy(
+        update={"arguments": {**a.request.arguments, "exact": "changed"}}
+    )
+    with pytest.raises(ApprovalError):
+        create(a)
+    assert a.store.inspect(first.approval_id).request.parameters["exact"] == "original"
+
+
+@pytest.mark.parametrize("timing", ["before", "during_audit"])
+def test_revoked_reviewer_enrollment_invalidates_outstanding_grant(authority, timing):
+    a = authority
+    approval = create(a)
+    assert review(a, approval).status_code == 200
+    if timing == "before":
+        a.enrolled.clear()
+    else:
+        a.audit_hook[0] = lambda _: a.enrolled.clear()
+    with pytest.raises(ApprovalError):
+        a.remote.validate(approval.approval_id, a.request)
+    with pytest.raises(ApprovalError):
+        a.remote.consume(approval.approval_id, a.request)
+    assert not a.store.inspect(approval.approval_id).consumed

@@ -1,4 +1,4 @@
-# Stage 5 local business-loop runbook
+# Stage 5 business-loop runbook
 
 ## Configure the authenticated draft pilot
 
@@ -609,3 +609,92 @@ graceful shutdown. Operators must supply the installed environment, protected fa
 real service JWT/identity/audit enrollment and TLS proxy before installation. The approval unit
 listens on loopback only. These templates have not been installed or run on a real host; local
 verification used macOS and isolated signed service credentials, with no external report delivery.
+
+
+## Conditional production business and feedback assembly (2026-10-19)
+
+Plain `BusinessActionRuntime`/`FeedbackRegistry` instances still fail production API construction.
+Do not rename a pilot or disable that check. Two separate qualified variants now implement the
+production integration ports, with no built-in permissive evidence or default live destination.
+
+`QualifiedBusinessActionRuntime` requires all of the following operator-supplied ports:
+
+- A fresh absolute state file in an existing directory owned by the service account with mode 0700.
+  The file must be regular, single-link, mode 0600 and separate from shared session state; no local
+  pilot history may be promoted. Deploy the state outside agent mounts, with an independently
+  operated backup/retention/legal-hold policy. This is a single-host profile, not a distributed queue.
+- `SQLiteSessionBroker`, `RemoteApprovalStore` with `HTTPSApprovalTransport`, and `VerifiedAuditSink`
+  with `AuditHTTPTransport`. No reviewer credential or independent audit signing key belongs in the
+  business process. Operator trust contains only public audit receipt keys and append credentials.
+- A currently valid `FileReleaseAdmission` plus a `FileActionAdmission` for each enabled destination.
+  The latter loads a bounded dual-signed `QualifiedActionBundle` and live trusted security/operations
+  keys. It checks kind, exact source revision/environment, destination, owner and configuration.
+- `business_configuration_hash(...)` computed from the actual receiver target, control scope/rate/
+  owner, approval origin, audit endpoint/public keys/pseudonym-key fingerprint and service version.
+  Changing any of these invalidates the enrolled action proof. Never fabricate a measured bundle to
+  enable the code. Source/configuration changes require independently refreshed evidence.
+
+Construct the runtime with `audit=...`, `release=...`, `admissions={(kind,destination): gate}`,
+`service_version=...` and the existing broker/approval/control/receiver ports, then supply it to
+`create_released_app`. The business and API release revision/environment must match. Every action
+rechecks current native identity, policy, switch, source/binding and qualification before writing.
+No enabled destination may fall back to a local draft. Missing/expired/revoked proof denies startup
+or the next operation. A qualified profile may enable only the independently qualified destinations;
+it does not make the aggregate Stage 5 acceptance report pass for other kinds.
+
+Each business transition obtains an independently signed append acknowledgement in the local
+transaction. Persisted acknowledgements bind the complete request fingerprint, actor scope, action
+and chain position. Receipt signatures and the actual completed resource head/state are checked
+before reads/writes; editing/re-hashing local records cannot manufacture a valid acknowledgement.
+The action API includes the minimized `audit_acknowledgement`. Audit outages block progress. Remote
+acknowledgements orphaned by local rollback remain in the independent collector for investigation.
+Lost completion acknowledgements can leave a delivered action uncertain: reconcile the original
+receiver ID read-only and never send again. A globally unavailable auditor may leave an executing
+claim reserved; retain it until a permitted reconciliation or independent operator adjudication.
+
+`QualifiedFeedbackRegistry` similarly requires fresh private state, shared sessions, verified HTTPS
+audit, current release admission, an operator-owned `reviewer_admitted(user_id, scope, operation)`
+policy and a configuration version. It binds every mutation to signed snapshots of task/result
+registration, feedback, votes, immutable datasets and holdout splits. Thread/process exclusion covers
+the full mutation; native POSIX locking is required for this deployment profile.
+
+The production API calls `submit_authenticated` with the current session and selected actor scope.
+Direct unauthenticated `submit`, reviewer-ID-only `review` and unrestricted `freeze` calls are denied.
+Trusted review/curation clients use `review_authenticated(..., token, accepted=...)` and
+`freeze_authenticated(..., token, split=...)`. Review/curation needs `reviews:submit` plus the current
+operator enrollment for that operation and tenant/project/domains. A requester cannot self-review;
+two distinct accepted independent votes remain necessary. Revoked reviewer enrollment is checked
+again during freezing; evaluation/training task and result-hash overlap is still forbidden.
+No automatic training, registry activation or dataset promotion is introduced.
+
+Feedback audit acknowledgements are obtained before and after mutations. If a native state change
+occurs but the final acknowledgement is lost, the live state differs from the last signed snapshot.
+All further use fails closed; retain state and independently adjudicate against the auditor before
+repair. There is no automatic replay, re-sign, lock clearing or permissive recovery endpoint. Source
+release changes, state corruption, missing historical receipt keys and storage permission drift also
+block use. Operators must retain historical public keys while verifying retained audit records.
+
+The assembly tests use isolated fake HTTPS receivers, ephemeral signing keys and explicitly synthetic
+release/receiver evidence. They demonstrate code paths only. No actual release/receiver qualification
+file, reviewer enrollment, independent infrastructure or live production profile was created.
+
+
+The production approval authority also requires a fresh private authority database and a signed
+initialization profile; it refuses old local approval histories. Its profile signature/storage
+permissions are rechecked on every request. A logical business action ID acquires only one sealed
+approval request in that independent database. Exact retries return the original request, including
+when already consumed; changed payload/metadata for the same action is rejected. Keep approval
+fences and consumption tombstones for at least the full action/recovery retention window. A lost
+creation acknowledgement is not permission to change an action's approved plan.
+
+Protected operator storage is a trust boundary. Before restoring any business, feedback or authority
+backup, stop/revoke the affected profile and independently reconcile its history with the auditor
+and receivers before enabling it again. Signed rows detect altered records; they do not replace
+coordinated backup/restore operations or prove that an entire restored historical snapshot is the
+latest external state. Never re-sign an unexplained snapshot to bypass a quarantine.
+
+`grant_admitted(approver_id, request)` is also mandatory for a production approval authority. It
+checks the reviewer's current enrollment before validating or consuming an outstanding grant and
+again after the pre-operation audit call. Revocation invalidates unconsumed grants without requiring
+the human reviewer's browser session to remain logged in. The operation still needs a current
+requester/delegated-service session.

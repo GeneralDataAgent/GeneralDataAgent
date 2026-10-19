@@ -1,4 +1,4 @@
-# Stage 5 remaining implementation and operator dependencies
+# Stage 5 implementation inventory and operator dependencies
 
 Updated: 2026-10-19. Development branch: `feat/stage5-business-loop`.
 
@@ -51,7 +51,17 @@ Updated: 2026-10-19. Development branch: `feat/stage5-business-loop`.
     continuous polling, sanitized status and graceful SIGTERM/SIGINT. Disabled Linux service
     templates are provided for separate report and approval identities; nothing was installed.
 
-## Remaining code/integration work
+12. Conditional single-host production assembly is implemented through `QualifiedBusinessActionRuntime`
+    and `QualifiedFeedbackRegistry`. It requires fresh protected state, shared revocable sessions,
+    independent signed audit acknowledgements, live release admission and per-enabled-destination
+    signed receiver qualification. Business approvals remain external; feedback curation uses current
+    authenticated independent reviewers. Plain local pilot instances still cannot enter production.
+
+## Remaining operator inputs and independent validation
+
+The original Stage 5 draft/request feature code is implemented and isolated-tested. The inventory
+below is deployment/enrollment/acceptance work, not a claim that live targets or production gates have
+passed. See [plan-to-code mapping](stage5-feature-matrix.md).
 
 | Work | Present boundary | Input needed |
 |---|---|---|
@@ -59,7 +69,7 @@ Updated: 2026-10-19. Development branch: `feat/stage5-business-loop`.
 | GitHub schedule target enrollment | One configured JSON object key can change an integer interval in an existing regular UTF-8 file, at most 8 KiB; no YAML/workflow/cron editor | Identify repository, numeric repository/account IDs, base branch, JSON file and interval key path. Keep credentials in the protected CLI store; review exact proposed bytes and repository automation before any write |
 | Autonomous periodic service execution | Durable polling, mounted service-JWT validation, schedule-bound revocable session issuance and API/action constraints exist; no user token is stored or renewed | Enroll the actual issuer/audience/keys/service delegation and deploy with a process manager; each external action still needs explicit exact approval |
 | Full orchestration-model routing and metering | Narration and opt-in native Supervisor/specialist routing, shared orchestration budget and usage audit are implemented | Enroll approved provider/model configurations and run the real held-out billing/latency benchmark before enabling; deployment routes within one native provider family |
-| Production business API assembly | Pilot works and qualification checks exist; production factory still rejects local business/feedback state | Independently operated approval/audit/retention infrastructure and a qualified production receiver; do not remove this guard just to make deployment pass |
+| Production profile enrollment/deployment | Qualified action/feedback runtime variants support production API assembly with live proof checks and signed state/audit integrity; ordinary local pilot state remains rejected and cannot be promoted | Supply actual release/receiver evidence, operator-owned private state outside agent mounts, independent approval/audit identities, retention/backups and reviewed deployment profiles. No profile is enabled here |
 | Independent approval-service enrollment/deployment | Separate authenticated authority, reviewer console and remote client are implemented and isolated-tested; requester/reviewer separation is enforced | Enroll actual reviewers and identity/delegation grants, HTTPS origin, protected authority state and independent audit/release keys; business API cannot grant approvals |
 
 ## Operator work before expanding the Feishu pilot

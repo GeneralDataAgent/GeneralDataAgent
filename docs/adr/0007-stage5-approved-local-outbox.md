@@ -25,3 +25,7 @@ history but require independent signed checkpoints to detect whole-history rollb
 not a substitute for the Stage 4 independent audit infrastructure. A future external adapter must
 prove receiver-side idempotency, reconciliation, compensation, native authorization and independently
 verified delivery receipts before it can be enabled. A local draft receipt never claims delivery.
+
+
+Related: [ADR 0008](0008-stage5-qualified-service-assembly.md) implements separate qualified service
+ports. The local-pilot decision and its production rejection remain unchanged.

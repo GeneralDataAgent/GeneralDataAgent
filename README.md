@@ -503,8 +503,10 @@ remain operator integrations.
 Certified report refresh and model routing/cache are integrated into the analysis path, and
 new Agent/Skill/connector assembly enforces pinned admission. An opt-in native model router also
 meters Supervisor and specialist turns under a shared durable budget with current admission checks.
-Production mode still rejects the
-local business pilot until independently qualified service integration is available.
+Production mode still rejects the local business/feedback pilot. Separate qualified runtime variants
+provide conditional single-host assembly with remote approvals, signed independent audit/state and
+live release/per-destination qualification; real operator enrollment and evidence are required.
+A report worker process entry point and disabled Linux service templates support reviewed deployment.
 See the [runbook](docs/operations/stage5-runbook.md) and
 [development/acceptance evidence](docs/validation/stage5-business-loop.md). Run the local matrix with
 `uv run --frozen python evals/run_stage5_acceptance.py`; missing independent external evidence keeps

@@ -315,6 +315,56 @@ class SQLiteApprovalStore:
             if "disposition_json" not in columns:
                 connection.execute("ALTER TABLE approvals ADD COLUMN disposition_json TEXT")
 
+    def create_business_request_once(self, request: ToolRequest, **metadata) -> ApprovalRequest:
+        """Independent action-ID fence survives loss/restore of business process state."""
+        if request.tool_name != "business.draft":
+            return self.create_request(request, **metadata)
+        approval = _approval_request(request, **metadata)
+        action_id = request.arguments.get("action_id")
+        logical = (
+            str(UUID(str(action_id))) if action_id is not None else request_fingerprint(request)
+        )
+        key = json.dumps([request.user_id, request.tenant_id, request.project_id, logical])
+        sealed = approval.model_dump(mode="json", exclude={"approval_id", "created_at"})
+        metadata_hash = hashlib.sha256(json.dumps(sealed, sort_keys=True).encode()).hexdigest()
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute(
+                "CREATE TABLE IF NOT EXISTS business_approval_fences "
+                "(logical_key TEXT PRIMARY KEY, metadata_hash TEXT, approval_id TEXT)"
+            )
+            existing = connection.execute(
+                "SELECT metadata_hash,approval_id FROM business_approval_fences "
+                "WHERE logical_key=?",
+                (hashlib.sha256(key.encode()).hexdigest(),),
+            ).fetchone()
+            if existing:
+                if existing[0] != metadata_hash:
+                    raise ApprovalError("business_action_approval_conflict")
+                row = connection.execute(
+                    "SELECT request_json FROM approvals WHERE approval_id=?", (existing[1],)
+                ).fetchone()
+                if row is None:
+                    raise ApprovalError("business_approval_fence_corrupt")
+                prior = ApprovalRequest.model_validate_json(row[0])
+                check = prior.model_dump(mode="json", exclude={"approval_id", "created_at"})
+                if check != sealed:
+                    raise ApprovalError("business_approval_fence_corrupt")
+                return prior
+            connection.execute(
+                "INSERT INTO approvals(approval_id,request_json) VALUES(?,?)",
+                (str(approval.approval_id), approval.model_dump_json()),
+            )
+            connection.execute(
+                "INSERT INTO business_approval_fences VALUES(?,?,?)",
+                (
+                    hashlib.sha256(key.encode()).hexdigest(),
+                    metadata_hash,
+                    str(approval.approval_id),
+                ),
+            )
+        return approval
+
     def inspect(self, approval_id: UUID) -> ApprovalRecord:
         """Trusted service port; the caller must enforce session/scope before disclosure."""
         with self._connect() as connection:

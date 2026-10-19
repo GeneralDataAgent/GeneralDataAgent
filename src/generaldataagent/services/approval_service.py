@@ -1,16 +1,27 @@
 """Separately deployed, authenticated approval authority; no grants in the business API."""
 
+import base64
+import hashlib
+import json
 from collections.abc import Callable
-from uuid import UUID
+from datetime import UTC, datetime
+from uuid import UUID, uuid4
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from pydantic import AwareDatetime, Field
 
+from generaldataagent.business.actions import content_hash
+from generaldataagent.business.production import QualifiedBusinessActionRuntime
 from generaldataagent.contracts import AuditEvent, ToolRequest
 from generaldataagent.contracts.approval import ApprovalRequest
 from generaldataagent.contracts.models import ContractModel
 from generaldataagent.contracts.types import ArtifactClassification
-from generaldataagent.observability.verified_audit import VerifiedAuditSink
+from generaldataagent.observability.http import AuditHTTPTransport
+from generaldataagent.observability.verified_audit import (
+    AuditReceipt,
+    VerifiedAuditSink,
+    receipt_statement,
+)
 from generaldataagent.policy.approvals import (
     SQLiteApprovalStore,
     request_fingerprint,
@@ -39,12 +50,63 @@ class ReviewDecision(ContractModel):
     reason: str = Field(default="Reviewed exact request", min_length=1, max_length=2000)
 
 
+def _qualified_authority_state(store, audit, *, initialize=False):
+    QualifiedBusinessActionRuntime._secure_path(store.path)
+    expected = content_hash(["independent_approval_authority", str(store.path.resolve())])
+    with store._connect() as db:
+        db.execute("BEGIN IMMEDIATE" if initialize else "BEGIN")
+        exists = db.execute(
+            "SELECT 1 FROM sqlite_master WHERE name='approval_authority_profile'"
+        ).fetchone()
+        if not exists:
+            if not initialize or db.execute("SELECT count(*) FROM approvals").fetchone()[0]:
+                raise ValueError("local approval history cannot be promoted")
+            task = uuid4()
+            event = AuditEvent(
+                task_id=task,
+                actor_id="approval-authority",
+                tenant_id="system",
+                trace_id=str(task),
+                event_type="security.event",
+                payload={"request_fingerprint": expected},
+            )
+            canonical = audit.canonical(event).decode()
+            receipt = audit.emit(event)
+            db.execute(
+                "CREATE TABLE approval_authority_profile "
+                "(id INTEGER PRIMARY KEY,canonical TEXT,receipt TEXT)"
+            )
+            db.execute(
+                "INSERT INTO approval_authority_profile VALUES(1,?,?)",
+                (canonical, receipt.model_dump_json()),
+            )
+        else:
+            canonical, raw = db.execute(
+                "SELECT canonical,receipt FROM approval_authority_profile WHERE id=1"
+            ).fetchone()
+            receipt = AuditReceipt.model_validate_json(raw)
+            body = json.loads(canonical)
+            key = audit.trusted_keys.get(receipt.signer_id)
+            if (
+                key is None
+                or receipt.event_sha256 != hashlib.sha256(canonical.encode()).hexdigest()
+                or str(receipt.event_id) != body["event_id"]
+                or receipt.recorded_at > datetime.now(UTC)
+                or body["payload"].get("request_fingerprint") != expected
+            ):
+                raise ValueError("approval authority state profile invalid")
+            key.verify(
+                base64.b64decode(receipt.signature, validate=True), receipt_statement(receipt)
+            )
+
+
 def create_approval_service(
     *,
     store: SQLiteApprovalStore,
     broker: SessionBroker,
     reviewer_admitted: Callable[[object, ApprovalRequest], bool],
     audit,
+    grant_admitted: Callable[[str, ApprovalRequest], bool] | None = None,
     admission: FileReleaseAdmission | None = None,
     service_enabled: Callable[[], bool] = lambda: True,
     delegation_allowed: Callable[[object, str], bool] = lambda identity, requester: False,
@@ -53,12 +115,20 @@ def create_approval_service(
     if production_mode and (
         not isinstance(broker, SQLiteSessionBroker)
         or not isinstance(audit, VerifiedAuditSink)
+        or not isinstance(audit.transport, AuditHTTPTransport)
         or not isinstance(admission, FileReleaseAdmission)
+        or grant_admitted is None
     ):
         raise ValueError(
-            "production approval service requires release admission, "
-            "shared sessions and independent audit"
+            "production approval service requires release, shared sessions, "
+            "independent audit and current grant admission"
         )
+    if production_mode:
+        if not admission.allowed():
+            raise ValueError("approval authority release admission denied")
+        if store.path.resolve() == broker.path.resolve():
+            raise ValueError("separate authority/session state required")
+        _qualified_authority_state(store, audit, initialize=True)
     app = FastAPI(title="GeneralDataAgent independent approval authority")
 
     from importlib.resources import files
@@ -97,6 +167,8 @@ def create_approval_service(
 
         try:
             enabled = service_enabled() is True and (admission is None or admission.allowed())
+            if enabled and production_mode:
+                _qualified_authority_state(store, audit)
         except Exception:
             enabled = False
         if not enabled:
@@ -191,7 +263,7 @@ def create_approval_service(
         event(identity, body.request, "approval.requesting")
         requester(actor(request, "approvals:request"), body.request)
         result = invoke(
-            store.create_request,
+            store.create_business_request_once,
             body.request,
             **body.model_dump(exclude={"request", "schema_version"}, mode="python"),
         )
@@ -238,8 +310,21 @@ def create_approval_service(
         requester(identity, original)
         if original.request_fingerprint != request_fingerprint(body.request):
             raise HTTPException(status_code=409, detail="approved_request_changed")
+        record = invoke(store.inspect, approval_id)
+        if (
+            record.grant is not None
+            and grant_admitted is not None
+            and grant_admitted(record.grant.approver_id, original) is not True
+        ):
+            raise HTTPException(status_code=403, detail="approval_reviewer_enrollment_revoked")
         event(identity, original, "approval." + operation + "_requested")
         requester(actor(request, "approvals:request"), original)
+        if (
+            record.grant is not None
+            and grant_admitted is not None
+            and grant_admitted(record.grant.approver_id, original) is not True
+        ):
+            raise HTTPException(status_code=403, detail="approval_reviewer_enrollment_revoked")
         result = invoke(getattr(store, operation), approval_id, body.request)
         event(
             identity,
@@ -255,6 +340,7 @@ def create_approval_service(
         identity = actor(request, "approvals:review")
         original = invoke(store.inspect, approval_id).request
         reviewer(identity, original)
+        invoke(TextDLPScanner().check, body.model_dump_json().encode())
         if body.confirmed is not True or body.request_fingerprint != original.request_fingerprint:
             raise HTTPException(status_code=409, detail="exact_review_confirmation_required")
         event(identity, original, "approval.review_requested")

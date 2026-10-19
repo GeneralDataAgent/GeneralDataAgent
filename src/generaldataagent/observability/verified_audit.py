@@ -61,7 +61,7 @@ class VerifiedAuditSink:
         self.pseudonym_key = pseudonym_key
         self.clock = clock or (lambda: datetime.now(UTC))
 
-    def emit(self, event: AuditEvent) -> None:
+    def canonical(self, event: AuditEvent) -> bytes:
         # No free-form payload or envelope identifiers leave the application.
         payload = {}
         for key in ("decision", "risk_level"):
@@ -94,7 +94,10 @@ class VerifiedAuditSink:
             else "security.event"
         )
         safe["payload"] = payload
-        content = json.dumps(safe, sort_keys=True, separators=(",", ":")).encode()
+        return json.dumps(safe, sort_keys=True, separators=(",", ":")).encode()
+
+    def emit(self, event: AuditEvent) -> AuditReceipt:
+        content = self.canonical(event)
         try:
             receipt = AuditReceipt.model_validate(self.transport(content))
             key = self.trusted_keys.get(receipt.signer_id)
@@ -113,3 +116,5 @@ class VerifiedAuditSink:
         except Exception:
             # Do not log service errors that may echo raw content or authentication headers.
             raise AuditUnavailableError("independent_audit_unavailable") from None
+
+        return receipt
