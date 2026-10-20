@@ -522,4 +522,9 @@ rate limits and does not meet release targets.
 
 See the [selection and protocol](docs/research/stage6-benchmark-plan.md),
 [reproduction commands](docs/operations/stage6-evaluation-runbook.md), and
-[measured results and limitations](docs/validation/stage6-evaluation.md).
+[first measured results](docs/validation/stage6-evaluation.md), and
+[continued development and evaluation](docs/validation/stage6-continuation-2026-10-20.md).
+The continuation adds paired tools, preserved identifier imports, repeat/counterfactual qualification,
+and exact request binding in the production metric Supervisor. A further 290 task-runs and three
+actual Supervisor cases remain below acceptance targets. Python 3.11 and 3.12 each pass 694 tests
+(one optional skip, 88.48% coverage).

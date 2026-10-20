@@ -276,11 +276,14 @@ or business-value acceptance and does not change earlier stages' outstanding ext
 
 ## Stage 6 evaluation branch
 
-`feat/stage6-benchmark-evaluation` implements pinned public-development data preparation, three
-benchmark adapters, guarded real-model SQL execution, process deadlines, deterministic scorers,
-case-level reports, model-free replay and release diagnostics. It reruns the existing Stage 1–5
-regressions and adds 58 evaluator/security/gate tests. The complete suite passes 634 tests with one
-opt-in skip and 88.43% coverage. The 130-task public-development run is dominated by model-provider
-rate limits; quality, service, cost, repeat stability, independent review and live production gates
-remain incomplete. This is not production Supervisor acceptance or official benchmark ranking.
-See [Stage 6 validation](validation/stage6-evaluation.md).
+`feat/stage6-benchmark-evaluation` implements pinned public-development preparation, three benchmark
+adapters, guarded real-model SQL/analysis tools, process deadlines, deterministic scorers, replay,
+paired comparison, repeated-run validation and release diagnostics. It preserves identifier text,
+qualifies counterfactual SQL scoring, and binds production Supervisor tools to the exact request.
+The full suite passes 694 tests, one optional skip and 88.48% coverage on both Python 3.11 and 3.12.
+The latest 260 paired task-runs and 30 independent repeat task-runs are fully replayed; quality,
+service and cost targets remain unmet. Three actual TLC Supervisor cases also fail to complete.
+Independent review, new-source production integration and live-environment gates remain open.
+This is not production acceptance or official benchmark ranking.
+See [initial validation](validation/stage6-evaluation.md) and
+[continued evaluation](validation/stage6-continuation-2026-10-20.md).

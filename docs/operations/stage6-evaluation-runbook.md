@@ -106,3 +106,38 @@ UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/qualify_stage
 工具资格检查覆盖 52 个被任务引用的 CSV，每文件最多三个数值列，与 DuckDB 独立比较。
 重复实验要求独立记录、相同题目顺序、数据摘要、协议和被测系统，拒绝复制报告充当多次运行。
 模型服务失败过多时，配对比较保留分数变化，但明确阻止将变化归因于算法，也不输出显著性结论。
+
+## 编码保留导入与反事实评分资格
+
+`--csv-importer identifier-v2` 显式启用新版策略；默认 `legacy-v1` 仅用于复现历史运行。
+新版整列遇到前导零整数、过大整数或非数值文本时保留 TEXT；其它有限数值为 REAL。
+导入策略变化会改变评估协议，不能与旧版直接配对。相同原始文件也不代表执行语义相同。
+
+```bash
+UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/qualify_stage6_analysis.py --csv-importer identifier-v2 --include-dabstep
+UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/qualify_stage6_scorer.py
+LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/run_stage6.py --benchmark dabstep --limit 10 --workers 1 --app-type claude --provider-id PROVIDER_ID --model nvidia/nemotron-3.5-lightning-30b-a3b --transport openai-chat --thinking off --json-mode --tool-profile sql-analysis --csv-importer identifier-v2 --request-interval-seconds 1.6 --output .artifacts/stage6/dabstep-fresh-run
+```
+
+三轮重复要分别使用新的目录和真实模型调用；聚合可传入多个 `--repeat-report PATH`。
+重复证据须与候选的完整协议、系统和数据一致；不同协议会抛出错误，不能关闭稳定性门禁。
+反事实评分资格使用合成 SQLite 夹具，覆盖偶然等价、NULL、重复值和日期边界，不算模型成绩。
+
+## 实际产品 Supervisor 联调
+
+```bash
+LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/qualify_stage6_supervisor.py --provider-id PROVIDER_ID --model nvidia/nemotron-3.5-lightning-30b-a3b --limit 3 --output .artifacts/stage6/supervisor-fresh-run/report.json
+```
+
+需要已经准备好的 `data/tlc/tlc-2025-01.sqlite`。驱动在一个异步会话中调用实际产品 Supervisor，
+每题 60 秒，局部证据落本地，并与确定性认证指标运行比较。输出文件必须不存在。
+工具调用模式不使用 JSON 动作模式；没有任意代码或外部发送能力。未触发执行器不能被算作
+请求绑定通过；完整成功同时要求正确请求、角色顺序、相同结果和哈希校验后的真实证据。
+三题联调仅是既有 TLC 产品路径的探测，不代表公开数据源已接入产品或完成生产资格。
+
+双环境完整回归时显式指定解释器和隔离环境，避免工具按项目默认解释器重建环境：
+
+```bash
+LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false UV_CACHE_DIR=/tmp/deepagents-uv-cache COVERAGE_FILE=.artifacts/stage6/py312.coverage uv run --frozen --python 3.12 pytest --cov=generaldataagent --cov-fail-under=85
+LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false UV_CACHE_DIR=/tmp/deepagents-uv-cache UV_PROJECT_ENVIRONMENT=/tmp/gda-stage6-py311 COVERAGE_FILE=.artifacts/stage6/py311.coverage uv run --frozen --python 3.11 pytest --cov=generaldataagent --cov-fail-under=85
+```

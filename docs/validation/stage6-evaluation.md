@@ -1,5 +1,7 @@
 # 第六期首轮评估与验证记录
 
+后续开发与新增实测见[持续开发记录](stage6-continuation-2026-10-20.md)。本文件保留首轮历史。
+
 日期：2026-10-20（Asia/Shanghai）。本轮结论：**评估链路和离线复核可运行，真实模型运行未达发布目标。**
 
 [方案与选型](../research/stage6-benchmark-plan.md) · [运行手册](../operations/stage6-evaluation-runbook.md) ·
