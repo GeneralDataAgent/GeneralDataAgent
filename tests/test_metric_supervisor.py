@@ -312,3 +312,72 @@ def test_bound_tools_keep_domain_denial_and_role_order(tmp_path):
     groups = runtime._build_actor_tools(actor(), {}, [], bound_query=query)
     with pytest.raises(PermissionError, match="expected.*discovery"):
         groups["data_analysis"][0].invoke({})
+
+
+@pytest.mark.parametrize("bound_tools", [False, True])
+def test_validated_delivery_finishes_before_surplus_model_work(monkeypatch, tmp_path, bound_tools):
+    runtime = build_supervisor_runtime(tmp_path)
+    runtime.bound_tool_arguments = bound_tools
+    cancelled = []
+
+    class ChattySupervisor:
+        def __init__(self, groups):
+            self.groups = groups
+
+        async def ainvoke(self, state, config):
+            arguments = (
+                {}
+                if bound_tools
+                else {
+                    "metric_name": "event_count",
+                    "metric_version": "v1",
+                    "dimensions": ["segment"],
+                }
+            )
+            self.groups["discovery"][0].invoke(arguments)
+            self.groups["data_analysis"][0].invoke(arguments)
+            self.groups["verification"][0].invoke({})
+            self.groups["reporting"][0].invoke({})
+            try:
+                await asyncio.sleep(30)
+            finally:
+                cancelled.append(True)
+
+    monkeypatch.setattr(
+        "generaldataagent.agents.metric_supervisor.build_supervisor",
+        lambda **kwargs: ChattySupervisor(kwargs["tool_groups"]),
+    )
+    result = runtime.run(
+        MetricQuery(metric_name="event_count", metric_version="v1", dimensions=("segment",)),
+        actor(),
+        thread_id="validated-completion",
+        max_runtime_seconds=0.5,
+    )
+    assert result.status == "completed"
+    assert result.delegated_roles == ("discovery", "data-analyst", "verifier", "reporter")
+    assert result.artifact_uris and cancelled == [True]
+
+
+def test_bound_tools_use_canonical_admitted_specialists(monkeypatch, tmp_path):
+    runtime = build_supervisor_runtime(tmp_path)
+    runtime.bound_tool_arguments = True
+    captured = []
+
+    class EmptyGraph:
+        async def ainvoke(self, state, config):
+            return {"structured_response": None}
+
+    def build(**kwargs):
+        captured.extend(kwargs["subagents"])
+        return EmptyGraph()
+
+    monkeypatch.setattr("generaldataagent.agents.factory.create_deep_agent", build)
+    result = runtime.run(
+        MetricQuery(metric_name="event_count", metric_version="v1"),
+        actor(),
+        thread_id="canonical-specialists",
+    )
+    assert result.status == "failed"
+    assert result.limitations == ("missing structured Supervisor response",)
+    assert len(captured) == 4
+    assert captured[0]["tools"][0].args_schema.model_json_schema()["properties"] == {}

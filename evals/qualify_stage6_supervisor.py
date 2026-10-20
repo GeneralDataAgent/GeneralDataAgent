@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 from uuid import uuid4
 
+from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.rate_limiters import InMemoryRateLimiter
 
 from generaldataagent.agents import MetricSupervisorRuntime
@@ -27,6 +28,33 @@ class RecordedMetricRuntime(MetricAnalysisRuntime):
         result = super().run(query, actor)
         self.recorded.append((query, actor, result))
         return result
+
+
+class CallDiagnostics(BaseCallbackHandler):
+    """Record model/tool shape and usage, never prompts, keys or raw provider errors."""
+
+    def __init__(self):
+        self.events = []
+
+    def on_llm_end(self, response, **kwargs):
+        for batch in response.generations:
+            for generation in batch:
+                message = getattr(generation, "message", None)
+                if message is not None:
+                    self.events.append(
+                        {
+                            "status": "response",
+                            "tool_calls": [
+                                {"name": call["name"], "argument_keys": sorted(call["args"])}
+                                for call in getattr(message, "tool_calls", [])
+                            ],
+                            "usage": getattr(message, "usage_metadata", None),
+                            "finish_reason": message.response_metadata.get("finish_reason"),
+                        }
+                    )
+
+    def on_llm_error(self, error, **kwargs):
+        self.events.append({"status": "error", "error": type(error).__name__})
 
 
 async def main():
@@ -52,6 +80,8 @@ async def main():
         json_mode=False,
     )
     model = build_evaluation_model(provider, route)
+    diagnostics = CallDiagnostics()
+    model.callbacks = [diagnostics]
     model.rate_limiter = InMemoryRateLimiter(requests_per_second=0.625, max_bucket_size=1)
     store = LocalArtifactStore(args.output.parent / "supervisor-artifacts")
     catalog = build_tlc_metric_catalog()
@@ -78,6 +108,8 @@ async def main():
     report = {
         "runner_hash": digest(Path(__file__)),
         "supervisor_hash": digest(root / "src/generaldataagent/agents/metric_supervisor.py"),
+        "completion_hash": digest(root / "src/generaldataagent/agents/completion.py"),
+        "early_validated_completion": True,
         "cost_usd": None,
         "evaluation": "actual-governed-supervisor-tlc",
         "bound_tool_arguments": args.bound_tools,
@@ -98,6 +130,7 @@ async def main():
         )
         expected = oracle.run(query, actor)["delivery_package"]
         runtime.recorded.clear()
+        diagnostics.events.clear()
         started = time.monotonic()
         result = await supervisor.arun(
             query, actor, thread_id="stage6-" + str(uuid4()), max_runtime_seconds=60
@@ -130,6 +163,7 @@ async def main():
             "supervisor": result.model_dump(mode="json"),
             "elapsed_seconds": time.monotonic() - started,
             "executor_calls": len(runtime.recorded),
+            "model_diagnostics": list(diagnostics.events),
             "exact_request": exact_request,
             "matches_deterministic_oracle": matching,
             "evidence_hashes_verified": evidence_verified,

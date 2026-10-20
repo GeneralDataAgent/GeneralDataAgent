@@ -161,6 +161,7 @@ def main():
     for evidence in supervisor:
         r = evidence["report"]
         name = "请求参数绑定工具" if r["bound_tool_arguments"] else "原工具"
+        name += "/验证后完成" if r.get("early_validated_completion") else "/原结束条件"
         lines.append(
             f"| {name} | {r['summary']['passed']}/{r['summary']['n']} | {r['database_unchanged']} |"
         )

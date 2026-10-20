@@ -2,7 +2,7 @@
 
 import asyncio
 import json
-from dataclasses import replace
+from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 
@@ -11,6 +11,7 @@ from langchain_core.tools import StructuredTool
 from langgraph.checkpoint.memory import InMemorySaver
 from pydantic import BaseModel, ConfigDict
 
+from generaldataagent.agents.completion import await_validated_completion
 from generaldataagent.agents.contracts import SpecialistResult, SupervisorResult
 from generaldataagent.agents.factory import build_supervisor
 from generaldataagent.agents.specs import SPECIALIST_SPECS
@@ -97,22 +98,16 @@ class MetricSupervisorRuntime:
             raise ValueError("max_runtime_seconds must be positive")
         candidates: dict[str, dict[str, Any]] = {}
         role_events: list[str] = []
-        tool_groups = self._build_actor_tools(actor, candidates, role_events, bound_query=query)
+        completed = asyncio.Event()
+        loop = asyncio.get_running_loop()
+        tool_groups = self._build_actor_tools(
+            actor,
+            candidates,
+            role_events,
+            bound_query=query,
+            on_validated_delivery=lambda: loop.call_soon_threadsafe(completed.set),
+        )
         specs = tuple(spec for spec in SPECIALIST_SPECS if spec.name in _PHASE_ONE_ROLES)
-        if self.bound_tool_arguments:
-            specs = tuple(
-                replace(
-                    spec,
-                    system_prompt=spec.system_prompt
-                    + (
-                        " Your tool is already bound to the authenticated request. "
-                        "Call it with {}. "
-                        "Do not reconstruct metric arguments or write SQL. "
-                        "Use the returned evidence."
-                    ),
-                )
-                for spec in specs
-            )
         middleware = (
             (
                 self.orchestration_router.for_task(
@@ -153,8 +148,11 @@ class MetricSupervisorRuntime:
         config = {"configurable": {"thread_id": thread_id}, "recursion_limit": 40}
         try:
             async with asyncio.timeout(max_runtime_seconds):
-                result = await supervisor.ainvoke(
-                    {"messages": [{"role": "user", "content": json.dumps(request)}]}, config
+                result = await await_validated_completion(
+                    supervisor.ainvoke(
+                        {"messages": [{"role": "user", "content": json.dumps(request)}]}, config
+                    ),
+                    completed,
                 )
         except Exception as exc:
             candidate = candidates.get("current", {}).get("analysis")
@@ -228,6 +226,7 @@ class MetricSupervisorRuntime:
         role_events: list[str] | None = None,
         *,
         bound_query: MetricQuery | None = None,
+        on_validated_delivery: Callable[[], None] | None = None,
     ) -> dict[str, list[StructuredTool]]:
         events = role_events if role_events is not None else []
 
@@ -315,6 +314,8 @@ class MetricSupervisorRuntime:
             candidate = _candidate(candidates)
             if candidate["validation_result"]["status"] != "pass":
                 raise PermissionError("candidate has not passed validation")
+            if on_validated_delivery is not None:
+                on_validated_delivery()
             return candidate["delivery_package"]
 
         groups = {
