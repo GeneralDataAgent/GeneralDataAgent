@@ -66,6 +66,11 @@ def normalize_protocol_action(action):
         "execute_sql": "sql",
         "submit_sql": "final_sql",
         "crosscheck_sql": "crosscheck",
+        "compute_sql": "sql",
+        "fixed_analysis": "analysis",
+        "search_documents": "search",
+        "collect_values": "collect",
+        "submit_answers": "answers",
     }
     if not isinstance(action, dict):
         return action
@@ -77,6 +82,43 @@ def normalize_protocol_action(action):
     if name not in names:
         return action
     arguments = action[name]
+    if name == "submit_answers" and isinstance(arguments, dict) and set(arguments) == {"fields"}:
+        fields = arguments["fields"]
+        if not isinstance(fields, list) or not fields:
+            return action
+        bindings, rules = {}, {}
+        for field in fields:
+            if (
+                not isinstance(field, dict)
+                or set(field) - {"name", "step", "path", "rule"}
+                or not {"name", "step", "path"} <= set(field)
+                or not isinstance(field["name"], str)
+                or field["name"] in bindings
+            ):
+                return action
+            bindings[field["name"]] = [field["step"], field["path"]]
+            if "rule" in field:
+                rules[field["name"]] = field["rule"]
+        if any(type(v[0]) is not int for v in bindings.values()):
+            return action
+        return {
+            "answers": {},
+            "bindings": bindings,
+            "evidence_steps": sorted({v[0] for v in bindings.values()}),
+            "field_rules": rules,
+        }
+    if name == "search_documents":
+        return (
+            {"search": arguments["query"]}
+            if isinstance(arguments, dict) and set(arguments) == {"query"}
+            else action
+        )
+    if name in {"collect_values", "compute_sql"}:
+        if not isinstance(arguments, dict) or set(arguments) != {"sql"}:
+            return action
+        return {names[name]: arguments if name == "collect_values" else arguments["sql"]}
+    if name == "fixed_analysis":
+        return {"analysis": arguments}
     if name == "submit_sql" and isinstance(arguments, dict) and "output_columns" in arguments:
         if set(arguments) - {"sql", "output_columns", "shape", "ties", "requirements"}:
             return action

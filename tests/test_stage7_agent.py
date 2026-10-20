@@ -333,3 +333,63 @@ def test_public_predicate_requirement_is_enforced_before_execution(database):
     assert result["failure"] is None
     assert result["trace"][0]["code"] == "semantic_contract"
     assert len([e for e in result["trace"] if e["status"] == "ok"]) == 1
+
+
+def test_native_statistics_use_two_actions_and_keep_full_precision_receipts(database):
+    from langchain_core.messages import AIMessage, ToolMessage
+
+    class Native:
+        def __init__(self):
+            self.actions = iter(
+                [
+                    (
+                        "fixed_analysis",
+                        {"table": "people", "columns": ["score"], "operation": "describe"},
+                    ),
+                    (
+                        "submit_answers",
+                        {
+                            "fields": [
+                                {"name": "mean", "step": 1, "path": ["statistics", "score", "mean"]}
+                            ]
+                        },
+                    ),
+                ]
+            )
+            self.calls = 0
+
+        def bind(self, **kwargs):
+            assert {t["function"]["name"] for t in kwargs["tools"]} == {
+                "compute_sql",
+                "fixed_analysis",
+                "search_documents",
+                "collect_values",
+                "submit_answers",
+            }
+            return self
+
+        def invoke(self, messages):
+            if self.calls:
+                assert any(isinstance(message, ToolMessage) for message in messages)
+            self.calls += 1
+            name, args = next(self.actions)
+            return AIMessage(
+                content="",
+                tool_calls=[{"name": name, "args": args, "id": str(self.calls)}],
+                usage_metadata={"total_tokens": 10, "input_tokens": 8, "output_tokens": 2},
+            )
+
+    model = Native()
+    task = Task(
+        "infiagent-dabench",
+        "synthetic",
+        "mean?",
+        "Round the result to two decimal places. @mean[value]",
+        "easy",
+        "people",
+    )
+    result = BoundedSQLAgent(model, tool_profile="sql-semantic").run(task, database)
+    assert result["failure"] is None and model.calls == 2
+    assert result["answers"] == {"mean": "10.00"}
+    assert result["answer_evidence"]["mean"]["raw_value"] == 10
+    assert result["answer_evidence"]["mean"]["method_id"] == "describe"

@@ -70,10 +70,7 @@ def test_stage_specific_native_schemas_do_not_offer_unavailable_tools():
             return kwargs
 
     planning = bind_typed_tools(Model(), sql_output=True)
-    assert {t["function"]["name"] for t in planning["tools"]} == {
-        "submit_sql",
-        "execute_sql",
-    }
+    assert {t["function"]["name"] for t in planning["tools"]} == {"submit_sql"}
     submit_schema = planning["tools"][0]["function"]["parameters"]
     assert submit_schema["required"] == ["sql", "output_columns"]
     assert "$defs" not in submit_schema
@@ -108,3 +105,18 @@ def test_precision_requires_an_explicit_public_rounding_rule():
     proposal = {"question": "correlation?", "answer": {"decimals": 2}}
     with pytest.raises(ValueError, match="public"):
         accept_contract(proposal, question="correlation?", instructions="")
+
+
+def test_flat_native_bindings_reject_duplicates_and_boolean_step_ids():
+    from generaldataagent.orchestration.analysis_plan import normalize_protocol_action
+
+    good = {"submit_answers": {"fields": [{"name": "n", "step": 1, "path": ["rows", 0, 0]}]}}
+    assert validate_action(normalize_protocol_action(good))["bindings"] == {
+        "n": (1, ["rows", 0, 0])
+    }
+    for fields in [
+        [{"name": "n", "step": True, "path": ["rows", 0, 0]}],
+        [{"name": "n", "step": 1, "path": ["rows", 0, 0]}] * 2,
+    ]:
+        with pytest.raises(ActionSchemaError):
+            validate_action(normalize_protocol_action({"submit_answers": {"fields": fields}}))

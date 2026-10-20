@@ -356,6 +356,7 @@ class BoundedSQLAgent:
         context, relations = database_context(database.resolve())
         from generaldataagent.catalog.semantic_context import semantic_context
         from generaldataagent.evaluation.stage_seven import (
+            STAGE7_ANALYSIS_PROMPT,
             STAGE7_PROMPT,
             STAGE7_SQL_PROMPT,
             ToolConversation,
@@ -388,6 +389,7 @@ class BoundedSQLAgent:
 
         semantic = self.tool_profile == "sql-semantic"
         task_spec = None
+        automatic_spec = False
         evidence = {}
         crosscheck_rows = None
         crosscheck_used = False
@@ -439,6 +441,22 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                 ),
             ),
         ]
+        if semantic and task.benchmark != "bird-mini-dev-sqlite":
+            from generaldataagent.contracts.analysis import AnalysisTaskSpec, AnswerSpec
+            from generaldataagent.tools.answer_fields import public_precisions
+
+            names = sorted(set(re.findall(r"@(\w+)\[", task.instructions))) or ["answer"]
+            precision = public_precisions(task.question + "\n" + task.instructions)
+            task_spec = AnalysisTaskSpec(
+                question=task.question,
+                public_requirements=task.instructions,
+                answer=AnswerSpec(
+                    columns=names, decimals=next(iter(precision)) if len(precision) == 1 else None
+                ),
+            )
+            automatic_spec = True
+            precision = False  # Preserve the independent SQL-output profile flag.
+            messages[0] = ("system", STAGE7_ANALYSIS_PROMPT)
         if semantic and task.benchmark == "bird-mini-dev-sqlite":
             messages[0] = ("system", STAGE7_SQL_PROMPT)
         if precision:
@@ -476,6 +494,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                 failure = "cost_budget"
                 break
             previous_task_spec = task_spec
+            previous_automatic_spec = automatic_spec
             action = None
             calls = []
             if repair:
@@ -564,6 +583,11 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                         "execute_sql": "sql",
                         "submit_sql": "final_sql",
                         "crosscheck_sql": "crosscheck",
+                        "compute_sql": "sql",
+                        "fixed_analysis": "analysis",
+                        "search_documents": "search",
+                        "collect_values": "collect",
+                        "submit_answers": "answers",
                     }
                     if name == "analysis_action":
                         content = json.dumps(arguments)
@@ -603,8 +627,9 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                         except ValueError as exc:
                             raise SemanticError(str(exc)) from None
                     if "contract" in action:
-                        if task_spec is not None:
+                        if task_spec is not None and not automatic_spec:
                             raise SemanticError("contract is immutable within a run")
+                        automatic_spec = False
                         task_spec = accept_contract(
                             action["contract"],
                             question=task.question,
@@ -726,6 +751,15 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                             failure = "invalid_output"
                             continue
                     if semantic:
+                        proposal = task_spec.model_dump()
+                        if action.get("field_rules"):
+                            proposal["answer"]["fields"] = action["field_rules"]
+                        try:
+                            task_spec = accept_contract(
+                                proposal, question=task.question, instructions=task.instructions
+                            )
+                        except ValueError as exc:
+                            raise SemanticError(str(exc)) from None
                         if set(action.get("bindings", {})) != set(task_spec.answer.columns):
                             raise SemanticError("bind every public answer field")
                         if any(v[0] not in citations for v in action.get("bindings", {}).values()):
@@ -820,6 +854,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     failure = "repeated_action"
                     break
                 trace.append(event)
+                automatic_spec = False
                 if semantic and tool != "document_search":
                     evidence[step] = dict(result_data)
                 if action_counts[action_key] > 1:
@@ -834,6 +869,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
             except Exception as exc:
                 if semantic:
                     task_spec = previous_task_spec
+                    automatic_spec = previous_automatic_spec
                     answers = {}
                 kind = type(exc).__name__
                 text = str(exc).lower()
