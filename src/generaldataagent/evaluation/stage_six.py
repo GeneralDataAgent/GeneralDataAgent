@@ -373,6 +373,7 @@ class BoundedSQLAgent:
         from generaldataagent.orchestration.analysis_plan import (
             ActionSchemaError,
             accept_contract,
+            normalize_protocol_action,
             validate_action,
         )
         from generaldataagent.tools.sql_semantics import (
@@ -465,6 +466,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                 failure = "cost_budget"
                 break
             action = None
+            calls = []
             if repair:
                 messages.append(
                     (
@@ -565,6 +567,8 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     content = "".join(x.get("text", "") for x in content if isinstance(x, dict))
                 raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", str(content).strip())
                 action = json.loads(raw)
+                if semantic:
+                    action = normalize_protocol_action(action)
                 if not isinstance(action, dict):
                     raise ValueError("one JSON object required")
                 messages.append(("assistant", raw))
@@ -760,6 +764,8 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                         json.dumps(result_data, sort_keys=True, default=str).encode()
                     ).hexdigest(),
                 }
+                if semantic:
+                    event["response_mode"] = "native_function" if calls else "json"
                 if tool == "sql":
                     event.update(sql=sql, row_count=len(result.rows), elapsed_ms=result.elapsed_ms)
                 else:
@@ -805,6 +811,10 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     "invalid_action",
                 )
                 event = {"step": step, "status": "error", "error": kind, "code": code}
+                if semantic:
+                    event["response_mode"] = "native_function" if calls else "json"
+                    if isinstance(action, dict):
+                        event["action_keys"] = sorted(action)[:12]
                 if semantic and isinstance(exc, ActionSchemaError):
                     event.update(
                         code="action_schema",

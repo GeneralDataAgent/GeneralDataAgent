@@ -81,3 +81,20 @@ def test_stage_specific_native_schemas_do_not_offer_unavailable_tools():
     }
     for tool in execution["tools"][:2]:
         assert tool["function"]["parameters"]["required"] == ["sql"]
+
+
+def test_null_unused_native_fields_do_not_turn_into_multiple_actions():
+    action = validate_action({"sql": "SELECT 1", "final_sql": None, "contract": None})
+    assert action == {"sql": "SELECT 1"}
+
+
+def test_json_function_envelopes_are_normalized_without_discarding_actions():
+    from generaldataagent.orchestration.analysis_plan import normalize_protocol_action
+
+    assert normalize_protocol_action({"submit_sql": {"sql": "SELECT 1"}}) == {
+        "final_sql": "SELECT 1"
+    }
+    mixed = {"submit_sql": {"sql": "SELECT 1"}, "execute_sql": {"sql": "SELECT 2"}}
+    assert normalize_protocol_action(mixed) == mixed
+    with pytest.raises(ActionSchemaError):
+        validate_action(normalize_protocol_action(mixed))

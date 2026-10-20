@@ -22,7 +22,7 @@ def validate_action(action: dict) -> dict:
         raise ActionSchemaError(
             [{"path": list(e["loc"]), "type": e["type"]} for e in exc.errors()]
         ) from None
-    return parsed.model_dump(mode="python", exclude_unset=True)
+    return parsed.model_dump(mode="python", exclude_unset=True, exclude_none=True)
 
 
 def accept_contract(proposal: dict, *, question: str, instructions: str) -> AnalysisTaskSpec:
@@ -62,3 +62,28 @@ def accept_contract(proposal: dict, *, question: str, instructions: str) -> Anal
             spec.model_dump() | {"answer": spec.answer.model_dump() | {"decimals": precision}}
         )
     return spec
+
+
+def normalize_protocol_action(action):
+    """Normalize unambiguous function envelopes only; never choose between two actions."""
+    names = {
+        "plan_analysis": "contract",
+        "execute_sql": "sql",
+        "submit_sql": "final_sql",
+        "crosscheck_sql": "crosscheck",
+    }
+    if not isinstance(action, dict):
+        return action
+    if set(action) == {"name", "arguments"} and action["name"] in names:
+        action = {action["name"]: action["arguments"]}
+    if len(action) != 1:
+        return action
+    name = next(iter(action))
+    if name not in names:
+        return action
+    arguments = action[name]
+    if name in {"execute_sql", "submit_sql"}:
+        if not isinstance(arguments, dict) or set(arguments) != {"sql"}:
+            return action
+        arguments = arguments["sql"]
+    return {names[name]: arguments}
