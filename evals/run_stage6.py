@@ -47,7 +47,7 @@ def main():
     parser.add_argument("--limit", type=int, default=60)
     parser.add_argument("--seed", type=int, default=20261020)
     parser.add_argument("--workers", type=int, choices=range(1, 5), default=1)
-    parser.add_argument("--app-type", choices=["claude", "codex"], default="claude")
+    parser.add_argument("--app-type", choices=["claude", "codex", "magpie"], default="claude")
     parser.add_argument("--provider-id")
     parser.add_argument(
         "--csv-importer", choices=["legacy-v1", "identifier-v2"], default="legacy-v1"
@@ -62,7 +62,10 @@ def main():
         choices=["sql", "sql-analysis", "sql-repair", "sql-precision"],
         default="sql",
     )
-    parser.add_argument("--model", help="Per-run model ID; never modifies CC Switch")
+    parser.add_argument(
+        "--model",
+        help="Per-run model ID (required for Magpie); never modifies desktop configuration",
+    )
     parser.add_argument("--transport", choices=["configured", "openai-chat"], default="configured")
     parser.add_argument("--bird-databases", type=Path)
     parser.add_argument("--output", type=Path, required=True)

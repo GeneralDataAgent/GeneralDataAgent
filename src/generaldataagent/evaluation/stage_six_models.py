@@ -1,12 +1,13 @@
 """Per-run model selection without changing CC Switch or copying credentials."""
 
 import hashlib
+import inspect
 import json
 from urllib.parse import urlsplit
 
 from langchain_openai import ChatOpenAI
 
-from generaldataagent.llm import CcSwitchProvider, OpenAiCcSwitchProvider
+from generaldataagent.llm import CcSwitchProvider, MagpieProvider, OpenAiCcSwitchProvider
 
 
 def resolve_evaluation_model(
@@ -19,11 +20,17 @@ def resolve_evaluation_model(
     json_mode: bool = False,
     max_output_tokens: int = 3000,
 ):
-    if app_type not in {"claude", "codex"} or transport not in {"configured", "openai-chat"}:
+    if app_type not in {"claude", "codex", "magpie"} or transport not in {
+        "configured",
+        "openai-chat",
+    }:
         raise ValueError("unsupported evaluation connection")
-    provider = (CcSwitchProvider if app_type == "claude" else OpenAiCcSwitchProvider).load(
-        provider_id=provider_id
-    )
+    if app_type == "magpie":
+        provider = MagpieProvider.load(provider_id=provider_id, model=model_override)
+    else:
+        provider = (CcSwitchProvider if app_type == "claude" else OpenAiCcSwitchProvider).load(
+            provider_id=provider_id
+        )
     model = model_override or provider.model
     if not model or len(model) > 200 or any(c.isspace() for c in model) or model.startswith("~"):
         raise ValueError("invalid or floating model selector")
@@ -60,6 +67,13 @@ def resolve_evaluation_model(
         "endpoint_hash": hashlib.sha256(base.encode()).hexdigest(),
         "wire_api": wire,
     }
+    if isinstance(provider, MagpieProvider):
+        route["gateway_adapter_hash"] = hashlib.sha256(
+            inspect.getsource(MagpieProvider).encode()
+        ).hexdigest()
+        route["gateway_headers_hash"] = hashlib.sha256(
+            json.dumps(provider.request_headers(), sort_keys=True).encode()
+        ).hexdigest()
     route["route_hash"] = hashlib.sha256(json.dumps(route, sort_keys=True).encode()).hexdigest()
     return provider, route
 
@@ -70,6 +84,8 @@ def build_evaluation_model(provider, route: dict):
         if not base.endswith("/v1"):
             base += "/v1"
         options = {}
+        if isinstance(provider, MagpieProvider):
+            options["default_headers"] = provider.request_headers()
         if route.get("thinking_mode", "default") != "default":
             options["extra_body"] = {
                 "chat_template_kwargs": {"enable_thinking": route["thinking_mode"] == "on"}

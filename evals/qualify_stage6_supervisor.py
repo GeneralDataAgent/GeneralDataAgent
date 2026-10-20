@@ -59,6 +59,8 @@ class CallDiagnostics(BaseCallbackHandler):
 
 async def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--app-type", choices=["claude", "codex", "magpie"], default="claude")
+    parser.add_argument("--thinking", choices=["default", "on", "off"])
     parser.add_argument("--provider-id", required=True)
     parser.add_argument("--model", required=True)
     parser.add_argument("--bound-tools", action="store_true")
@@ -72,11 +74,11 @@ async def main():
         raise FileExistsError("evaluation output already exists")
     args.output.parent.mkdir(parents=True, exist_ok=True)
     provider, route = resolve_evaluation_model(
-        app_type="claude",
+        app_type=args.app_type,
         provider_id=args.provider_id,
         model_override=args.model,
         transport="openai-chat",
-        thinking_mode="off",
+        thinking_mode=args.thinking or ("default" if args.app_type == "magpie" else "off"),
         json_mode=False,
     )
     model = build_evaluation_model(provider, route)
