@@ -445,6 +445,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
         if semantic and task.benchmark != "bird-mini-dev-sqlite":
             from generaldataagent.contracts.analysis import AnalysisTaskSpec, AnswerSpec
             from generaldataagent.tools.answer_fields import (
+                infer_public_field_rules,
                 public_precisions,
             )
 
@@ -454,7 +455,9 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                 question=task.question,
                 public_requirements=task.instructions,
                 answer=AnswerSpec(
-                    columns=names, decimals=next(iter(precision)) if len(precision) == 1 else None
+                    columns=names,
+                    decimals=next(iter(precision)) if len(precision) == 1 else None,
+                    fields=infer_public_field_rules(task.instructions, names),
                 ),
             )
             automatic_spec = True
@@ -469,6 +472,15 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
             messages[1] = ("human", json.dumps(request))
         if semantic:
             request = json.loads(messages[1][1])
+            if task_spec is not None:
+                request["public_answer_contract"] = {
+                    "columns": task_spec.answer.columns,
+                    "decimals": task_spec.answer.decimals,
+                    "fields": {
+                        key: rule.model_dump(exclude_none=True, exclude={"source_excerpt"})
+                        for key, rule in task_spec.answer.fields.items()
+                    },
+                }
             request["semantic_context"] = semantic_context(
                 database,
                 allowed_relations=relations,

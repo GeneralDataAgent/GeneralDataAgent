@@ -408,3 +408,48 @@ def test_public_float_definition_is_rounded_without_a_model_precision_declaratio
     )
     assert result["failure"] is None
     assert result["answers"] == {"mean": "1.50"}
+
+
+def test_runtime_applies_mixed_public_field_rules_without_model_restatement(database):
+    instructions = (
+        "@mean[average] @total[sum_value] @label[category]\n"
+        'where "average" is a number rounded to two decimal places.\n'
+        'where "sum_value" is a number rounded to four decimal places.\n'
+        'where "category" is a string.'
+    )
+    result = run(
+        database,
+        [
+            {"sql": "SELECT AVG(id), SUM(id), 'observed' FROM people"},
+            {
+                "submit_answers": {
+                    "fields": [
+                        {"name": name, "step": 1, "path": ["rows", 0, i]}
+                        for i, name in enumerate(["mean", "total", "label"])
+                    ]
+                }
+            },
+        ],
+        benchmark="infiagent-dabench",
+        question="mean, total and label?",
+        instructions=instructions,
+    )
+    assert result["failure"] is None
+    assert result["answers"] == {"mean": "1.50", "total": "3.0000", "label": "observed"}
+    assert result["task_contract"]["answer"]["fields"]["label"]["kind"] == "string"
+    assert result["answer_evidence"]["total"]["raw_value"] == 3
+
+
+def test_public_string_contract_rejects_numeric_evidence_without_model_rule(database):
+    result = run(
+        database,
+        [
+            {"sql": "SELECT id FROM people ORDER BY id LIMIT 1"},
+            {"submit_answers": {"fields": [{"name": "label", "step": 1, "path": ["rows", 0, 0]}]}},
+        ],
+        benchmark="infiagent-dabench",
+        question="label?",
+        instructions='@label[category] where "category" is a string.',
+    )
+    assert result["failure"] == "execution_or_model_error"
+    assert not result["answers"]

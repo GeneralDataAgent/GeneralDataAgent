@@ -181,3 +181,32 @@ def test_period_equalities_in_inner_join_are_resolved_without_losing_population(
     assert not check_public_rank_and_age(
         ranking, "among the top 5 per group; exclude missing scores"
     )
+
+
+def test_change_direction_resolves_direct_table_aliases_in_their_own_scope():
+    from generaldataagent.tools.semantic_requirements import check_public_change_direction
+
+    question = "growth rate from 2020/1/1 to 2021/1/1"
+    source = (
+        " FROM balances old JOIN balances new ON old.id=new.id "
+        "AND old.date='2020-01-01' AND new.date='2021-01-01'"
+    )
+    assert not check_public_change_direction(
+        "SELECT (new.balance-old.balance)*100.0/NULLIF(old.balance,0)" + source, question
+    )
+    assert set(
+        check_public_change_direction(
+            "SELECT (old.balance-new.balance)*100.0/new.balance" + source, question
+        )
+    ) == {"change_direction", "change_reference_period"}
+    for ambiguous_source in [
+        " FROM balances old LEFT JOIN balances new ON old.id=new.id "
+        "AND old.date='2020-01-01' AND new.date='2021-01-01'",
+        " FROM balances old JOIN balances new ON old.id=new.id "
+        "WHERE (old.date='2020-01-01' AND new.date='2021-01-01') OR old.id=1",
+        " FROM balances old JOIN balances new ON old.id=new.id "
+        "WHERE EXISTS (SELECT 1 FROM balances old WHERE old.date='2020-01-01')",
+    ]:
+        assert not check_public_change_direction(
+            "SELECT (old.balance-new.balance)*100.0/new.balance" + ambiguous_source, question
+        )

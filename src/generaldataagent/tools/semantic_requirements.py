@@ -170,8 +170,9 @@ def validate_requirement_sources(
 def check_public_change_direction(sql: str, question: str) -> list[str]:
     """Resolve explicit 'from DATE to DATE' reference periods through scalar subqueries.
 
-    Only plain projected columns with conjunctive date equalities are resolved. Other forms are
-    left unclassified, never guessed. No benchmark identity, label, or reference query is used.
+    Only plain columns, direct table aliases and conjunctive date equalities are resolved.
+    Other forms are left unclassified, never guessed.
+    No benchmark identity, label, or reference query is used.
     """
     import re
     from datetime import date
@@ -210,18 +211,34 @@ def check_public_change_direction(sql: str, question: str) -> list[str]:
         if not isinstance(column, exp.Column):
             return None
         candidates = sources.get(column.table.casefold(), [])
-        if len(candidates) != 1 or not isinstance(candidates[0], exp.Select):
-            return None
-        select = candidates[0]
-        projections = [
-            p for p in select.selects if p.alias_or_name.casefold() == column.name.casefold()
-        ]
-        if len(projections) != 1:
-            return None
-        projection = projections[0]
-        source = projection.this if isinstance(projection, exp.Alias) else projection
-        if not isinstance(source, exp.Column):
-            return None
+        if candidates:
+            if len(candidates) != 1 or not isinstance(candidates[0], exp.Select):
+                return None
+            select = candidates[0]
+            projections = [
+                p for p in select.selects if p.alias_or_name.casefold() == column.name.casefold()
+            ]
+            if len(projections) != 1:
+                return None
+            projection = projections[0]
+            source = projection.this if isinstance(projection, exp.Alias) else projection
+            if not isinstance(source, exp.Column):
+                return None
+        else:
+            # Also resolve aliases of directly joined tables. Never borrow a date condition
+            # from a nested scope with the same alias, or infer unqualified multi-table fields.
+            select = column.find_ancestor(exp.Select)
+            if select is not tree or not column.table:
+                return None
+            local = [
+                table
+                for table in select.find_all(exp.Table)
+                if table.find_ancestor(exp.Select) is select
+                and table.alias_or_name.casefold() == column.table.casefold()
+            ]
+            if len(local) != 1:
+                return None
+            source = column
         where = select.args.get("where")
         dates = set()
         conditions = _conjuncts(where.this) if where else []
