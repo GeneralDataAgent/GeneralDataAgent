@@ -27,7 +27,8 @@ from generaldataagent.tools.sqlite import SQLiteReadOnlyExecutor
 
 
 def digest(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    with path.open("rb") as stream:
+        return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
 def verify_sources(root: Path) -> dict:
@@ -224,7 +225,16 @@ def database_context(database: Path) -> tuple[str, set[str]]:
         statements = []
         for name in sorted(names):
             schema = db.execute(f"PRAGMA table_info({quote_identifier(name)})").fetchall()
-            samples = db.execute(f"SELECT * FROM {quote_identifier(name)} LIMIT 2").fetchall()
+            samples = db.execute(f"SELECT * FROM {quote_identifier(name)} LIMIT 1").fetchall()
+            samples = [
+                [
+                    {"preview": value[:160], "truncated": True}
+                    if isinstance(value, str) and len(value) > 160
+                    else value
+                    for value in row
+                ]
+                for row in samples
+            ]
             statements.append(
                 json.dumps(
                     {"table": name, "columns": [(x[1], x[2]) for x in schema], "samples": samples},
@@ -383,6 +393,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
         guard = SqlGuard(dialect="sqlite")
         started = time.monotonic()
         trace, answers = [], {}
+        action_counts = Counter()
         tokens = input_tokens = output_tokens = 0
         usage_complete = cost_complete = True
         observed_cost = 0.0
@@ -409,8 +420,11 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                             "http_status": status if isinstance(status, int) else None,
                         }
                     )
-                    usage_complete = cost_complete = False
-                    failure = "model_error"
+                    if type(exc).__name__ == "PacingDeadlineExceeded":
+                        failure = "time_budget"
+                    else:
+                        usage_complete = cost_complete = False
+                        failure = "model_error"
                     break
                 usage = response.usage_metadata or {}
                 usage_complete = usage_complete and "total_tokens" in usage
@@ -450,6 +464,38 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                 if not isinstance(action, dict):
                     raise ValueError("one JSON object required")
                 messages.append(("assistant", raw))
+                allowed_actions = {"sql", "final_sql", "answers", "unsupported"}
+                if enhanced:
+                    allowed_actions.update({"search", "analysis"})
+                if len(allowed_actions.intersection(action)) != 1:
+                    trace.append(
+                        {
+                            "step": step,
+                            "status": "error",
+                            "error": "ActionSchemaError",
+                            "code": "invalid_action",
+                            "action_keys": sorted(action)[:10],
+                        }
+                    )
+                    messages.append(
+                        (
+                            "human",
+                            json.dumps(
+                                {
+                                    "error": "one action required",
+                                    "allowed_actions": sorted(allowed_actions),
+                                    "required_output": "final_sql"
+                                    if task.benchmark == "bird-mini-dev-sqlite"
+                                    else "answers",
+                                    "answer_fields": sorted(
+                                        set(re.findall(r"@(\w+)\[", task.instructions))
+                                    ),
+                                }
+                            ),
+                        )
+                    )
+                    failure = "invalid_output"
+                    continue
                 if "unsupported" in action:
                     failure = "unsupported_capability"
                     break
@@ -503,7 +549,18 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     event.update(sql=sql, row_count=len(result.rows), elapsed_ms=result.elapsed_ms)
                 else:
                     event["action"] = action
+                action_key = json.dumps(action, sort_keys=True)
+                action_counts[action_key] += 1
+                if action_counts[action_key] >= 3 and "final_sql" not in action:
+                    event["status"] = "repeated"
+                    trace.append(event)
+                    failure = "repeated_action"
+                    break
                 trace.append(event)
+                if action_counts[action_key] > 1:
+                    result_data["warning"] = (
+                        "Identical action repeated with no new evidence; revise your plan."
+                    )
                 if "final_sql" in action and tool == "sql":
                     final_sql, failure = sql, None
                     break
@@ -568,7 +625,7 @@ def summarize(results: list[dict]) -> dict:
         hits = sum(bool(x["passed"]) for x in values)
         slices[level] = {"n": len(values), "passed": hits, "rate": hits / len(values)}
     sub_total = sum(x["sub_total"] for x in results)
-    return {
+    report = {
         "n": len(results),
         "passed": passed,
         "pass_at_1": passed / len(results),
@@ -588,6 +645,15 @@ def summarize(results: list[dict]) -> dict:
         if all(x.get("cost_usd") is not None for x in results)
         else None,
     }
+
+    if any("attempted" in row for row in results):
+        times = sorted(row["elapsed_seconds"] for row in results if row.get("attempted", True))
+        report.update(
+            attempted_n=len(times),
+            not_attempted_n=len(results) - len(times),
+            attempted_p95_seconds=times[math.ceil(0.95 * len(times)) - 1] if times else None,
+        )
+    return report
 
 
 def paired_gate(baseline: dict, candidate: dict, *, max_regressions=0) -> dict:
@@ -630,6 +696,10 @@ def run_isolated(
     transport: str = "configured",
     route_hash: str | None = None,
     tool_profile: str = "sql",
+    thinking_mode: str = "default",
+    json_mode: bool = False,
+    request_interval_seconds: float = 0,
+    pacing_database: Path | None = None,
 ) -> dict:
     """Kill a stuck model/tool worker at the OS process boundary; send no golden data."""
     payload = {
@@ -641,6 +711,10 @@ def run_isolated(
         "transport": transport,
         "route_hash": route_hash,
         "tool_profile": tool_profile,
+        "thinking_mode": thinking_mode,
+        "json_mode": json_mode,
+        "request_interval_seconds": request_interval_seconds,
+        "pacing_database": str(pacing_database) if pacing_database else None,
         "documents": documents,
     }
     environment = {

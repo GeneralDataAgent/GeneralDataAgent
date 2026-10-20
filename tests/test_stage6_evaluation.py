@@ -359,3 +359,26 @@ def test_bird_runner_rejects_changed_database_before_loading_model(tmp_path, mon
     )
     with pytest.raises(ValueError, match="pinned official snapshot"):
         runner.main()
+
+
+def test_repeated_actions_stop_and_final_sql_can_finish_same_query(database):
+    task = Task("bird-mini-dev-sqlite", "7", "q", "", "simple", "bank")
+    repeated = BoundedSQLAgent(Model(*[{"sql": "SELECT 1"}] * 3)).run(task, database)
+    assert repeated["failure"] == "repeated_action"
+    finished = BoundedSQLAgent(Model({"sql": "SELECT 1"}, {"final_sql": "SELECT 1"})).run(
+        task, database
+    )
+    assert finished["failure"] is None
+    assert finished["final_sql"] == "SELECT 1"
+
+
+def test_action_schema_errors_are_visible_for_repair(database):
+    model = Model(
+        {"final_answer": "wrong field"},
+        {"sql": "SELECT 2"},
+        {"answers": {"mean": "2"}, "evidence_steps": [2]},
+    )
+    result = BoundedSQLAgent(model).run(case().task, database)
+    assert result["failure"] is None
+    assert result["trace"][0]["action_keys"] == ["final_answer"]
+    assert "allowed_actions" in str(model.messages)

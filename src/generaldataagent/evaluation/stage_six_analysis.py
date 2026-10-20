@@ -89,23 +89,36 @@ def fixed_analysis(database, specification: dict, *, allowed_relations: set[str]
         "dropped_rows": len(result.rows) - len(rows),
         "method": "pairwise finite values",
     }
-    if not rows:
-        raise ValueError("no finite observations")
     if operation == "describe":
         summaries = {}
         for index, column in enumerate(columns):
-            values = [row[index] for row in rows]
+            values = [
+                row[index]
+                for row in result.rows
+                if isinstance(row[index], (int, float))
+                and not isinstance(row[index], bool)
+                and math.isfinite(row[index])
+            ]
             summaries[column] = {
                 "count": len(values),
                 "sum": math.fsum(values),
-                "mean": statistics.mean(values),
-                "median": statistics.median(values),
+                "mean": statistics.mean(values) if values else None,
+                "median": statistics.median(values) if values else None,
                 "sample_std": statistics.stdev(values) if len(values) > 1 else None,
-                "min": min(values),
-                "max": max(values),
+                "min": min(values) if values else None,
+                "max": max(values) if values else None,
             }
-        output["statistics"] = summaries
+        if not any(summary["count"] for summary in summaries.values()):
+            raise ValueError("no finite observations")
+        output.update(
+            statistics=summaries,
+            method="columnwise finite values",
+            observations=len(result.rows),
+            dropped_rows=None,
+        )
     elif operation == "pearson":
+        if not rows:
+            raise ValueError("no finite observations")
         output["correlation"] = statistics.correlation([r[0] for r in rows], [r[1] for r in rows])
     else:
         fit = statistics.linear_regression([r[0] for r in rows], [r[1] for r in rows])

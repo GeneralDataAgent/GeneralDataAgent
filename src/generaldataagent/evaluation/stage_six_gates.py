@@ -61,7 +61,8 @@ def release_diagnostics(
         summary = validate_report(report)
         failures = Counter(x["failure"] for x in report["results"])
         model_failures = sum(
-            failures[k] for k in ["model_error", "worker_error", "worker_deadline"]
+            failures[k]
+            for k in ["model_error", "worker_error", "worker_deadline", "service_circuit_open"]
         )
         reasons = []
         if summary["n"] < REQUIRED_TRACKS[name]:

@@ -25,6 +25,10 @@ from generaldataagent.evaluation.stage_six import (
     summarize,
     verify_sources,
 )
+from generaldataagent.evaluation.stage_six_control import (
+    ServiceCircuitBreaker,
+    not_attempted_result,
+)
 from generaldataagent.evaluation.stage_six_models import resolve_evaluation_model
 from generaldataagent.evaluation.stage_six_protocol import evaluation_protocol
 from generaldataagent.tools import SQLiteReadOnlyExecutor
@@ -40,12 +44,17 @@ def main():
     parser.add_argument("--workers", type=int, choices=range(1, 5), default=1)
     parser.add_argument("--app-type", choices=["claude", "codex"], default="claude")
     parser.add_argument("--provider-id")
+    parser.add_argument("--request-interval-seconds", type=float, default=0)
+    parser.add_argument("--thinking", choices=["default", "on", "off"], default="default")
+    parser.add_argument("--json-mode", action="store_true")
     parser.add_argument("--tool-profile", choices=["sql", "sql-analysis"], default="sql")
     parser.add_argument("--model", help="Per-run model ID; never modifies CC Switch")
     parser.add_argument("--transport", choices=["configured", "openai-chat"], default="configured")
     parser.add_argument("--bird-databases", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
+    if not 0 <= args.request_interval_seconds <= 10:
+        parser.error("request interval must be finite and between zero and ten seconds")
     if args.output.exists():
         parser.error("output exists; choose a new run directory")
     root = ROOT / "data/stage6"
@@ -75,10 +84,13 @@ def main():
         provider_id=args.provider_id,
         model_override=args.model,
         transport=args.transport,
+        thinking_mode=args.thinking,
+        json_mode=args.json_mode,
     )
     args.output.mkdir(parents=True)
     code_hash = digest(Path(__file__).resolve())
     protocol = evaluation_protocol(workers=args.workers)
+    protocol["request_interval_seconds"] = args.request_interval_seconds
     system_fingerprint = {
         "prompt_hash": hashlib.sha256(SYSTEM_PROMPT.encode()).hexdigest(),
         "agent_hash": digest(ROOT / "src/generaldataagent/evaluation/stage_six.py"),
@@ -153,21 +165,32 @@ def main():
                 build_csv_database({"data": root / "infi/da-dev-tables" / asset}, database)
             databases[asset] = database
 
+    circuit = ServiceCircuitBreaker()
+
     def evaluate(case):
         database = databases[case.task.asset]
         asset = case.task.asset
         before = digest(database)
-        result = run_isolated(
-            case.task,
-            database,
-            app_type=args.app_type,
-            provider_id=provider.provider_id,
-            documents=docs,
-            model_override=args.model,
-            transport=args.transport,
-            route_hash=route["route_hash"],
-            tool_profile=args.tool_profile,
-        )
+        if circuit.reason:
+            result = not_attempted_result(circuit.reason)
+        else:
+            result = run_isolated(
+                case.task,
+                database,
+                app_type=args.app_type,
+                provider_id=provider.provider_id,
+                documents=docs,
+                model_override=args.model,
+                transport=args.transport,
+                route_hash=route["route_hash"],
+                tool_profile=args.tool_profile,
+                thinking_mode=args.thinking,
+                json_mode=args.json_mode,
+                request_interval_seconds=args.request_interval_seconds,
+                pacing_database=ROOT / ".state/stage6/request-pacing.sqlite",
+            )
+            result["attempted"] = True
+            circuit.observe(result)
         if case.reference_sql:
             expected = None
             try:
@@ -219,10 +242,14 @@ def main():
             report["results"].append(result)
             (args.output / "report.partial.json").write_text(json.dumps(report, indent=2) + "\n")
     report["summary"] = summarize(report["results"])
+    report["service_circuit_reason"] = circuit.reason
+    report["run_status"] = "blocked_by_service" if circuit.reason else "completed"
     report["completed_at"] = datetime.now(UTC).isoformat()
     (args.output / "report.json").write_text(json.dumps(report, indent=2) + "\n")
     (args.output / "source-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     print(json.dumps(report["summary"], indent=2), flush=True)
+    if circuit.reason:
+        raise SystemExit(2)
 
 
 if __name__ == "__main__":

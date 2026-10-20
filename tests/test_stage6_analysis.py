@@ -143,3 +143,15 @@ def test_overspending_stops_after_observed_response(database):
     assert result["failure"] == "cost_budget"
     assert not result["trace"]
     assert result["cost_usd"] == 0.03
+
+
+def test_describe_uses_per_column_missing_values(database):
+    result = fixed_analysis(
+        database,
+        {"table": "data", "columns": ["x", "y"], "operation": "describe"},
+        allowed_relations={"data"},
+    )
+    assert result["statistics"]["x"]["count"] == 3
+    assert result["statistics"]["y"]["count"] == 4
+    assert result["statistics"]["y"]["mean"] == 6
+    assert result["method"] == "columnwise finite values"

@@ -78,3 +78,31 @@ InfiAgent、DABstep 采用相同命令，替换报告路径。复核会重建队
 服务端若提供 `usage.cost`，逐题累计为 `provider_reported`；失败调用和未知计费保留 null，
 不会用公开报价代替实测费用。每题观察费用超过 0.02 美元即停止；这是调用后预算护栏，
 不是供应商侧硬计费上限。
+
+## 服务节流、熔断与循环中止
+
+`--request-interval-seconds 1.6` 使用 `.state/stage6/request-pacing.sqlite` 在多个进程间共享请求
+时隙；其中只存目标摘要和时间，不存密钥、问题或答案。型号/请求参数仍由单次运行显式选择。
+NVIDIA Nemotron 原生 Chat 可用 `--thinking off --json-mode`；参数来源是 NVIDIA 官方 NIM
+[接口说明](https://build.nvidia.com/playbooks/nim-llm/instructions)。这只关闭本次请求的长推理。
+
+HTTP 401/402/403/404 会立即打开本轮服务熔断；其它连续三次模型服务失败也会打开。
+已在执行的工作允许按原有截止完成；后续题目标记 `service_circuit_open` 和 `attempted=false`，
+依旧保留在原分母。任务报告另列实际尝试数量和尝试任务 P95，避免把跳过的零耗时当作低延迟。
+退出码 2 表示服务阻断，退出码 1 仍用于发布诊断不通过。程序不会充值、更改账户或修改默认模型。
+
+动作字段错误会返回结构化修复提示；完全相同的动作累计三次会以 `repeated_action` 中止。
+显式 `final_sql` 可以完成此前探索过的 SQL，不会误当成循环。数据库上下文仅提供一行样例，
+长文本有截断标识；真正的完整值必须通过查询取得。
+
+## 工具交叉核验与重复实验
+
+```bash
+UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/qualify_stage6_analysis.py
+UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/compare_stage6.py --baseline BASELINE_REPORT --candidate CANDIDATE_REPORT --output COMPARISON_JSON
+UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/qualify_stage6_stability.py --report RUN1 --report RUN2 --report RUN3 --output STABILITY_JSON
+```
+
+工具资格检查覆盖 52 个被任务引用的 CSV，每文件最多三个数值列，与 DuckDB 独立比较。
+重复实验要求独立记录、相同题目顺序、数据摘要、协议和被测系统，拒绝复制报告充当多次运行。
+模型服务失败过多时，配对比较保留分数变化，但明确阻止将变化归因于算法，也不输出显著性结论。

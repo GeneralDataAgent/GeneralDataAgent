@@ -62,3 +62,28 @@ def test_secret_bearing_endpoints_rejected(provider, monkeypatch, endpoint):
     monkeypatch.setattr(OpenAiCcSwitchProvider, "load", lambda **kwargs: changed)
     with pytest.raises(ValueError):
         resolve_evaluation_model(app_type="codex", provider_id="p")
+
+
+def test_native_thinking_and_json_parameters_are_explicit(provider, monkeypatch):
+    import generaldataagent.evaluation.stage_six_models as module
+
+    selected, route = resolve_evaluation_model(
+        app_type="codex",
+        provider_id="p",
+        model_override="nvidia/nemotron-3.5-lightning-30b-a3b",
+        transport="openai-chat",
+        thinking_mode="off",
+        json_mode=True,
+    )
+    captured = {}
+
+    def build(**kwargs):
+        captured.update(kwargs)
+        return object()
+
+    monkeypatch.setattr(module, "ChatOpenAI", build)
+    module.build_evaluation_model(selected, route)
+    assert captured["extra_body"] == {"chat_template_kwargs": {"enable_thinking": False}}
+    assert captured["model_kwargs"] == {"response_format": {"type": "json_object"}}
+    with pytest.raises(ValueError):
+        resolve_evaluation_model(app_type="codex", provider_id="p", thinking_mode="off")

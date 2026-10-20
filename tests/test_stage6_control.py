@@ -36,3 +36,18 @@ def test_transient_failures_are_consecutive_and_not_quality_errors():
     assert c.reason == "repeated_provider_failure"
     with pytest.raises(ValueError):
         ServiceCircuitBreaker(max_consecutive_failures=0)
+
+
+def test_pacing_is_shared_between_instances_and_does_not_reserve_expired_slot(tmp_path):
+    from generaldataagent.evaluation.stage_six_control import SharedRequestPacer
+
+    path = tmp_path / "pacing.sqlite"
+    a = SharedRequestPacer(path, scope="endpoint", interval_seconds=2)
+    b = SharedRequestPacer(path, scope="endpoint", interval_seconds=2)
+    assert a.reserve(now=100, max_wait_seconds=10) == 0
+    assert b.reserve(now=100, max_wait_seconds=10) == 2
+    with pytest.raises(TimeoutError):
+        a.reserve(now=100, max_wait_seconds=1)
+    assert b.reserve(now=100, max_wait_seconds=10) == 4
+    other = SharedRequestPacer(path, scope="other_endpoint", interval_seconds=2)
+    assert other.reserve(now=100, max_wait_seconds=10) == 0

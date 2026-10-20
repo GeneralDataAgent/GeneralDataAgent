@@ -19,7 +19,8 @@ def evaluation_protocol(*, workers: int) -> dict:
     importing = "\n".join(inspect.getsource(fn) for fn in [build_csv_database, add_json_tables])
     execution = "\n".join(inspect.getsource(cls) for cls in [SqlGuard, SQLiteReadOnlyExecutor])
     return {
-        "version": "stage6-v4",
+        "version": "stage6-v5",
+        "service_circuit": "terminal_401_402_403_404_or_three_consecutive_provider_failures",
         "scorer": "strict-infi-absolute1e-6-dab-local-1e-6",
         "scorer_source_hash": hashlib.sha256(scoring.encode()).hexdigest(),
         "import_source_hash": hashlib.sha256(importing.encode()).hexdigest(),
