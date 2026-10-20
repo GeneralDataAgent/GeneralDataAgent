@@ -44,3 +44,19 @@ def test_task_text_is_preserved_and_conflicts_are_blocked():
         )
     with pytest.raises(ValidationError):
         AnswerSpec(columns=["id", "id"])
+
+
+def test_public_rounding_overrides_omission_but_never_conflicting_precision():
+    proposal = {
+        "question": "correlation?",
+        "public_requirements": "Round the result to two decimal places.",
+    }
+    spec = accept_contract(
+        proposal, question=proposal["question"], instructions=proposal["public_requirements"]
+    )
+    assert spec.answer.decimals == 2
+    proposal["answer"] = {"decimals": 3}
+    with pytest.raises(ValueError, match="precision"):
+        accept_contract(
+            proposal, question=proposal["question"], instructions=proposal["public_requirements"]
+        )

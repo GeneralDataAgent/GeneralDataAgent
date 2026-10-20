@@ -57,11 +57,16 @@ class AnalysisArguments(Contract):
         return self
 
 
+class CollectionArguments(Contract):
+    sql: str = Field(min_length=1, max_length=30000)
+
+
 class ToolAction(Contract):
     sql: str | None = Field(default=None, min_length=1, max_length=30000)
     final_sql: str | None = Field(default=None, min_length=1, max_length=30000)
     search: str | None = Field(default=None, min_length=1, max_length=300)
     analysis: AnalysisArguments | None = None
+    collect: CollectionArguments | None = None
     answers: dict[str, Any] | None = None
     evidence_steps: list[int] = Field(default_factory=list, max_length=100)
     # Each answer key binds to a successful step and a path within its full result.
@@ -71,7 +76,16 @@ class ToolAction(Contract):
 
     @model_validator(mode="after")
     def one_action(self):
-        names = ("sql", "final_sql", "search", "analysis", "answers", "contract", "unsupported")
+        names = (
+            "sql",
+            "final_sql",
+            "search",
+            "analysis",
+            "collect",
+            "answers",
+            "contract",
+            "unsupported",
+        )
         if sum(getattr(self, name) is not None for name in names) != 1:
             raise ValueError("exactly one typed action required")
         if self.answers is None and (self.evidence_steps or self.bindings):

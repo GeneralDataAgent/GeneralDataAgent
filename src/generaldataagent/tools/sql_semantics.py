@@ -100,6 +100,23 @@ def assemble_answers(bindings: dict, evidence: dict[int, dict], answer: AnswerSp
                 value = value[part]
         except (KeyError, IndexError, TypeError) as exc:
             raise SemanticError("evidence path not found") from exc
+        if isinstance(value, list) and path == ["items"]:
+            result = evidence[step]
+            if (
+                result.get("complete") is not True
+                or result.get("total_count") != len(value)
+                or answer.shape != "set"
+            ):
+                raise SemanticError("collection completeness not verified")
+            checks = validate_rows(
+                [key],
+                [(item,) for item in value],
+                answer.model_copy(update={"columns": [key], "shape": "set"}),
+            )
+            if checks:
+                raise SemanticError(",".join(checks))
+            output[key] = value
+            continue
         if isinstance(value, (dict, list, tuple)):
             raise SemanticError("bind individual scalar fields, not previews or containers")
         if value is not None and not isinstance(value, (str, int, float, bool)):
@@ -121,6 +138,26 @@ def assemble_answers(bindings: dict, evidence: dict[int, dict], answer: AnswerSp
         raw = evidence[step]
         for part in path:
             raw = raw[part]
+        if isinstance(raw, list):
+            continue
         if validate_rows([key], [(raw,)], unrounded):
             raise SemanticError("answer value violates contract")
     return output
+
+
+def collect_complete(database, sql: str, *, allowed_relations: set[str]) -> dict:
+    """A bounded complete one-column collection; over-limit queries fail, never truncate."""
+    from generaldataagent.tools.sql_guard import SqlGuard
+    from generaldataagent.tools.sqlite import SQLiteReadOnlyExecutor
+
+    SqlGuard(dialect="sqlite").inspect(sql, allowed_relations=allowed_relations)
+    tree = parse_one(sql, read="sqlite")
+    if tree.find(exp.Limit) or tree.find(exp.Offset):
+        raise SemanticError("complete collections cannot use LIMIT or OFFSET")
+    result = SQLiteReadOnlyExecutor(database, max_rows=10000, timeout_seconds=5).execute(sql)
+    if len(result.columns) != 1:
+        raise SemanticError("complete collection requires one explicit output column")
+    items = [row[0] for row in result.rows]
+    if len(set(items)) != len(items):
+        raise SemanticError("complete set contains duplicates; use distinct entity grain")
+    return {"items": items, "total_count": len(items), "complete": True}

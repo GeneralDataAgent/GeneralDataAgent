@@ -19,11 +19,17 @@ def semantic_context(database, *, allowed_relations: set[str]) -> dict:
         guard.inspect(sql, allowed_relations=allowed_relations)
         return executor.execute(sql).rows
 
+    def preview(value):
+        if isinstance(value, bytes):
+            return {"type": "blob", "byte_count": len(value)}
+        return value[:160] if isinstance(value, str) else value
+
     tables = {}
     with sqlite3.connect(database.resolve().as_uri() + "?mode=ro", uri=True) as db:
-        for table in sorted(allowed_relations):
+        for table in sorted(allowed_relations)[:12]:
             fields = []
-            for col in db.execute("PRAGMA table_info(" + quote(table) + ")"):
+            columns = db.execute("PRAGMA table_info(" + quote(table) + ")").fetchall()
+            for col in columns[:24]:
                 name, declared_type = col[1], col[2]
                 samples = query(
                     f"SELECT DISTINCT {quote(name)} FROM {quote(table)} "
@@ -33,20 +39,25 @@ def semantic_context(database, *, allowed_relations: set[str]) -> dict:
                     {
                         "name": name,
                         "declared_type": declared_type,
-                        "enum_preview": [row[0] for row in samples[:5]],
+                        "enum_preview": [preview(row[0]) for row in samples[:5]],
+                        "value_preview_limit_chars": 160,
                         "preview_complete": len(samples) < 6,
                         "aliases": [],
                         "date_encoding": "unverified; inspect public schema and values",
                     }
                 )
             count = query(f"SELECT COUNT(*) FROM {quote(table)}")[0][0]
-            tables[table] = {"row_count": count, "fields": fields}
+            tables[table] = {
+                "row_count": count,
+                "fields": fields,
+                "omitted_fields": max(0, len(columns) - 24),
+            }
     # Composite FK components must be profiled together, never as independent joins.
     groups = {}
     for fk in relationships["foreign_keys"]:
         groups.setdefault((fk["table"], fk["relationship"]), []).append(fk)
     cardinalities = []
-    for (table, _), components in sorted(groups.items()):
+    for (table, _), components in sorted(groups.items())[:24]:
         components.sort(key=lambda f: f["sequence"])
         target = components[0]["references_table"]
         target_pk = relationships["primary_keys"].get(target, [])
@@ -77,6 +88,8 @@ def semantic_context(database, *, allowed_relations: set[str]) -> dict:
         )
     return {
         "tables": tables,
+        "omitted_table_previews": max(0, len(allowed_relations) - 12),
+        "omitted_cardinality_checks": max(0, len(groups) - 24),
         "relationships": relationships,
         "cardinalities": cardinalities,
         "scope": "untrusted observations; aliases and date semantics require public evidence",

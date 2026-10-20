@@ -331,7 +331,8 @@ class BoundedSQLAgent:
         if max_steps < 1 or max_seconds <= 0 or max_tokens < 1:
             raise ValueError("invalid agent budget")
         if (
-            tool_profile not in {"sql", "sql-analysis", "sql-repair", "sql-precision"}
+            tool_profile
+            not in {"sql", "sql-analysis", "sql-repair", "sql-precision", "sql-semantic"}
             or not math.isfinite(max_cost_usd)
             or max_cost_usd <= 0
         ):
@@ -353,6 +354,8 @@ class BoundedSQLAgent:
         )
 
         context, relations = database_context(database.resolve())
+        from generaldataagent.catalog.semantic_context import semantic_context
+        from generaldataagent.evaluation.stage_seven import STAGE7_PROMPT
         from generaldataagent.evaluation.stage_six_repair import (
             REPAIR_PROMPT,
             bounded_observation,
@@ -363,12 +366,27 @@ class BoundedSQLAgent:
             SQL_PRECISION_PROMPT,
             schema_relationships,
         )
+        from generaldataagent.orchestration.analysis_plan import (
+            ActionSchemaError,
+            accept_contract,
+            validate_action,
+        )
+        from generaldataagent.tools.sql_semantics import (
+            SemanticError,
+            assemble_answers,
+            collect_complete,
+            inspect_semantics,
+            validate_rows,
+        )
 
+        semantic = self.tool_profile == "sql-semantic"
+        task_spec = None
+        evidence = {}
         precision = self.tool_profile == "sql-precision"
         if precision and task.benchmark != "bird-mini-dev-sqlite":
             raise ValueError("SQL precision requires a SQL-output task")
-        repair = self.tool_profile in {"sql-repair", "sql-precision"}
-        enhanced = self.tool_profile in {"sql-analysis", "sql-repair"}
+        repair = self.tool_profile in {"sql-repair", "sql-precision", "sql-semantic"}
+        enhanced = self.tool_profile in {"sql-analysis", "sql-repair", "sql-semantic"}
         extra = (
             """
 You also have fixed read-only tools. Search business documents with {"search":"terms"};
@@ -389,7 +407,10 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                 "system",
                 SQL_PRECISION_PROMPT
                 if precision
-                else SYSTEM_PROMPT + extra + (REPAIR_PROMPT if repair else ""),
+                else SYSTEM_PROMPT
+                + extra
+                + (REPAIR_PROMPT if repair else "")
+                + (STAGE7_PROMPT if semantic else ""),
             ),
             (
                 "human",
@@ -413,6 +434,10 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
             request = json.loads(messages[1][1])
             request.pop("answer_fields", None)
             request["relationships"] = schema_relationships(database, allowed_relations=relations)
+            messages[1] = ("human", json.dumps(request))
+        if semantic:
+            request = json.loads(messages[1][1])
+            request["semantic_context"] = semantic_context(database, allowed_relations=relations)
             messages[1] = ("human", json.dumps(request))
         executor = SQLiteReadOnlyExecutor(database, max_rows=200, timeout_seconds=5)
         guard = SqlGuard(dialect="sqlite")
@@ -505,15 +530,45 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                 if not isinstance(action, dict):
                     raise ValueError("one JSON object required")
                 messages.append(("assistant", raw))
-                if repair:
+                if repair and not semantic:
                     action, correction = repair_action(action)
                     if correction:
                         trace.append({"step": step, "status": "repaired", "code": correction})
+                if semantic:
+                    if isinstance(action.get("contract"), dict):
+                        # Bind public text here to avoid lossy model copies.
+                        action["contract"].setdefault("question", task.question)
+                        action["contract"].setdefault("public_requirements", task.instructions)
+                    action = validate_action(action)
+                    if "contract" in action:
+                        if task_spec is not None:
+                            raise SemanticError("contract is immutable within a run")
+                        task_spec = accept_contract(
+                            action["contract"],
+                            question=task.question,
+                            instructions=task.instructions,
+                        )
+                        if task.benchmark != "bird-mini-dev-sqlite":
+                            visible = set(re.findall(r"@(\w+)\[", task.instructions)) or {"answer"}
+                            if set(task_spec.answer.columns) != visible:
+                                task_spec = None
+                                raise SemanticError("contract must use public answer keys")
+                        trace.append({"step": step, "status": "planned", "tool": "task_contract"})
+                        messages.append(
+                            ("human", json.dumps({"step": step, "contract": "accepted"}))
+                        )
+                        continue
+                    if task_spec is None and "unsupported" not in action:
+                        raise SemanticError("public task contract required first")
+                    if "final_sql" in action and task.benchmark != "bird-mini-dev-sqlite":
+                        raise SemanticError("this task requires evidence-bound answers")
                 allowed_actions = (
                     {"sql", "final_sql", "unsupported"}
                     if precision
                     else {"sql", "final_sql", "answers", "unsupported"}
                 )
+                if semantic:
+                    allowed_actions.add("collect")
                 if enhanced:
                     allowed_actions.update({"search", "analysis"})
                 if len(allowed_actions.intersection(action)) != 1:
@@ -583,7 +638,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     answers = (
                         normalize_visible_answers(task, raw_answers) if enhanced else raw_answers
                     )
-                    if repair:
+                    if repair and not semantic:
                         visible = (
                             set(re.findall(r"@(\w+)\[", task.instructions))
                             if task.benchmark == "infiagent-dabench"
@@ -604,9 +659,22 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                             answers = {}
                             failure = "invalid_output"
                             continue
+                    if semantic:
+                        if set(action.get("bindings", {})) != set(task_spec.answer.columns):
+                            raise SemanticError("bind every public answer field")
+                        if any(v[0] not in citations for v in action.get("bindings", {}).values()):
+                            raise SemanticError("binding steps must also be cited")
+                        answers = assemble_answers(
+                            action.get("bindings", {}), evidence, task_spec.answer
+                        )
                     failure = None
                     break
-                if enhanced and "search" in action:
+                if semantic and "collect" in action:
+                    result_data = collect_complete(
+                        database, action["collect"]["sql"], allowed_relations=relations
+                    )
+                    tool = "complete_collection"
+                elif enhanced and "search" in action:
                     result_data = retrieve_documents(documents, action["search"])
                     tool = "document_search"
                 elif enhanced and "analysis" in action:
@@ -617,7 +685,15 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                 else:
                     sql = action.get("final_sql", action.get("sql", ""))
                     guard.inspect(sql, allowed_relations=relations)
+                    if semantic and "final_sql" in action:
+                        issues = inspect_semantics(sql, task_spec)
+                        if issues:
+                            raise SemanticError(",".join(issues))
                     result = executor.execute(sql)
+                    if semantic and "final_sql" in action:
+                        issues = validate_rows(result.columns, result.rows, task_spec.answer)
+                        if issues:
+                            raise SemanticError(",".join(issues))
                     result_data = {"columns": result.columns, "rows": result.rows}
                     tool = "sql"
                 event = {
@@ -640,6 +716,8 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     failure = "repeated_action"
                     break
                 trace.append(event)
+                if semantic and tool != "document_search":
+                    evidence[step] = result_data
                 if action_counts[action_key] > 1:
                     result_data["warning"] = (
                         "Identical action repeated with no new evidence; revise your plan."
@@ -650,6 +728,8 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                 feedback = bounded_observation(result_data) if repair else result_data
                 messages.append(("human", json.dumps({"step": step, **feedback}, default=str)))
             except Exception as exc:
+                if semantic:
+                    answers = {}
                 kind = type(exc).__name__
                 text = str(exc).lower()
                 code = next(
@@ -669,12 +749,24 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     "invalid_action",
                 )
                 event = {"step": step, "status": "error", "error": kind, "code": code}
-                if isinstance(action, dict):
+                if semantic and isinstance(exc, ActionSchemaError):
+                    event.update(
+                        code="action_schema",
+                        schema_errors=exc.paths,
+                        repair_type="correct_parameters",
+                    )
+                elif semantic and isinstance(exc, SemanticError):
+                    event.update(code="semantic_contract", repair_type="revise_plan_or_query")
+                if isinstance(action, dict) and not semantic:
                     attempted_sql = action.get("final_sql", action.get("sql"))
                     if isinstance(attempted_sql, str):
                         event["attempted_sql"] = attempted_sql[:10000]
                 trace.append(event)
-                feedback = {"step": step, "error": kind, "code": code}
+                feedback = {"step": step, "error": kind, "code": event["code"]}
+                if semantic and isinstance(exc, ActionSchemaError):
+                    feedback["schema_errors"] = exc.paths
+                if semantic and isinstance(exc, SemanticError):
+                    feedback["checks"] = str(exc)[:300]
                 if repair:
                     feedback["hint"] = execution_hint(exc)
                     if precision:
@@ -688,6 +780,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
         return {
             "answers": answers,
             "raw_answers": raw_answers,
+            "task_contract": task_spec.model_dump() if task_spec else None,
             "final_sql": final_sql,
             "failure": failure,
             "trace": trace,

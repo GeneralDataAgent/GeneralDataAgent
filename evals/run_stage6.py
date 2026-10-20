@@ -45,6 +45,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--benchmark", choices=["infi", "dabstep", "bird"], required=True)
     parser.add_argument("--limit", type=int, default=60)
+    parser.add_argument(
+        "--evaluation-protocol", choices=["stage6-v7", "stage7-v1"], default="stage6-v7"
+    )
     parser.add_argument("--seed", type=int, default=20261020)
     parser.add_argument("--workers", type=int, choices=range(1, 5), default=1)
     parser.add_argument("--app-type", choices=["claude", "codex", "magpie"], default="claude")
@@ -59,7 +62,7 @@ def main():
     parser.add_argument("--json-mode", action="store_true")
     parser.add_argument(
         "--tool-profile",
-        choices=["sql", "sql-analysis", "sql-repair", "sql-precision"],
+        choices=["sql", "sql-analysis", "sql-repair", "sql-precision", "sql-semantic"],
         default="sql",
     )
     parser.add_argument(
@@ -70,6 +73,8 @@ def main():
     parser.add_argument("--bird-databases", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
+    if args.tool_profile == "sql-semantic" and args.evaluation_protocol != "stage7-v1":
+        parser.error("sql-semantic requires stage7-v1; rerun both comparison arms")
     if args.tool_profile == "sql-precision" and args.benchmark != "bird":
         parser.error("SQL precision requires the SQL-output benchmark")
     if not 0 <= args.request_interval_seconds <= 60:
@@ -115,6 +120,7 @@ def main():
     args.output.mkdir(parents=True)
     code_hash = digest(Path(__file__).resolve())
     protocol = evaluation_protocol(workers=args.workers, max_output_tokens=args.max_output_tokens)
+    protocol["version"] = args.evaluation_protocol
     protocol["request_interval_seconds"] = args.request_interval_seconds
     if args.csv_importer == "identifier-v2":
         protocol["csv_importer"] = args.csv_importer
@@ -151,6 +157,8 @@ def main():
         if not readiness["ready"]:
             print(json.dumps(readiness, indent=2), flush=True)
             raise SystemExit(2)
+    from generaldataagent.evaluation.stage_seven import stage7_fingerprint
+
     system_fingerprint = {
         "prompt_hash": hashlib.sha256(SYSTEM_PROMPT.encode()).hexdigest(),
         "agent_hash": digest(ROOT / "src/generaldataagent/evaluation/stage_six.py"),
@@ -168,6 +176,7 @@ def main():
         "worker_hash": digest(ROOT / "src/generaldataagent/evaluation/stage_six_worker.py"),
         "dependency_lock_hash": digest(ROOT / "uv.lock"),
         "tool_profile": args.tool_profile,
+        "stage7_sources": stage7_fingerprint(ROOT) if args.tool_profile == "sql-semantic" else None,
         "route_hash": route["route_hash"],
     }
     report = {
