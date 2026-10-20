@@ -77,6 +77,7 @@ class ToolAction(Contract):
     # Each answer key binds to a successful step and a path within its full result.
     bindings: dict[str, tuple[int, list[str | int]]] = Field(default_factory=dict)
     contract: AnalysisTaskSpec | None = None
+    task_spec: AnalysisTaskSpec | None = None
     unsupported: str | None = Field(default=None, min_length=1, max_length=1000)
 
     @model_validator(mode="after")
@@ -94,6 +95,8 @@ class ToolAction(Contract):
         )
         if sum(getattr(self, name) is not None for name in names) != 1:
             raise ValueError("exactly one typed action required")
+        if self.task_spec is not None and self.final_sql is None:
+            raise ValueError("inline task spec belongs to final SQL only")
         if self.answers is None and (self.evidence_steps or self.bindings):
             raise ValueError("evidence bindings belong to answers only")
         return self

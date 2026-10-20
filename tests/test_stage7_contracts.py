@@ -70,8 +70,12 @@ def test_stage_specific_native_schemas_do_not_offer_unavailable_tools():
             return kwargs
 
     planning = bind_typed_tools(Model(), sql_output=True)
-    assert [t["function"]["name"] for t in planning["tools"]] == ["plan_analysis"]
-    plan_schema = planning["tools"][0]["function"]["parameters"]
+    assert {t["function"]["name"] for t in planning["tools"]} == {
+        "plan_analysis",
+        "submit_sql",
+        "execute_sql",
+    }
+    plan_schema = planning["tools"][2]["function"]["parameters"]
     assert "question" not in plan_schema["properties"]
     execution = bind_typed_tools(Model(), sql_output=True, planned=True)
     assert {t["function"]["name"] for t in execution["tools"]} == {
@@ -98,3 +102,9 @@ def test_json_function_envelopes_are_normalized_without_discarding_actions():
     assert normalize_protocol_action(mixed) == mixed
     with pytest.raises(ActionSchemaError):
         validate_action(normalize_protocol_action(mixed))
+
+
+def test_precision_requires_an_explicit_public_rounding_rule():
+    proposal = {"question": "correlation?", "answer": {"decimals": 2}}
+    with pytest.raises(ValueError, match="public"):
+        accept_contract(proposal, question="correlation?", instructions="")

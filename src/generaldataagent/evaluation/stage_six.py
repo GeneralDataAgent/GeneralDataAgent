@@ -557,10 +557,14 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                         content = json.dumps(arguments)
                     elif name in keys:
                         if name in {"execute_sql", "submit_sql"}:
-                            if set(arguments) != {"sql"}:
+                            if "sql" not in arguments or set(arguments) - {"sql", "task_spec"}:
                                 raise ActionSchemaError([{"path": [name], "type": "sql_required"}])
-                            arguments = arguments["sql"]
-                        content = json.dumps({keys[name]: arguments})
+                            content = {keys[name]: arguments["sql"]}
+                            if "task_spec" in arguments:
+                                content["task_spec"] = arguments["task_spec"]
+                            content = json.dumps(content)
+                        else:
+                            content = json.dumps({keys[name]: arguments})
                     else:
                         raise ActionSchemaError([{"path": ["tool_calls"], "type": "unknown_tool"}])
                 if isinstance(content, list):
@@ -577,11 +581,22 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     if correction:
                         trace.append({"step": step, "status": "repaired", "code": correction})
                 if semantic:
-                    if isinstance(action.get("contract"), dict):
-                        # Bind public text here to avoid lossy model copies.
-                        action["contract"].setdefault("question", task.question)
-                        action["contract"].setdefault("public_requirements", task.instructions)
+                    for field in ("contract", "task_spec"):
+                        if isinstance(action.get(field), dict):
+                            action[field].setdefault("question", task.question)
+                            action[field].setdefault("public_requirements", task.instructions)
                     action = validate_action(action)
+                    if "task_spec" in action:
+                        if task_spec is not None:
+                            raise SemanticError("contract is immutable within a run")
+                        try:
+                            task_spec = accept_contract(
+                                action["task_spec"],
+                                question=task.question,
+                                instructions=task.instructions,
+                            )
+                        except ValueError as exc:
+                            raise SemanticError(str(exc)) from None
                     if "contract" in action:
                         if task_spec is not None:
                             raise SemanticError("contract is immutable within a run")
@@ -600,7 +615,11 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                             ("human", json.dumps({"step": step, "contract": "accepted"}))
                         )
                         continue
-                    if task_spec is None and "unsupported" not in action:
+                    if (
+                        task_spec is None
+                        and "unsupported" not in action
+                        and not (task.benchmark == "bird-mini-dev-sqlite" and "sql" in action)
+                    ):
                         raise SemanticError("public task contract required first")
                     if "final_sql" in action and task.benchmark != "bird-mini-dev-sqlite":
                         raise SemanticError("this task requires evidence-bound answers")

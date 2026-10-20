@@ -54,6 +54,8 @@ def accept_contract(proposal: dict, *, question: str, instructions: str) -> Anal
     digits = {int(v) if v.isdigit() else words[v.lower()] for v in matches}
     if len(digits) > 1:
         raise ValueError("conflicting public rounding requirements")
+    if not digits and spec.answer.decimals is not None:
+        raise ValueError("precision requires an explicit public rounding rule")
     if digits:
         precision = next(iter(digits))
         if spec.answer.decimals is not None and spec.answer.decimals != precision:
@@ -83,7 +85,14 @@ def normalize_protocol_action(action):
         return action
     arguments = action[name]
     if name in {"execute_sql", "submit_sql"}:
-        if not isinstance(arguments, dict) or set(arguments) != {"sql"}:
+        if (
+            not isinstance(arguments, dict)
+            or set(arguments) - {"sql", "task_spec"}
+            or "sql" not in arguments
+        ):
             return action
-        arguments = arguments["sql"]
+        result = {names[name]: arguments["sql"]}
+        if "task_spec" in arguments:
+            result["task_spec"] = arguments["task_spec"]
+        return result
     return {names[name]: arguments}

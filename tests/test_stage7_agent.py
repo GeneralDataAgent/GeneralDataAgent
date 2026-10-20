@@ -200,3 +200,18 @@ def test_native_tool_calls_use_same_strict_runtime_validation(database):
     result = BoundedSQLAgent(NativeModel(), tool_profile="sql-semantic").run(task, database)
     assert result["failure"] is None
     assert result["final_sql"] == "SELECT id FROM people"
+
+
+def test_atomic_sql_submission_carries_contract_in_one_action(database):
+    result = run(
+        database,
+        [
+            {
+                "final_sql": "SELECT id FROM people",
+                "task_spec": {"answer": {"columns": ["id"]}},
+            }
+        ],
+    )
+    assert result["failure"] is None
+    assert len(result["trace"]) == 1
+    assert result["task_contract"]["question"] == "champions"
