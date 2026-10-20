@@ -29,6 +29,7 @@ class PlanFilter(PlanNode):
     field: FieldRef
     operator: Literal["eq", "ne", "lt", "lte", "gt", "gte", "in", "is_null", "is_not_null"]
     value: Any = None
+    phase: Literal["before", "after_rank"] = "before"
     source_excerpt: str = Field(min_length=1, max_length=2000)
 
 

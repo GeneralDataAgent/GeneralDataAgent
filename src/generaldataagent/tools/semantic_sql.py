@@ -75,31 +75,38 @@ def compile_semantic_plan(
             return "'" + value.replace("'", "''") + "'"
         raise ValueError("unsupported plan literal")
 
-    conditions = []
+    conditions, after_conditions, after_fields = [], [], []
     operators = {"eq": "=", "ne": "<>", "lt": "<", "lte": "<=", "gt": ">", "gte": ">="}
     for predicate in plan.filters:
         if predicate.source_excerpt not in public:
             raise ValueError("filter needs an exact public source excerpt")
         column = field(predicate.field)
+        target = conditions
+        if predicate.phase == "after_rank":
+            if plan.operation != "rank":
+                raise ValueError("after-rank filters require a rank operation")
+            after_fields.append(column)
+            column = quote("_f" + str(len(after_fields) - 1))
+            target = after_conditions
         if predicate.operator in {"is_null", "is_not_null"}:
             if not re.search(r"null|missing|缺失|空值", predicate.source_excerpt, re.I):
                 raise ValueError("null filtering must be publicly requested")
             if predicate.value is not None:
                 raise ValueError("null filters do not take a value")
-            conditions.append(
+            target.append(
                 column + (" IS NULL" if predicate.operator == "is_null" else " IS NOT NULL")
             )
         elif predicate.operator == "in":
             if not isinstance(predicate.value, list) or not 1 <= len(predicate.value) <= 100:
                 raise ValueError("IN needs one to one hundred public values")
-            conditions.append(
+            target.append(
                 column
                 + " IN ("
                 + ",".join(literal(v, predicate.source_excerpt) for v in predicate.value)
                 + ")"
             )
         else:
-            conditions.append(
+            target.append(
                 column
                 + operators[predicate.operator]
                 + literal(predicate.value, predicate.source_excerpt)
@@ -148,11 +155,14 @@ def compile_semantic_plan(
         select += [f"{value} AS {quote('_g' + str(i))}" for i, value in enumerate(partitions)]
         select += [f"{value} AS {quote('_k' + str(i))}" for i, value in enumerate(keys)]
         select += [f"{value} AS {quote('_t' + str(i))}" for i, value in enumerate(tie_values)]
+        select += [f"{value} AS {quote('_f' + str(i))}" for i, value in enumerate(after_fields)]
         select.append(metric + " AS " + quote("_metric"))
         base = "SELECT " + ("DISTINCT " if plan.aggregation == "none" else "") + ",".join(select)
         base += " FROM " + source + where
         if plan.aggregation != "none":
-            base += " GROUP BY " + ",".join(dict.fromkeys(values + partitions + keys + tie_values))
+            base += " GROUP BY " + ",".join(
+                dict.fromkeys(values + partitions + keys + tie_values + after_fields)
+            )
         partition = (
             ("PARTITION BY " + ",".join(quote("_g" + str(i)) for i in range(len(partitions))) + " ")
             if partitions
@@ -193,6 +203,7 @@ def compile_semantic_plan(
             + quote("_rank")
             + " <= "
             + str(plan.top_k)
+            + (" AND " + " AND ".join(after_conditions) if after_conditions else "")
         )
         answer = AnswerSpec(columns=[p.name for p in plan.projections], ties=plan.ties)
     SqlGuard(dialect="sqlite").inspect(sql, allowed_relations=set(plan.relations))
@@ -200,8 +211,54 @@ def compile_semantic_plan(
         question=question,
         public_requirements=instructions,
         grain=[key.relation + "." + key.column for key in plan.entity_keys],
-        filters=conditions,
+        filters=conditions + after_conditions,
         count_basis=plan.count_basis if plan.operation == "count" else "unspecified",
         answer=answer,
     )
     return sql, spec
+
+
+def execute_semantic_plan(
+    database, plan, *, allowed_relations, question, instructions="", max_rows=200
+):
+    """Compile against physical scoped schema and execute a complete bounded read-only result.
+
+    This API is not registered as a model tool. Compilation and execution remain separate from
+    independent business interpretation review and benchmark scoring.
+    """
+    import sqlite3
+
+    from generaldataagent.tools.sql_semantics import (
+        SemanticError,
+        inspect_semantics,
+        validate_column_scope,
+        validate_rows,
+    )
+    from generaldataagent.tools.sqlite import SQLiteReadOnlyExecutor
+
+    if type(max_rows) is not int or not 1 <= max_rows <= 10000:
+        raise ValueError("plan result limit must be between one and ten thousand")
+    schema = {}
+    with sqlite3.connect(database.resolve().as_uri() + "?mode=ro", uri=True) as db:
+        for table in allowed_relations:
+            quoted = '"' + table.replace('"', '""') + '"'
+            schema[table] = [row[1] for row in db.execute(f"PRAGMA table_info({quoted})")]
+    sql, spec = compile_semantic_plan(
+        plan, schema=schema, question=question, instructions=instructions
+    )
+    validate_column_scope(database, sql, allowed_relations=set(allowed_relations))
+    checks = inspect_semantics(sql, spec)
+    if checks:
+        raise SemanticError(",".join(checks))
+    result = SQLiteReadOnlyExecutor(database, max_rows=max_rows, timeout_seconds=5).execute(sql)
+    checks = validate_rows(result.columns, result.rows, spec.answer)
+    if checks:
+        raise SemanticError(",".join(checks))
+    return {
+        "sql": sql,
+        "task_contract": spec.model_dump(),
+        **result.as_dict(),
+        "complete": True,
+        "method_id": "semantic_plan",
+        "business_semantics_verified": False,
+    }
