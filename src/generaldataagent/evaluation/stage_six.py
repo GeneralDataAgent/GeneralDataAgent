@@ -382,6 +382,8 @@ class BoundedSQLAgent:
         semantic = self.tool_profile == "sql-semantic"
         task_spec = None
         evidence = {}
+        crosscheck_rows = None
+        crosscheck_used = False
         precision = self.tool_profile == "sql-precision"
         if precision and task.benchmark != "bird-mini-dev-sqlite":
             raise ValueError("SQL precision requires a SQL-output task")
@@ -568,7 +570,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     else {"sql", "final_sql", "answers", "unsupported"}
                 )
                 if semantic:
-                    allowed_actions.add("collect")
+                    allowed_actions.update({"collect", "crosscheck"})
                 if enhanced:
                     allowed_actions.update({"search", "analysis"})
                 if len(allowed_actions.intersection(action)) != 1:
@@ -669,7 +671,21 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                         )
                     failure = None
                     break
-                if semantic and "collect" in action:
+                if semantic and "crosscheck" in action:
+                    if crosscheck_used:
+                        raise SemanticError("only one crosscheck query is permitted")
+                    crosscheck_used = True
+                    sql = action["crosscheck"]["sql"]
+                    guard.inspect(sql, allowed_relations=relations)
+                    result = executor.execute(sql)
+                    crosscheck_rows = result.rows
+                    result_data = {
+                        "columns": result.columns,
+                        "rows": result.rows,
+                        "purpose": action["crosscheck"]["purpose"],
+                    }
+                    tool = "sql_crosscheck"
+                elif semantic and "collect" in action:
                     result_data = collect_complete(
                         database, action["collect"]["sql"], allowed_relations=relations
                     )
@@ -691,6 +707,10 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                             raise SemanticError(",".join(issues))
                     result = executor.execute(sql)
                     if semantic and "final_sql" in action:
+                        if crosscheck_rows is not None and Counter(result.rows) != Counter(
+                            crosscheck_rows
+                        ):
+                            raise SemanticError("final query disagrees with crosscheck result")
                         issues = validate_rows(result.columns, result.rows, task_spec.answer)
                         if issues:
                             raise SemanticError(",".join(issues))

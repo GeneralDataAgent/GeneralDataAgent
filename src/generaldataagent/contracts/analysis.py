@@ -61,12 +61,17 @@ class CollectionArguments(Contract):
     sql: str = Field(min_length=1, max_length=30000)
 
 
+class CrosscheckArguments(CollectionArguments):
+    purpose: Literal["ties", "entity_grain", "denominator", "date_boundary", "output_range"]
+
+
 class ToolAction(Contract):
     sql: str | None = Field(default=None, min_length=1, max_length=30000)
     final_sql: str | None = Field(default=None, min_length=1, max_length=30000)
     search: str | None = Field(default=None, min_length=1, max_length=300)
     analysis: AnalysisArguments | None = None
     collect: CollectionArguments | None = None
+    crosscheck: CrosscheckArguments | None = None
     answers: dict[str, Any] | None = None
     evidence_steps: list[int] = Field(default_factory=list, max_length=100)
     # Each answer key binds to a successful step and a path within its full result.
@@ -82,6 +87,7 @@ class ToolAction(Contract):
             "search",
             "analysis",
             "collect",
+            "crosscheck",
             "answers",
             "contract",
             "unsupported",

@@ -22,6 +22,10 @@ Use only supported schema fields. Never use reference answers, reference SQL or 
 The contract is a proposed interpretation, not proof of understanding. Check original text again.
 For oldest by birthday use ascending birth date; compute age explicitly if age is requested.
 Preserve all requested ties and complete sets. Inspect category/date formats and exact boundaries.
+For a high-risk final SQL you may spend one of the six actions on exactly one
+{"crosscheck":{"sql":"independent SELECT returning the same requested rows",
+"purpose":"ties"}}. Purposes: ties/entity_grain/denominator/date_boundary/output_range.
+The runtime compares its rows with final_sql and rejects disagreement; agreement alone is not proof.
 SQL actions must be read-only. final_sql is reserved for SQL-output tasks.
 For answers, first compute full-data evidence, then return an empty answers object and bindings:
 {"answers":{},"evidence_steps":[2],"bindings":{"name":[2,["rows",0,0]]}}.

@@ -144,3 +144,22 @@ def test_runtime_binds_public_text_and_precision(database):
     assert result["failure"] is None
     assert result["answers"] == {"n": "1.50"}
     assert result["task_contract"]["question"] == "mean?"
+
+
+def test_crosscheck_disagreement_and_second_check_are_rejected(database):
+    result = run(
+        database,
+        [
+            contract(columns=["id"]),
+            {"crosscheck": {"sql": "SELECT id FROM people", "purpose": "ties"}},
+            {"crosscheck": {"sql": "SELECT id FROM people", "purpose": "ties"}},
+            {"final_sql": "SELECT id FROM people WHERE id=1"},
+            {"final_sql": "SELECT id FROM people"},
+        ],
+    )
+    assert result["failure"] is None
+    assert result["trace"][1]["tool"] == "sql_crosscheck"
+    assert [e["code"] for e in result["trace"] if e["status"] == "error"] == [
+        "semantic_contract",
+        "semantic_contract",
+    ]
