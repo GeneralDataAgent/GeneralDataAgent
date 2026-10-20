@@ -37,7 +37,11 @@ def main() -> None:
     )
     if arguments.app_type == "magpie":
         model.max_tokens = 3000
-    narrator = LangChainNarrator(model, model_name=provider.model)
+    narrator = LangChainNarrator(
+        model,
+        model_name=provider.model,
+        structured_output_method="function_calling" if arguments.app_type == "magpie" else None,
+    )
     started = monotonic()
     try:
         narrative = narrator.generate(

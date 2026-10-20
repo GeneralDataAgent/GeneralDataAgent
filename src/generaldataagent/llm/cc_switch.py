@@ -115,8 +115,16 @@ Use only the supplied metric result. Do not invent causes, entities, or values. 
 concise. Put uncertainty or source limitations in limitations. Do not use Markdown.
 """
 
-    def __init__(self, model: Any, *, model_name: str) -> None:
-        self.model = model.with_structured_output(Narrative)
+    def __init__(
+        self,
+        model: Any,
+        *,
+        model_name: str,
+        structured_output_method: Literal["function_calling", "json_schema", "json_mode"]
+        | None = None,
+    ) -> None:
+        options = {} if structured_output_method is None else {"method": structured_output_method}
+        self.model = model.with_structured_output(Narrative, **options)
         self.model_name = model_name
 
     def generate(self, evidence: Mapping[str, Any]) -> Narrative:

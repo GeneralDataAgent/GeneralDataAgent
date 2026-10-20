@@ -113,3 +113,25 @@ def test_header_changes_are_detected_between_parent_and_worker(config, monkeypat
         app_type="magpie", provider_id="magpie", model_override=p.model
     )
     assert first["route_hash"] != changed["route_hash"]
+
+
+@pytest.mark.parametrize("method", [None, "function_calling"])
+def test_narrative_method_is_explicit_and_model_claim_is_overridden(method):
+    from generaldataagent.llm import LangChainNarrator, Narrative
+
+    captured = {}
+
+    class Model:
+        def with_structured_output(self, schema, **kwargs):
+            captured.update(kwargs)
+            assert schema is Narrative
+            return self
+
+        def invoke(self, messages):
+            return Narrative(summary="Queens 10; Manhattan 20", model="untrusted/self-report")
+
+    narrator = LangChainNarrator(
+        Model(), model_name="pinned/route", structured_output_method=method
+    )
+    assert captured == ({} if method is None else {"method": method})
+    assert narrator.generate({"rows": [[10], [20]]}).model == "pinned/route"
