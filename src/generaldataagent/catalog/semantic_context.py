@@ -1,5 +1,6 @@
 """Read-only, scoped field and relationship evidence with explicit preview limits."""
 
+import json
 import sqlite3
 
 from generaldataagent.evaluation.stage_six_sql_precision import schema_relationships
@@ -7,7 +8,9 @@ from generaldataagent.tools.sql_guard import SqlGuard
 from generaldataagent.tools.sqlite import SQLiteReadOnlyExecutor
 
 
-def semantic_context(database, *, allowed_relations: set[str]) -> dict:
+def semantic_context(database, *, allowed_relations: set[str], max_chars: int = 4000) -> dict:
+    if max_chars < 1000:
+        raise ValueError("semantic context budget too small")
     relationships = schema_relationships(database, allowed_relations=allowed_relations)
     executor = SQLiteReadOnlyExecutor(database, max_rows=10, timeout_seconds=5)
     guard = SqlGuard(dialect="sqlite")
@@ -86,7 +89,7 @@ def semantic_context(database, *, allowed_relations: set[str]) -> dict:
                 "scope": "observed key multiplicities including null groups; not join row count",
             }
         )
-    return {
+    output = {
         "tables": tables,
         "omitted_table_previews": max(0, len(allowed_relations) - 12),
         "omitted_cardinality_checks": max(0, len(groups) - 24),
@@ -94,3 +97,36 @@ def semantic_context(database, *, allowed_relations: set[str]) -> dict:
         "cardinalities": cardinalities,
         "scope": "untrusted observations; aliases and date semantics require public evidence",
     }
+
+    # Field schemas already appear in database_context: retain only bounded extra observations.
+    for table in output["tables"].values():
+        for field in table["fields"]:
+            field.pop("aliases", None)
+            field.pop("date_encoding", None)
+            field.pop("declared_type", None)
+    output["budget_chars"] = max_chars
+    while len(json.dumps(output, default=str)) > max_chars:
+        fields = [t for t in output["tables"].values() if t["fields"]]
+        if fields:
+            table = max(fields, key=lambda t: len(json.dumps(t)))
+            table["fields"].pop()
+            table["omitted_fields"] += 1
+        elif output["cardinalities"]:
+            output["cardinalities"].pop()
+            output["omitted_cardinality_checks"] += 1
+        elif output["relationships"]["foreign_keys"]:
+            output["relationships"]["foreign_keys"].pop()
+            output["omitted_declared_relationships"] = (
+                output.get("omitted_declared_relationships", 0) + 1
+            )
+        elif output["relationships"]["primary_keys"]:
+            output["relationships"]["primary_keys"].popitem()
+            output["omitted_declared_relationships"] = (
+                output.get("omitted_declared_relationships", 0) + 1
+            )
+        elif output["tables"]:
+            output["tables"].popitem()
+            output["omitted_table_previews"] += 1
+        else:
+            raise ValueError("semantic context metadata exceeds budget")
+    return output

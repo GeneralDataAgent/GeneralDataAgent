@@ -355,7 +355,11 @@ class BoundedSQLAgent:
 
         context, relations = database_context(database.resolve())
         from generaldataagent.catalog.semantic_context import semantic_context
-        from generaldataagent.evaluation.stage_seven import STAGE7_PROMPT
+        from generaldataagent.evaluation.stage_seven import (
+            STAGE7_PROMPT,
+            STAGE7_SQL_PROMPT,
+            bind_typed_tools,
+        )
         from generaldataagent.evaluation.stage_six_repair import (
             REPAIR_PROMPT,
             bounded_observation,
@@ -404,6 +408,11 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
             if enhanced
             else ""
         )
+        active_model = (
+            bind_typed_tools(self.model, sql_output=task.benchmark == "bird-mini-dev-sqlite")
+            if semantic
+            else self.model
+        )
         messages = [
             (
                 "system",
@@ -432,6 +441,8 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                 ),
             ),
         ]
+        if semantic and task.benchmark == "bird-mini-dev-sqlite":
+            messages[0] = ("system", STAGE7_SQL_PROMPT)
         if precision:
             request = json.loads(messages[1][1])
             request.pop("answer_fields", None)
@@ -477,7 +488,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                 )
             try:
                 try:
-                    response = self.model.invoke(messages)
+                    response = active_model.invoke(messages)
                 except Exception as exc:
                     status = getattr(exc, "status_code", None)
                     trace.append(
@@ -525,6 +536,11 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     )
                     break
                 content = response.content
+                calls = getattr(response, "tool_calls", []) if semantic else []
+                if calls:
+                    if len(calls) != 1 or calls[0].get("name") != "analysis_action":
+                        raise ActionSchemaError([{"path": ["tool_calls"], "type": "one_action"}])
+                    content = json.dumps(calls[0]["args"])
                 if isinstance(content, list):
                     content = "".join(x.get("text", "") for x in content if isinstance(x, dict))
                 raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", str(content).strip())

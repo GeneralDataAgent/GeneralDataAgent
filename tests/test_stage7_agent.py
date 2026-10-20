@@ -163,3 +163,34 @@ def test_crosscheck_disagreement_and_second_check_are_rejected(database):
         "semantic_contract",
         "semantic_contract",
     ]
+
+
+def test_native_tool_calls_use_same_strict_runtime_validation(database):
+    class NativeModel:
+        def __init__(self):
+            self.actions = iter(
+                [
+                    {"contract": {"answer": {"columns": ["id"]}}},
+                    {"final_sql": "SELECT id FROM people"},
+                ]
+            )
+
+        def bind(self, **kwargs):
+            assert kwargs["tool_choice"]["function"]["name"] == "analysis_action"
+            assert not kwargs["parallel_tool_calls"]
+            return self
+
+        def invoke(self, messages):
+            return SimpleNamespace(
+                content="",
+                tool_calls=[
+                    {"name": "analysis_action", "args": next(self.actions), "id": "call-1"}
+                ],
+                usage_metadata={"total_tokens": 10},
+                response_metadata={},
+            )
+
+    task = Task("bird-mini-dev-sqlite", "native", "ids?", "", "easy", "people")
+    result = BoundedSQLAgent(NativeModel(), tool_profile="sql-semantic").run(task, database)
+    assert result["failure"] is None
+    assert result["final_sql"] == "SELECT id FROM people"

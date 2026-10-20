@@ -68,3 +68,19 @@ def test_scoped_context_and_observed_many_to_many(tmp_path):
     assert result["cardinalities"][0]["many_to_many_risk"]
     assert result["tables"]["c"]["row_count"] == 3
     assert before == path.read_bytes()
+
+
+def test_semantic_context_has_a_global_serialized_budget(tmp_path):
+    import json
+
+    path = tmp_path / "wide.sqlite"
+    with sqlite3.connect(path) as db:
+        columns = ",".join(f"c{i} TEXT" for i in range(50))
+        db.execute(f"CREATE TABLE wide ({columns})")
+        db.execute(
+            "INSERT INTO wide VALUES (" + ",".join("?" for _ in range(50)) + ")",
+            ["long sample " * 100] * 50,
+        )
+    context = semantic_context(path, allowed_relations={"wide"}, max_chars=1500)
+    assert len(json.dumps(context)) <= 1500
+    assert context["tables"]["wide"]["omitted_fields"] > 0
