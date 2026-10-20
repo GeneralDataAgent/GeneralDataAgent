@@ -1,0 +1,205 @@
+"""Run public development cases through a bounded real-model read-only SQL baseline."""
+
+import argparse
+import hashlib
+import json
+import platform
+import subprocess
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import asdict
+from datetime import UTC, datetime
+from pathlib import Path
+
+from generaldataagent.evaluation.stage_six import (
+    SYSTEM_PROMPT,
+    add_json_tables,
+    build_csv_database,
+    digest,
+    equivalent_rows,
+    load_bird,
+    load_dabstep,
+    load_infi,
+    run_isolated,
+    sample_cases,
+    score_answers,
+    summarize,
+    verify_sources,
+)
+from generaldataagent.llm import CcSwitchProvider, OpenAiCcSwitchProvider
+from generaldataagent.tools import SQLiteReadOnlyExecutor
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--benchmark", choices=["infi", "dabstep", "bird"], required=True)
+    parser.add_argument("--limit", type=int, default=60)
+    parser.add_argument("--seed", type=int, default=20261020)
+    parser.add_argument("--workers", type=int, choices=range(1, 5), default=1)
+    parser.add_argument("--app-type", choices=["claude", "codex"], default="claude")
+    parser.add_argument("--provider-id")
+    parser.add_argument("--bird-databases", type=Path)
+    parser.add_argument("--output", type=Path, required=True)
+    args = parser.parse_args()
+    if args.output.exists():
+        parser.error("output exists; choose a new run directory")
+    root = ROOT / "data/stage6"
+    manifest = verify_sources(root)
+    cases = (
+        load_infi(root / "infi")
+        if args.benchmark == "infi"
+        else load_dabstep(root / "dabstep")
+        if args.benchmark == "dabstep"
+        else load_bird(root / "bird/mini_dev_sqlite.json")
+    )
+    selected = sample_cases(cases, args.limit, args.seed)
+    if args.benchmark == "bird" and not args.bird_databases:
+        parser.error("BIRD real database snapshot required; gold SQL is never a substitute")
+    provider = (CcSwitchProvider if args.app_type == "claude" else OpenAiCcSwitchProvider).load(
+        provider_id=args.provider_id
+    )
+    args.output.mkdir(parents=True)
+    code_hash = digest(Path(__file__).resolve())
+    protocol = {
+        "scorer": "stage6-v1-upstream-infi-absolute1e-6-dab-local-1e-6",
+        "prompt_hash": hashlib.sha256(SYSTEM_PROMPT.encode()).hexdigest(),
+        "agent_hash": digest(ROOT / "src/generaldataagent/evaluation/stage_six.py"),
+        "steps": 6,
+        "workers": args.workers,
+        "hard_case_deadline_seconds": 125,
+        "seconds": 120,
+        "tokens": 24000,
+        "call_timeout_seconds": 30,
+        "numeric_import": "finite REAL; empty NULL",
+        "result_row_limit": 200,
+    }
+    report = {
+        "benchmark": selected[0].task.benchmark,
+        "started_at": datetime.now(UTC).isoformat(),
+        "population_n": len(cases),
+        "seed": args.seed,
+        "requested_n": args.limit,
+        "selection": "difficulty x asset round-robin",
+        "cohort_hash": hashlib.sha256(
+            json.dumps([asdict(c.task) for c in selected], sort_keys=True).encode()
+        ).hexdigest(),
+        "protocol_hash": hashlib.sha256(json.dumps(protocol, sort_keys=True).encode()).hexdigest(),
+        "protocol": protocol,
+        "source_manifest_hash": digest(root / "sources.json"),
+        "source_revisions": sorted({x["revision"] for x in manifest["sources"]}),
+        "runner_hash": code_hash,
+        "python": platform.python_version(),
+        "git_commit": subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
+        ).strip(),
+        "model": provider.model,
+        "provider_id": provider.provider_id,
+        "results": [],
+        "scope": "bounded SQL evaluation baseline; not production Supervisor or Python DS agent",
+        "contamination": "public development data; no training-contamination guarantee",
+        "production_accepted": False,
+    }
+    databases = {}
+    docs = ""
+    if args.benchmark == "dabstep":
+        database = (args.output / "databases/payments.sqlite").resolve()
+        d = root / "dabstep"
+        build_csv_database(
+            {
+                name: d / (name + ".csv")
+                for name in ["payments", "acquirer_countries", "merchant_category_codes"]
+            },
+            database,
+        )
+        add_json_tables(
+            {name: d / (name + ".json") for name in ["fees", "merchant_data"]}, database
+        )
+        docs = "\n".join((d / name).read_text() for name in ["manual.md", "payments-readme.md"])
+        databases["payments.csv"] = database
+    for case in selected:
+        asset = case.task.asset
+        if asset not in databases:
+            if args.benchmark == "bird":
+                database = (args.bird_databases / asset / (asset + ".sqlite")).resolve(strict=True)
+                if not database.is_relative_to(args.bird_databases.resolve()):
+                    raise ValueError("invalid database path")
+            else:
+                database = (
+                    args.output
+                    / "databases"
+                    / (hashlib.sha256(asset.encode()).hexdigest() + ".sqlite")
+                ).resolve()
+                build_csv_database({"data": root / "infi/da-dev-tables" / asset}, database)
+            databases[asset] = database
+
+    def evaluate(case):
+        database = databases[case.task.asset]
+        asset = case.task.asset
+        before = digest(database)
+        result = run_isolated(
+            case.task,
+            database,
+            app_type=args.app_type,
+            provider_id=provider.provider_id,
+            documents=docs,
+        )
+        if case.reference_sql:
+            expected = None
+            try:
+                executor = SQLiteReadOnlyExecutor(database, max_rows=10000, timeout_seconds=10)
+                expected = executor.execute(case.reference_sql)
+            except Exception:
+                result["failure"] = "oracle_environment_error"
+            passed, hits, total = False, 0, 1
+            if expected is not None and result["final_sql"]:
+                try:
+                    actual = executor.execute(result["final_sql"])
+                    passed = equivalent_rows(actual.rows, expected.rows)
+                    hits = int(passed)
+                except Exception:
+                    result["failure"] = "candidate_execution_error"
+            elif expected is not None and not result["failure"]:
+                result["failure"] = "invalid_output"
+        else:
+            passed, hits, total = score_answers(case, result["answers"])
+        unchanged = before == digest(database)
+        result.update(
+            case_id=case.task.case_id,
+            difficulty=case.task.difficulty,
+            asset=asset,
+            database_hash=before,
+            passed=passed and not result["failure"] and unchanged,
+            sub_hits=hits,
+            sub_total=total,
+            severe_incident=not unchanged,
+        )
+        if not result["passed"] and not result["failure"]:
+            result["failure"] = "answer_mismatch" if unchanged else "database_mutated"
+        print(
+            json.dumps(
+                {
+                    "case": case.task.case_id,
+                    "passed": result["passed"],
+                    "failure": result["failure"],
+                    "elapsed": round(result["elapsed_seconds"], 2),
+                }
+            ),
+            flush=True,
+        )
+        return result
+
+    (args.output / "source-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    with ThreadPoolExecutor(max_workers=args.workers) as pool:
+        for result in pool.map(evaluate, selected):
+            report["results"].append(result)
+            (args.output / "report.partial.json").write_text(json.dumps(report, indent=2) + "\n")
+    report["summary"] = summarize(report["results"])
+    report["completed_at"] = datetime.now(UTC).isoformat()
+    (args.output / "report.json").write_text(json.dumps(report, indent=2) + "\n")
+    (args.output / "source-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    print(json.dumps(report["summary"], indent=2), flush=True)
+
+
+if __name__ == "__main__":
+    main()

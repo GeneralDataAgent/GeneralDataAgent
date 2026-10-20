@@ -1,0 +1,62 @@
+{
+  "url": "https://drive.usercontent.google.com/download?id=13VLWIwpw5E3d5DUkMvzw7hvHE67a4XkG&export=download&confirm=t",
+  "archive_sha256": "aeb211c0e39010bbdae3838bb5e8bd27dc446ed77495b1709f85ccc9bf67f2be",
+  "bytes": 799944582,
+  "databases": [
+    {
+      "path": "databases/california_schools/california_schools.sqlite",
+      "sha256": "c0903eec662e63068fd1d14403d3d6c1d473287fc10c4356333ea58f878db983",
+      "bytes": 11116544
+    },
+    {
+      "path": "databases/card_games/card_games.sqlite",
+      "sha256": "c98bdb57fe7474da798b407785544b9af0daaad5d61fd21e2a73309493bc1227",
+      "bytes": 261820416
+    },
+    {
+      "path": "databases/codebase_community/codebase_community.sqlite",
+      "sha256": "92101be6d2a9f6adceea59d38f6d1c556087f9eea1432432a21268cb1348036d",
+      "bytes": 481419264
+    },
+    {
+      "path": "databases/debit_card_specializing/debit_card_specializing.sqlite",
+      "sha256": "b3d149ad05746dbbe5116e229e17e18f09c39db43cf117d9ef3441753608b691",
+      "bytes": 34635776
+    },
+    {
+      "path": "databases/european_football_2/european_football_2.sqlite",
+      "sha256": "f72f5c9b990371417288a67b27a02e601ef904d45525c2c9f7931fb01001c536",
+      "bytes": 597754880
+    },
+    {
+      "path": "databases/financial/financial.sqlite",
+      "sha256": "d15d89cdb068a202b6f2b99342af44dffc1d52545b39ceaf62efdc0ba570101e",
+      "bytes": 71294976
+    },
+    {
+      "path": "databases/formula_1/formula_1.sqlite",
+      "sha256": "79770caf966707e35516fa566e24b40ae515c74ec1ec4631235245645b87b24d",
+      "bytes": 22360064
+    },
+    {
+      "path": "databases/student_club/student_club.sqlite",
+      "sha256": "eb89bcfe97eefa386a27904ec5aa15159811a7eac894ec659a36e48fa9f76b77",
+      "bytes": 2641920
+    },
+    {
+      "path": "databases/superhero/superhero.sqlite",
+      "sha256": "75e94a2c3236ee3bb2c01fb97a1c4b4c1c269bcefd4eab1d04be323d2d0825b1",
+      "bytes": 237568
+    },
+    {
+      "path": "databases/thrombosis_prediction/thrombosis_prediction.sqlite",
+      "sha256": "87583183c3dc472fba04de702965560a9d7c0a548836613f242317e0eeb83f00",
+      "bytes": 7327744
+    },
+    {
+      "path": "databases/toxicology/toxicology.sqlite",
+      "sha256": "35ef27ae6bdfda530e125ed369666ac0abb8bc8c0bcc0ad09407f547ecb61a93",
+      "bytes": 2678784
+    }
+  ]
+}

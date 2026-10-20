@@ -511,3 +511,15 @@ See the [runbook](docs/operations/stage5-runbook.md) and
 [development/acceptance evidence](docs/validation/stage5-business-loop.md). Run the local matrix with
 `uv run --frozen python evals/run_stage5_acceptance.py`; missing independent external evidence keeps
 aggregate production acceptance incomplete.
+
+## Stage 6 public-development evaluation
+
+The Stage 6 branch adds pinned BIRD Mini-Dev, InfiAgent-DABench and DABstep adapters, an answer-blind
+bounded SQL baseline using real configured models, process deadlines, case-level scoring, replay
+without model calls, and fail-closed release diagnostics. This baseline does not qualify the
+production Supervisor or arbitrary Python execution. The first 130-task run is dominated by provider
+rate limits and does not meet release targets.
+
+See the [selection and protocol](docs/research/stage6-benchmark-plan.md),
+[reproduction commands](docs/operations/stage6-evaluation-runbook.md), and
+[measured results and limitations](docs/validation/stage6-evaluation.md).

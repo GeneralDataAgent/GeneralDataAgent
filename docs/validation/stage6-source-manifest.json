@@ -1,0 +1,569 @@
+{
+  "sources": [
+    {
+      "path": "bird/mini_dev_sqlite.json",
+      "url": "https://huggingface.co/datasets/birdsql/bird_mini_dev/resolve/f65faf4ae3b638c1fa6df1d3370c8d92c8366301/data/mini_dev_sqlite-00000-of-00001.json",
+      "revision": "f65faf4ae3b638c1fa6df1d3370c8d92c8366301",
+      "sha256": "88ceb0710163cae46a256ecea8f0a8c98286599530b60587fda5c3cfe57d45d2",
+      "bytes": 278513
+    },
+    {
+      "path": "dabstep/acquirer_countries.csv",
+      "url": "https://huggingface.co/datasets/adyen/DABstep/resolve/e0265538267d9e56f9d773bb6a8cafa136f8c843/data/context/acquirer_countries.csv",
+      "revision": "e0265538267d9e56f9d773bb6a8cafa136f8c843",
+      "sha256": "6744cf1962e4b5086342821e627f4557c32f06c3c58e8b0ff3b449dcc634f37f",
+      "bytes": 194
+    },
+    {
+      "path": "dabstep/dev.jsonl",
+      "url": "https://huggingface.co/datasets/adyen/DABstep/resolve/e0265538267d9e56f9d773bb6a8cafa136f8c843/data/tasks/dev.jsonl",
+      "revision": "e0265538267d9e56f9d773bb6a8cafa136f8c843",
+      "sha256": "c1da755a6fe9cb538fc84719f51e1db0bff0190a1d6905767ac18c755e66a07b",
+      "bytes": 6330
+    },
+    {
+      "path": "dabstep/fees.json",
+      "url": "https://huggingface.co/datasets/adyen/DABstep/resolve/e0265538267d9e56f9d773bb6a8cafa136f8c843/data/context/fees.json",
+      "revision": "e0265538267d9e56f9d773bb6a8cafa136f8c843",
+      "sha256": "9a833666ae9be5a8e756dd1fe076c72e7c502d64161315ffa8fee9e5bf2599dc",
+      "bytes": 531118
+    },
+    {
+      "path": "dabstep/manual.md",
+      "url": "https://huggingface.co/datasets/adyen/DABstep/resolve/e0265538267d9e56f9d773bb6a8cafa136f8c843/data/context/manual.md",
+      "revision": "e0265538267d9e56f9d773bb6a8cafa136f8c843",
+      "sha256": "bb7f4ca6fdc759af1f480702b3a3b12e17e9293b0d38a1dbfbbc8ffc1e572d2c",
+      "bytes": 22127
+    },
+    {
+      "path": "dabstep/merchant_category_codes.csv",
+      "url": "https://huggingface.co/datasets/adyen/DABstep/resolve/e0265538267d9e56f9d773bb6a8cafa136f8c843/data/context/merchant_category_codes.csv",
+      "revision": "e0265538267d9e56f9d773bb6a8cafa136f8c843",
+      "sha256": "83247d79f5ddcdd180e02f184b644f4912731942a2fc58d91f2a06b911d04b41",
+      "bytes": 26611
+    },
+    {
+      "path": "dabstep/merchant_data.json",
+      "url": "https://huggingface.co/datasets/adyen/DABstep/resolve/e0265538267d9e56f9d773bb6a8cafa136f8c843/data/context/merchant_data.json",
+      "revision": "e0265538267d9e56f9d773bb6a8cafa136f8c843",
+      "sha256": "f158e834de27ee8407e99d9c32da690357981d2770958fd302a9bb79ced83581",
+      "bytes": 6857
+    },
+    {
+      "path": "dabstep/payments-readme.md",
+      "url": "https://huggingface.co/datasets/adyen/DABstep/resolve/e0265538267d9e56f9d773bb6a8cafa136f8c843/data/context/payments-readme.md",
+      "revision": "e0265538267d9e56f9d773bb6a8cafa136f8c843",
+      "sha256": "8754b92d0b3127856ff72266ea482995d2a1f6a34d0a12732f7c26f527f2c4a5",
+      "bytes": 1719
+    },
+    {
+      "path": "dabstep/payments.csv",
+      "url": "https://huggingface.co/datasets/adyen/DABstep/resolve/e0265538267d9e56f9d773bb6a8cafa136f8c843/data/context/payments.csv",
+      "revision": "e0265538267d9e56f9d773bb6a8cafa136f8c843",
+      "sha256": "5fbb26210a45427d7a6560cfab3a362a08e4067f27cd03695f211a51c47ffc25",
+      "bytes": 23581339
+    },
+    {
+      "path": "infi/da-dev-labels.jsonl",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-labels.jsonl",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "83b8fb8133c1794fcb6b42435e9cce124d22f68b71e2eedb37c973e40b5a18c2",
+      "bytes": 23680
+    },
+    {
+      "path": "infi/da-dev-questions.jsonl",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-questions.jsonl",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "49ae783b20ecb60449ce1443c524e89f8ca8353a04e05e4d14a055b7a6f06126",
+      "bytes": 217518
+    },
+    {
+      "path": "infi/da-dev-tables/0020200722.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/0020200722.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "d9b292cecc04c3993caf084927a1318feb990e641accc966d367eedc6d9c349a",
+      "bytes": 32429
+    },
+    {
+      "path": "infi/da-dev-tables/2014_q4.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/2014_q4.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "f1ec88490c4cf2fde96a2783f2962743a126e66e59b16d83378192941b5dbd82",
+      "bytes": 5615
+    },
+    {
+      "path": "infi/da-dev-tables/2015-09-21.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/2015-09-21.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "14baf261342a0cb78a00e9b81273a111259746fdc7e7b17ded48139a0c250447",
+      "bytes": 5507399
+    },
+    {
+      "path": "infi/da-dev-tables/2015.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/2015.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "d79be64d11b4e36159242055e028e29ee6b4c3da6838e62d7a925bdde26eab5d",
+      "bytes": 16557
+    },
+    {
+      "path": "infi/da-dev-tables/20170413_000000_group_statistics.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/20170413_000000_group_statistics.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "17da5edda18a5a5c2168f5f06a0a90604efef810cac0d17492723ddad2685753",
+      "bytes": 5692
+    },
+    {
+      "path": "infi/da-dev-tables/2019-08_edges.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/2019-08_edges.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "3511be9a3e685f9416de3257f6f95149e80fffce042c14bce5ffc161a43140cc",
+      "bytes": 1084430
+    },
+    {
+      "path": "infi/da-dev-tables/3901.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/3901.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "6d488bbdc2e708acc82bcda862ae8eb78fc657d663a1e8806dc6acc935c158f1",
+      "bytes": 221938
+    },
+    {
+      "path": "infi/da-dev-tables/Baltimore_City_Employee_Salaries_FY2013.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/Baltimore_City_Employee_Salaries_FY2013.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "f18a76062c34423522ec1d167ea3f47a633afebb7e28f8f4944003b3cf2c6bbb",
+      "bytes": 1834913
+    },
+    {
+      "path": "infi/da-dev-tables/Credit.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/Credit.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "eb75b3d418d190a4b71f01a8333c49819928591b5a0e1f595546f1987358f875",
+      "bytes": 21967
+    },
+    {
+      "path": "infi/da-dev-tables/Current_Logan.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/Current_Logan.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "045a58d23610362327912f887c6bf24e0ddde01a46bcf1f2ea8acda47e05b350",
+      "bytes": 2405
+    },
+    {
+      "path": "infi/da-dev-tables/DES=+2006261.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/DES%3D%2B2006261.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "753bcb0a243256986b0b663666d0bbf5dd273f0de753ad0705be1c9cbacf8f83",
+      "bytes": 40500
+    },
+    {
+      "path": "infi/da-dev-tables/GODREJIND.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/GODREJIND.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "55770473647050ba8f11d46108aac81f38df600e8261b105321fffd5c5a6ecec",
+      "bytes": 116303
+    },
+    {
+      "path": "infi/da-dev-tables/Gillam_fin.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/Gillam_fin.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "e34ea0d7ac241fbc223fcb6400fbabe5eea214f06fe7a31bdd73a8f5caa042b4",
+      "bytes": 2687932
+    },
+    {
+      "path": "infi/da-dev-tables/Todo_Tango_letras_final.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/Todo_Tango_letras_final.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "016ac07e8311717cc0541b887257ea39c31d6a75874cbf2ab580c14e809e4f76",
+      "bytes": 6279530
+    },
+    {
+      "path": "infi/da-dev-tables/YAHOO-BTC_USD_D.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/YAHOO-BTC_USD_D.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "ddbd797b7db4999bbb7e836ad928aba56bea7a5dbeb516afb7d63fd42662a328",
+      "bytes": 173887
+    },
+    {
+      "path": "infi/da-dev-tables/Yelp_Reviews.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/Yelp_Reviews.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "5382d0286a90c79a04b0dcf2b2cce5107bdcbdb30d3830641cbb4bf5802e4682",
+      "bytes": 1341301
+    },
+    {
+      "path": "infi/da-dev-tables/Zip_MedianSoldPricePerSqft_AllHomes.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/Zip_MedianSoldPricePerSqft_AllHomes.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "f4dac692bdc69c427a63fe3e77eda2c7ca07c7eb1bdb52a3061b0b91c66f4b7b",
+      "bytes": 394007
+    },
+    {
+      "path": "infi/da-dev-tables/abalone.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/abalone.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "6fda3c4b0c0cff9bd5f7a46434509179069ed620c8fc7090d872a08d2c1a729a",
+      "bytes": 191962
+    },
+    {
+      "path": "infi/da-dev-tables/api_output_2018-09-11_11-08-28.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/api_output_2018-09-11_11-08-28.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "6c04dc92a55034d1a44c65aaddf63a9b3115a9467f679b5e66500c9c766595a5",
+      "bytes": 2650914
+    },
+    {
+      "path": "infi/da-dev-tables/arrest_expungibility.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/arrest_expungibility.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "c985ca12445770b8559667f3a4c8d18166571b114f2d1c4dc2ac1b3a56c94b39",
+      "bytes": 670664
+    },
+    {
+      "path": "infi/da-dev-tables/auto-mpg.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/auto-mpg.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "555a2b668da52d7431215df842fb073d1ad220c56d4ac6ec359c0ae9b1beea6b",
+      "bytes": 14179
+    },
+    {
+      "path": "infi/da-dev-tables/baro_2015.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/baro_2015.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "34919769cf48ec84fc6358cc1c2f27b56a4e624af293f3ffcd7531f00bcc1d8a",
+      "bytes": 382752
+    },
+    {
+      "path": "infi/da-dev-tables/baseball_data.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/baseball_data.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "ffcf9e1931e1fa882782df55c638d8f698a0487c7048126bfcefe088f22e4cf7",
+      "bytes": 21647
+    },
+    {
+      "path": "infi/da-dev-tables/beauty and the labor market.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/beauty%20and%20the%20labor%20market.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "dba6fb21faf1fd88e99f8e55770de819d7cb6db213780d13a42e2f8b3289dbca",
+      "bytes": 64937
+    },
+    {
+      "path": "infi/da-dev-tables/bike_rental_hour.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/bike_rental_hour.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "e03de4ee4ef4dc376ac6e04bf829673c6269e8eba5c60fa121640fa2f829504f",
+      "bytes": 1156736
+    },
+    {
+      "path": "infi/da-dev-tables/bitconnect_price.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/bitconnect_price.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "c970dd13f2e735fc9a654f69ef6c9669ff2d0466f01eccee000d1dc6e24f5bc2",
+      "bytes": 15668
+    },
+    {
+      "path": "infi/da-dev-tables/census.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/census.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "4d02a845cc880a3a5e61d80bdfda1a4f8e0c122ad7356cf0fb966a30762f36b4",
+      "bytes": 4007025
+    },
+    {
+      "path": "infi/da-dev-tables/city_departments_in_current_budget.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/city_departments_in_current_budget.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "8fcaca49cb80ea8345bcee68d545c2046b016de71f5989cd7459a451b75ece51",
+      "bytes": 2677
+    },
+    {
+      "path": "infi/da-dev-tables/cms_hospital_readmissions.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/cms_hospital_readmissions.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "f819152e7f40f2d48640ece35b251fdacd746b4bde32eb019adfabb5dbbf3f28",
+      "bytes": 1773532
+    },
+    {
+      "path": "infi/da-dev-tables/cost_data_with_errors.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/cost_data_with_errors.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "83efce074700d226453f08c9b8faddc4703c70ae0e1888e8e8422994416d1ce0",
+      "bytes": 82522
+    },
+    {
+      "path": "infi/da-dev-tables/country_vaccinations.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/country_vaccinations.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "eb38b5933c1dafbd884a9042c23afc5181bedf6c434d941115444284ea215fcc",
+      "bytes": 680231
+    },
+    {
+      "path": "infi/da-dev-tables/credit-data-post-import.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/credit-data-post-import.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "4560780d211a2cda8cbd624a6e375c1682a1f0b87237788cd78b2b3710f5f099",
+      "bytes": 8779642
+    },
+    {
+      "path": "infi/da-dev-tables/cs-test.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/cs-test.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "bab363a2a807218d32a51f5fc9668b8be7977795065edd386abc8546abaa5b78",
+      "bytes": 4983329
+    },
+    {
+      "path": "infi/da-dev-tables/diamonds.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/diamonds.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "9574730b03aba241d899c4a97511c5061b19358fab89510774fb6c24168345c4",
+      "bytes": 2772143
+    },
+    {
+      "path": "infi/da-dev-tables/e5_aapl.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/e5_aapl.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "d81f47727583df630307cc7d648d0f30ae5fea79fe9ff8ad799db344c36f7ae2",
+      "bytes": 34849
+    },
+    {
+      "path": "infi/da-dev-tables/election2016.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/election2016.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "b2d37e2153fa661b710170db1c9b2d62cef2baf2910535bd5600c32892f48a45",
+      "bytes": 291557
+    },
+    {
+      "path": "infi/da-dev-tables/estimated_numbers.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/estimated_numbers.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "bc485997a837c738907ac5b03aef0f4d0a938edb415861ab37af22bdd243329c",
+      "bytes": 66590
+    },
+    {
+      "path": "infi/da-dev-tables/fb_articles_20180822_20180829_df.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/fb_articles_20180822_20180829_df.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "506726b8aa93fd36bdb626a4c5fa702295a2207e6b2536e82f738d9cc2522050",
+      "bytes": 927008
+    },
+    {
+      "path": "infi/da-dev-tables/ferret-Pitt-2-preinf-lib2-100_sitediffsel.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/ferret-Pitt-2-preinf-lib2-100_sitediffsel.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "c9e411ff75df8d966f6e5de9270a4a7276289c478a6b7aa216ce667eac66f540",
+      "bytes": 57084
+    },
+    {
+      "path": "infi/da-dev-tables/gapminder_cleaned.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/gapminder_cleaned.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "9e6f0a924da3b91a0c7ba24260f773f8648deb2475ca4bbd5d16f1366a0b45a7",
+      "bytes": 82019
+    },
+    {
+      "path": "infi/da-dev-tables/gapminder_gdp_asia.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/gapminder_gdp_asia.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "d59ff928054c78dfb6613046d306fbc044ef754c6ca3b2aff71b661a240f869e",
+      "bytes": 5103
+    },
+    {
+      "path": "infi/da-dev-tables/hotel_data.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/hotel_data.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "581144a1a813e187abc75c3db8f71c25cbec27afe7956e9be9de369acde1c0f7",
+      "bytes": 83961
+    },
+    {
+      "path": "infi/da-dev-tables/housedata.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/housedata.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "1632d72fa14167a800f0fc1b9ef66a0cad9f2d31653329909e4a8979377a5f06",
+      "bytes": 2049273
+    },
+    {
+      "path": "infi/da-dev-tables/imp.score.ldlr.metabolome.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/imp.score.ldlr.metabolome.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "8aa6112a864d4491ec14b7821f0ce889a6f751793ec30c7b9d86c5443e25c553",
+      "bytes": 55375
+    },
+    {
+      "path": "infi/da-dev-tables/insurance.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/insurance.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "388eff679557d08ac19f463d025de5e0b4adc482537c8456d19934d78621fd47",
+      "bytes": 55628
+    },
+    {
+      "path": "infi/da-dev-tables/microsoft.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/microsoft.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "6d0f08343d42a5ad45d1eb2275a99416aa8a0b26be03fe5e74538cff31352292",
+      "bytes": 11515
+    },
+    {
+      "path": "infi/da-dev-tables/my_test_01.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/my_test_01.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "3134c6c7260510da5aaa33441743d7aaa52efd88fc4d443e7c7a98f80d734c25",
+      "bytes": 23732
+    },
+    {
+      "path": "infi/da-dev-tables/oecd_education_spending.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/oecd_education_spending.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "16c4564a091ba48b093da27ec01e07c99bb16d038076f4676c2e54c7e7aa9b1e",
+      "bytes": 9476
+    },
+    {
+      "path": "infi/da-dev-tables/percent-bachelors-degrees-women-usa.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/percent-bachelors-degrees-women-usa.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "4f3a2a6a6b15fcddddde55bb48a9a3d78cd9557e0538e83d8c972c0b953da5b0",
+      "bytes": 5681
+    },
+    {
+      "path": "infi/da-dev-tables/random_stock_data.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/random_stock_data.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "27c593b871b4fae87cec46e2575065113e0742ab4c73bd7658a0cd92001ded1b",
+      "bytes": 31050
+    },
+    {
+      "path": "infi/da-dev-tables/ravenna_250715.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/ravenna_250715.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "323831969f08919961b36bb8f6b06f06493b25b01a5cf4fb649f7b39224df7de",
+      "bytes": 2306
+    },
+    {
+      "path": "infi/da-dev-tables/test_Y3wMUE5_7gLdaTN.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/test_Y3wMUE5_7gLdaTN.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "2248e254edd4260a5cbae11856115d3d0336396239188e970c18c6e12dda4cd8",
+      "bytes": 21589
+    },
+    {
+      "path": "infi/da-dev-tables/test_ave.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/test_ave.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "411cf03455d6026823fbd3ab65e2839075a22f9a5c088b85aef0d272d79cca00",
+      "bytes": 55169
+    },
+    {
+      "path": "infi/da-dev-tables/test_x.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/test_x.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "fef103a434692c5f60ee2a7247ca743da04d3de3b1893d0a3ab42a073ad99b67",
+      "bytes": 7159
+    },
+    {
+      "path": "infi/da-dev-tables/titanic.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/titanic.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "7d118fef8b6ccf7f81111877bc388536f7b1e498a655e3d649d19aaa010e9f6f",
+      "bytes": 61194
+    },
+    {
+      "path": "infi/da-dev-tables/titanic_test.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/titanic_test.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "5c78320a80dc159b35c408363be46a5d93f078183d539db75ee42a796d6a4e95",
+      "bytes": 28210
+    },
+    {
+      "path": "infi/da-dev-tables/titanic_train.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/titanic_train.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "4a437fde05fe5264e1701a7387ac6fb75393772ba38bb2c9c566405af5af4bd7",
+      "bytes": 60302
+    },
+    {
+      "path": "infi/da-dev-tables/tr_eikon_eod_data.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/tr_eikon_eod_data.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "eb59a911fcc95b0b7fd5df55ce9349850dd20e6ae9c8efc9e5db308151c9a5f4",
+      "bytes": 209046
+    },
+    {
+      "path": "infi/da-dev-tables/train_new_ocr_29.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/train_new_ocr_29.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "a652fa7275522374d7ea8fbfb82468e1ef94f5fd7ff3a7d38421a3435e2ba2e5",
+      "bytes": 3018280
+    },
+    {
+      "path": "infi/da-dev-tables/traj-Osak.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/traj-Osak.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "a7c439f3f74f6f096579a66fe17d191f600556bacdf4d15060589a4f36912691",
+      "bytes": 67251
+    },
+    {
+      "path": "infi/da-dev-tables/tree.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/tree.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "2d0abdcd475f0394b8f2f106faf14e1ae86887c20c3d23bb0541e1a20ef73129",
+      "bytes": 699211
+    },
+    {
+      "path": "infi/da-dev-tables/ts-sc4-wi100000-sl25000-Qrob_Chr05.tree_table.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/ts-sc4-wi100000-sl25000-Qrob_Chr05.tree_table.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "3e0540386cf89b4f5e1d7f2760f9aa3885ea21119d3b12e9e5c07056caae7367",
+      "bytes": 2295032
+    },
+    {
+      "path": "infi/da-dev-tables/unemployement_industry.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/unemployement_industry.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "405fa22312675badef5b1e8ee7d47122af71584814a39ba7e6a7b9eea1fa7ca2",
+      "bytes": 4254
+    },
+    {
+      "path": "infi/da-dev-tables/veracruz 2016.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/veracruz%202016.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "3c8492f5f163a5a74a53c10f993234b2db3e694aee85d2a0e658f70a2828e680",
+      "bytes": 828158
+    },
+    {
+      "path": "infi/da-dev-tables/vgsales.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/vgsales.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "e2076095ffcae2a92dbc6de6ecbd54455ee034bb38da550b2dc385e9265d4ebe",
+      "bytes": 1355781
+    },
+    {
+      "path": "infi/da-dev-tables/weather_data_1864.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/weather_data_1864.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "6bd35d0c907e8c70ba15cced1d773e0e31b7bfff9f4251719e7740111958aef9",
+      "bytes": 285512
+    },
+    {
+      "path": "infi/da-dev-tables/weather_train.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/weather_train.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "c9bd23cabbba04970b574259b62025c9ac08ef103ae760f66e353b73116620c0",
+      "bytes": 840734
+    },
+    {
+      "path": "infi/da-dev-tables/well_2_complete.csv",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/data/da-dev-tables/well_2_complete.csv",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "003079038a1763367cbcaa9a2bcc223fd1d4c3d8ad7e2315cdb5975fcc62dc6c",
+      "bytes": 699451
+    },
+    {
+      "path": "infi/eval_closed_form.py.txt",
+      "url": "https://raw.githubusercontent.com/InfiAgent/InfiAgent/3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c/examples/DA-Agent/eval_closed_form.py",
+      "revision": "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+      "sha256": "8c4cbeed80c6c95aca65f72cea3213581629e81894a0fa5a496f22726b6e4501",
+      "bytes": 8634
+    }
+  ],
+  "licenses": {
+    "infi": "CC-BY-NC-4.0",
+    "dabstep": "see upstream LICENSE; research use",
+    "bird": "CC-BY-SA-4.0"
+  }
+}
