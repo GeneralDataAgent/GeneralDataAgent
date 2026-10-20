@@ -215,3 +215,70 @@ def test_atomic_sql_submission_carries_contract_in_one_action(database):
     assert result["failure"] is None
     assert len(result["trace"]) == 1
     assert result["task_contract"]["question"] == "champions"
+
+
+def test_date_boundaries_entity_grain_and_empty_denominator(database):
+    with sqlite3.connect(database) as db:
+        db.executescript(
+            "CREATE TABLE events(person_id INT, day TEXT);"
+            "INSERT INTO events VALUES(1,'2025-12-31'),(1,'2026-01-01'),"
+            "(1,'2026-01-31'),(2,'2026-02-01');"
+        )
+    sql = (
+        "SELECT COUNT(DISTINCT p.id) AS n FROM people p JOIN events e ON p.id=e.person_id "
+        "WHERE e.day >= '2026-01-01' AND e.day < '2026-02-01'"
+    )
+    result = run(
+        database,
+        [
+            {
+                "final_sql": sql,
+                "task_spec": {
+                    "count_basis": "entities",
+                    "time_range": "[2026-01-01,2026-02-01)",
+                    "answer": {"columns": ["n"], "shape": "scalar"},
+                },
+            }
+        ],
+    )
+    assert result["failure"] is None
+    from generaldataagent.tools.sqlite import SQLiteReadOnlyExecutor
+
+    assert SQLiteReadOnlyExecutor(database).execute(result["final_sql"]).rows == ((1,),)
+    empty_ratio = run(
+        database,
+        [
+            {
+                "final_sql": "SELECT 1.0 / NULLIF(COUNT(*),0) AS r FROM people WHERE id<0",
+                "task_spec": {
+                    "denominator": "eligible people",
+                    "answer": {"columns": ["r"], "shape": "scalar", "nullable": False},
+                },
+            }
+        ],
+    )
+    assert empty_ratio["failure"] and empty_ratio["final_sql"] is None
+
+
+def test_age_projection_is_computed_instead_of_returning_birthday(database):
+    sql = (
+        "SELECT CAST(strftime('%Y','2026-10-20') AS INTEGER) - "
+        "CAST(strftime('%Y',birthday) AS INTEGER) AS age FROM people ORDER BY birthday ASC"
+    )
+    result = run(
+        database,
+        [
+            {
+                "final_sql": sql,
+                "task_spec": {
+                    "order_by": "birthday",
+                    "order_direction": "asc",
+                    "answer": {"columns": ["age"], "minimum": 0.0},
+                },
+            }
+        ],
+    )
+    assert result["failure"] is None
+    from generaldataagent.tools.sqlite import SQLiteReadOnlyExecutor
+
+    assert SQLiteReadOnlyExecutor(database).execute(result["final_sql"]).rows == ((66,), (56,))
