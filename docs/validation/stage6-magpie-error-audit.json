@@ -1,0 +1,1538 @@
+{
+  "audit_type": "offline planning audit; not a new model evaluation",
+  "baseline_commit": "d90bc7d8a088813e7e19f070efacdb043890d684",
+  "formal_n": 130,
+  "strict_correct": 61,
+  "strict_failed": 69,
+  "failure_categories": {
+    "answer_mismatch": 49,
+    "execution_or_model_error": 13,
+    "unsupported_capability": 5,
+    "step_budget": 1,
+    "missing_evidence": 1
+  },
+  "reports": [
+    {
+      "track": "bird",
+      "path": ".artifacts/stage6/magpie-bird-full-v10/report.json",
+      "sha256": "4ad96209f8878a9fc6d26b5ffdb6ebf521c31d6485b259bced3480373d225459",
+      "summary": {
+        "n": 60,
+        "passed": 28,
+        "pass_at_1": 0.4666666666666667,
+        "wilson_95": [
+          0.34627906041438494,
+          0.5910657297284211
+        ],
+        "subquestion_accuracy": 0.4666666666666667,
+        "p50_seconds": 10.434090895996633,
+        "p95_seconds": 21.304530458000954,
+        "tokens": 218017,
+        "token_telemetry_complete": true,
+        "failures": {
+          "answer_mismatch": 31,
+          "execution_or_model_error": 1
+        },
+        "difficulty": {
+          "challenging": {
+            "n": 20,
+            "passed": 9,
+            "rate": 0.45
+          },
+          "moderate": {
+            "n": 20,
+            "passed": 8,
+            "rate": 0.4
+          },
+          "simple": {
+            "n": 20,
+            "passed": 11,
+            "rate": 0.55
+          }
+        },
+        "official_leaderboard_comparable": false,
+        "production_accepted": false,
+        "cost_usd": null,
+        "attempted_n": 60,
+        "not_attempted_n": 0,
+        "attempted_p95_seconds": 21.304530458000954
+      }
+    },
+    {
+      "track": "infi",
+      "path": ".artifacts/stage6/magpie-infi-full-v10/report.json",
+      "sha256": "2a6494db4fafa5a42710921a1a578d9572720f2e914de3986fe1ba00d90483e7",
+      "summary": {
+        "n": 60,
+        "passed": 32,
+        "pass_at_1": 0.5333333333333333,
+        "wilson_95": [
+          0.4089342702715789,
+          0.6537209395856151
+        ],
+        "subquestion_accuracy": 0.5688073394495413,
+        "p50_seconds": 20.61238260400205,
+        "p95_seconds": 62.991344874993956,
+        "tokens": 325076,
+        "token_telemetry_complete": true,
+        "failures": {
+          "execution_or_model_error": 8,
+          "answer_mismatch": 14,
+          "unsupported_capability": 5,
+          "step_budget": 1
+        },
+        "difficulty": {
+          "easy": {
+            "n": 19,
+            "passed": 14,
+            "rate": 0.7368421052631579
+          },
+          "hard": {
+            "n": 19,
+            "passed": 7,
+            "rate": 0.3684210526315789
+          },
+          "medium": {
+            "n": 22,
+            "passed": 11,
+            "rate": 0.5
+          }
+        },
+        "official_leaderboard_comparable": false,
+        "production_accepted": false,
+        "cost_usd": null,
+        "attempted_n": 60,
+        "not_attempted_n": 0,
+        "attempted_p95_seconds": 62.991344874993956
+      }
+    },
+    {
+      "track": "dabstep",
+      "path": ".artifacts/stage6/magpie-dabstep-full-v10/report.json",
+      "sha256": "c50fab57607eb3e23c0c3ea76c0bb50176b754c897650a518c783ec29464c5e3",
+      "summary": {
+        "n": 10,
+        "passed": 1,
+        "pass_at_1": 0.1,
+        "wilson_95": [
+          0.017876213095072896,
+          0.4041500267952385
+        ],
+        "subquestion_accuracy": 0.1,
+        "p50_seconds": 62.831620875000226,
+        "p95_seconds": 63.57679174999794,
+        "tokens": 146208,
+        "token_telemetry_complete": true,
+        "failures": {
+          "answer_mismatch": 4,
+          "execution_or_model_error": 4,
+          "missing_evidence": 1
+        },
+        "difficulty": {
+          "easy": {
+            "n": 3,
+            "passed": 1,
+            "rate": 0.3333333333333333
+          },
+          "hard": {
+            "n": 7,
+            "passed": 0,
+            "rate": 0.0
+          }
+        },
+        "official_leaderboard_comparable": false,
+        "production_accepted": false,
+        "cost_usd": null,
+        "attempted_n": 10,
+        "not_attempted_n": 0,
+        "attempted_p95_seconds": 63.57679174999794
+      }
+    }
+  ],
+  "failed_cases": [
+    {
+      "track": "bird",
+      "case_id": "1168",
+      "question": "The oldest SJS patient's medical laboratory work was completed on what date, and what age was the patient when they initially arrived at the hospital?",
+      "public_instructions": "The larger the birthday value, the younger the person is, and vice versa; 'SJS' refers to diagnosis; (SUBTRACT(year(`First Date`)), year(Birthday)); age of the patients when they initially arrived at the hospital refers to year(Birthday)",
+      "asset": "thrombosis_prediction",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {},
+      "candidate_final_sql": "SELECT l.Date AS \"Examination Date\", p.Birthday AS \"Age When Arrived\" FROM Patient p JOIN Laboratory l ON p.ID = l.ID WHERE p.Diagnosis LIKE '%SJS%' AND p.Birthday = (SELECT MAX(Birthday) FROM Patient WHERE Diagnosis LIKE '%SJS%') ORDER BY l.Date DESC LIMIT 1",
+      "trace_error_counts": {
+        "JSONDecodeError": 1
+      },
+      "planned_stages": [
+        7
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "bird",
+      "case_id": "116",
+      "question": "For the client whose loan was approved first in 1993/7/5, what is the increase rate of his/her account balance from 1993/3/22 to 1998/12/27?",
+      "public_instructions": "Increase rate of his/her account balance = [(balance of date A - balance of date B) / balance of Date B] * 100%",
+      "asset": "financial",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {},
+      "candidate_final_sql": "SELECT ((b1.balance - b2.balance) * 100.0 / b2.balance) AS increase_rate FROM loan l JOIN disp d ON d.account_id = l.account_id AND d.type = 'OWNER' JOIN (SELECT account_id, balance FROM trans WHERE date = '1993-03-22') b1 ON b1.account_id = l.account_id JOIN (SELECT account_id, balance FROM trans WHERE date = '1998-12-27') b2 ON b2.account_id = l.account_id WHERE l.date = '1993-07-05' ORDER BY l.loan_id LIMIT 1",
+      "trace_error_counts": {},
+      "planned_stages": [
+        7
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "bird",
+      "case_id": "72",
+      "question": "How many students from the ages of 5 to 17 are enrolled at the State Special School school in Fremont for the 2014-2015 academic year?",
+      "public_instructions": "State Special School means EdOpsCode = 'SSS'",
+      "asset": "california_schools",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {},
+      "candidate_final_sql": "SELECT SUM(f.\"Enrollment (Ages 5-17)\") AS total_enrollment FROM frpm f JOIN schools s ON f.CDSCode = s.CDSCode WHERE s.EdOpsCode = 'SSS' AND s.City = 'Fremont' AND f.\"School Name\" = 'State Special School' AND f.\"Academic Year\" = '2014-2015'",
+      "trace_error_counts": {},
+      "planned_stages": [
+        7
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "bird",
+      "case_id": "41",
+      "question": "List the names of virtual schools that are among the top 5 in their respective counties based on average reading scores.",
+      "public_instructions": "Exclusively virtual refers to Virtual = 'F'; respective counties means PARTITION BY County",
+      "asset": "california_schools",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {},
+      "candidate_final_sql": "SELECT s.School FROM schools s JOIN satscores sc ON sc.cds = s.CDSCode WHERE s.Virtual = 'F' AND sc.AvgScrRead IS NOT NULL AND (SELECT COUNT(*) FROM satscores sc2 JOIN schools s2 ON s2.CDSCode = sc2.cds WHERE s2.County = s.County AND s2.Virtual = 'F' AND sc2.AvgScrRead IS NOT NULL AND sc2.AvgScrRead > sc.AvgScrRead) < 5 ORDER BY s.County, sc.AvgScrRead DESC",
+      "trace_error_counts": {},
+      "planned_stages": [
+        7
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "bird",
+      "case_id": "1003",
+      "question": "How many accidents did the driver who had the highest number accidents in the Canadian Grand Prix have?",
+      "public_instructions": "number of accidents refers to the number where statusid = 3; Canadian Grand Prix refers to the race of name\n",
+      "asset": "formula_1",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {},
+      "candidate_final_sql": "SELECT COUNT(*) FROM results r JOIN races ra ON r.raceId = ra.raceId JOIN drivers d ON r.driverId = d.driverId WHERE r.statusId = 3 AND d.driverId = (SELECT r2.driverId FROM results r2 JOIN races ra2 ON r2.raceId = ra2.raceId WHERE ra2.name = 'Canadian Grand Prix' AND r2.statusId = 3 GROUP BY r2.driverId ORDER BY COUNT(*) DESC, r2.driverId LIMIT 1)",
+      "trace_error_counts": {},
+      "planned_stages": [
+        7
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "bird",
+      "case_id": "36",
+      "question": "Under whose administration is the school with the highest number of students scoring 1500 or more on the SAT? Indicate their full names.",
+      "public_instructions": "full name means first name, last name; There are at most 3 administrators for each school; SAT Scores are greater or equal to 1500 refers to NumGE1500",
+      "asset": "california_schools",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {},
+      "candidate_final_sql": "SELECT s.AdmFName1 || ' ' || s.AdmLName1 AS full_name FROM schools s JOIN satscores sc ON s.CDSCode = sc.cds WHERE sc.NumGE1500 = (SELECT MAX(NumGE1500) FROM satscores) ORDER BY s.AdmFName1, s.AdmLName1",
+      "trace_error_counts": {},
+      "planned_stages": [
+        7
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "bird",
+      "case_id": "1092",
+      "question": "Give the name of the league had the most matches in the 2008/2009 season?",
+      "public_instructions": "league that had the most matches in the 2008/2009 season refers to MAX(league_name WHERE season = '2008/2009');",
+      "asset": "european_football_2",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {},
+      "candidate_final_sql": "SELECT l.name FROM Match m JOIN League l ON m.league_id = l.id WHERE m.season = '2008/2009' GROUP BY l.id, l.name ORDER BY COUNT(*) DESC LIMIT 1",
+      "trace_error_counts": {},
+      "planned_stages": [
+        7
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "bird",
+      "case_id": "530",
+      "question": "List all the frame styles and cards Allen Williams worked on and find any banned cards if there are any.",
+      "public_instructions": "frame styles refers to frameVersion; cards Allen Williams worked on refers to artist = 'Allen Williams'; banned cards refers to status = 'Banned'",
+      "asset": "card_games",
+      "observed_failure": "execution_or_model_error",
+      "candidate_answers": {},
+      "candidate_final_sql": null,
+      "trace_error_counts": {
+        "QueryExecutionError": 3
+      },
+      "planned_stages": [
+        7
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "bird",
+      "case_id": "234",
+      "question": "How many bonds which involved atom 12 does molecule TR009 have?",
+      "public_instructions": "TR009 is the molecule id;  involved atom 12 refers to atom_id = 'TR009_12' or atom_id2 = 'TR009_12'",
+      "asset": "toxicology",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {},
+      "candidate_final_sql": "SELECT COUNT(DISTINCT c.bond_id) AS bond_count FROM connected c JOIN bond b ON c.bond_id = b.bond_id WHERE b.molecule_id = 'TR009' AND (c.atom_id = 'TR009_12' OR c.atom_id2 = 'TR009_12')",
+      "trace_error_counts": {},
+      "planned_stages": [
+        7
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "bird",
+      "case_id": "1482",
+      "question": "Which of the three segments—SME, LAM and KAM—has the biggest and lowest percentage increases in consumption paid in EUR between 2012 and 2013?",
+      "public_instructions": "Increase or Decrease = consumption for 2013 - consumption for 2012; Percentage of Increase = (Increase or Decrease / consumption for 2013) * 100%; The first 4 strings of the Date values in the yearmonth table can represent year",
+      "asset": "debit_card_specializing",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {},
+      "candidate_final_sql": "SELECT c.Segment, (SUM(CASE WHEN substr(y.Date,1,4)='2013' THEN y.Consumption ELSE 0 END) - SUM(CASE WHEN substr(y.Date,1,4)='2012' THEN y.Consumption ELSE 0 END)) AS Increase_Decrease, ((SUM(CASE WHEN substr(y.Date,1,4)='2013' THEN y.Consumption ELSE 0 END) - SUM(CASE WHEN substr(y.Date,1,4)='2012' THEN y.Consumption ELSE 0 END)) / NULLIF(SUM(CASE WHEN substr(y.Date,1,4)='2013' THEN y.Consumption ELSE 0 END),0)) * 100 AS Percentage_Increase FROM yearmonth y JOIN customers c ON c.CustomerID = y.CustomerID WHERE c.Segment IN ('SME','LAM','KAM') AND c.Currency = 'EUR' AND substr(y.Date,1,4) IN ('2012','2013') GROUP BY c.Segment ORDER BY Percentage_Increase DESC;",
+      "trace_error_counts": {},
+      "planned_stages": [
+        7
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "bird",
+      "case_id": "769",
+      "question": "Which superhero has the most durability published by Dark Horse Comics?",
+      "public_instructions": "which superhero refers to superhero_name; most durability refers to MAX(attribute_value) WHERE attribute_name = 'durability'; published by Dark Horse Comics refers to publisher_name = 'Dark Horse Comics';",
+      "asset": "superhero",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {},
+      "candidate_final_sql": "SELECT s.superhero_name FROM superhero s JOIN publisher p ON s.publisher_id = p.id JOIN hero_attribute ha ON ha.hero_id = s.id JOIN attribute a ON ha.attribute_id = a.id WHERE p.publisher_name = 'Dark Horse Comics' AND a.attribute_name = 'durability' ORDER BY ha.attribute_value DESC LIMIT 1",
+      "trace_error_counts": {},
+      "planned_stages": [
+        7
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "bird",
+      "case_id": "672",
+      "question": "Among the users located in United Kingdom, how many users whose post have a total favorite amount of 4 or more?",
+      "public_instructions": "favorite amount of 4 or more refers to FavoriteCount > = 4; Location = 'United Kingdom';",
+      "asset": "codebase_community",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {},
+      "candidate_final_sql": "SELECT COUNT(DISTINCT u.Id) FROM users u JOIN posts p ON p.OwnerUserId = u.Id WHERE u.Location = 'United Kingdom' AND p.FavoriteCount >= 4",
+      "trace_error_counts": {},
+      "planned_stages": [
+        7
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "bird",
+      "case_id": "129",
+      "question": "Which are the top ten withdrawals (non-credit card) by district names for the month of January 1996?",
+      "public_instructions": "Non-credit card withdraws refers to type = 'VYDAJ'; January 1996 can be found by date LIKE '1996-01%' in the database; A2 means district names",
+      "asset": "financial",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {},
+      "candidate_final_sql": "SELECT d.A2 AS district_name, SUM(t.amount) AS total_withdrawals FROM trans t JOIN account a ON t.account_id = a.account_id JOIN district d ON a.district_id = d.district_id WHERE t.type = 'VYDAJ' AND t.date LIKE '1996-01%' GROUP BY d.A2 ORDER BY total_withdrawals DESC LIMIT 10",
+      "trace_error_counts": {},
+      "planned_stages": [
+        7
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "bird",
+      "case_id": "219",
+      "question": "What is the percentage of carcinogenic molecules in triple type bonds?",
+      "public_instructions": "label = '+' mean molecules are carcinogenic; triple bond refers to bond_type = '#'; percentage = DIVIDE(SUM(bond_type = '#') * 100, COUNT(bond_id)) as percent where label = '+'",
+      "asset": "toxicology",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {},
+      "candidate_final_sql": "SELECT SUM(CASE WHEN b.bond_type = '#' THEN 1 ELSE 0 END) * 100.0 / COUNT(b.bond_id) AS percent FROM bond b JOIN molecule m ON b.molecule_id = m.molecule_id WHERE m.label = '+'",
+      "trace_error_counts": {},
+      "planned_stages": [
+        7
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "bird",
+      "case_id": "586",
+      "question": "Which user added a bounty amount of 50 to the post title mentioning variance?",
+      "public_instructions": "bounty amount of 50 refers to BountyAmount = 50; user refers to DisplayName; title mentioning variance refers to Title include 'variance'",
+      "asset": "codebase_community",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {},
+      "candidate_final_sql": "SELECT DISTINCT u.DisplayName FROM votes v JOIN posts p ON v.PostId = p.Id JOIN users u ON v.UserId = u.Id WHERE v.BountyAmount = 50 AND p.Title LIKE '%variance%'",
+      "trace_error_counts": {},
+      "planned_stages": [
+        7
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "bird",
+      "case_id": "1198",
+      "question": "How many female patients were given an APS diagnosis?",
+      "public_instructions": "female refers to SEX = 'F'; APS diagnosis refers to Diagnosis='APS'",
+      "asset": "thrombosis_prediction",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {},
+      "candidate_final_sql": "SELECT COUNT(DISTINCT p.ID) AS female_aps_patients FROM Patient p JOIN Examination e ON p.ID = e.ID WHERE p.SEX = 'F' AND e.Diagnosis = 'APS'",
+      "trace_error_counts": {},
+      "planned_stages": [
+        7
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "bird",
+      "case_id": "962",
+      "question": "From 2000 to 2005, what percentage of drivers who were born before 1985 and the lap numbers were over 50?",
+      "public_instructions": "born before 1985 refers to year(dob)<1985; in 2000 to 2005 refers to year between 2000 and 2005; percentage = Divide(COUNT(driverId where year (dob) <1985 and laps >50),COUNT(DriverID where year between 2000 and 2005) *100;",
+      "asset": "formula_1",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {},
+      "candidate_final_sql": "SELECT CAST(COUNT(DISTINCT CASE WHEN CAST(strftime('%Y', d.dob) AS INTEGER) < 1985 THEN lt.driverId END) AS REAL) * 100.0 / COUNT(DISTINCT r.driverId) AS percentage FROM (SELECT DISTINCT driverId FROM results WHERE raceId IN (SELECT raceId FROM races WHERE year BETWEEN 2000 AND 2005)) r LEFT JOIN drivers d ON r.driverId = d.driverId LEFT JOIN (SELECT DISTINCT lt.driverId FROM lapTimes lt JOIN races ra ON lt.raceId = ra.raceId WHERE ra.year BETWEEN 2000 AND 2005 AND lt.lap > 50) lt ON r.driverId = lt.driverId",
+      "trace_error_counts": {},
+      "planned_stages": [
+        7
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "bird",
+      "case_id": "379",
+      "question": "What are the cards belong to duel deck a? List the ID.",
+      "public_instructions": "duel deck a refers to duelDeck = a;",
+      "asset": "card_games",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {},
+      "candidate_final_sql": "SELECT id FROM cards WHERE duelDeck = 'a' LIMIT 200",
+      "trace_error_counts": {
+        "QueryExecutionError": 1
+      },
+      "planned_stages": [
+        7
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "bird",
+      "case_id": "125",
+      "question": "For loans contracts which are still running where client are in debt, list the district of the and the state the percentage unemployment rate increment from year 1995 to 1996.",
+      "public_instructions": "Unemployment increment rate in percentage = [(unemployment rate 2016 - unemployment rate 2015) / unemployment rate 2015] * 100; unemployment rate 2015 appears in the A12; unemployment rate 2016 appears in the A13; Loan contracts which are still running where client are in debt can be presented as status = 'D'",
+      "asset": "financial",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {},
+      "candidate_final_sql": "SELECT d.A3 AS state, d.A2 AS district, ((d.A13 - d.A12) * 100.0 / d.A12) AS unemployment_increment_rate FROM district d WHERE d.district_id IN (SELECT c.district_id FROM loan l JOIN account a ON l.account_id = a.account_id JOIN disp dp ON a.account_id = dp.account_id JOIN client c ON dp.client_id = c.client_id WHERE l.status = 'D') AND d.A12 <> 0",
+      "trace_error_counts": {},
+      "planned_stages": [
+        7
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "bird",
+      "case_id": "23",
+      "question": "List the names of schools with more than 30 difference in enrollements between K-12 and ages 5-17? Please also give the full street adress of the schools.",
+      "public_instructions": "Diffrence in enrollement = `Enrollment (K-12)` - `Enrollment (Ages 5-17)`",
+      "asset": "california_schools",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {},
+      "candidate_final_sql": "SELECT s.School, s.Street FROM frpm f JOIN schools s ON f.CDSCode = s.CDSCode WHERE (f.\"Enrollment (K-12)\" - f.\"Enrollment (Ages 5-17)\") > 30 LIMIT 200",
+      "trace_error_counts": {
+        "JSONDecodeError": 2,
+        "QueryExecutionError": 2
+      },
+      "planned_stages": [
+        7
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "bird",
+      "case_id": "726",
+      "question": "Rank heroes published by Marvel Comics by their height in descending order.",
+      "public_instructions": "name refers to superhero_name; the tallest hero refers to MAX(height_cm); published by Marvel Comics refers to publisher_name = 'Marvel Comics'",
+      "asset": "superhero",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {},
+      "candidate_final_sql": "SELECT s.superhero_name, s.height_cm FROM superhero s JOIN publisher p ON s.publisher_id = p.id WHERE p.publisher_name = 'Marvel Comics' AND s.height_cm IS NOT NULL ORDER BY s.height_cm DESC LIMIT 200",
+      "trace_error_counts": {
+        "QueryExecutionError": 1
+      },
+      "planned_stages": [
+        7
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "bird",
+      "case_id": "46",
+      "question": "Which state special schools have the highest number of enrollees from grades 1 through 12?",
+      "public_instructions": "State Special Schools refers to DOC = 31; Grades 1 through 12 means K-12",
+      "asset": "california_schools",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {},
+      "candidate_final_sql": "SELECT s.School, f.\"Enrollment (K-12)\" FROM schools s JOIN frpm f ON s.CDSCode = f.CDSCode WHERE s.DOC = '31' AND f.\"Enrollment (K-12)\" IS NOT NULL ORDER BY f.\"Enrollment (K-12)\" DESC LIMIT 1",
+      "trace_error_counts": {
+        "JSONDecodeError": 1
+      },
+      "planned_stages": [
+        7
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "bird",
+      "case_id": "1144",
+      "question": "Please state the finishing rate and curve score of the player who has the heaviest weight.",
+      "public_instructions": "finishing rate refer to finishing; curve score refer to curve; heaviest weight refers to MAX(weight)",
+      "asset": "european_football_2",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {},
+      "candidate_final_sql": "SELECT pa.finishing, pa.curve FROM Player p JOIN Player_Attributes pa ON pa.player_api_id = p.player_api_id WHERE p.weight = (SELECT MAX(weight) FROM Player) ORDER BY pa.date DESC",
+      "trace_error_counts": {
+        "JSONDecodeError": 1
+      },
+      "planned_stages": [
+        7
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "bird",
+      "case_id": "159",
+      "question": "List all the withdrawals in cash transactions that the client with the id 3356 makes.",
+      "public_instructions": "operation = 'VYBER' refers to withdrawal in cash",
+      "asset": "financial",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {},
+      "candidate_final_sql": "SELECT t.* FROM trans t JOIN disp d ON t.account_id = d.account_id WHERE d.client_id = 3356 AND t.operation = 'VYBER'",
+      "trace_error_counts": {},
+      "planned_stages": [
+        7
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "bird",
+      "case_id": "1480",
+      "question": "What was the gas consumption peak month for SME customers in 2013?",
+      "public_instructions": "Year 2013 can be presented as Between 201301 And 201312; The first 4 strings of the Date values in the yearmonth table can represent year; The 5th and 6th string of the date can refer to month.",
+      "asset": "debit_card_specializing",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {},
+      "candidate_final_sql": "SELECT ym.Date, SUM(ym.Consumption) AS total_consumption FROM yearmonth ym JOIN customers c ON ym.CustomerID = c.CustomerID WHERE c.Segment = 'SME' AND ym.Date BETWEEN '201301' AND '201312' GROUP BY ym.Date ORDER BY total_consumption DESC LIMIT 1",
+      "trace_error_counts": {},
+      "planned_stages": [
+        7
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "bird",
+      "case_id": "483",
+      "question": "Please list the Italian text ruling of all the cards in the set Coldsnap.",
+      "public_instructions": "card set Coldsnap refers to name = 'Coldsnap'; Italian refers to language = 'Italian'",
+      "asset": "card_games",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {},
+      "candidate_final_sql": "SELECT r.text FROM cards c JOIN sets s ON c.setCode = s.code JOIN rulings r ON r.uuid = c.uuid JOIN foreign_data f ON f.uuid = c.uuid WHERE s.name = 'Coldsnap' AND f.language = 'Italian'",
+      "trace_error_counts": {},
+      "planned_stages": [
+        7
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "bird",
+      "case_id": "584",
+      "question": "Write all the comments left by users who edited the post titled 'Why square the difference instead of taking the absolute value in standard deviation?'",
+      "public_instructions": "\"Why square the difference instead of taking the absolute value in standard deviation?\" is the Title of post;",
+      "asset": "codebase_community",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {},
+      "candidate_final_sql": "SELECT c.Id, c.Text FROM comments c JOIN posts p ON c.PostId = p.Id WHERE p.Title = 'Why square the difference instead of taking the absolute value in standard deviation?' ORDER BY c.Id",
+      "trace_error_counts": {
+        "JSONDecodeError": 1
+      },
+      "planned_stages": [
+        7
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "bird",
+      "case_id": "93",
+      "question": "How many male customers who are living in North Bohemia have average salary greater than 8000?",
+      "public_instructions": "Male means that gender = 'M'; A3 refers to region; A11 pertains to average salary.",
+      "asset": "financial",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {},
+      "candidate_final_sql": "SELECT COUNT(*) FROM client c JOIN district d ON c.district_id = d.district_id WHERE c.gender = 'M' AND d.A3 = 'North Bohemia' AND d.A11 > 8000",
+      "trace_error_counts": {},
+      "planned_stages": [
+        7
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "bird",
+      "case_id": "263",
+      "question": "What is the composition of element chlorine in percentage among the single bond molecules?",
+      "public_instructions": "element chlorine refers to element = 'cl'; single bond refers to bond_type = '-'; percentage = DIVIDE(SUM(element = 'cl'), COUNT(atom_id)) as percent where bond_type = '-'",
+      "asset": "toxicology",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {},
+      "candidate_final_sql": "SELECT CAST(SUM(CASE WHEN T1.element = 'cl' THEN 1 ELSE 0 END) AS REAL) / COUNT(T1.atom_id) AS percent FROM atom AS T1 INNER JOIN connected AS T2 ON T1.atom_id = T2.atom_id INNER JOIN bond AS T3 ON T2.bond_id = T3.bond_id WHERE T3.bond_type = '-'",
+      "trace_error_counts": {},
+      "planned_stages": [
+        7
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "bird",
+      "case_id": "861",
+      "question": "What is his number of the driver who finished 0:01:54 in the Q3 of qualifying race No.903?",
+      "public_instructions": "race number refers to raceId; finished 0:0M:SS in the Q3 refers to q3 LIKE 'M:SS%'",
+      "asset": "formula_1",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {},
+      "candidate_final_sql": "SELECT d.number FROM qualifying q JOIN drivers d ON d.driverId = q.driverId WHERE q.raceId = 903 AND q.q3 LIKE '0:01:54%' LIMIT 1",
+      "trace_error_counts": {},
+      "planned_stages": [
+        7
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "bird",
+      "case_id": "639",
+      "question": "Based on posts posted by Community, calculate the percentage of posts that use the R language.",
+      "public_instructions": "DIVIDE(COUNT(PostId WHERE TagName = 'r')), (COUNT(PostId WHERE DisplayName = 'Community')) as percentage; R language refers to tagname = 'r'",
+      "asset": "codebase_community",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {},
+      "candidate_final_sql": "SELECT CAST(SUM(CASE WHEN p.Tags LIKE '%<r>%' THEN 1 ELSE 0 END) AS REAL) / COUNT(p.Id) AS percentage FROM posts p JOIN users u ON p.OwnerUserId = u.Id WHERE u.DisplayName = 'Community'",
+      "trace_error_counts": {},
+      "planned_stages": [
+        7
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "bird",
+      "case_id": "1525",
+      "question": "What is the percentage of the customers who used EUR in 2012/8/25?",
+      "public_instructions": "'2012/8/25' can be represented by '2012-08-25'",
+      "asset": "debit_card_specializing",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {},
+      "candidate_final_sql": "SELECT 100.0 * COUNT(DISTINCT CASE WHEN c.Currency = 'EUR' THEN c.CustomerID END) / COUNT(DISTINCT c.CustomerID) AS pct FROM customers c JOIN transactions_1k t ON t.CustomerID = c.CustomerID WHERE t.Date = '2012-08-25'",
+      "trace_error_counts": {
+        "JSONDecodeError": 2
+      },
+      "planned_stages": [
+        7
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "infi",
+      "case_id": "326",
+      "question": "Create a new feature named \"event_hour\" that represents the hour of the day (in 24-hour format) when each event occurred. Perform a correlation analysis to determine if there is a relationship between the event hour and the event type (EVENTMSGTYPE).",
+      "public_instructions": "{\nExtract the hour from the WCTIMESTRING column using string manipulation functions.\nCalculate the Pearson correlation coefficient (r) to assess the strength and direction of the linear relationship between event_hour and EVENTMSGTYPE.\nAssess the significance of the correlation using a two-tailed test with a significance level (alpha) of 0.05.\nReport the p-value associated with the correlation test.\nConsider the relationship to be positive if the p-value is less than 0.05 and the correlation coefficient is greater than or equal to 0.5.\nConsider the relationship to be negative if the p-value is less than 0.05 and the correlation coefficient is less than or equal to -0.5.\nIf the p-value is greater than or equal to 0.05, report that there is no significant correlation.\n}\n{\n@correlation_coefficient[r_value]\n@p_value[p_value]\n@relationship[relationship]\nwhere \"r_value\" is a number between -1 and 1, rounded to two decimal places.\nwhere \"p_value\" is a number between 0 and 1, rounded to four decimal places.\nwhere \"relationship\" is a string that can either be \"positive\", \"negative\", or \"none\" based on the conditions specified in the constraints.",
+      "asset": "0020200722.csv",
+      "observed_failure": "execution_or_model_error",
+      "candidate_answers": {},
+      "candidate_final_sql": null,
+      "trace_error_counts": {
+        "JSONDecodeError": 1,
+        "ValueError": 1,
+        "QueryExecutionError": 1
+      },
+      "planned_stages": [
+        7,
+        8
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "infi",
+      "case_id": "34",
+      "question": "Is there a correlation between the \"row retention time\" and \"importance.score\" columns?",
+      "public_instructions": "Calculate the Pearson correlation coefficient (r) to assess the strength and direction of the linear relationship between \"row retention time\" and \"importance.score\". Assess the significance of the correlation using a two-tailed test with a significance level (alpha) of 0.05. Report the p-value associated with the correlation test. Consider the relationship to be linear if the p-value is less than 0.05 and the absolute value of r is greater than or equal to 0.5. Consider the relationship to be nonlinear if the p-value is less than 0.05 and the absolute value of r is less than 0.5. If the p-value is greater than or equal to 0.05, report that there is no significant correlation. Ignore any null or missing values in performing the correlation test.\n@correlation_coefficient[r_value] @p_value[p_value] @relationship_type[relationship_type] where \"r_value\" is a number between -1 and 1, rounded to two decimal places. \"p_value\" is a number between 0 and 1, rounded to four decimal places. \"relationship_type\" is a string that can either be \"linear\", \"nonlinear\", or \"none\" based on the conditions specified in the constraints.",
+      "asset": "imp.score.ldlr.metabolome.csv",
+      "observed_failure": "execution_or_model_error",
+      "candidate_answers": {},
+      "candidate_final_sql": null,
+      "trace_error_counts": {
+        "QueryExecutionError": 1,
+        "JSONDecodeError": 1
+      },
+      "planned_stages": [
+        7,
+        8
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "infi",
+      "case_id": "125",
+      "question": "Can we predict the number of people fully vaccinated per hundred people based on the total number of vaccinations administered and the number of people vaccinated per hundred people?",
+      "public_instructions": "{\nPerform a multiple linear regression analysis using the total number of vaccinations administered and the number of people vaccinated per hundred people as predictors.\nThe dependent variable is the number of people fully vaccinated per hundred people.\nOnly consider data entries without null values in the three mentioned columns.\nUse a significance level (alpha) of 0.05 for the predictors.\nConsider the predictors to be significant if the p-value is less than 0.05.\nCalculate the R-squared value of the model.\n}\n{\n@significant_predictor[predictor_1,predictor_2]\n@r_squared[r_squared_value]\nWhere \"predictor_1,predictor_2\" can be \"yes,yes\", \"yes,no\", \"no,yes\", or \"no,no\" based on the p-values of the predictors.\nWhere \"r_squared_value\" is a number between 0 and 1, rounded to four decimal places.",
+      "asset": "country_vaccinations.csv",
+      "observed_failure": "execution_or_model_error",
+      "candidate_answers": {},
+      "candidate_final_sql": null,
+      "trace_error_counts": {
+        "QueryExecutionError": 1
+      },
+      "planned_stages": [
+        8
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "infi",
+      "case_id": "759",
+      "question": "5. Calculate the median and range of the maximum temperature (TMAX_F) for each type of observation (obs_type) recorded in the dataset. Are there any differences in the median and range between different observation types?",
+      "public_instructions": "In your analysis:\n- Consider only two observation types: \"TMAX\" and \"TMIN\".\n- Report the median rounded to two decimal places.\n- Calculate the range as the difference between the maximum and minimum temperatures for each observation type.\n@@median_tmax[\"median_TMAX\"]\n@median_tmin[\"median_TMIN\"]\n@range_tmax[\"range_TMAX\"]\n@range_tmin[\"range_TMIN\"]\n\nwhere \"median_TMAX\" and \"median_TMIN\" are the median temperatures for TMAX and TMIN observation types, respectively. They are numbers between -100 and 100, rounded to two decimal places.\nwhere \"range_TMAX\" and \"range_TMIN\" are the range of temperatures for TMAX and TMIN observation types, respectively. They are numbers greater than 0.",
+      "asset": "weather_data_1864.csv",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {
+        "median_tmax": "",
+        "median_tmin": "",
+        "range_tmax": 125.82,
+        "range_tmin": ""
+      },
+      "candidate_final_sql": null,
+      "trace_error_counts": {
+        "JSONDecodeError": 2
+      },
+      "planned_stages": [
+        7,
+        8
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "infi",
+      "case_id": "30",
+      "question": "Create a linear regression machine learning model using the Scikit-learn library to predict the medical charges based on the age and BMI of individuals. Evaluate the performance of the model using the Root Mean Square Error (RMSE) evaluation metric only.",
+      "public_instructions": "Use the linear regression model available in the Scikit-Learn library. Split the data into training and testing sets with 80% of the data used for training and 20% used for testing. Use a random state of 42 for the split. The predictor variables are 'age' and 'bmi', and the target variable is 'charges'. Implement RMSE for the model evaluation. Ignore any row with missing values present in these three columns for this analysis.\n@model_rmse[RMSE_value], where RMSE value is a positive number rounded to two decimal places.",
+      "asset": "insurance.csv",
+      "observed_failure": "unsupported_capability",
+      "candidate_answers": {},
+      "candidate_final_sql": null,
+      "trace_error_counts": {},
+      "planned_stages": [
+        8
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "infi",
+      "case_id": "27",
+      "question": "Identify the outliers in the charges incurred by individuals using the Z-score method.",
+      "public_instructions": "Apply the Z-score method for outlier detection using the 1.5xIQR rule. Consider any value that falls below Q1 - 1.5 * IQR or above Q3 + 1.5 * IQR as an outlier. Report the total number of outliers, and the mean and median charges of these identified outliers.\n@total_outliers[total_outliers] \n@mean_charges_outliers[mean_charges_outliers] \n@median_charges_outliers[median_charges_outliers] \nwhere \"total_outliers\" is an integer, \"mean_charges_outliers\" and \"median_charges_outliers\" are floating-point numbers rounded to two decimal places.",
+      "asset": "insurance.csv",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {
+        "total_outliers": 0,
+        "mean_charges_outliers": null,
+        "median_charges_outliers": null
+      },
+      "candidate_final_sql": null,
+      "trace_error_counts": {},
+      "planned_stages": [
+        8
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "infi",
+      "case_id": "575",
+      "question": "Using feature engineering techniques, create a new feature that represents the average stock price of Apple Inc. (AAPL), Microsoft Corporation (MSFT), and Amazon.com, Inc. (AMZN) on the given dates. Calculate the correlation between this new feature and the closing value of the S&P 500 Index (.SPX).",
+      "public_instructions": "Calculate the Pearson correlation coefficient (r) to assess the strength and direction of the linear relationship between the newly created average stock price feature and the closing value of the S&P 500 Index (.SPX).\nAssess the significance of the correlation using a two-tailed test with a significance level (alpha) of 0.05.\nReport the p-value associated with the correlation test.\nConsider the relationship to be linear if the p-value is less than 0.05 and the absolute value of r is greater than or equal to 0.5.\nConsider the relationship to be nonlinear if the p-value is less than 0.05 and the absolute value of r is less than 0.5.\nIf the p-value is greater than or equal to 0.05, report that there is no significant correlation.\n@correlation_coefficient_corr[r_value]\n@p_value_pval[p_value]\n@relationship_type_relation[relationship_type]\nwhere \"r_value\" is a number between -1 and 1, rounded to two decimal places.\nwhere \"p_value\" is a number between 0 and 1, rounded to four decimal places.\nwhere \"relationship_type\" is a string that can either be \"linear\", \"nonlinear\", or \"none\" based on the conditions specified in the constraints.",
+      "asset": "tr_eikon_eod_data.csv",
+      "observed_failure": "execution_or_model_error",
+      "candidate_answers": {},
+      "candidate_final_sql": null,
+      "trace_error_counts": {
+        "JSONDecodeError": 1
+      },
+      "planned_stages": [
+        7,
+        8
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "infi",
+      "case_id": "70",
+      "question": "Perform machine learning by training a linear regression model to predict the wage based on the features exper, looks, union, goodhlth, black, female, married, south, bigcity, smllcity, service, and educ. Use the Root Mean Squared Error (RMSE) for evaluating the model's performance.",
+      "public_instructions": "Perform the machine learning task using the sklearn library's LinearRegression() function. Split the dataset into a 70% training set and a 30% test set. Set the random seed to 42 for reproducibility of the results. Calculate the RMSE on the test set.\n@RMSE[RMSE_value] where \"RMSE_value\" is a number rounded to two decimal places.",
+      "asset": "beauty and the labor market.csv",
+      "observed_failure": "unsupported_capability",
+      "candidate_answers": {},
+      "candidate_final_sql": null,
+      "trace_error_counts": {},
+      "planned_stages": [
+        8
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "infi",
+      "case_id": "644",
+      "question": "Check if the \"Close\" column follows a normal distribution.",
+      "public_instructions": "Use the Shapiro-Wilk test to determine whether the \"Close\" column follows a normal distribution. The null hypothesis is that the data was drawn from a normal distribution. Use a significance level (alpha) of 0.05. If the p-value is less than 0.05, reject the null hypothesis and conclude that the data does not come from a normal distribution. Otherwise, do not reject the null hypothesis and conclude that the data does come from a normal distribution. Round the p-value to four decimal places.\n@p_value[p-value]\n@result[result]\nwhere \"p-value\" is a number between 0 and 1, rounded to four decimal places.\nwhere \"result\" is a string that is either \"Normal distribution\" or \"Not a normal distribution\".",
+      "asset": "random_stock_data.csv",
+      "observed_failure": "unsupported_capability",
+      "candidate_answers": {},
+      "candidate_final_sql": null,
+      "trace_error_counts": {
+        "JSONDecodeError": 1
+      },
+      "planned_stages": [
+        7,
+        8
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "infi",
+      "case_id": "352",
+      "question": "Identify any outliers in the Fare column using the Z-score method.",
+      "public_instructions": "Calculate the Z-score for each value in the Fare column. \nConsider a value to be an outlier if its Z-score is greater than 3 or less than -3.\nReturn the list of outlier values sorted in ascending order.\n@fare_outliers[outliers_list]\nwhere \"outliers_list\" is a list of integers sorted in ascending order.",
+      "asset": "test_x.csv",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {
+        "fare_outliers": []
+      },
+      "candidate_final_sql": null,
+      "trace_error_counts": {
+        "JSONDecodeError": 1
+      },
+      "planned_stages": [
+        7,
+        8
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "infi",
+      "case_id": "452",
+      "question": "1. Is there a relationship between wind speed (WINDSPEED) and atmospheric pressure (BARO) for wind direction (DIR) equal to 180 degrees? Calculate the Pearson correlation coefficient for this specific wind direction.",
+      "public_instructions": "Calculate the Pearson correlation coefficient (r) to assess the strength and direction of the linear relationship between wind speed and atmospheric pressure for wind direction equal to 180 degrees.\nAssess the significance of the correlation using a two-tailed test with a significance level (alpha) of 0.05.\nReport the p-value associated with the correlation test.\nConsider the relationship to be linear if the p-value is less than 0.05 and the absolute value of r is greater than or equal to 0.5.\nConsider the relationship to be nonlinear if the p-value is less than 0.05 and the absolute value of r is less than 0.5.\nIf the p-value is greater than or equal to 0.05, report that there is no significant correlation.\n@correlation_coefficient[r_value]\n@p_value[p_value]\n@relationship_type[relationship_type]\nwhere \"r_value\" is a number between -1 and 1, rounded to two decimal places.\nwhere \"p_value\" is a number between 0 and 1, rounded to four decimal places.\nwhere \"relationship_type\" is a string that can either be \"linear\", \"nonlinear\", or \"none\" based on the conditions specified in the constraints.",
+      "asset": "baro_2015.csv",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {
+        "correlation_coefficient": -0.16,
+        "p_value": 0.3797,
+        "relationship_type": "none"
+      },
+      "candidate_final_sql": null,
+      "trace_error_counts": {
+        "JSONDecodeError": 2
+      },
+      "planned_stages": [
+        7,
+        8
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "infi",
+      "case_id": "468",
+      "question": "2. Are there any outliers in the age distribution of offenders in 'Assault' category, according to the IQR method? If yes, report the number of outliers.",
+      "public_instructions": "You are to use the Interquartile Range (IQR) method for outlier detection. Calculate the IQR as Q3 (75th percentile) - Q1 (25th percentile) for the 'Assault' category. Outliers are considered as values lying below Q1 - 1.5 * IQR or above Q3 + 1.5 * IQR.\n@number_of_outliers[number] where \"number\" is a positive integer denoting the number of outliers",
+      "asset": "arrest_expungibility.csv",
+      "observed_failure": "step_budget",
+      "candidate_answers": {},
+      "candidate_final_sql": null,
+      "trace_error_counts": {},
+      "planned_stages": [
+        8
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "infi",
+      "case_id": "359",
+      "question": "Check if the distribution of wind speed in the weather dataset is skewed.",
+      "public_instructions": "For missing values in the \"wind speed\" column, use the 'dropna' method to remove these data points before calculations.\nDetermine the skewness using Pearson's First Coefficient of Skewness. \nReport whether the distribution is positively skewed, negatively skewed, or symmetric based on the obtained skewness value. \nAssume the distribution to be positively skewed if skewness value is > 0, negatively skewed if skewness is < 0, and symmetric if skewness is 0.\n@skewness_value[skew_value]\n@skewness_type[type_value]\nwhere \"skew_value\" is a float number rounded to 2 decimal places.\nwhere \"type_value\" is a string that can be either \"positive\", \"negative\", or \"symmetric\" based on the conditions specified in the constraints.",
+      "asset": "weather_train.csv",
+      "observed_failure": "execution_or_model_error",
+      "candidate_answers": {},
+      "candidate_final_sql": null,
+      "trace_error_counts": {
+        "JSONDecodeError": 4
+      },
+      "planned_stages": [
+        7,
+        8
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "infi",
+      "case_id": "234",
+      "question": "What is the average duration of a budget year for all departments?",
+      "public_instructions": "Calculate the duration of each department’s budget year in days, by subtracting the budget_year_start from budget_year_end. Afterwards, calculate the mean of these durations using a built-in Python function.\n@average_duration[days] where \"days\" is a whole number representing the average number of days of budget years across all departments, rounded to the nearest whole number.",
+      "asset": "city_departments_in_current_budget.csv",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {
+        "average_duration": "365"
+      },
+      "candidate_final_sql": null,
+      "trace_error_counts": {
+        "SqlGuardError": 1
+      },
+      "planned_stages": [
+        8
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "infi",
+      "case_id": "355",
+      "question": "Perform a linear regression analysis to predict fare based on age and passenger class.",
+      "public_instructions": "{\nUse the simple linear regression model where Fare is the dependent variable and Age and Pclass are the independent variables.\nConsider the relationship to be significant if the p-value is less than 0.05 for both variables (Age and Pclass).\nIf the p-value is greater than or equal to 0.05 for either variable, report that there is no significant relationship.\n}\n{\n@coef_age[coef_age]\n@coef_pclass[coef_pclass]\n@relationship_age[relationship_age]\n@relationship_pclass[relationship_pclass]\nwhere \"coef_age\" and \"coef_pclass\" are the regression coefficients for the variables Age and Pclass respectively, rounded to two decimal places.\nwhere \"relationship_age\" and \"relationship_pclass\" are strings that can either be \"significant\" or \"not significant\" based on the conditions specified in the constraints.",
+      "asset": "test_x.csv",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {
+        "coef_age": 0.39,
+        "coef_pclass": -0.95,
+        "relationship_age": "no significant relationship",
+        "relationship_pclass": "no significant relationship"
+      },
+      "candidate_final_sql": null,
+      "trace_error_counts": {
+        "JSONDecodeError": 1
+      },
+      "planned_stages": [
+        7,
+        8
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "infi",
+      "case_id": "62",
+      "question": "Are there any outliers in the \"No. of deaths_max\" column for each country? How do these outliers affect the overall distribution of recorded deaths?",
+      "public_instructions": "Use the IQR method (1.5*IQR rule) to detect the outliers. If there are any outliers, remove them and then recalculate the mean number of deaths.\n@no_of_countries_with_outliers[number], @mean_no_of_deaths_with_outliers[original_mean], @mean_no_of_deaths_without_outliers[new_mean]. The number should be an integer. The original_mean and new_mean should be float numbers rounded to two decimal places.",
+      "asset": "estimated_numbers.csv",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {
+        "no_of_countries_with_outliers": 66,
+        "mean_no_of_deaths_with_outliers": 10149.43,
+        "mean_no_of_deaths_without_outliers": 9355.28
+      },
+      "candidate_final_sql": null,
+      "trace_error_counts": {},
+      "planned_stages": [
+        8
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "infi",
+      "case_id": "219",
+      "question": "Identify the site(s) with outliers in the abs_diffsel column using the interquartile range (IQR) method. An outlier is defined as a value that is below Q1 - 1.5*IQR or above Q3 + 1.5*IQR. Provide the site identifier(s) and the corresponding absolute difference in selection values for the outliers.",
+      "public_instructions": "Use the interquartile range (IQR) method for outlier detection. Calculate the IQR as the difference between the first quartile (Q1) and the third quartile (Q3) of the abs_diffsel column. Consider a value as an outlier if it is below Q1 - 1.5*IQR or above Q3 + 1.5*IQR.\n@site_identifiers[site_id1,site_id2,...] @outlier_values[value1,value2,...], where \"site_id1\", \"site_id2\", ... are strings representing the identifiers of the sites with detected outliers and \"value1\", \"value2\", ... are the corresponding absolute difference in selection values for the outliers, each rounded to two decimal places.",
+      "asset": "ferret-Pitt-2-preinf-lib2-100_sitediffsel.csv",
+      "observed_failure": "execution_or_model_error",
+      "candidate_answers": {},
+      "candidate_final_sql": null,
+      "trace_error_counts": {
+        "JSONDecodeError": 2
+      },
+      "planned_stages": [
+        7,
+        8
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "infi",
+      "case_id": "254",
+      "question": "Identify any outliers in the gross domestic product per capita data for the year 1982 for all countries. Define an outlier as any data point that falls more than 1.5 times the interquartile range (IQR) below the first quartile or above the third quartile. Report the country or countries which their gdpPercap_1982 values are identified as outliers.",
+      "public_instructions": "Use the interquartile range (IQR) rule for outlier detection: a data point is considered an outlier if it falls more than 1.5*IQR below the first quartile (Q1) or above the third quartile (Q3). Don't use any other outlier detection methods or parameters.\n@outlier_countries[list_of_strings] where each string in list_of_strings is the name of a country that is an outlier according to the IQR rule.",
+      "asset": "gapminder_gdp_asia.csv",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {
+        "outlier_countries": [
+          "Kuwait",
+          "Saudi Arabia"
+        ]
+      },
+      "candidate_final_sql": null,
+      "trace_error_counts": {},
+      "planned_stages": [
+        8
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "infi",
+      "case_id": "298",
+      "question": "2. Perform a distribution analysis on the \"nsamplecov\" column. Determine whether the distribution adheres to a normal distribution and calculate the skewness and kurtosis values.",
+      "public_instructions": "Test the normality of the data using Shapiro-Wilk Test. Use a significance level (alpha) of 0.05.\nReport the p-value associated with the normality test. \nConsider the distribution to be normal if the p-value is larger than 0.05.\nCalculate the skewness and kurtosis values.\n@is_normal[is_normal]\n@skewness[skewness]\n@kurtosis[kurtosis]\nwhere \"is_normal\" is a string, either \"yes\" or \"no\" according to the normality test result.\nwhere \"skewness\" and \"kurtosis\" are numbers rounded to two decimal places.",
+      "asset": "ts-sc4-wi100000-sl25000-Qrob_Chr05.tree_table.csv",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {
+        "is_normal": "no",
+        "skewness": "-1.30",
+        "kurtosis": "3.30"
+      },
+      "candidate_final_sql": null,
+      "trace_error_counts": {
+        "QueryExecutionError": 1
+      },
+      "planned_stages": [
+        8
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "infi",
+      "case_id": "550",
+      "question": "Perform comprehensive data preprocessing on the abalone dataset. Handle any missing values and scale the variables (length, diameter, height, whole weight, shucked weight, viscera weight, shell weight) using min-max normalization. Then, perform a distribution analysis to determine if the scaled variables adhere to a normal distribution.",
+      "public_instructions": "Any missing values should be filled using the median of the respective column. Use sklearn's MinMaxScaler for normalization, scale the variables to a range between 0 and 1. For distribution analysis, use skewness and kurtosis to determine the distribution type. If skewness is between -0.5 and 0.5 and kurtosis is between -2 and 2, we consider it as normal.\n@missing_values_handled[\"Yes\"/\"No\"], @min_max_scaler_scale[range], @distribution_type[distribution type]\nwhere \"missing_values_handled\" indicates if missing values have been properly handled or not, \"range\" should be a string that specifies the range of the scaled variables, for example \"0-1\", \"distribution type\" should be a string which can be \"Normal\" or \"Non-Normal\".",
+      "asset": "abalone.csv",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {
+        "missing_values_handled": "Yes",
+        "min_max_scaler_scale": "0-1",
+        "distribution_type": "Non-Normal"
+      },
+      "candidate_final_sql": null,
+      "trace_error_counts": {
+        "JSONDecodeError": 1
+      },
+      "planned_stages": [
+        7,
+        8
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "infi",
+      "case_id": "659",
+      "question": "Find the correlation between the 'High' and 'Low' columns.",
+      "public_instructions": "Calculate the Pearson correlation coefficient, ignore the missing values, and round the result to 2 decimal places.\n@correlation_high_low[correlation] where \"correlation\" is a decimal number between -1 and 1, representing the Pearson correlation coefficient between 'High' and 'Low' columns, rounded to two decimal places.",
+      "asset": "YAHOO-BTC_USD_D.csv",
+      "observed_failure": "unsupported_capability",
+      "candidate_answers": {},
+      "candidate_final_sql": null,
+      "trace_error_counts": {
+        "ValueError": 3,
+        "JSONDecodeError": 1
+      },
+      "planned_stages": [
+        7,
+        8
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "infi",
+      "case_id": "14",
+      "question": "Create a new feature called \"Price Range\" which represents the difference between the \"High Price\" and \"Low Price\" for each row. Calculate the mean, median, and standard deviation of this new feature.",
+      "public_instructions": "Make sure to use the correct columns for calculating the \"Price Range\". All calculations should be performed up to two decimal places.\n@price_range_mean[mean]: The mean should be a single real number rounded to two decimal places. @price_range_median[median]: The median should be a single real number rounded to two decimal places. @price_range_std_dev[std_dev]: The standard deviation should be a single real number rounded to two decimal places.",
+      "asset": "GODREJIND.csv",
+      "observed_failure": "execution_or_model_error",
+      "candidate_answers": {},
+      "candidate_final_sql": null,
+      "trace_error_counts": {
+        "JSONDecodeError": 2
+      },
+      "planned_stages": [
+        7,
+        8
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "infi",
+      "case_id": "69",
+      "question": "Perform feature engineering by creating a new feature called \"experience_score\" that is calculated by multiplying the exper column with the looks column. Then, calculate the Pearson correlation coefficient between the \"experience_score\" feature and the wage column.",
+      "public_instructions": "Create \"experience_score\" by directly multiplying values of exper and looks column. Calculate Pearson correlation coefficient between the new feature \"experience_score\" and wage. Correlation should be calculated up to three decimal places.\n@correlation[correlation] where \"correlation\" is a number representing the correlation coefficient, rounded to three decimal places.",
+      "asset": "beauty and the labor market.csv",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {
+        "correlation": "0.174"
+      },
+      "candidate_final_sql": null,
+      "trace_error_counts": {
+        "ValueError": 1,
+        "JSONDecodeError": 1
+      },
+      "planned_stages": [
+        7,
+        8
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "infi",
+      "case_id": "23",
+      "question": "Apply machine learning techniques to predict the employment level in March 2020 based on the data from March 2019. Split the dataset into a 70-30 split for training and testing sets, train a simple linear regression model on the training set, and evaluate its performance on the testing set using Mean Squared Error as the evaluation metric.",
+      "public_instructions": "Split the dataset with a 70-30 split for training and testing sets with a random seed of 42. Use a simple linear regression model for training and evaluate the model's performance by calculating the Mean Squared Error.\n@Mean_Squared_Error[MSE], where \"MSE\" is a number rounded to two decimal places.",
+      "asset": "unemployement_industry.csv",
+      "observed_failure": "execution_or_model_error",
+      "candidate_answers": {},
+      "candidate_final_sql": null,
+      "trace_error_counts": {
+        "JSONDecodeError": 2
+      },
+      "planned_stages": [
+        7,
+        8
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "infi",
+      "case_id": "5",
+      "question": "Generate a new feature called \"FamilySize\" by summing the \"SibSp\" and \"Parch\" columns. Then, calculate the Pearson correlation coefficient (r) between the \"FamilySize\" and \"Fare\" columns.",
+      "public_instructions": "Create a new column 'FamilySize' that is the sum of 'SibSp' and 'Parch' for each row.\nCalculate the Pearson correlation coefficient between 'FamilySize' and 'Fare'\nDo not perform any further data cleaning or preprocessing steps before calculating the correlation.\n@correlation_coefficient[r_value]\nwhere \"r_value\" is the Pearson correlation coefficient between 'FamilySize' and 'Fare', a number between -1 and 1, rounded to two decimal places.",
+      "asset": "test_ave.csv",
+      "observed_failure": "unsupported_capability",
+      "candidate_answers": {},
+      "candidate_final_sql": null,
+      "trace_error_counts": {
+        "JSONDecodeError": 1
+      },
+      "planned_stages": [
+        7,
+        8
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "infi",
+      "case_id": "118",
+      "question": "Is there a linear relationship between the GDP per capita and the life expectancy score in the dataset? Conduct linear regression and use the resulting coefficient of determination (R-squared) to evaluate the model's goodness of fit.",
+      "public_instructions": "Calculate the coefficient of determination (R-squared) for the given relationship. If R-squared is equal to or greater than 0.7, consider the model a good fit. Else, consider it a poor fit.\n@coefficient_determination[R_square], @model_fit[model_fit], where \"R_square\" is the value of the coefficient of determination rounded to two decimal places and \"model_fit\" is a string that is either \"good fit\" or \"poor fit\" based on the calculated R-squared value.",
+      "asset": "2015.csv",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {
+        "coefficient_determination": "0.53",
+        "model_fit": "poor fit"
+      },
+      "candidate_final_sql": null,
+      "trace_error_counts": {
+        "JSONDecodeError": 3
+      },
+      "planned_stages": [
+        7,
+        8
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "infi",
+      "case_id": "300",
+      "question": "1. Is there a correlation between the \"nsnps\" and \"nsamplecov\" columns? Calculate the Pearson correlation coefficient (r) to assess the strength of the correlation. Assess the significance of the correlation using a two-tailed test with a significance level (alpha) of 0.05. Report the p-value associated with the correlation test. If the p-value is greater than or equal to 0.05, report that there is no significant correlation.",
+      "public_instructions": "Calculate the Pearson correlation coefficient (r) to assess the strength and direction of the linear relationship between \"nsnps\" and \"nsamplecov\". Assess the significance of the correlation using a two-tailed test with a significance level (alpha) of 0.05. Report the p-value associated with the correlation test. Consider the relationship to be correlated if the p-value is less than 0.05. If the p-value is greater than or equal to 0.05, report that there is no significant correlation.\n@correlation_coefficient[r_value]\n@p_value[p_value]\n@correlation[colleration]\nwhere \"r_value\" is a number between -1 and 1, rounded to two decimal places.\nwhere \"p_value\" is a number between 0 and 1, rounded to four decimal places.\nwhere \"colleration\" is a string that can either be \"correlated\" or \"not correlated\" based on the conditions specified in the constraints.",
+      "asset": "ts-sc4-wi100000-sl25000-Qrob_Chr05.tree_table.csv",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {
+        "correlation": "correlated",
+        "correlation_coefficient": 0.53,
+        "p_value": 0.0
+      },
+      "candidate_final_sql": null,
+      "trace_error_counts": {},
+      "planned_stages": [
+        8
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "infi",
+      "case_id": "255",
+      "question": "Calculate the mean and standard deviation of the gross domestic product per capita in the year 2007 for all countries in the dataset. Round your answers to 2 decimal places.",
+      "public_instructions": "Perform arithmetic mean and standard deviation calculations on the 'gdpPercap_2007' column of the dataset. Round your answer to two decimal places. Do not use modes, medians, or any other form of average.\n@mean_gdp2007[float], @standard_deviation_gdp2007[float] where each float is a positive number rounded to two decimal places.",
+      "asset": "gapminder_gdp_asia.csv",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {
+        "mean_gdp2007": 12473.03,
+        "standard_deviation_gdp2007": 13938.82
+      },
+      "candidate_final_sql": null,
+      "trace_error_counts": {},
+      "planned_stages": [
+        8
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "dabstep",
+      "case_id": "70",
+      "question": "Is Martinis_Fine_Steakhouse in danger of getting a high-fraud rate fine?",
+      "public_instructions": "Answer must be just either yes or no. If a question does not have a relevant or applicable answer for the task, please respond with 'Not Applicable'",
+      "asset": "payments.csv",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {
+        "answer": "No"
+      },
+      "candidate_final_sql": null,
+      "trace_error_counts": {
+        "JSONDecodeError": 1
+      },
+      "planned_stages": [
+        7,
+        9
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "dabstep",
+      "case_id": "1305",
+      "question": "For account type H and the MCC description: Eating Places and Restaurants, what would be the average fee that the card scheme GlobalCard would charge for a transaction value of 10 EUR? Provide the answer in EUR and 6 decimals",
+      "public_instructions": "Answer must be just a number expressed in EUR rounded to 6 decimals. If a question does not have a relevant or applicable answer for the task, please respond with 'Not Applicable'",
+      "asset": "payments.csv",
+      "observed_failure": "execution_or_model_error",
+      "candidate_answers": {},
+      "candidate_final_sql": null,
+      "trace_error_counts": {
+        "JSONDecodeError": 2
+      },
+      "planned_stages": [
+        7,
+        9
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "dabstep",
+      "case_id": "49",
+      "question": "What is the top country (ip_country) for fraud? A. NL, B. BE, C. ES, D. FR",
+      "public_instructions": "Answer must be in the form 'X. Y' where X is the option's letter chosen and Y is the option's country code. If a question does not have a relevant or applicable answer for the task, please respond with 'Not Applicable'",
+      "asset": "payments.csv",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {
+        "answer": "A. NL"
+      },
+      "candidate_final_sql": null,
+      "trace_error_counts": {},
+      "planned_stages": [
+        9
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "dabstep",
+      "case_id": "1681",
+      "question": "For the 10th of the year 2023, what are the Fee IDs applicable to Belles_cookbook_store?",
+      "public_instructions": "Answer must be a list of values in comma separated list, eg: A, B, C. If the answer is an empty list, reply with an empty string. If a question does not have a relevant or applicable answer for the task, please respond with 'Not Applicable'",
+      "asset": "payments.csv",
+      "observed_failure": "execution_or_model_error",
+      "candidate_answers": {},
+      "candidate_final_sql": null,
+      "trace_error_counts": {
+        "QueryExecutionError": 1
+      },
+      "planned_stages": [
+        9
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "dabstep",
+      "case_id": "1273",
+      "question": "For credit transactions, what would be the average fee that the card scheme GlobalCard would charge for a transaction value of 10 EUR?",
+      "public_instructions": "Answer must be just a number expressed in EUR rounded to 6 decimals. If a question does not have a relevant or applicable answer for the task, please respond with 'Not Applicable'",
+      "asset": "payments.csv",
+      "observed_failure": "missing_evidence",
+      "candidate_answers": {},
+      "candidate_final_sql": null,
+      "trace_error_counts": {
+        "JSONDecodeError": 1,
+        "QueryExecutionError": 2,
+        "SqlGuardError": 1
+      },
+      "planned_stages": [
+        7,
+        9
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "dabstep",
+      "case_id": "1871",
+      "question": "In January 2023 what delta would Belles_cookbook_store pay if the relative fee of the fee with ID=384 changed to 1?",
+      "public_instructions": "Answer must be just a number rounded to 14 decimals. If a question does not have a relevant or applicable answer for the task, please respond with 'Not Applicable'",
+      "asset": "payments.csv",
+      "observed_failure": "execution_or_model_error",
+      "candidate_answers": {},
+      "candidate_final_sql": null,
+      "trace_error_counts": {
+        "JSONDecodeError": 1
+      },
+      "planned_stages": [
+        7,
+        9
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "dabstep",
+      "case_id": "1753",
+      "question": "What are the applicable fee IDs for Belles_cookbook_store in March 2023?",
+      "public_instructions": "Answer must be a list of values in comma separated list, eg: A, B, C. If the answer is an empty list, reply with an empty string. If a question does not have a relevant or applicable answer for the task, please respond with 'Not Applicable'",
+      "asset": "payments.csv",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {
+        "answer": "Not Applicable"
+      },
+      "candidate_final_sql": null,
+      "trace_error_counts": {
+        "JSONDecodeError": 1,
+        "QueryExecutionError": 1
+      },
+      "planned_stages": [
+        7,
+        9
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "dabstep",
+      "case_id": "1464",
+      "question": "What is the fee ID or IDs that apply to account_type = R and aci = B?",
+      "public_instructions": "Answer must be a list of values in comma separated list, eg: A, B, C. If the answer is an empty list, reply with an empty string. If a question does not have a relevant or applicable answer for the task, please respond with 'Not Applicable'",
+      "asset": "payments.csv",
+      "observed_failure": "answer_mismatch",
+      "candidate_answers": {
+        "answer": "34, 39, 49, 62, 68, 82, 154, 220, 231, 236, 265, 276, 278, 286, 329, 345, 352, 355, 360, 368, 369, 390, 393, 404, 419, 512, 539, 556, 564, 583, 587, 590, 638, 645, 661, 711, 717, 731, 757, 779, 793, 828, 837, 871, 915, 938, 939, 964, 986, 998"
+      },
+      "candidate_final_sql": null,
+      "trace_error_counts": {
+        "SqlGuardError": 1
+      },
+      "planned_stages": [
+        9
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    },
+    {
+      "track": "dabstep",
+      "case_id": "2697",
+      "question": "For Belles_cookbook_store in January, if we were to move the fraudulent transactions towards a different Authorization Characteristics Indicator (ACI) by incentivizing users to use a different interaction, what would be the preferred choice considering the lowest possible fees?",
+      "public_instructions": "Answer must be just the selected ACI to incentive and the associated cost rounded to 2 decimals in this format: {card_scheme}:{fee}. If a question does not have a relevant or applicable answer for the task, please respond with 'Not Applicable'",
+      "asset": "payments.csv",
+      "observed_failure": "execution_or_model_error",
+      "candidate_answers": {},
+      "candidate_final_sql": null,
+      "trace_error_counts": {
+        "JSONDecodeError": 1
+      },
+      "planned_stages": [
+        7,
+        9
+      ],
+      "root_cause_status": "unresolved_without_case_specific_review"
+    }
+  ],
+  "offline_checks": [
+    {
+      "track": "infi",
+      "case_id": "255",
+      "status": "independently_recomputed",
+      "finding": "candidate used population rather than reference sample standard deviation",
+      "n": 33,
+      "population_std": 13938.82,
+      "sample_std": 14154.94,
+      "reference": {
+        "standard_deviation_gdp2007": "14154.94",
+        "mean_gdp2007": "12473.03"
+      },
+      "improvement": "explicit ddof method contract; route to existing sample_std tool before adding new math"
+    },
+    {
+      "track": "infi",
+      "case_id": "69",
+      "status": "independently_recomputed",
+      "n": 1260,
+      "pearson": 0.2524071566789525,
+      "rounded_per_public_instruction": 0.252,
+      "reference": {
+        "correlation": "0.252"
+      },
+      "finding": "missing derived-feature computation and verified full-data calculation",
+      "score_changed": false
+    },
+    {
+      "track": "infi",
+      "case_id": "300",
+      "status": "independently_recomputed",
+      "n": 2657,
+      "pearson": 0.5261625171827068,
+      "rounded_per_public_instruction": 0.53,
+      "reference": {
+        "correlation_coefficient": "0.54",
+        "correlation": "correlated"
+      },
+      "finding": "reference rounded coefficient differs from pinned-data independent recomputation; adjudication required",
+      "score_changed": false
+    },
+    {
+      "track": "bird",
+      "case_id": "1092",
+      "status": "queries_independently_reexecuted",
+      "candidate_row_count": 1,
+      "reference_row_count": 4,
+      "aggregate_candidate": null,
+      "aggregate_reference": null,
+      "finding": "LIMIT 1 omits three tied winners",
+      "score_changed": false
+    },
+    {
+      "track": "bird",
+      "case_id": "672",
+      "status": "queries_independently_reexecuted",
+      "candidate_row_count": 1,
+      "reference_row_count": 1,
+      "aggregate_candidate": [
+        14
+      ],
+      "aggregate_reference": [
+        19
+      ],
+      "finding": "entity-versus-post multiplicity ambiguity: DISTINCT 14 versus reference count 19; adjudication required",
+      "score_changed": false
+    },
+    {
+      "track": "bird",
+      "case_id": "219",
+      "status": "queries_independently_reexecuted",
+      "candidate_row_count": 1,
+      "reference_row_count": 1,
+      "aggregate_candidate": [
+        0.08075370121130551
+      ],
+      "aggregate_reference": [
+        66.66666666666667
+      ],
+      "finding": "public hint and reference SQL use different conditioning and counting populations; adjudication required",
+      "score_changed": false
+    }
+  ],
+  "references": [
+    {
+      "project": "OpenAI-Data-Analytics",
+      "commit": "52ae75ef7387bef9de52b8cbceea91cde7cf4e51",
+      "files": [
+        {
+          "path": "plugins/data-analytics/skills/create-data-context/SKILL.md",
+          "sha256": "25bb15f1a23416f699f400a789da6d0ffd24a7746f70677ba8d4a0b1d7a2ef37",
+          "url": "https://github.com/ibillxia/OpenAI-Data-Analytics/blob/52ae75ef7387bef9de52b8cbceea91cde7cf4e51/plugins/data-analytics/skills/create-data-context/SKILL.md"
+        },
+        {
+          "path": "plugins/data-analytics/skills/analyze-data-quality/SKILL.md",
+          "sha256": "91dee8a74b71523ad4ecc67bdd965e4019d7a5e672eda6e2d10cdfb600323509",
+          "url": "https://github.com/ibillxia/OpenAI-Data-Analytics/blob/52ae75ef7387bef9de52b8cbceea91cde7cf4e51/plugins/data-analytics/skills/analyze-data-quality/SKILL.md"
+        },
+        {
+          "path": "plugins/data-analytics/skills/validate-data/SKILL.md",
+          "sha256": "5a111548e089e92fee816d976db41200353eb4bd52d3ec4f141896d56c9901af",
+          "url": "https://github.com/ibillxia/OpenAI-Data-Analytics/blob/52ae75ef7387bef9de52b8cbceea91cde7cf4e51/plugins/data-analytics/skills/validate-data/SKILL.md"
+        },
+        {
+          "path": "plugins/data-analytics/skills/product-business-analysis/SKILL.md",
+          "sha256": "4a0b1ed31239bf49b72b39f101a7011aabb6310c2801f8e9c0bb17471e75d136",
+          "url": "https://github.com/ibillxia/OpenAI-Data-Analytics/blob/52ae75ef7387bef9de52b8cbceea91cde7cf4e51/plugins/data-analytics/skills/product-business-analysis/SKILL.md"
+        },
+        {
+          "path": "plugins/data-analytics/skills/jupyter-notebook/SKILL.md",
+          "sha256": "6ea16362f40e7ade77faac1650b4e3b87510a77c21fba317a6b4b1bcc1d9bd2e",
+          "url": "https://github.com/ibillxia/OpenAI-Data-Analytics/blob/52ae75ef7387bef9de52b8cbceea91cde7cf4e51/plugins/data-analytics/skills/jupyter-notebook/SKILL.md"
+        },
+        {
+          "path": "plugins/data-analytics/skills/gather-business-context/SKILL.md",
+          "sha256": "eed1b395bde52db2fadca78e471b61814023cde71091457676eca36c61532c47",
+          "url": "https://github.com/ibillxia/OpenAI-Data-Analytics/blob/52ae75ef7387bef9de52b8cbceea91cde7cf4e51/plugins/data-analytics/skills/gather-business-context/SKILL.md"
+        },
+        {
+          "path": "plugins/data-analytics/skills/metric-diagnostics/SKILL.md",
+          "sha256": "b5d3ba4e0165eb523c7ea818506c219e28d053012e939c3161bba8e3d2228a66",
+          "url": "https://github.com/ibillxia/OpenAI-Data-Analytics/blob/52ae75ef7387bef9de52b8cbceea91cde7cf4e51/plugins/data-analytics/skills/metric-diagnostics/SKILL.md"
+        }
+      ],
+      "runtime_executed": false
+    },
+    {
+      "project": "AutoKaggle",
+      "commit": "cf151dd8a2d44ec6692b956bad8bca59f9e0d7c1",
+      "files": [
+        {
+          "path": "multi_agents/config.json",
+          "sha256": "1669cfafa175c1b803a0f1eb1c7af8217ff663b0745e332b830473e7a09bc0dc",
+          "url": "https://github.com/ibillxia/AutoKaggle/blob/cf151dd8a2d44ec6692b956bad8bca59f9e0d7c1/multi_agents/config.json"
+        },
+        {
+          "path": "multi_agents/sop.py",
+          "sha256": "5ca0ca02f49b7b8822c4f8ea5ecbd90802b00723769ea0a263cfd38ddabe2f2c",
+          "url": "https://github.com/ibillxia/AutoKaggle/blob/cf151dd8a2d44ec6692b956bad8bca59f9e0d7c1/multi_agents/sop.py"
+        },
+        {
+          "path": "multi_agents/agents/developer.py",
+          "sha256": "d12b3a679cd3b70d5a18f95195dfc16345a426cbb10caa2fc893e998fca5934c",
+          "url": "https://github.com/ibillxia/AutoKaggle/blob/cf151dd8a2d44ec6692b956bad8bca59f9e0d7c1/multi_agents/agents/developer.py"
+        },
+        {
+          "path": "multi_agents/agents/planner.py",
+          "sha256": "af9b9936744ff8c4b026e2ab06a3fe71dd8649c8aa1b0a1a1692f30637744a6a",
+          "url": "https://github.com/ibillxia/AutoKaggle/blob/cf151dd8a2d44ec6692b956bad8bca59f9e0d7c1/multi_agents/agents/planner.py"
+        },
+        {
+          "path": "multi_agents/agents/reviewer.py",
+          "sha256": "8c97f84d6c9b68dc0fd16e905853c8de77d6f11a6acf8e28ab188ce125a9d8f0",
+          "url": "https://github.com/ibillxia/AutoKaggle/blob/cf151dd8a2d44ec6692b956bad8bca59f9e0d7c1/multi_agents/agents/reviewer.py"
+        },
+        {
+          "path": "multi_agents/tools/unit_test.py",
+          "sha256": "1d0fba91f0c9bad139d76e115ff5c5f6a15fecd5acbb2b82d8b2d7adae2efa61",
+          "url": "https://github.com/ibillxia/AutoKaggle/blob/cf151dd8a2d44ec6692b956bad8bca59f9e0d7c1/multi_agents/tools/unit_test.py"
+        },
+        {
+          "path": "multi_agents/tools/ml_tools.py",
+          "sha256": "dc22d63d89dfd647f53f823da4efa0e32cced4b39471a2f969983a6a20da883e",
+          "url": "https://github.com/ibillxia/AutoKaggle/blob/cf151dd8a2d44ec6692b956bad8bca59f9e0d7c1/multi_agents/tools/ml_tools.py"
+        },
+        {
+          "path": "LICENSE.md",
+          "sha256": "681c4cbdfc7258b4bfd23a4e6417b66e6172d0d715701c7f6bfd355669adc8b0",
+          "url": "https://github.com/ibillxia/AutoKaggle/blob/cf151dd8a2d44ec6692b956bad8bca59f9e0d7c1/LICENSE.md"
+        }
+      ],
+      "runtime_executed": false
+    }
+  ],
+  "new_model_calls": 0,
+  "original_score_changed": false,
+  "production_accepted": false,
+  "limits": [
+    "recorded failure categories are not proven root causes",
+    "six cases independently checked; remaining finer attributions require review",
+    "three reference/wording concerns require adjudication without silently editing scores",
+    "audit labels and reference answers must not enter runtime skills, memory, retrieval or tool feedback"
+  ]
+}

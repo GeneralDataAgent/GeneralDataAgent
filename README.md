@@ -538,3 +538,5 @@ See the [Magpie integration and actual validation](docs/validation/stage6-magpie
 [reproduction commands](docs/operations/stage6-evaluation-runbook.md).
 Historical records remain in the [first run](docs/validation/stage6-evaluation.md) and
 [earlier continuation](docs/validation/stage6-continuation-2026-10-20.md).
+
+The next four increments are planned in the [Stage 7–10 optimization roadmap](docs/research/stage7-10-optimization-roadmap.md), grounded in the 69 failed Magpie cases and pinned analytics/AutoKaggle sources. These are proposed capabilities, not implemented results.
