@@ -176,6 +176,12 @@ def bind_typed_tools(model, *, sql_output: bool, planned: bool = False):
         }
         tools = [
             tool(
+                "submit_sql_answers",
+                "Compute and finish: one row, columns aliased to every public answer key",
+                {"sql": string},
+                ["sql"],
+            ),
+            tool(
                 "compute_sql",
                 "Compute one scoped read-only SQLite result",
                 {"sql": string},
@@ -233,7 +239,10 @@ linear_regression (descriptive slope/intercept only). Pearson returns r and obse
 not p-values or significance tests. Regression has no predictor p-values or held-out evaluation.
 If a required method cannot be computed by the available tools, call declare_unsupported with a
 brief reason. Do not consume the budget trying unsupported functions or invent an approximation.
-For filters or aggregates use compute_sql, read-only SQLite with exact listed columns and relations.
+For a complete answer available in one SQL query, prefer submit_sql_answers: SELECT exactly one
+row and alias every output column to its exact public answer key. Runtime computes, checks and
+binds all fields atomically, with the public precision and full-data receipts. No guessed constants.
+For necessary exploration use compute_sql, read-only SQLite with exact listed columns and relations.
 Use only requested filters; keep missing-value and date conventions explicit. Do not estimate
 statistics from previews. Use sample_std for sample standard deviation. Preserve requested ties.
 Search documents when needed with search_documents. For complete ID sets use collect_values with

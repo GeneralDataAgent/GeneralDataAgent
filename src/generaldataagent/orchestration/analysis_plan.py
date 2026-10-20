@@ -71,6 +71,7 @@ def normalize_protocol_action(action):
         "collect_values": "collect",
         "submit_answers": "answers",
         "declare_unsupported": "unsupported",
+        "submit_sql_answers": "answer_sql",
     }
     if not isinstance(action, dict):
         return action
@@ -119,7 +120,7 @@ def normalize_protocol_action(action):
             if isinstance(arguments, dict) and set(arguments) == {"query"}
             else action
         )
-    if name in {"collect_values", "compute_sql"}:
+    if name in {"collect_values", "compute_sql", "submit_sql_answers"}:
         if not isinstance(arguments, dict) or set(arguments) != {"sql"}:
             return action
         return {names[name]: arguments if name == "collect_values" else arguments["sql"]}

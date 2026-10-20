@@ -604,6 +604,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                         "collect_values": "collect",
                         "submit_answers": "answers",
                         "declare_unsupported": "unsupported",
+                        "submit_sql_answers": "answer_sql",
                     }
                     if name == "analysis_action":
                         content = json.dumps(arguments)
@@ -667,6 +668,8 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                         and not (task.benchmark == "bird-mini-dev-sqlite" and "sql" in action)
                     ):
                         raise SemanticError("public task contract required first")
+                    if "answer_sql" in action and task.benchmark == "bird-mini-dev-sqlite":
+                        raise SemanticError("answer_sql_requires_non_sql_task")
                     if "final_sql" in action and task.benchmark != "bird-mini-dev-sqlite":
                         raise SemanticError("this task requires evidence-bound answers")
                 allowed_actions = (
@@ -675,7 +678,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     else {"sql", "final_sql", "answers", "unsupported"}
                 )
                 if semantic:
-                    allowed_actions.update({"collect", "crosscheck"})
+                    allowed_actions.update({"collect", "crosscheck", "answer_sql"})
                 if enhanced:
                     allowed_actions.update({"search", "analysis"})
                 if len(allowed_actions.intersection(action)) != 1:
@@ -831,7 +834,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     )
                     tool = "fixed_analysis"
                 else:
-                    sql = action.get("final_sql", action.get("sql", ""))
+                    sql = action.get("final_sql", action.get("answer_sql", action.get("sql", "")))
                     guard.inspect(sql, allowed_relations=relations)
                     if semantic:
                         validate_column_scope(database, sql, allowed_relations=relations)
@@ -876,6 +879,45 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                         if tool in {"sql", "sql_crosscheck"}
                         else "document_search"
                     )
+                if semantic and "answer_sql" in action:
+                    # This is an explicit final action, not automatic submission of exploration.
+                    if len(result.rows) != 1:
+                        raise SemanticError("answer_sql_requires_one_row")
+                    if len(set(result.columns)) != len(result.columns) or set(
+                        result.columns
+                    ) != set(task_spec.answer.columns):
+                        raise SemanticError("answer_sql_requires_public_column_aliases")
+                    task_spec = accept_contract(
+                        task_spec.model_dump(),
+                        question=task.question,
+                        instructions=task.instructions,
+                    )
+                    ordered_spec = task_spec.model_copy(
+                        update={
+                            "answer": task_spec.answer.model_copy(
+                                update={"columns": list(result.columns)}
+                            )
+                        }
+                    )
+                    issues = inspect_semantics(sql, ordered_spec)
+                    if crosscheck_rows is not None and Counter(result.rows) != Counter(
+                        crosscheck_rows
+                    ):
+                        issues.append("answer_sql_crosscheck_disagrees")
+                    if issues:
+                        raise SemanticError(",".join(issues))
+                    atomic_bindings = {
+                        key: (step, ["rows", 0, index]) for index, key in enumerate(result.columns)
+                    }
+                    answers = assemble_answers(
+                        atomic_bindings, {step: result_data}, task_spec.answer
+                    )
+                    from generaldataagent.tools.answer_fields import binding_receipts
+
+                    answer_evidence = binding_receipts(
+                        atomic_bindings, {step: result_data}, answers, task_spec.answer.fields
+                    )
+                    raw_answers = {}
                 event = {
                     "step": step,
                     "tool": tool,
@@ -905,6 +947,10 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     result_data["warning"] = (
                         "Identical action repeated with no new evidence; revise your plan."
                     )
+                if semantic and "answer_sql" in action:
+                    event["auto_bound_public_keys"] = sorted(answers)
+                    failure = None
+                    break
                 if "final_sql" in action and tool == "sql":
                     final_sql, failure = sql, None
                     break

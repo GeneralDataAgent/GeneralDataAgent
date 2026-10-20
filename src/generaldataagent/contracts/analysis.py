@@ -72,6 +72,7 @@ class CrosscheckArguments(CollectionArguments):
 
 class ToolAction(Contract):
     sql: str | None = Field(default=None, min_length=1, max_length=30000)
+    answer_sql: str | None = Field(default=None, min_length=1, max_length=30000)
     final_sql: str | None = Field(default=None, min_length=1, max_length=30000)
     search: str | None = Field(default=None, min_length=1, max_length=300)
     analysis: AnalysisArguments | None = None
@@ -91,6 +92,7 @@ class ToolAction(Contract):
         names = (
             "sql",
             "final_sql",
+            "answer_sql",
             "search",
             "analysis",
             "collect",

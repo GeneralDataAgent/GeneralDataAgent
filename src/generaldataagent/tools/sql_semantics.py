@@ -164,6 +164,10 @@ def assemble_answers(bindings: dict, evidence: dict[int, dict], answer: AnswerSp
             if not math.isfinite(value):
                 raise SemanticError("nonfinite evidence")
             decimals = field.decimals if field and field.decimals is not None else answer.decimals
+            if field and field.kind == "integer" and field.decimals is None:
+                decimals = (
+                    None  # A precision declared for another numeric field cannot change this type.
+                )
             if decimals is not None:
                 value = format_decimal(value, decimals)
         output[key] = value

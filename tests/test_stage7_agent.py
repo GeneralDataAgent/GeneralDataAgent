@@ -366,6 +366,7 @@ def test_native_statistics_use_two_actions_and_keep_full_precision_receipts(data
                 "collect_values",
                 "submit_answers",
                 "declare_unsupported",
+                "submit_sql_answers",
             }
             return self
 
@@ -566,3 +567,79 @@ def test_public_percent_placeholder_flows_into_automatic_answer_binding(database
     )
     assert result["failure"] is None and result["answers"] == {"rate": "100.00"}
     assert result["task_contract"]["answer"]["fields"]["rate"]["kind"] == "number"
+
+
+def test_sql_answers_compute_bind_and_round_once_with_full_receipts(database):
+    instructions = (
+        '@mean[average] @n[count] where "average" is a number rounded to two decimal places. '
+        '"count" is an integer.'
+    )
+    result = run(
+        database,
+        [{"submit_sql_answers": {"sql": "SELECT COUNT(*) AS n, AVG(id) AS mean FROM people"}}],
+        benchmark="infiagent-dabench",
+        question="mean and count?",
+        instructions=instructions,
+    )
+    assert result["failure"] is None and len(result["trace"]) == 1
+    assert result["answers"] == {"mean": "1.50", "n": 2}
+    assert result["answer_evidence"]["mean"]["raw_value"] == 1.5
+    assert result["answer_evidence"]["mean"]["result_hash"] == result["trace"][0]["result_hash"]
+    assert result["trace"][0]["auto_bound_public_keys"] == ["mean", "n"]
+
+
+@pytest.mark.parametrize(
+    "sql,check",
+    [
+        ("SELECT AVG(id) AS wrong FROM people", "answer_sql_requires_public_column_aliases"),
+        ("SELECT id AS mean FROM people", "answer_sql_requires_one_row"),
+        ("SELECT 999 AS mean", "data_dependent_answer_required"),
+    ],
+)
+def test_atomic_sql_rejects_missing_keys_multiple_rows_and_fabricated_values(database, sql, check):
+    result = run(
+        database,
+        [
+            {"submit_sql_answers": {"sql": sql}},
+            {"submit_sql_answers": {"sql": "SELECT AVG(id) AS mean FROM people"}},
+        ],
+        benchmark="infiagent-dabench",
+        question="mean?",
+        instructions="@mean[value]",
+    )
+    assert result["failure"] is None and result["answers"] == {"mean": 1.5}
+    assert result["trace"][0]["checks"] == [check]
+    assert result["answer_evidence"]["mean"]["step"] == 2
+
+
+def test_native_atomic_query_finishes_without_a_second_binding_call(database):
+    from langchain_core.messages import AIMessage
+
+    class Native:
+        calls = 0
+
+        def bind(self, **kwargs):
+            assert "submit_sql_answers" in {tool["function"]["name"] for tool in kwargs["tools"]}
+            return self
+
+        def invoke(self, messages):
+            self.calls += 1
+            assert self.calls == 1
+            return AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "submit_sql_answers",
+                        "args": {"sql": "SELECT COUNT(*) AS n FROM people"},
+                        "id": "atomic",
+                    }
+                ],
+                usage_metadata={"total_tokens": 10, "input_tokens": 8, "output_tokens": 2},
+            )
+
+    model = Native()
+    task = Task("infiagent-dabench", "synthetic", "count?", "@n[value]", "easy", "people")
+    result = BoundedSQLAgent(model, tool_profile="sql-semantic", max_steps=1).run(task, database)
+    assert result["failure"] is None and result["answers"] == {"n": 2}
+    assert result["trace"][0]["response_mode"] == "native_function"
+    assert result["answer_evidence"]["n"]["step"] == 1
