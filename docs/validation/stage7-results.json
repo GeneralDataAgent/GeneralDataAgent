@@ -5708,9 +5708,469 @@
     "Costs unavailable remain null; observed zero is not proof of zero cost."
   ],
   "local_validation": {
-    "pytest": "773 passed, 1 skipped in 19.26s",
+    "pytest": "774 passed, 1 skipped in 19.65s",
     "ruff_check": "passed",
     "ruff_format_check": "352 files already formatted",
     "diff_check": "passed"
+  },
+  "subsequent_column_preflight": {
+    "source_commit": "10f156a",
+    "new_model_calls": 0,
+    "report": {
+      "checks": [
+        {
+          "case_id": "422",
+          "status": "passed"
+        },
+        {
+          "case_id": "1168",
+          "status": "passed"
+        },
+        {
+          "case_id": "1168",
+          "status": "passed"
+        },
+        {
+          "case_id": "116",
+          "status": "passed"
+        },
+        {
+          "case_id": "72",
+          "status": "passed"
+        },
+        {
+          "case_id": "800",
+          "status": "passed"
+        }
+      ],
+      "new_model_calls": 0,
+      "scope": "column preflight replay only; original strict score unchanged"
+    },
+    "limits": "No new model score after adding column scope resolution; existing candidate scores remain frozen."
+  },
+  "ci_evidence": {
+    "conclusion": "success",
+    "headSha": "9d5457e6e0f1ac0438f3d92faa5af81ed967dc42",
+    "jobs": [
+      {
+        "completedAt": "2026-10-20T14:23:06Z",
+        "conclusion": "success",
+        "databaseId": 118681812418,
+        "name": "Python 3.11",
+        "startedAt": "2026-10-20T14:21:42Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completedAt": "2026-10-20T14:21:44Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "startedAt": "2026-10-20T14:21:43Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:21:57Z",
+            "conclusion": "success",
+            "name": "Initialize containers",
+            "number": 2,
+            "startedAt": "2026-10-20T14:21:44Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:21:58Z",
+            "conclusion": "success",
+            "name": "Check out repository",
+            "number": 3,
+            "startedAt": "2026-10-20T14:21:57Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:22:02Z",
+            "conclusion": "success",
+            "name": "Install uv",
+            "number": 4,
+            "startedAt": "2026-10-20T14:21:58Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:22:03Z",
+            "conclusion": "success",
+            "name": "Install Python",
+            "number": 5,
+            "startedAt": "2026-10-20T14:22:02Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:22:04Z",
+            "conclusion": "success",
+            "name": "Sync locked environment",
+            "number": 6,
+            "startedAt": "2026-10-20T14:22:03Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:22:04Z",
+            "conclusion": "success",
+            "name": "Lint",
+            "number": 7,
+            "startedAt": "2026-10-20T14:22:04Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:22:04Z",
+            "conclusion": "success",
+            "name": "Check formatting",
+            "number": 8,
+            "startedAt": "2026-10-20T14:22:04Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:23:01Z",
+            "conclusion": "success",
+            "name": "Test",
+            "number": 9,
+            "startedAt": "2026-10-20T14:22:04Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:23:01Z",
+            "conclusion": "success",
+            "name": "Stage 4 security baseline",
+            "number": 10,
+            "startedAt": "2026-10-20T14:23:01Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:23:02Z",
+            "conclusion": "success",
+            "name": "Stage 5 local business baseline",
+            "number": 11,
+            "startedAt": "2026-10-20T14:23:01Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:23:02Z",
+            "conclusion": "skipped",
+            "name": "Build distributions",
+            "number": 12,
+            "startedAt": "2026-10-20T14:23:02Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:23:02Z",
+            "conclusion": "success",
+            "name": "Post Install uv",
+            "number": 22,
+            "startedAt": "2026-10-20T14:23:02Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:23:03Z",
+            "conclusion": "success",
+            "name": "Post Check out repository",
+            "number": 23,
+            "startedAt": "2026-10-20T14:23:02Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:23:03Z",
+            "conclusion": "success",
+            "name": "Stop containers",
+            "number": 24,
+            "startedAt": "2026-10-20T14:23:03Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:23:03Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 25,
+            "startedAt": "2026-10-20T14:23:03Z",
+            "status": "completed"
+          }
+        ],
+        "url": "https://github.com/GeneralDataAgent/GeneralDataAgent/actions/runs/39438503184/job/118681812418"
+      },
+      {
+        "completedAt": "2026-10-20T14:23:01Z",
+        "conclusion": "success",
+        "databaseId": 118681812558,
+        "name": "Python 3.13",
+        "startedAt": "2026-10-20T14:21:42Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completedAt": "2026-10-20T14:21:45Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "startedAt": "2026-10-20T14:21:43Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:21:57Z",
+            "conclusion": "success",
+            "name": "Initialize containers",
+            "number": 2,
+            "startedAt": "2026-10-20T14:21:45Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:21:59Z",
+            "conclusion": "success",
+            "name": "Check out repository",
+            "number": 3,
+            "startedAt": "2026-10-20T14:21:57Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:22:02Z",
+            "conclusion": "success",
+            "name": "Install uv",
+            "number": 4,
+            "startedAt": "2026-10-20T14:21:59Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:22:03Z",
+            "conclusion": "success",
+            "name": "Install Python",
+            "number": 5,
+            "startedAt": "2026-10-20T14:22:02Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:22:04Z",
+            "conclusion": "success",
+            "name": "Sync locked environment",
+            "number": 6,
+            "startedAt": "2026-10-20T14:22:03Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:22:04Z",
+            "conclusion": "success",
+            "name": "Lint",
+            "number": 7,
+            "startedAt": "2026-10-20T14:22:04Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:22:04Z",
+            "conclusion": "success",
+            "name": "Check formatting",
+            "number": 8,
+            "startedAt": "2026-10-20T14:22:04Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:22:55Z",
+            "conclusion": "success",
+            "name": "Test",
+            "number": 9,
+            "startedAt": "2026-10-20T14:22:04Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:22:56Z",
+            "conclusion": "success",
+            "name": "Stage 4 security baseline",
+            "number": 10,
+            "startedAt": "2026-10-20T14:22:55Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:22:56Z",
+            "conclusion": "success",
+            "name": "Stage 5 local business baseline",
+            "number": 11,
+            "startedAt": "2026-10-20T14:22:56Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:22:56Z",
+            "conclusion": "skipped",
+            "name": "Build distributions",
+            "number": 12,
+            "startedAt": "2026-10-20T14:22:56Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:22:57Z",
+            "conclusion": "success",
+            "name": "Post Install uv",
+            "number": 22,
+            "startedAt": "2026-10-20T14:22:56Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:22:57Z",
+            "conclusion": "success",
+            "name": "Post Check out repository",
+            "number": 23,
+            "startedAt": "2026-10-20T14:22:57Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:22:57Z",
+            "conclusion": "success",
+            "name": "Stop containers",
+            "number": 24,
+            "startedAt": "2026-10-20T14:22:57Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:22:57Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 25,
+            "startedAt": "2026-10-20T14:22:57Z",
+            "status": "completed"
+          }
+        ],
+        "url": "https://github.com/GeneralDataAgent/GeneralDataAgent/actions/runs/39438503184/job/118681812558"
+      },
+      {
+        "completedAt": "2026-10-20T14:23:00Z",
+        "conclusion": "success",
+        "databaseId": 118681812665,
+        "name": "Python 3.12",
+        "startedAt": "2026-10-20T14:21:42Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completedAt": "2026-10-20T14:21:44Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "startedAt": "2026-10-20T14:21:43Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:22:01Z",
+            "conclusion": "success",
+            "name": "Initialize containers",
+            "number": 2,
+            "startedAt": "2026-10-20T14:21:44Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:22:02Z",
+            "conclusion": "success",
+            "name": "Check out repository",
+            "number": 3,
+            "startedAt": "2026-10-20T14:22:01Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:22:05Z",
+            "conclusion": "success",
+            "name": "Install uv",
+            "number": 4,
+            "startedAt": "2026-10-20T14:22:02Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:22:06Z",
+            "conclusion": "success",
+            "name": "Install Python",
+            "number": 5,
+            "startedAt": "2026-10-20T14:22:05Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:22:06Z",
+            "conclusion": "success",
+            "name": "Sync locked environment",
+            "number": 6,
+            "startedAt": "2026-10-20T14:22:06Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:22:06Z",
+            "conclusion": "success",
+            "name": "Lint",
+            "number": 7,
+            "startedAt": "2026-10-20T14:22:06Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:22:07Z",
+            "conclusion": "success",
+            "name": "Check formatting",
+            "number": 8,
+            "startedAt": "2026-10-20T14:22:06Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:22:55Z",
+            "conclusion": "success",
+            "name": "Test",
+            "number": 9,
+            "startedAt": "2026-10-20T14:22:07Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:22:55Z",
+            "conclusion": "success",
+            "name": "Stage 4 security baseline",
+            "number": 10,
+            "startedAt": "2026-10-20T14:22:55Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:22:56Z",
+            "conclusion": "success",
+            "name": "Stage 5 local business baseline",
+            "number": 11,
+            "startedAt": "2026-10-20T14:22:55Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:22:57Z",
+            "conclusion": "success",
+            "name": "Build distributions",
+            "number": 12,
+            "startedAt": "2026-10-20T14:22:56Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:22:57Z",
+            "conclusion": "success",
+            "name": "Post Install uv",
+            "number": 22,
+            "startedAt": "2026-10-20T14:22:57Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:22:57Z",
+            "conclusion": "success",
+            "name": "Post Check out repository",
+            "number": 23,
+            "startedAt": "2026-10-20T14:22:57Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:22:58Z",
+            "conclusion": "success",
+            "name": "Stop containers",
+            "number": 24,
+            "startedAt": "2026-10-20T14:22:57Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T14:22:58Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 25,
+            "startedAt": "2026-10-20T14:22:58Z",
+            "status": "completed"
+          }
+        ],
+        "url": "https://github.com/GeneralDataAgent/GeneralDataAgent/actions/runs/39438503184/job/118681812665"
+      }
+    ],
+    "status": "completed",
+    "url": "https://github.com/GeneralDataAgent/GeneralDataAgent/actions/runs/39438503184"
   }
 }
