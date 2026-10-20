@@ -514,17 +514,22 @@ aggregate production acceptance incomplete.
 
 ## Stage 6 public-development evaluation
 
-The Stage 6 branch adds pinned BIRD Mini-Dev, InfiAgent-DABench and DABstep adapters, an answer-blind
-bounded SQL baseline using real configured models, process deadlines, case-level scoring, replay
-without model calls, and fail-closed release diagnostics. This baseline does not qualify the
-production Supervisor or arbitrary Python execution. The first 130-task run is dominated by provider
-rate limits and does not meet release targets.
+The Stage 6 branch adds pinned BIRD Mini-Dev, InfiAgent-DABench and DABstep preparation, answer-blind
+bounded SQL/statistical tools, case-level evidence, model-free replay, paired comparisons and explicit
+release gates. On a fixed 60-task InfiAgent cohort, the latest same-model comparison improves from
+18/60 to 27/60, with three regressions still recorded. The certified TLC Supervisor completion fix
+improves the measured workflow from 0/3 to 2/3; one case still times out.
 
-See the [selection and protocol](docs/research/stage6-benchmark-plan.md),
-[reproduction commands](docs/operations/stage6-evaluation-runbook.md), and
-[first measured results](docs/validation/stage6-evaluation.md), and
-[continued development and evaluation](docs/validation/stage6-continuation-2026-10-20.md).
-The continuation adds paired tools, preserved identifier imports, repeat/counterfactual qualification,
-and exact request binding in the production metric Supervisor. A further 290 task-runs and three
-actual Supervisor cases remain below acceptance targets. Python 3.11 and 3.12 each pass 694 tests
-(one optional skip, 88.48% coverage).
+Generic action repair is not promoted for SQL: BIRD changes from 20/60 to 21/60 while resource use
+and regressions increase. A separate SQL key-context implementation passes schema qualification,
+but its model evaluation remains unqualified due provider errors. A context-aware service preflight
+now blocks a failed calibration before new model requests. Per-call output budgets are explicit
+protocol invariants. Public development scores do not establish official ranking or production acceptance.
+
+The complete suite passes 728 tests with one optional skip and 88.70% coverage on Python 3.11 and 3.12.
+See the [latest measured iteration](docs/validation/stage6-iteration-summary-2026-10-20.md),
+[paired evidence](docs/validation/stage6-iteration-v7-results.md),
+[selection and protocol](docs/research/stage6-benchmark-plan.md), and
+[reproduction commands](docs/operations/stage6-evaluation-runbook.md).
+Historical records remain in the [first run](docs/validation/stage6-evaluation.md) and
+[earlier continuation](docs/validation/stage6-continuation-2026-10-20.md).

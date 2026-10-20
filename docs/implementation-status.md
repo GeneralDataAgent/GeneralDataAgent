@@ -276,14 +276,20 @@ or business-value acceptance and does not change earlier stages' outstanding ext
 
 ## Stage 6 evaluation branch
 
-`feat/stage6-benchmark-evaluation` implements pinned public-development preparation, three benchmark
-adapters, guarded real-model SQL/analysis tools, process deadlines, deterministic scorers, replay,
-paired comparison, repeated-run validation and release diagnostics. It preserves identifier text,
-qualifies counterfactual SQL scoring, and binds production Supervisor tools to the exact request.
-The full suite passes 694 tests, one optional skip and 88.48% coverage on both Python 3.11 and 3.12.
-The latest 260 paired task-runs and 30 independent repeat task-runs are fully replayed; quality,
-service and cost targets remain unmet. Three actual TLC Supervisor cases also fail to complete.
-Independent review, new-source production integration and live-environment gates remain open.
-This is not production acceptance or official benchmark ranking.
-See [initial validation](validation/stage6-evaluation.md) and
-[continued evaluation](validation/stage6-continuation-2026-10-20.md).
+`feat/stage6-benchmark-evaluation` implements pinned three-track benchmark preparation, guarded
+real-model SQL/analysis execution, process deadlines, deterministic scorers, case reports, replay,
+paired comparisons, repeat validation and fail-closed diagnostics. Latest same-model InfiAgent
+results improve from 18/60 to 27/60, with three regressions retained; actual TLC Supervisor completion
+improves from 0/3 to 2/3. Generic SQL repair and empty-argument tools are not promoted.
+
+Declared SQL key metadata is qualified on all 11 BIRD databases (105 column mappings), while the
+new SQL agent's capability evaluation remains blocked by provider errors. Explicit per-call output
+caps and context-aware preflight prevent expanding a failed calibration: the actual blocked batch
+made zero new model requests. Current protocol version is `stage6-v7`; historical measured pairs
+retain their exact `stage6-v6` metadata and cannot be mixed across changed budgets.
+
+The full suite passes 728 tests, one optional skip and 88.70% coverage on both Python 3.11 and 3.12.
+Cost, regressions, repeats, independent review and live-environment gates remain incomplete.
+See the [latest measured iteration](validation/stage6-iteration-summary-2026-10-20.md),
+[full paired evidence](validation/stage6-iteration-v7-results.md), and
+[initial validation](validation/stage6-evaluation.md).

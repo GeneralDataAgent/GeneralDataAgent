@@ -141,3 +141,29 @@ LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false UV_CACHE_DIR=/tmp/deepagents-
 LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false UV_CACHE_DIR=/tmp/deepagents-uv-cache COVERAGE_FILE=.artifacts/stage6/py312.coverage uv run --frozen --python 3.12 pytest --cov=generaldataagent --cov-fail-under=85
 LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false UV_CACHE_DIR=/tmp/deepagents-uv-cache UV_PROJECT_ENVIRONMENT=/tmp/gda-stage6-py311 COVERAGE_FILE=.artifacts/stage6/py311.coverage uv run --frozen --python 3.11 pytest --cov=generaldataagent --cov-fail-under=85
 ```
+
+## 单次输出预算与服务预检（当前协议）
+
+`--max-output-tokens` 默认 3,000，可请求 32–3,000；具体提供商兼容性需要实测。
+它同时进入有效路由和 `stage6-v7` 协议。共享请求间隔允许 0–60 秒，仍受整题截止约束，
+配置更慢的间隔可能使任务在原时间预算内无法完成所有动作。
+
+历史实验使用旧协议；复现精确历史运行需检出相应提交/源码快照。当前命令产生新协议记录，
+不能将不同输出预算、节流参数或版本的成绩直接配对。
+
+先运行含真实上下文的六题校准，再为完整批次显式提供校准报告：
+
+```bash
+LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/run_stage6.py --benchmark bird --limit 6 --workers 1 --app-type claude --provider-id PROVIDER_ID --model nvidia/nemotron-3-super-120b-a12b --transport openai-chat --thinking off --json-mode --max-output-tokens 1024 --request-interval-seconds 16 --csv-importer identifier-v2 --tool-profile sql-precision --bird-databases data/stage6/bird/databases --output .artifacts/stage6/calibration-fresh
+LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/run_stage6.py --benchmark bird --limit 60 --workers 1 --app-type claude --provider-id PROVIDER_ID --model nvidia/nemotron-3-super-120b-a12b --transport openai-chat --thinking off --json-mode --max-output-tokens 1024 --request-interval-seconds 16 --csv-importer identifier-v2 --tool-profile sql-precision --bird-databases data/stage6/bird/databases --preflight-report .artifacts/stage6/calibration-fresh/report.json --output .artifacts/stage6/full-fresh
+```
+
+校准报告必须完整，最少六题、全部有已观测模型回复、服务失败不超过 5%、token 遥测完整。
+该闸门不检查答案成功率，避免通过剔除难题来伪装服务健康。它还核对基准、协议、有效模型路由
+和来源快照；错误校准会以退出码 2 保存拒绝记录，并在启动 worker 前停止，模型调用为零。
+校准通过只是样本服务检查，不能保证后续容量，也不能替代质量或生产验收。
+
+`sql-precision` 提供声明的主外键上下文，仅适用于 SQL 输出轨道。
+只读元数据资格可用 `evals/qualify_stage6_sql_schema.py --output PATH` 重现。
+本轮因服务校准失败尚未获得其有效完整能力结果，参见
+[迭代总结](../validation/stage6-iteration-summary-2026-10-20.md)。

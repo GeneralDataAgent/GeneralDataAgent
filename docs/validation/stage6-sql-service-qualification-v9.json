@@ -1,0 +1,2711 @@
+{
+  "scope": "SQL schema implementation qualified; new model-quality comparison NOT qualified due service failures",
+  "runs": [
+    {
+      "name": "bird-super-precision-full-v8",
+      "path": ".artifacts/stage6/bird-super-precision-full-v8/report.json",
+      "sha256": "0ad156b1828829610c93c0914a45a7e528d54cbb903ebe52fbbb008079bc6c09",
+      "requested_n": 60,
+      "model_route": {
+        "provider_id": "universal-claude-d9f3d95e-e9ab-4942-8492-547970db1e32",
+        "app_type": "claude",
+        "model": "nvidia/nemotron-3-super-120b-a12b",
+        "transport": "openai-chat",
+        "thinking_mode": "off",
+        "json_mode": true,
+        "endpoint_hash": "7ca1fa200f1e82535aa1c0528805a664662797e31b0bb80ac7ad72634c68fa27",
+        "wire_api": "chat_completions",
+        "route_hash": "b76418286b3c987a5187e19956e07b369bd249c8936a11f8398420b336cf13c8"
+      },
+      "protocol": {
+        "version": "stage6-v6",
+        "python_runtime": "3.12.13",
+        "sqlite_runtime": "3.50.4",
+        "dependency_lock_hash": "06a88e5cc8bda03d532de75cdf8d6e8e41a055957ac8b76a217ec35cae4cc5b3",
+        "service_circuit": "terminal_401_402_403_404_or_three_consecutive_provider_failures",
+        "scorer": "strict-infi-absolute1e-6-dab-local-1e-6",
+        "scorer_source_hash": "b44189f9848638755411912d4226ab61d435c20a59ffe5b20ac5ad0c284a0f9f",
+        "import_source_hash": "ff44a73a2b7885e8900ecad906a96621086d20fd3f241a1d7b13bacb79c141e8",
+        "execution_source_hash": "84aa3872138736f7d75cd9f8224bce3c02178b47de11c7ad6570ca54f6ef3542",
+        "steps": 6,
+        "seconds": 120,
+        "hard_case_deadline_seconds": 125,
+        "tokens": 24000,
+        "max_cost_usd_per_case": 0.02,
+        "call_timeout_seconds": 30,
+        "result_row_limit": 200,
+        "workers": 1,
+        "permitted_effects": "read-only",
+        "numeric_import": "preserve leading zero/large integer text; other finite numeric REAL",
+        "request_interval_seconds": 3.5,
+        "csv_importer": "identifier-v2"
+      },
+      "protocol_hash": "b9dadb320e471cff0c8c10318074a04cd97d3c21f36a510d01748803bf999047",
+      "cohort_hash": "158c62701f58c59c760e251c237fca8ec854949f20b08069f7b4aefd9d1adaf2",
+      "source_manifest_hash": "7d2bdb7c48f2ac6392872c3823a89af4feebbc23ebad8d8a12e6b77fe801aa3f",
+      "system_fingerprint": {
+        "prompt_hash": "30a588182f21e44d954c22248fc4979a7b1e475398dcd2ffa848d027f402483e",
+        "agent_hash": "451ec215d1715c95d7e2564e2216082be30c7f6e0d9673476eb954e5dc0e3f44",
+        "analysis_tools_hash": "684604d6eb920257c7d050b2277436271d0acc2bae9461acb78500bf2f812bdd",
+        "precision_tools_hash": "879f40a6236a28b6f4924c3642758b33526eb5426aac6734d22706c747d829f2",
+        "repair_tools_hash": "2d15f5f8db4d7b16c7278abd6bd3beb329118d1f9fcc339ce4cb44e754f48a03",
+        "model_adapter_hash": "43f0ce0f615ac6042e2bd5b4ff97b5018e5ad93eb14197aed8a526fa5b168ace",
+        "worker_hash": "1e12fa580d33c4edd9d09fcd45f351f7397335b49b0d89ff449c04c969f3350b",
+        "dependency_lock_hash": "06a88e5cc8bda03d532de75cdf8d6e8e41a055957ac8b76a217ec35cae4cc5b3",
+        "tool_profile": "sql-precision",
+        "route_hash": "b76418286b3c987a5187e19956e07b369bd249c8936a11f8398420b336cf13c8"
+      },
+      "runner_hash": "27d102c243949f9d7de359b97e867db4a0cd06690b1454e221d813fbddb36e5b",
+      "started_at": "2026-10-20T07:44:24.733121+00:00",
+      "completed_at": "2026-10-20T07:45:36.066357+00:00",
+      "run_status": "blocked_by_service",
+      "summary": {
+        "n": 60,
+        "passed": 2,
+        "pass_at_1": 0.03333333333333333,
+        "wilson_95": [
+          0.009189319256197877,
+          0.113637742743086
+        ],
+        "subquestion_accuracy": 0.03333333333333333,
+        "p50_seconds": 0.0,
+        "p95_seconds": 5.456525042001886,
+        "tokens": 20204,
+        "token_telemetry_complete": false,
+        "failures": {
+          "answer_mismatch": 4,
+          "model_error": 7,
+          "service_circuit_open": 47
+        },
+        "difficulty": {
+          "challenging": {
+            "n": 20,
+            "passed": 0,
+            "rate": 0.0
+          },
+          "moderate": {
+            "n": 20,
+            "passed": 0,
+            "rate": 0.0
+          },
+          "simple": {
+            "n": 20,
+            "passed": 2,
+            "rate": 0.1
+          }
+        },
+        "official_leaderboard_comparable": false,
+        "production_accepted": false,
+        "cost_usd": null,
+        "attempted_n": 13,
+        "not_attempted_n": 47,
+        "attempted_p95_seconds": 14.054353166997316
+      },
+      "cases": [
+        {
+          "case_id": "422",
+          "passed": true,
+          "failure": null,
+          "attempted": true,
+          "database_hash": "c98bdb57fe7474da798b407785544b9af0daaad5d61fd21e2a73309493bc1227"
+        },
+        {
+          "case_id": "1168",
+          "passed": false,
+          "failure": "answer_mismatch",
+          "attempted": true,
+          "database_hash": "87583183c3dc472fba04de702965560a9d7c0a548836613f242317e0eeb83f00"
+        },
+        {
+          "case_id": "116",
+          "passed": false,
+          "failure": "model_error",
+          "attempted": true,
+          "database_hash": "d15d89cdb068a202b6f2b99342af44dffc1d52545b39ceaf62efdc0ba570101e"
+        },
+        {
+          "case_id": "72",
+          "passed": false,
+          "failure": "answer_mismatch",
+          "attempted": true,
+          "database_hash": "c0903eec662e63068fd1d14403d3d6c1d473287fc10c4356333ea58f878db983"
+        },
+        {
+          "case_id": "800",
+          "passed": false,
+          "failure": "model_error",
+          "attempted": true,
+          "database_hash": "75e94a2c3236ee3bb2c01fb97a1c4b4c1c269bcefd4eab1d04be323d2d0825b1"
+        },
+        {
+          "case_id": "41",
+          "passed": false,
+          "failure": "model_error",
+          "attempted": true,
+          "database_hash": "c0903eec662e63068fd1d14403d3d6c1d473287fc10c4356333ea58f878db983"
+        },
+        {
+          "case_id": "1003",
+          "passed": false,
+          "failure": "answer_mismatch",
+          "attempted": true,
+          "database_hash": "79770caf966707e35516fa566e24b40ae515c74ec1ec4631235245645b87b24d"
+        },
+        {
+          "case_id": "36",
+          "passed": false,
+          "failure": "model_error",
+          "attempted": true,
+          "database_hash": "c0903eec662e63068fd1d14403d3d6c1d473287fc10c4356333ea58f878db983"
+        },
+        {
+          "case_id": "1092",
+          "passed": false,
+          "failure": "answer_mismatch",
+          "attempted": true,
+          "database_hash": "f72f5c9b990371417288a67b27a02e601ef904d45525c2c9f7931fb01001c536"
+        },
+        {
+          "case_id": "112",
+          "passed": true,
+          "failure": null,
+          "attempted": true,
+          "database_hash": "d15d89cdb068a202b6f2b99342af44dffc1d52545b39ceaf62efdc0ba570101e"
+        },
+        {
+          "case_id": "1509",
+          "passed": false,
+          "failure": "model_error",
+          "attempted": true,
+          "database_hash": "b3d149ad05746dbbe5116e229e17e18f09c39db43cf117d9ef3441753608b691"
+        },
+        {
+          "case_id": "530",
+          "passed": false,
+          "failure": "model_error",
+          "attempted": true,
+          "database_hash": "c98bdb57fe7474da798b407785544b9af0daaad5d61fd21e2a73309493bc1227"
+        },
+        {
+          "case_id": "234",
+          "passed": false,
+          "failure": "model_error",
+          "attempted": true,
+          "database_hash": "35ef27ae6bdfda530e125ed369666ac0abb8bc8c0bcc0ad09407f547ecb61a93"
+        },
+        {
+          "case_id": "1482",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "b3d149ad05746dbbe5116e229e17e18f09c39db43cf117d9ef3441753608b691"
+        },
+        {
+          "case_id": "769",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "75e94a2c3236ee3bb2c01fb97a1c4b4c1c269bcefd4eab1d04be323d2d0825b1"
+        },
+        {
+          "case_id": "1401",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "eb89bcfe97eefa386a27904ec5aa15159811a7eac894ec659a36e48fa9f76b77"
+        },
+        {
+          "case_id": "672",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "92101be6d2a9f6adceea59d38f6d1c556087f9eea1432432a21268cb1348036d"
+        },
+        {
+          "case_id": "1460",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "eb89bcfe97eefa386a27904ec5aa15159811a7eac894ec659a36e48fa9f76b77"
+        },
+        {
+          "case_id": "576",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "92101be6d2a9f6adceea59d38f6d1c556087f9eea1432432a21268cb1348036d"
+        },
+        {
+          "case_id": "781",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "75e94a2c3236ee3bb2c01fb97a1c4b4c1c269bcefd4eab1d04be323d2d0825b1"
+        },
+        {
+          "case_id": "129",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "d15d89cdb068a202b6f2b99342af44dffc1d52545b39ceaf62efdc0ba570101e"
+        },
+        {
+          "case_id": "219",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "35ef27ae6bdfda530e125ed369666ac0abb8bc8c0bcc0ad09407f547ecb61a93"
+        },
+        {
+          "case_id": "857",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "79770caf966707e35516fa566e24b40ae515c74ec1ec4631235245645b87b24d"
+        },
+        {
+          "case_id": "1115",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "f72f5c9b990371417288a67b27a02e601ef904d45525c2c9f7931fb01001c536"
+        },
+        {
+          "case_id": "586",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "92101be6d2a9f6adceea59d38f6d1c556087f9eea1432432a21268cb1348036d"
+        },
+        {
+          "case_id": "227",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "35ef27ae6bdfda530e125ed369666ac0abb8bc8c0bcc0ad09407f547ecb61a93"
+        },
+        {
+          "case_id": "1493",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "b3d149ad05746dbbe5116e229e17e18f09c39db43cf117d9ef3441753608b691"
+        },
+        {
+          "case_id": "1198",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "87583183c3dc472fba04de702965560a9d7c0a548836613f242317e0eeb83f00"
+        },
+        {
+          "case_id": "487",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "c98bdb57fe7474da798b407785544b9af0daaad5d61fd21e2a73309493bc1227"
+        },
+        {
+          "case_id": "1130",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "f72f5c9b990371417288a67b27a02e601ef904d45525c2c9f7931fb01001c536"
+        },
+        {
+          "case_id": "962",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "79770caf966707e35516fa566e24b40ae515c74ec1ec4631235245645b87b24d"
+        },
+        {
+          "case_id": "1195",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "87583183c3dc472fba04de702965560a9d7c0a548836613f242317e0eeb83f00"
+        },
+        {
+          "case_id": "1334",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "eb89bcfe97eefa386a27904ec5aa15159811a7eac894ec659a36e48fa9f76b77"
+        },
+        {
+          "case_id": "379",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "c98bdb57fe7474da798b407785544b9af0daaad5d61fd21e2a73309493bc1227"
+        },
+        {
+          "case_id": "1231",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "87583183c3dc472fba04de702965560a9d7c0a548836613f242317e0eeb83f00"
+        },
+        {
+          "case_id": "125",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "d15d89cdb068a202b6f2b99342af44dffc1d52545b39ceaf62efdc0ba570101e"
+        },
+        {
+          "case_id": "23",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "c0903eec662e63068fd1d14403d3d6c1d473287fc10c4356333ea58f878db983"
+        },
+        {
+          "case_id": "726",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "75e94a2c3236ee3bb2c01fb97a1c4b4c1c269bcefd4eab1d04be323d2d0825b1"
+        },
+        {
+          "case_id": "46",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "c0903eec662e63068fd1d14403d3d6c1d473287fc10c4356333ea58f878db983"
+        },
+        {
+          "case_id": "931",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "79770caf966707e35516fa566e24b40ae515c74ec1ec4631235245645b87b24d"
+        },
+        {
+          "case_id": "83",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "c0903eec662e63068fd1d14403d3d6c1d473287fc10c4356333ea58f878db983"
+        },
+        {
+          "case_id": "1144",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "f72f5c9b990371417288a67b27a02e601ef904d45525c2c9f7931fb01001c536"
+        },
+        {
+          "case_id": "159",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "d15d89cdb068a202b6f2b99342af44dffc1d52545b39ceaf62efdc0ba570101e"
+        },
+        {
+          "case_id": "1480",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "b3d149ad05746dbbe5116e229e17e18f09c39db43cf117d9ef3441753608b691"
+        },
+        {
+          "case_id": "483",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "c98bdb57fe7474da798b407785544b9af0daaad5d61fd21e2a73309493bc1227"
+        },
+        {
+          "case_id": "242",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "35ef27ae6bdfda530e125ed369666ac0abb8bc8c0bcc0ad09407f547ecb61a93"
+        },
+        {
+          "case_id": "1476",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "b3d149ad05746dbbe5116e229e17e18f09c39db43cf117d9ef3441753608b691"
+        },
+        {
+          "case_id": "819",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "75e94a2c3236ee3bb2c01fb97a1c4b4c1c269bcefd4eab1d04be323d2d0825b1"
+        },
+        {
+          "case_id": "1375",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "eb89bcfe97eefa386a27904ec5aa15159811a7eac894ec659a36e48fa9f76b77"
+        },
+        {
+          "case_id": "584",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "92101be6d2a9f6adceea59d38f6d1c556087f9eea1432432a21268cb1348036d"
+        },
+        {
+          "case_id": "1464",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "eb89bcfe97eefa386a27904ec5aa15159811a7eac894ec659a36e48fa9f76b77"
+        },
+        {
+          "case_id": "671",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "92101be6d2a9f6adceea59d38f6d1c556087f9eea1432432a21268cb1348036d"
+        },
+        {
+          "case_id": "791",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "75e94a2c3236ee3bb2c01fb97a1c4b4c1c269bcefd4eab1d04be323d2d0825b1"
+        },
+        {
+          "case_id": "93",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "d15d89cdb068a202b6f2b99342af44dffc1d52545b39ceaf62efdc0ba570101e"
+        },
+        {
+          "case_id": "263",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "35ef27ae6bdfda530e125ed369666ac0abb8bc8c0bcc0ad09407f547ecb61a93"
+        },
+        {
+          "case_id": "861",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "79770caf966707e35516fa566e24b40ae515c74ec1ec4631235245645b87b24d"
+        },
+        {
+          "case_id": "1084",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "f72f5c9b990371417288a67b27a02e601ef904d45525c2c9f7931fb01001c536"
+        },
+        {
+          "case_id": "639",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "92101be6d2a9f6adceea59d38f6d1c556087f9eea1432432a21268cb1348036d"
+        },
+        {
+          "case_id": "200",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "35ef27ae6bdfda530e125ed369666ac0abb8bc8c0bcc0ad09407f547ecb61a93"
+        },
+        {
+          "case_id": "1525",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "b3d149ad05746dbbe5116e229e17e18f09c39db43cf117d9ef3441753608b691"
+        }
+      ]
+    },
+    {
+      "name": "bird-super-precision-retry-v8",
+      "path": ".artifacts/stage6/bird-super-precision-retry-v8/report.json",
+      "sha256": "a25d483d91eff152362dbaf9eac3bf8217d023456edf340c2be6a93890d8d529",
+      "requested_n": 60,
+      "model_route": {
+        "provider_id": "universal-claude-d9f3d95e-e9ab-4942-8492-547970db1e32",
+        "app_type": "claude",
+        "model": "nvidia/nemotron-3-super-120b-a12b",
+        "transport": "openai-chat",
+        "thinking_mode": "off",
+        "json_mode": true,
+        "endpoint_hash": "7ca1fa200f1e82535aa1c0528805a664662797e31b0bb80ac7ad72634c68fa27",
+        "wire_api": "chat_completions",
+        "route_hash": "b76418286b3c987a5187e19956e07b369bd249c8936a11f8398420b336cf13c8"
+      },
+      "protocol": {
+        "version": "stage6-v6",
+        "python_runtime": "3.12.13",
+        "sqlite_runtime": "3.50.4",
+        "dependency_lock_hash": "06a88e5cc8bda03d532de75cdf8d6e8e41a055957ac8b76a217ec35cae4cc5b3",
+        "service_circuit": "terminal_401_402_403_404_or_three_consecutive_provider_failures",
+        "scorer": "strict-infi-absolute1e-6-dab-local-1e-6",
+        "scorer_source_hash": "b44189f9848638755411912d4226ab61d435c20a59ffe5b20ac5ad0c284a0f9f",
+        "import_source_hash": "ff44a73a2b7885e8900ecad906a96621086d20fd3f241a1d7b13bacb79c141e8",
+        "execution_source_hash": "84aa3872138736f7d75cd9f8224bce3c02178b47de11c7ad6570ca54f6ef3542",
+        "steps": 6,
+        "seconds": 120,
+        "hard_case_deadline_seconds": 125,
+        "tokens": 24000,
+        "max_cost_usd_per_case": 0.02,
+        "call_timeout_seconds": 30,
+        "result_row_limit": 200,
+        "workers": 1,
+        "permitted_effects": "read-only",
+        "numeric_import": "preserve leading zero/large integer text; other finite numeric REAL",
+        "request_interval_seconds": 3.5,
+        "csv_importer": "identifier-v2"
+      },
+      "protocol_hash": "b9dadb320e471cff0c8c10318074a04cd97d3c21f36a510d01748803bf999047",
+      "cohort_hash": "158c62701f58c59c760e251c237fca8ec854949f20b08069f7b4aefd9d1adaf2",
+      "source_manifest_hash": "7d2bdb7c48f2ac6392872c3823a89af4feebbc23ebad8d8a12e6b77fe801aa3f",
+      "system_fingerprint": {
+        "prompt_hash": "30a588182f21e44d954c22248fc4979a7b1e475398dcd2ffa848d027f402483e",
+        "agent_hash": "451ec215d1715c95d7e2564e2216082be30c7f6e0d9673476eb954e5dc0e3f44",
+        "analysis_tools_hash": "684604d6eb920257c7d050b2277436271d0acc2bae9461acb78500bf2f812bdd",
+        "precision_tools_hash": "879f40a6236a28b6f4924c3642758b33526eb5426aac6734d22706c747d829f2",
+        "repair_tools_hash": "2d15f5f8db4d7b16c7278abd6bd3beb329118d1f9fcc339ce4cb44e754f48a03",
+        "model_adapter_hash": "43f0ce0f615ac6042e2bd5b4ff97b5018e5ad93eb14197aed8a526fa5b168ace",
+        "worker_hash": "1e12fa580d33c4edd9d09fcd45f351f7397335b49b0d89ff449c04c969f3350b",
+        "dependency_lock_hash": "06a88e5cc8bda03d532de75cdf8d6e8e41a055957ac8b76a217ec35cae4cc5b3",
+        "tool_profile": "sql-precision",
+        "route_hash": "b76418286b3c987a5187e19956e07b369bd249c8936a11f8398420b336cf13c8"
+      },
+      "runner_hash": "27d102c243949f9d7de359b97e867db4a0cd06690b1454e221d813fbddb36e5b",
+      "started_at": "2026-10-20T07:50:38.386221+00:00",
+      "completed_at": "2026-10-20T07:51:57.506789+00:00",
+      "run_status": "blocked_by_service",
+      "summary": {
+        "n": 60,
+        "passed": 2,
+        "pass_at_1": 0.03333333333333333,
+        "wilson_95": [
+          0.009189319256197877,
+          0.113637742743086
+        ],
+        "subquestion_accuracy": 0.03333333333333333,
+        "p50_seconds": 0.0,
+        "p95_seconds": 5.537404000002425,
+        "tokens": 17532,
+        "token_telemetry_complete": false,
+        "failures": {
+          "answer_mismatch": 3,
+          "model_error": 8,
+          "service_circuit_open": 47
+        },
+        "difficulty": {
+          "challenging": {
+            "n": 20,
+            "passed": 0,
+            "rate": 0.0
+          },
+          "moderate": {
+            "n": 20,
+            "passed": 0,
+            "rate": 0.0
+          },
+          "simple": {
+            "n": 20,
+            "passed": 2,
+            "rate": 0.1
+          }
+        },
+        "official_leaderboard_comparable": false,
+        "production_accepted": false,
+        "cost_usd": null,
+        "attempted_n": 13,
+        "not_attempted_n": 47,
+        "attempted_p95_seconds": 18.133487208000588
+      },
+      "cases": [
+        {
+          "case_id": "422",
+          "passed": true,
+          "failure": null,
+          "attempted": true,
+          "database_hash": "c98bdb57fe7474da798b407785544b9af0daaad5d61fd21e2a73309493bc1227"
+        },
+        {
+          "case_id": "1168",
+          "passed": false,
+          "failure": "answer_mismatch",
+          "attempted": true,
+          "database_hash": "87583183c3dc472fba04de702965560a9d7c0a548836613f242317e0eeb83f00"
+        },
+        {
+          "case_id": "116",
+          "passed": false,
+          "failure": "model_error",
+          "attempted": true,
+          "database_hash": "d15d89cdb068a202b6f2b99342af44dffc1d52545b39ceaf62efdc0ba570101e"
+        },
+        {
+          "case_id": "72",
+          "passed": false,
+          "failure": "answer_mismatch",
+          "attempted": true,
+          "database_hash": "c0903eec662e63068fd1d14403d3d6c1d473287fc10c4356333ea58f878db983"
+        },
+        {
+          "case_id": "800",
+          "passed": false,
+          "failure": "model_error",
+          "attempted": true,
+          "database_hash": "75e94a2c3236ee3bb2c01fb97a1c4b4c1c269bcefd4eab1d04be323d2d0825b1"
+        },
+        {
+          "case_id": "41",
+          "passed": false,
+          "failure": "model_error",
+          "attempted": true,
+          "database_hash": "c0903eec662e63068fd1d14403d3d6c1d473287fc10c4356333ea58f878db983"
+        },
+        {
+          "case_id": "1003",
+          "passed": false,
+          "failure": "answer_mismatch",
+          "attempted": true,
+          "database_hash": "79770caf966707e35516fa566e24b40ae515c74ec1ec4631235245645b87b24d"
+        },
+        {
+          "case_id": "36",
+          "passed": false,
+          "failure": "model_error",
+          "attempted": true,
+          "database_hash": "c0903eec662e63068fd1d14403d3d6c1d473287fc10c4356333ea58f878db983"
+        },
+        {
+          "case_id": "1092",
+          "passed": false,
+          "failure": "model_error",
+          "attempted": true,
+          "database_hash": "f72f5c9b990371417288a67b27a02e601ef904d45525c2c9f7931fb01001c536"
+        },
+        {
+          "case_id": "112",
+          "passed": true,
+          "failure": null,
+          "attempted": true,
+          "database_hash": "d15d89cdb068a202b6f2b99342af44dffc1d52545b39ceaf62efdc0ba570101e"
+        },
+        {
+          "case_id": "1509",
+          "passed": false,
+          "failure": "model_error",
+          "attempted": true,
+          "database_hash": "b3d149ad05746dbbe5116e229e17e18f09c39db43cf117d9ef3441753608b691"
+        },
+        {
+          "case_id": "530",
+          "passed": false,
+          "failure": "model_error",
+          "attempted": true,
+          "database_hash": "c98bdb57fe7474da798b407785544b9af0daaad5d61fd21e2a73309493bc1227"
+        },
+        {
+          "case_id": "234",
+          "passed": false,
+          "failure": "model_error",
+          "attempted": true,
+          "database_hash": "35ef27ae6bdfda530e125ed369666ac0abb8bc8c0bcc0ad09407f547ecb61a93"
+        },
+        {
+          "case_id": "1482",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "b3d149ad05746dbbe5116e229e17e18f09c39db43cf117d9ef3441753608b691"
+        },
+        {
+          "case_id": "769",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "75e94a2c3236ee3bb2c01fb97a1c4b4c1c269bcefd4eab1d04be323d2d0825b1"
+        },
+        {
+          "case_id": "1401",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "eb89bcfe97eefa386a27904ec5aa15159811a7eac894ec659a36e48fa9f76b77"
+        },
+        {
+          "case_id": "672",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "92101be6d2a9f6adceea59d38f6d1c556087f9eea1432432a21268cb1348036d"
+        },
+        {
+          "case_id": "1460",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "eb89bcfe97eefa386a27904ec5aa15159811a7eac894ec659a36e48fa9f76b77"
+        },
+        {
+          "case_id": "576",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "92101be6d2a9f6adceea59d38f6d1c556087f9eea1432432a21268cb1348036d"
+        },
+        {
+          "case_id": "781",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "75e94a2c3236ee3bb2c01fb97a1c4b4c1c269bcefd4eab1d04be323d2d0825b1"
+        },
+        {
+          "case_id": "129",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "d15d89cdb068a202b6f2b99342af44dffc1d52545b39ceaf62efdc0ba570101e"
+        },
+        {
+          "case_id": "219",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "35ef27ae6bdfda530e125ed369666ac0abb8bc8c0bcc0ad09407f547ecb61a93"
+        },
+        {
+          "case_id": "857",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "79770caf966707e35516fa566e24b40ae515c74ec1ec4631235245645b87b24d"
+        },
+        {
+          "case_id": "1115",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "f72f5c9b990371417288a67b27a02e601ef904d45525c2c9f7931fb01001c536"
+        },
+        {
+          "case_id": "586",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "92101be6d2a9f6adceea59d38f6d1c556087f9eea1432432a21268cb1348036d"
+        },
+        {
+          "case_id": "227",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "35ef27ae6bdfda530e125ed369666ac0abb8bc8c0bcc0ad09407f547ecb61a93"
+        },
+        {
+          "case_id": "1493",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "b3d149ad05746dbbe5116e229e17e18f09c39db43cf117d9ef3441753608b691"
+        },
+        {
+          "case_id": "1198",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "87583183c3dc472fba04de702965560a9d7c0a548836613f242317e0eeb83f00"
+        },
+        {
+          "case_id": "487",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "c98bdb57fe7474da798b407785544b9af0daaad5d61fd21e2a73309493bc1227"
+        },
+        {
+          "case_id": "1130",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "f72f5c9b990371417288a67b27a02e601ef904d45525c2c9f7931fb01001c536"
+        },
+        {
+          "case_id": "962",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "79770caf966707e35516fa566e24b40ae515c74ec1ec4631235245645b87b24d"
+        },
+        {
+          "case_id": "1195",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "87583183c3dc472fba04de702965560a9d7c0a548836613f242317e0eeb83f00"
+        },
+        {
+          "case_id": "1334",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "eb89bcfe97eefa386a27904ec5aa15159811a7eac894ec659a36e48fa9f76b77"
+        },
+        {
+          "case_id": "379",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "c98bdb57fe7474da798b407785544b9af0daaad5d61fd21e2a73309493bc1227"
+        },
+        {
+          "case_id": "1231",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "87583183c3dc472fba04de702965560a9d7c0a548836613f242317e0eeb83f00"
+        },
+        {
+          "case_id": "125",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "d15d89cdb068a202b6f2b99342af44dffc1d52545b39ceaf62efdc0ba570101e"
+        },
+        {
+          "case_id": "23",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "c0903eec662e63068fd1d14403d3d6c1d473287fc10c4356333ea58f878db983"
+        },
+        {
+          "case_id": "726",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "75e94a2c3236ee3bb2c01fb97a1c4b4c1c269bcefd4eab1d04be323d2d0825b1"
+        },
+        {
+          "case_id": "46",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "c0903eec662e63068fd1d14403d3d6c1d473287fc10c4356333ea58f878db983"
+        },
+        {
+          "case_id": "931",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "79770caf966707e35516fa566e24b40ae515c74ec1ec4631235245645b87b24d"
+        },
+        {
+          "case_id": "83",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "c0903eec662e63068fd1d14403d3d6c1d473287fc10c4356333ea58f878db983"
+        },
+        {
+          "case_id": "1144",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "f72f5c9b990371417288a67b27a02e601ef904d45525c2c9f7931fb01001c536"
+        },
+        {
+          "case_id": "159",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "d15d89cdb068a202b6f2b99342af44dffc1d52545b39ceaf62efdc0ba570101e"
+        },
+        {
+          "case_id": "1480",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "b3d149ad05746dbbe5116e229e17e18f09c39db43cf117d9ef3441753608b691"
+        },
+        {
+          "case_id": "483",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "c98bdb57fe7474da798b407785544b9af0daaad5d61fd21e2a73309493bc1227"
+        },
+        {
+          "case_id": "242",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "35ef27ae6bdfda530e125ed369666ac0abb8bc8c0bcc0ad09407f547ecb61a93"
+        },
+        {
+          "case_id": "1476",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "b3d149ad05746dbbe5116e229e17e18f09c39db43cf117d9ef3441753608b691"
+        },
+        {
+          "case_id": "819",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "75e94a2c3236ee3bb2c01fb97a1c4b4c1c269bcefd4eab1d04be323d2d0825b1"
+        },
+        {
+          "case_id": "1375",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "eb89bcfe97eefa386a27904ec5aa15159811a7eac894ec659a36e48fa9f76b77"
+        },
+        {
+          "case_id": "584",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "92101be6d2a9f6adceea59d38f6d1c556087f9eea1432432a21268cb1348036d"
+        },
+        {
+          "case_id": "1464",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "eb89bcfe97eefa386a27904ec5aa15159811a7eac894ec659a36e48fa9f76b77"
+        },
+        {
+          "case_id": "671",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "92101be6d2a9f6adceea59d38f6d1c556087f9eea1432432a21268cb1348036d"
+        },
+        {
+          "case_id": "791",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "75e94a2c3236ee3bb2c01fb97a1c4b4c1c269bcefd4eab1d04be323d2d0825b1"
+        },
+        {
+          "case_id": "93",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "d15d89cdb068a202b6f2b99342af44dffc1d52545b39ceaf62efdc0ba570101e"
+        },
+        {
+          "case_id": "263",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "35ef27ae6bdfda530e125ed369666ac0abb8bc8c0bcc0ad09407f547ecb61a93"
+        },
+        {
+          "case_id": "861",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "79770caf966707e35516fa566e24b40ae515c74ec1ec4631235245645b87b24d"
+        },
+        {
+          "case_id": "1084",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "f72f5c9b990371417288a67b27a02e601ef904d45525c2c9f7931fb01001c536"
+        },
+        {
+          "case_id": "639",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "92101be6d2a9f6adceea59d38f6d1c556087f9eea1432432a21268cb1348036d"
+        },
+        {
+          "case_id": "200",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "35ef27ae6bdfda530e125ed369666ac0abb8bc8c0bcc0ad09407f547ecb61a93"
+        },
+        {
+          "case_id": "1525",
+          "passed": false,
+          "failure": "service_circuit_open",
+          "attempted": false,
+          "database_hash": "b3d149ad05746dbbe5116e229e17e18f09c39db43cf117d9ef3441753608b691"
+        }
+      ]
+    },
+    {
+      "name": "bird-conservative-calibration-v9",
+      "path": ".artifacts/stage6/bird-conservative-calibration-v9/report.json",
+      "sha256": "a728494a658cbf312af78d2469bcede627921c1e7fa4055d80d6612824790cdb",
+      "requested_n": 6,
+      "model_route": {
+        "provider_id": "universal-claude-d9f3d95e-e9ab-4942-8492-547970db1e32",
+        "app_type": "claude",
+        "model": "nvidia/nemotron-3-super-120b-a12b",
+        "transport": "openai-chat",
+        "thinking_mode": "off",
+        "json_mode": true,
+        "max_output_tokens": 1024,
+        "endpoint_hash": "7ca1fa200f1e82535aa1c0528805a664662797e31b0bb80ac7ad72634c68fa27",
+        "wire_api": "chat_completions",
+        "route_hash": "1cca5a820985bb1a0bbc0a12b6c1c3802ac93797819c4fe92dec3d0e15fc2ad8"
+      },
+      "protocol": {
+        "version": "stage6-v7",
+        "max_output_tokens_per_call": 1024,
+        "python_runtime": "3.12.13",
+        "sqlite_runtime": "3.50.4",
+        "dependency_lock_hash": "06a88e5cc8bda03d532de75cdf8d6e8e41a055957ac8b76a217ec35cae4cc5b3",
+        "service_circuit": "terminal_401_402_403_404_or_three_consecutive_provider_failures",
+        "scorer": "strict-infi-absolute1e-6-dab-local-1e-6",
+        "scorer_source_hash": "b44189f9848638755411912d4226ab61d435c20a59ffe5b20ac5ad0c284a0f9f",
+        "import_source_hash": "ff44a73a2b7885e8900ecad906a96621086d20fd3f241a1d7b13bacb79c141e8",
+        "execution_source_hash": "84aa3872138736f7d75cd9f8224bce3c02178b47de11c7ad6570ca54f6ef3542",
+        "steps": 6,
+        "seconds": 120,
+        "hard_case_deadline_seconds": 125,
+        "tokens": 24000,
+        "max_cost_usd_per_case": 0.02,
+        "call_timeout_seconds": 30,
+        "result_row_limit": 200,
+        "workers": 1,
+        "permitted_effects": "read-only",
+        "numeric_import": "preserve leading zero/large integer text; other finite numeric REAL",
+        "request_interval_seconds": 16.0,
+        "csv_importer": "identifier-v2"
+      },
+      "protocol_hash": "f4a8a41df40ec4a6858579e041b0dae27b337e2b58a00aa162e577ea6affc9f2",
+      "cohort_hash": "bdb44e3c72908b8ef5e39af5f8576531df1530eee98d3eb35bb3c9f9c18797f1",
+      "source_manifest_hash": "7d2bdb7c48f2ac6392872c3823a89af4feebbc23ebad8d8a12e6b77fe801aa3f",
+      "system_fingerprint": {
+        "prompt_hash": "30a588182f21e44d954c22248fc4979a7b1e475398dcd2ffa848d027f402483e",
+        "agent_hash": "ee3f2dd20f2027ffb5e17d198b6979613bfd3df9230342b5a618554ca0565c84",
+        "analysis_tools_hash": "684604d6eb920257c7d050b2277436271d0acc2bae9461acb78500bf2f812bdd",
+        "precision_tools_hash": "879f40a6236a28b6f4924c3642758b33526eb5426aac6734d22706c747d829f2",
+        "service_control_hash": "7a1a69f537a046b6d7a479db8708cdee30874bab402bd5be77c5d344e98d809c",
+        "repair_tools_hash": "2d15f5f8db4d7b16c7278abd6bd3beb329118d1f9fcc339ce4cb44e754f48a03",
+        "model_adapter_hash": "5b4ccc0d0db683c55f46920ad504e8a5d74d79e54ad41c4c2d8644a204426e54",
+        "worker_hash": "fce9cf2a8d2c655c07d48b1ae901aef97a500f323665f28e5cb38b5f85866102",
+        "dependency_lock_hash": "06a88e5cc8bda03d532de75cdf8d6e8e41a055957ac8b76a217ec35cae4cc5b3",
+        "tool_profile": "sql-precision",
+        "route_hash": "1cca5a820985bb1a0bbc0a12b6c1c3802ac93797819c4fe92dec3d0e15fc2ad8"
+      },
+      "runner_hash": "d1478ffcba6fdb0c386404f8c30e45617f29e0d587a909a12878601fd779b13c",
+      "started_at": "2026-10-20T08:13:01.279704+00:00",
+      "completed_at": "2026-10-20T08:14:55.415213+00:00",
+      "run_status": "blocked_by_service",
+      "summary": {
+        "n": 6,
+        "passed": 2,
+        "pass_at_1": 0.3333333333333333,
+        "wilson_95": [
+          0.09677141110578041,
+          0.700006684861608
+        ],
+        "subquestion_accuracy": 0.3333333333333333,
+        "p50_seconds": 15.348955479499637,
+        "p95_seconds": 47.43610454100053,
+        "tokens": 15075,
+        "token_telemetry_complete": false,
+        "failures": {
+          "answer_mismatch": 2,
+          "model_error": 2
+        },
+        "difficulty": {
+          "challenging": {
+            "n": 2,
+            "passed": 1,
+            "rate": 0.5
+          },
+          "moderate": {
+            "n": 2,
+            "passed": 0,
+            "rate": 0.0
+          },
+          "simple": {
+            "n": 2,
+            "passed": 1,
+            "rate": 0.5
+          }
+        },
+        "official_leaderboard_comparable": false,
+        "production_accepted": false,
+        "cost_usd": null,
+        "attempted_n": 6,
+        "not_attempted_n": 0,
+        "attempted_p95_seconds": 47.43610454100053
+      },
+      "cases": [
+        {
+          "case_id": "422",
+          "passed": true,
+          "failure": null,
+          "attempted": true,
+          "database_hash": "c98bdb57fe7474da798b407785544b9af0daaad5d61fd21e2a73309493bc1227"
+        },
+        {
+          "case_id": "1168",
+          "passed": false,
+          "failure": "answer_mismatch",
+          "attempted": true,
+          "database_hash": "87583183c3dc472fba04de702965560a9d7c0a548836613f242317e0eeb83f00"
+        },
+        {
+          "case_id": "116",
+          "passed": true,
+          "failure": null,
+          "attempted": true,
+          "database_hash": "d15d89cdb068a202b6f2b99342af44dffc1d52545b39ceaf62efdc0ba570101e"
+        },
+        {
+          "case_id": "72",
+          "passed": false,
+          "failure": "answer_mismatch",
+          "attempted": true,
+          "database_hash": "c0903eec662e63068fd1d14403d3d6c1d473287fc10c4356333ea58f878db983"
+        },
+        {
+          "case_id": "800",
+          "passed": false,
+          "failure": "model_error",
+          "attempted": true,
+          "database_hash": "75e94a2c3236ee3bb2c01fb97a1c4b4c1c269bcefd4eab1d04be323d2d0825b1"
+        },
+        {
+          "case_id": "41",
+          "passed": false,
+          "failure": "model_error",
+          "attempted": true,
+          "database_hash": "c0903eec662e63068fd1d14403d3d6c1d473287fc10c4356333ea58f878db983"
+        }
+      ]
+    }
+  ],
+  "evidence": {
+    "bird-schema-keys-v8.json": {
+      "path": ".artifacts/stage6/bird-schema-keys-v8.json",
+      "sha256": "041b01b25392b135d809a9e6e0c9944bc7bbba118b16da038883a6cfb0e288b4",
+      "result": {
+        "kind": "declared_sql_schema_qualification",
+        "databases": 11,
+        "foreign_key_column_mappings": 105,
+        "all_database_hashes_unchanged": true,
+        "source_manifest_hash": "7d2bdb7c48f2ac6392872c3823a89af4feebbc23ebad8d8a12e6b77fe801aa3f",
+        "database_manifest_hash": "506654a9997dcd2e4901ab5b555941d7ec04b9e9625269477ef69740fc284e5d",
+        "results": [
+          {
+            "database": "california_schools",
+            "sha256": "c0903eec662e63068fd1d14403d3d6c1d473287fc10c4356333ea58f878db983",
+            "tables": 3,
+            "tables_with_primary_key": 3,
+            "foreign_key_column_mappings": 2,
+            "context": {
+              "primary_keys": {
+                "frpm": [
+                  "CDSCode"
+                ],
+                "satscores": [
+                  "cds"
+                ],
+                "schools": [
+                  "CDSCode"
+                ]
+              },
+              "foreign_keys": [
+                {
+                  "table": "frpm",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "CDSCode",
+                  "references_table": "schools",
+                  "references_column": "CDSCode"
+                },
+                {
+                  "table": "satscores",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "cds",
+                  "references_table": "schools",
+                  "references_column": "CDSCode"
+                }
+              ],
+              "scope": "declared SQLite constraints only; absence is not proof of no relationship"
+            }
+          },
+          {
+            "database": "card_games",
+            "sha256": "c98bdb57fe7474da798b407785544b9af0daaad5d61fd21e2a73309493bc1227",
+            "tables": 7,
+            "tables_with_primary_key": 6,
+            "foreign_key_column_mappings": 4,
+            "context": {
+              "primary_keys": {
+                "cards": [
+                  "id"
+                ],
+                "foreign_data": [
+                  "id"
+                ],
+                "legalities": [
+                  "id"
+                ],
+                "rulings": [
+                  "id"
+                ],
+                "set_translations": [
+                  "id"
+                ],
+                "sets": [
+                  "id"
+                ]
+              },
+              "foreign_keys": [
+                {
+                  "table": "foreign_data",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "uuid",
+                  "references_table": "cards",
+                  "references_column": "uuid"
+                },
+                {
+                  "table": "legalities",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "uuid",
+                  "references_table": "cards",
+                  "references_column": "uuid"
+                },
+                {
+                  "table": "rulings",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "uuid",
+                  "references_table": "cards",
+                  "references_column": "uuid"
+                },
+                {
+                  "table": "set_translations",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "setCode",
+                  "references_table": "sets",
+                  "references_column": "code"
+                }
+              ],
+              "scope": "declared SQLite constraints only; absence is not proof of no relationship"
+            }
+          },
+          {
+            "database": "codebase_community",
+            "sha256": "92101be6d2a9f6adceea59d38f6d1c556087f9eea1432432a21268cb1348036d",
+            "tables": 8,
+            "tables_with_primary_key": 8,
+            "foreign_key_column_mappings": 13,
+            "context": {
+              "primary_keys": {
+                "badges": [
+                  "Id"
+                ],
+                "comments": [
+                  "Id"
+                ],
+                "postHistory": [
+                  "Id"
+                ],
+                "postLinks": [
+                  "Id"
+                ],
+                "posts": [
+                  "Id"
+                ],
+                "tags": [
+                  "Id"
+                ],
+                "users": [
+                  "Id"
+                ],
+                "votes": [
+                  "Id"
+                ]
+              },
+              "foreign_keys": [
+                {
+                  "table": "badges",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "UserId",
+                  "references_table": "users",
+                  "references_column": "Id"
+                },
+                {
+                  "table": "comments",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "UserId",
+                  "references_table": "users",
+                  "references_column": "Id"
+                },
+                {
+                  "table": "comments",
+                  "relationship": 1,
+                  "sequence": 0,
+                  "column": "PostId",
+                  "references_table": "posts",
+                  "references_column": "Id"
+                },
+                {
+                  "table": "postHistory",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "UserId",
+                  "references_table": "users",
+                  "references_column": "Id"
+                },
+                {
+                  "table": "postHistory",
+                  "relationship": 1,
+                  "sequence": 0,
+                  "column": "PostId",
+                  "references_table": "posts",
+                  "references_column": "Id"
+                },
+                {
+                  "table": "postLinks",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "RelatedPostId",
+                  "references_table": "posts",
+                  "references_column": "Id"
+                },
+                {
+                  "table": "postLinks",
+                  "relationship": 1,
+                  "sequence": 0,
+                  "column": "PostId",
+                  "references_table": "posts",
+                  "references_column": "Id"
+                },
+                {
+                  "table": "posts",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "ParentId",
+                  "references_table": "posts",
+                  "references_column": "Id"
+                },
+                {
+                  "table": "posts",
+                  "relationship": 1,
+                  "sequence": 0,
+                  "column": "OwnerUserId",
+                  "references_table": "users",
+                  "references_column": "Id"
+                },
+                {
+                  "table": "posts",
+                  "relationship": 2,
+                  "sequence": 0,
+                  "column": "LastEditorUserId",
+                  "references_table": "users",
+                  "references_column": "Id"
+                },
+                {
+                  "table": "tags",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "ExcerptPostId",
+                  "references_table": "posts",
+                  "references_column": "Id"
+                },
+                {
+                  "table": "votes",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "UserId",
+                  "references_table": "users",
+                  "references_column": "Id"
+                },
+                {
+                  "table": "votes",
+                  "relationship": 1,
+                  "sequence": 0,
+                  "column": "PostId",
+                  "references_table": "posts",
+                  "references_column": "Id"
+                }
+              ],
+              "scope": "declared SQLite constraints only; absence is not proof of no relationship"
+            }
+          },
+          {
+            "database": "debit_card_specializing",
+            "sha256": "b3d149ad05746dbbe5116e229e17e18f09c39db43cf117d9ef3441753608b691",
+            "tables": 6,
+            "tables_with_primary_key": 5,
+            "foreign_key_column_mappings": 2,
+            "context": {
+              "primary_keys": {
+                "customers": [
+                  "CustomerID"
+                ],
+                "gasstations": [
+                  "GasStationID"
+                ],
+                "products": [
+                  "ProductID"
+                ],
+                "transactions_1k": [
+                  "TransactionID"
+                ],
+                "yearmonth": [
+                  "Date",
+                  "CustomerID"
+                ]
+              },
+              "foreign_keys": [
+                {
+                  "table": "yearmonth",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "CustomerID",
+                  "references_table": "customers",
+                  "references_column": null
+                },
+                {
+                  "table": "yearmonth",
+                  "relationship": 1,
+                  "sequence": 0,
+                  "column": "CustomerID",
+                  "references_table": "customers",
+                  "references_column": null
+                }
+              ],
+              "scope": "declared SQLite constraints only; absence is not proof of no relationship"
+            }
+          },
+          {
+            "database": "european_football_2",
+            "sha256": "f72f5c9b990371417288a67b27a02e601ef904d45525c2c9f7931fb01001c536",
+            "tables": 8,
+            "tables_with_primary_key": 7,
+            "foreign_key_column_mappings": 31,
+            "context": {
+              "primary_keys": {
+                "Country": [
+                  "id"
+                ],
+                "League": [
+                  "id"
+                ],
+                "Match": [
+                  "id"
+                ],
+                "Player": [
+                  "id"
+                ],
+                "Player_Attributes": [
+                  "id"
+                ],
+                "Team": [
+                  "id"
+                ],
+                "Team_Attributes": [
+                  "id"
+                ]
+              },
+              "foreign_keys": [
+                {
+                  "table": "League",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "country_id",
+                  "references_table": "Country",
+                  "references_column": "id"
+                },
+                {
+                  "table": "Match",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "away_player_11",
+                  "references_table": "Player",
+                  "references_column": "player_api_id"
+                },
+                {
+                  "table": "Match",
+                  "relationship": 1,
+                  "sequence": 0,
+                  "column": "away_player_10",
+                  "references_table": "Player",
+                  "references_column": "player_api_id"
+                },
+                {
+                  "table": "Match",
+                  "relationship": 2,
+                  "sequence": 0,
+                  "column": "away_player_9",
+                  "references_table": "Player",
+                  "references_column": "player_api_id"
+                },
+                {
+                  "table": "Match",
+                  "relationship": 3,
+                  "sequence": 0,
+                  "column": "away_player_8",
+                  "references_table": "Player",
+                  "references_column": "player_api_id"
+                },
+                {
+                  "table": "Match",
+                  "relationship": 4,
+                  "sequence": 0,
+                  "column": "away_player_7",
+                  "references_table": "Player",
+                  "references_column": "player_api_id"
+                },
+                {
+                  "table": "Match",
+                  "relationship": 5,
+                  "sequence": 0,
+                  "column": "away_player_6",
+                  "references_table": "Player",
+                  "references_column": "player_api_id"
+                },
+                {
+                  "table": "Match",
+                  "relationship": 6,
+                  "sequence": 0,
+                  "column": "away_player_5",
+                  "references_table": "Player",
+                  "references_column": "player_api_id"
+                },
+                {
+                  "table": "Match",
+                  "relationship": 7,
+                  "sequence": 0,
+                  "column": "away_player_4",
+                  "references_table": "Player",
+                  "references_column": "player_api_id"
+                },
+                {
+                  "table": "Match",
+                  "relationship": 8,
+                  "sequence": 0,
+                  "column": "away_player_3",
+                  "references_table": "Player",
+                  "references_column": "player_api_id"
+                },
+                {
+                  "table": "Match",
+                  "relationship": 9,
+                  "sequence": 0,
+                  "column": "away_player_2",
+                  "references_table": "Player",
+                  "references_column": "player_api_id"
+                },
+                {
+                  "table": "Match",
+                  "relationship": 10,
+                  "sequence": 0,
+                  "column": "away_player_1",
+                  "references_table": "Player",
+                  "references_column": "player_api_id"
+                },
+                {
+                  "table": "Match",
+                  "relationship": 11,
+                  "sequence": 0,
+                  "column": "home_player_11",
+                  "references_table": "Player",
+                  "references_column": "player_api_id"
+                },
+                {
+                  "table": "Match",
+                  "relationship": 12,
+                  "sequence": 0,
+                  "column": "home_player_10",
+                  "references_table": "Player",
+                  "references_column": "player_api_id"
+                },
+                {
+                  "table": "Match",
+                  "relationship": 13,
+                  "sequence": 0,
+                  "column": "home_player_9",
+                  "references_table": "Player",
+                  "references_column": "player_api_id"
+                },
+                {
+                  "table": "Match",
+                  "relationship": 14,
+                  "sequence": 0,
+                  "column": "home_player_8",
+                  "references_table": "Player",
+                  "references_column": "player_api_id"
+                },
+                {
+                  "table": "Match",
+                  "relationship": 15,
+                  "sequence": 0,
+                  "column": "home_player_7",
+                  "references_table": "Player",
+                  "references_column": "player_api_id"
+                },
+                {
+                  "table": "Match",
+                  "relationship": 16,
+                  "sequence": 0,
+                  "column": "home_player_6",
+                  "references_table": "Player",
+                  "references_column": "player_api_id"
+                },
+                {
+                  "table": "Match",
+                  "relationship": 17,
+                  "sequence": 0,
+                  "column": "home_player_5",
+                  "references_table": "Player",
+                  "references_column": "player_api_id"
+                },
+                {
+                  "table": "Match",
+                  "relationship": 18,
+                  "sequence": 0,
+                  "column": "home_player_4",
+                  "references_table": "Player",
+                  "references_column": "player_api_id"
+                },
+                {
+                  "table": "Match",
+                  "relationship": 19,
+                  "sequence": 0,
+                  "column": "home_player_3",
+                  "references_table": "Player",
+                  "references_column": "player_api_id"
+                },
+                {
+                  "table": "Match",
+                  "relationship": 20,
+                  "sequence": 0,
+                  "column": "home_player_2",
+                  "references_table": "Player",
+                  "references_column": "player_api_id"
+                },
+                {
+                  "table": "Match",
+                  "relationship": 21,
+                  "sequence": 0,
+                  "column": "home_player_1",
+                  "references_table": "Player",
+                  "references_column": "player_api_id"
+                },
+                {
+                  "table": "Match",
+                  "relationship": 22,
+                  "sequence": 0,
+                  "column": "away_team_api_id",
+                  "references_table": "Team",
+                  "references_column": "team_api_id"
+                },
+                {
+                  "table": "Match",
+                  "relationship": 23,
+                  "sequence": 0,
+                  "column": "home_team_api_id",
+                  "references_table": "Team",
+                  "references_column": "team_api_id"
+                },
+                {
+                  "table": "Match",
+                  "relationship": 24,
+                  "sequence": 0,
+                  "column": "league_id",
+                  "references_table": "League",
+                  "references_column": null
+                },
+                {
+                  "table": "Match",
+                  "relationship": 25,
+                  "sequence": 0,
+                  "column": "country_id",
+                  "references_table": "Country",
+                  "references_column": null
+                },
+                {
+                  "table": "Player_Attributes",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "player_api_id",
+                  "references_table": "Player",
+                  "references_column": "player_api_id"
+                },
+                {
+                  "table": "Player_Attributes",
+                  "relationship": 1,
+                  "sequence": 0,
+                  "column": "player_fifa_api_id",
+                  "references_table": "Player",
+                  "references_column": "player_fifa_api_id"
+                },
+                {
+                  "table": "Team_Attributes",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "team_api_id",
+                  "references_table": "Team",
+                  "references_column": "team_api_id"
+                },
+                {
+                  "table": "Team_Attributes",
+                  "relationship": 1,
+                  "sequence": 0,
+                  "column": "team_fifa_api_id",
+                  "references_table": "Team",
+                  "references_column": "team_fifa_api_id"
+                }
+              ],
+              "scope": "declared SQLite constraints only; absence is not proof of no relationship"
+            }
+          },
+          {
+            "database": "financial",
+            "sha256": "d15d89cdb068a202b6f2b99342af44dffc1d52545b39ceaf62efdc0ba570101e",
+            "tables": 8,
+            "tables_with_primary_key": 8,
+            "foreign_key_column_mappings": 8,
+            "context": {
+              "primary_keys": {
+                "account": [
+                  "account_id"
+                ],
+                "card": [
+                  "card_id"
+                ],
+                "client": [
+                  "client_id"
+                ],
+                "disp": [
+                  "disp_id"
+                ],
+                "district": [
+                  "district_id"
+                ],
+                "loan": [
+                  "loan_id"
+                ],
+                "order": [
+                  "order_id"
+                ],
+                "trans": [
+                  "trans_id"
+                ]
+              },
+              "foreign_keys": [
+                {
+                  "table": "account",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "district_id",
+                  "references_table": "district",
+                  "references_column": "district_id"
+                },
+                {
+                  "table": "card",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "disp_id",
+                  "references_table": "disp",
+                  "references_column": "disp_id"
+                },
+                {
+                  "table": "client",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "district_id",
+                  "references_table": "district",
+                  "references_column": "district_id"
+                },
+                {
+                  "table": "disp",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "client_id",
+                  "references_table": "client",
+                  "references_column": "client_id"
+                },
+                {
+                  "table": "disp",
+                  "relationship": 1,
+                  "sequence": 0,
+                  "column": "account_id",
+                  "references_table": "account",
+                  "references_column": "account_id"
+                },
+                {
+                  "table": "loan",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "account_id",
+                  "references_table": "account",
+                  "references_column": "account_id"
+                },
+                {
+                  "table": "order",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "account_id",
+                  "references_table": "account",
+                  "references_column": "account_id"
+                },
+                {
+                  "table": "trans",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "account_id",
+                  "references_table": "account",
+                  "references_column": "account_id"
+                }
+              ],
+              "scope": "declared SQLite constraints only; absence is not proof of no relationship"
+            }
+          },
+          {
+            "database": "formula_1",
+            "sha256": "79770caf966707e35516fa566e24b40ae515c74ec1ec4631235245645b87b24d",
+            "tables": 14,
+            "tables_with_primary_key": 13,
+            "foreign_key_column_mappings": 19,
+            "context": {
+              "primary_keys": {
+                "circuits": [
+                  "circuitId"
+                ],
+                "constructorResults": [
+                  "constructorResultsId"
+                ],
+                "constructorStandings": [
+                  "constructorStandingsId"
+                ],
+                "constructors": [
+                  "constructorId"
+                ],
+                "driverStandings": [
+                  "driverStandingsId"
+                ],
+                "drivers": [
+                  "driverId"
+                ],
+                "lapTimes": [
+                  "raceId",
+                  "driverId",
+                  "lap"
+                ],
+                "pitStops": [
+                  "raceId",
+                  "driverId",
+                  "stop"
+                ],
+                "qualifying": [
+                  "qualifyId"
+                ],
+                "races": [
+                  "raceId"
+                ],
+                "results": [
+                  "resultId"
+                ],
+                "seasons": [
+                  "year"
+                ],
+                "status": [
+                  "statusId"
+                ]
+              },
+              "foreign_keys": [
+                {
+                  "table": "constructorResults",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "constructorId",
+                  "references_table": "constructors",
+                  "references_column": "constructorId"
+                },
+                {
+                  "table": "constructorResults",
+                  "relationship": 1,
+                  "sequence": 0,
+                  "column": "raceId",
+                  "references_table": "races",
+                  "references_column": "raceId"
+                },
+                {
+                  "table": "constructorStandings",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "constructorId",
+                  "references_table": "constructors",
+                  "references_column": "constructorId"
+                },
+                {
+                  "table": "constructorStandings",
+                  "relationship": 1,
+                  "sequence": 0,
+                  "column": "raceId",
+                  "references_table": "races",
+                  "references_column": "raceId"
+                },
+                {
+                  "table": "driverStandings",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "driverId",
+                  "references_table": "drivers",
+                  "references_column": "driverId"
+                },
+                {
+                  "table": "driverStandings",
+                  "relationship": 1,
+                  "sequence": 0,
+                  "column": "raceId",
+                  "references_table": "races",
+                  "references_column": "raceId"
+                },
+                {
+                  "table": "lapTimes",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "driverId",
+                  "references_table": "drivers",
+                  "references_column": "driverId"
+                },
+                {
+                  "table": "lapTimes",
+                  "relationship": 1,
+                  "sequence": 0,
+                  "column": "raceId",
+                  "references_table": "races",
+                  "references_column": "raceId"
+                },
+                {
+                  "table": "pitStops",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "driverId",
+                  "references_table": "drivers",
+                  "references_column": "driverId"
+                },
+                {
+                  "table": "pitStops",
+                  "relationship": 1,
+                  "sequence": 0,
+                  "column": "raceId",
+                  "references_table": "races",
+                  "references_column": "raceId"
+                },
+                {
+                  "table": "qualifying",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "constructorId",
+                  "references_table": "constructors",
+                  "references_column": "constructorId"
+                },
+                {
+                  "table": "qualifying",
+                  "relationship": 1,
+                  "sequence": 0,
+                  "column": "driverId",
+                  "references_table": "drivers",
+                  "references_column": "driverId"
+                },
+                {
+                  "table": "qualifying",
+                  "relationship": 2,
+                  "sequence": 0,
+                  "column": "raceId",
+                  "references_table": "races",
+                  "references_column": "raceId"
+                },
+                {
+                  "table": "races",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "circuitId",
+                  "references_table": "circuits",
+                  "references_column": "circuitId"
+                },
+                {
+                  "table": "races",
+                  "relationship": 1,
+                  "sequence": 0,
+                  "column": "year",
+                  "references_table": "seasons",
+                  "references_column": "year"
+                },
+                {
+                  "table": "results",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "statusId",
+                  "references_table": "status",
+                  "references_column": "statusId"
+                },
+                {
+                  "table": "results",
+                  "relationship": 1,
+                  "sequence": 0,
+                  "column": "constructorId",
+                  "references_table": "constructors",
+                  "references_column": "constructorId"
+                },
+                {
+                  "table": "results",
+                  "relationship": 2,
+                  "sequence": 0,
+                  "column": "driverId",
+                  "references_table": "drivers",
+                  "references_column": "driverId"
+                },
+                {
+                  "table": "results",
+                  "relationship": 3,
+                  "sequence": 0,
+                  "column": "raceId",
+                  "references_table": "races",
+                  "references_column": "raceId"
+                }
+              ],
+              "scope": "declared SQLite constraints only; absence is not proof of no relationship"
+            }
+          },
+          {
+            "database": "student_club",
+            "sha256": "eb89bcfe97eefa386a27904ec5aa15159811a7eac894ec659a36e48fa9f76b77",
+            "tables": 8,
+            "tables_with_primary_key": 8,
+            "foreign_key_column_mappings": 8,
+            "context": {
+              "primary_keys": {
+                "attendance": [
+                  "link_to_event",
+                  "link_to_member"
+                ],
+                "budget": [
+                  "budget_id"
+                ],
+                "event": [
+                  "event_id"
+                ],
+                "expense": [
+                  "expense_id"
+                ],
+                "income": [
+                  "income_id"
+                ],
+                "major": [
+                  "major_id"
+                ],
+                "member": [
+                  "member_id"
+                ],
+                "zip_code": [
+                  "zip_code"
+                ]
+              },
+              "foreign_keys": [
+                {
+                  "table": "attendance",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "link_to_member",
+                  "references_table": "member",
+                  "references_column": "member_id"
+                },
+                {
+                  "table": "attendance",
+                  "relationship": 1,
+                  "sequence": 0,
+                  "column": "link_to_event",
+                  "references_table": "event",
+                  "references_column": "event_id"
+                },
+                {
+                  "table": "budget",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "link_to_event",
+                  "references_table": "event",
+                  "references_column": "event_id"
+                },
+                {
+                  "table": "expense",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "link_to_member",
+                  "references_table": "member",
+                  "references_column": "member_id"
+                },
+                {
+                  "table": "expense",
+                  "relationship": 1,
+                  "sequence": 0,
+                  "column": "link_to_budget",
+                  "references_table": "budget",
+                  "references_column": "budget_id"
+                },
+                {
+                  "table": "income",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "link_to_member",
+                  "references_table": "member",
+                  "references_column": "member_id"
+                },
+                {
+                  "table": "member",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "zip",
+                  "references_table": "zip_code",
+                  "references_column": "zip_code"
+                },
+                {
+                  "table": "member",
+                  "relationship": 1,
+                  "sequence": 0,
+                  "column": "link_to_major",
+                  "references_table": "major",
+                  "references_column": "major_id"
+                }
+              ],
+              "scope": "declared SQLite constraints only; absence is not proof of no relationship"
+            }
+          },
+          {
+            "database": "superhero",
+            "sha256": "75e94a2c3236ee3bb2c01fb97a1c4b4c1c269bcefd4eab1d04be323d2d0825b1",
+            "tables": 10,
+            "tables_with_primary_key": 8,
+            "foreign_key_column_mappings": 11,
+            "context": {
+              "primary_keys": {
+                "alignment": [
+                  "id"
+                ],
+                "attribute": [
+                  "id"
+                ],
+                "colour": [
+                  "id"
+                ],
+                "gender": [
+                  "id"
+                ],
+                "publisher": [
+                  "id"
+                ],
+                "race": [
+                  "id"
+                ],
+                "superhero": [
+                  "id"
+                ],
+                "superpower": [
+                  "id"
+                ]
+              },
+              "foreign_keys": [
+                {
+                  "table": "hero_attribute",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "hero_id",
+                  "references_table": "superhero",
+                  "references_column": "id"
+                },
+                {
+                  "table": "hero_attribute",
+                  "relationship": 1,
+                  "sequence": 0,
+                  "column": "attribute_id",
+                  "references_table": "attribute",
+                  "references_column": "id"
+                },
+                {
+                  "table": "hero_power",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "power_id",
+                  "references_table": "superpower",
+                  "references_column": "id"
+                },
+                {
+                  "table": "hero_power",
+                  "relationship": 1,
+                  "sequence": 0,
+                  "column": "hero_id",
+                  "references_table": "superhero",
+                  "references_column": "id"
+                },
+                {
+                  "table": "superhero",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "skin_colour_id",
+                  "references_table": "colour",
+                  "references_column": "id"
+                },
+                {
+                  "table": "superhero",
+                  "relationship": 1,
+                  "sequence": 0,
+                  "column": "race_id",
+                  "references_table": "race",
+                  "references_column": "id"
+                },
+                {
+                  "table": "superhero",
+                  "relationship": 2,
+                  "sequence": 0,
+                  "column": "publisher_id",
+                  "references_table": "publisher",
+                  "references_column": "id"
+                },
+                {
+                  "table": "superhero",
+                  "relationship": 3,
+                  "sequence": 0,
+                  "column": "hair_colour_id",
+                  "references_table": "colour",
+                  "references_column": "id"
+                },
+                {
+                  "table": "superhero",
+                  "relationship": 4,
+                  "sequence": 0,
+                  "column": "gender_id",
+                  "references_table": "gender",
+                  "references_column": "id"
+                },
+                {
+                  "table": "superhero",
+                  "relationship": 5,
+                  "sequence": 0,
+                  "column": "eye_colour_id",
+                  "references_table": "colour",
+                  "references_column": "id"
+                },
+                {
+                  "table": "superhero",
+                  "relationship": 6,
+                  "sequence": 0,
+                  "column": "alignment_id",
+                  "references_table": "alignment",
+                  "references_column": "id"
+                }
+              ],
+              "scope": "declared SQLite constraints only; absence is not proof of no relationship"
+            }
+          },
+          {
+            "database": "thrombosis_prediction",
+            "sha256": "87583183c3dc472fba04de702965560a9d7c0a548836613f242317e0eeb83f00",
+            "tables": 3,
+            "tables_with_primary_key": 2,
+            "foreign_key_column_mappings": 2,
+            "context": {
+              "primary_keys": {
+                "Laboratory": [
+                  "ID",
+                  "Date"
+                ],
+                "Patient": [
+                  "ID"
+                ]
+              },
+              "foreign_keys": [
+                {
+                  "table": "Examination",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "ID",
+                  "references_table": "Patient",
+                  "references_column": "ID"
+                },
+                {
+                  "table": "Laboratory",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "ID",
+                  "references_table": "Patient",
+                  "references_column": "ID"
+                }
+              ],
+              "scope": "declared SQLite constraints only; absence is not proof of no relationship"
+            }
+          },
+          {
+            "database": "toxicology",
+            "sha256": "35ef27ae6bdfda530e125ed369666ac0abb8bc8c0bcc0ad09407f547ecb61a93",
+            "tables": 4,
+            "tables_with_primary_key": 4,
+            "foreign_key_column_mappings": 5,
+            "context": {
+              "primary_keys": {
+                "atom": [
+                  "atom_id"
+                ],
+                "bond": [
+                  "bond_id"
+                ],
+                "connected": [
+                  "atom_id",
+                  "atom_id2"
+                ],
+                "molecule": [
+                  "molecule_id"
+                ]
+              },
+              "foreign_keys": [
+                {
+                  "table": "atom",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "molecule_id",
+                  "references_table": "molecule",
+                  "references_column": "molecule_id"
+                },
+                {
+                  "table": "bond",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "molecule_id",
+                  "references_table": "molecule",
+                  "references_column": "molecule_id"
+                },
+                {
+                  "table": "connected",
+                  "relationship": 0,
+                  "sequence": 0,
+                  "column": "bond_id",
+                  "references_table": "bond",
+                  "references_column": "bond_id"
+                },
+                {
+                  "table": "connected",
+                  "relationship": 1,
+                  "sequence": 0,
+                  "column": "atom_id2",
+                  "references_table": "atom",
+                  "references_column": "atom_id"
+                },
+                {
+                  "table": "connected",
+                  "relationship": 2,
+                  "sequence": 0,
+                  "column": "atom_id",
+                  "references_table": "atom",
+                  "references_column": "atom_id"
+                }
+              ],
+              "scope": "declared SQLite constraints only; absence is not proof of no relationship"
+            }
+          }
+        ],
+        "agent_accuracy": null,
+        "production_accepted": false
+      }
+    },
+    "bird-preflight-blocked-v9/service-preflight.json": {
+      "path": ".artifacts/stage6/bird-preflight-blocked-v9/service-preflight.json",
+      "sha256": "c20796656fe40d323a8d944b7c8287874b5f092b0bb8a33fae957a0c5ef7c535",
+      "result": {
+        "ready": false,
+        "n": 6,
+        "observed_model_replies": 4,
+        "service_errors": 2,
+        "service_error_rate": 0.3333333333333333,
+        "blocked_by": [
+          "insufficient_observed_model_replies",
+          "provider_error_rate_exceeded",
+          "incomplete_token_telemetry"
+        ],
+        "scope": "sampled service and telemetry preflight; not task quality qualification",
+        "production_accepted": false,
+        "preflight_sha256": "a728494a658cbf312af78d2469bcede627921c1e7fa4055d80d6612824790cdb",
+        "planned_n": 60,
+        "new_model_calls": 0
+      }
+    },
+    "precision-service-diagnostic-v8.json": {
+      "path": ".artifacts/stage6/precision-service-diagnostic-v8.json",
+      "sha256": "96e004dd793c4e92de9be396a1bc0985180926be244015f4658db0af54c7247a",
+      "result": {
+        "status": 200,
+        "elapsed_seconds": 1.476973042001191,
+        "rate_headers": {},
+        "error_code": null,
+        "error_type": null,
+        "message": "",
+        "successful_reply": true
+      }
+    },
+    "precision-context-service-diagnostic-v8.json": {
+      "path": ".artifacts/stage6/precision-context-service-diagnostic-v8.json",
+      "sha256": "b749fa8b7518735d18d66262f779d5c3e777741133102d9667b6c4fec4eed0df",
+      "result": {
+        "case_id": "800",
+        "diagnostic_only": true,
+        "max_calls": 6,
+        "events": [
+          {
+            "status": 200,
+            "output_budget_fields": {
+              "max_completion_tokens": 3000
+            },
+            "usage": {
+              "input_tokens": 1700,
+              "output_tokens": 63,
+              "total_tokens": 1763,
+              "input_token_details": {
+                "cache_read": 0
+              },
+              "output_token_details": {
+                "reasoning": 0
+              }
+            }
+          },
+          {
+            "status": 200,
+            "output_budget_fields": {
+              "max_completion_tokens": 3000
+            },
+            "usage": {
+              "input_tokens": 1700,
+              "output_tokens": 63,
+              "total_tokens": 1763,
+              "input_token_details": {
+                "cache_read": 0
+              },
+              "output_token_details": {
+                "reasoning": 0
+              }
+            }
+          },
+          {
+            "status": 200,
+            "output_budget_fields": {
+              "max_completion_tokens": 3000
+            },
+            "usage": {
+              "input_tokens": 1700,
+              "output_tokens": 63,
+              "total_tokens": 1763,
+              "input_token_details": {
+                "cache_read": 0
+              },
+              "output_token_details": {
+                "reasoning": 0
+              }
+            }
+          },
+          {
+            "status": 200,
+            "output_budget_fields": {
+              "max_completion_tokens": 3000
+            },
+            "usage": {
+              "input_tokens": 1700,
+              "output_tokens": 58,
+              "total_tokens": 1758,
+              "input_token_details": {
+                "cache_read": 0
+              },
+              "output_token_details": {
+                "reasoning": 0
+              }
+            }
+          },
+          {
+            "status": 429,
+            "output_budget_fields": {
+              "max_completion_tokens": 3000
+            },
+            "error": {
+              "type": null,
+              "code": null,
+              "message": ""
+            },
+            "rate_headers": {}
+          }
+        ]
+      }
+    },
+    "precision-rfc-service-diagnostic-v8.json": {
+      "path": ".artifacts/stage6/precision-rfc-service-diagnostic-v8.json",
+      "sha256": "bd1532e98b44831804c4abd6d6724b86c9bc191020eeb408afbcb8c2a600da17",
+      "result": {
+        "diagnostic_only": true,
+        "max_calls": 6,
+        "events": [
+          {
+            "status": 200,
+            "usage": {
+              "input_tokens": 1700,
+              "output_tokens": 62,
+              "total_tokens": 1762,
+              "input_token_details": {
+                "cache_read": 0
+              },
+              "output_token_details": {
+                "reasoning": 0
+              }
+            }
+          },
+          {
+            "status": 200,
+            "usage": {
+              "input_tokens": 1700,
+              "output_tokens": 61,
+              "total_tokens": 1761,
+              "input_token_details": {
+                "cache_read": 0
+              },
+              "output_token_details": {
+                "reasoning": 0
+              }
+            }
+          },
+          {
+            "status": 200,
+            "usage": {
+              "input_tokens": 1700,
+              "output_tokens": 63,
+              "total_tokens": 1763,
+              "input_token_details": {
+                "cache_read": 0
+              },
+              "output_token_details": {
+                "reasoning": 0
+              }
+            }
+          },
+          {
+            "status": 200,
+            "usage": {
+              "input_tokens": 1700,
+              "output_tokens": 63,
+              "total_tokens": 1763,
+              "input_token_details": {
+                "cache_read": 0
+              },
+              "output_token_details": {
+                "reasoning": 0
+              }
+            }
+          },
+          {
+            "status": 429,
+            "body_keys": [
+              "status",
+              "title"
+            ],
+            "problem_fields": {
+              "root.status": "429",
+              "root.title": "Too Many Requests"
+            }
+          }
+        ]
+      }
+    },
+    "native-output-cap-qualification-v9.json": {
+      "path": ".artifacts/stage6/native-output-cap-qualification-v9.json",
+      "sha256": "2dabb645cbba662cefdcc2a0bdf4cc5623e11f3e8cbaa93d92a7edbdff901a8b",
+      "result": [
+        {
+          "mode": "sdk-default",
+          "error": "OpenAIModelNotFoundError",
+          "status": 404
+        },
+        {
+          "mode": "explicit-native-max-tokens",
+          "error": "OpenAIModelNotFoundError",
+          "status": 404
+        }
+      ]
+    },
+    "calibration-v9-source-overlay/manifest.json": {
+      "path": ".artifacts/stage6/calibration-v9-source-overlay/manifest.json",
+      "sha256": "087ded06252d4664ae0478c43a42b436f28cf2e24bce82bcf3d94c34b391514d",
+      "result": {
+        "base_git_commit": "d0b91a8",
+        "report_sha256": "a728494a658cbf312af78d2469bcede627921c1e7fa4055d80d6612824790cdb",
+        "overlays": [
+          {
+            "path": "evals/run_stage6.py",
+            "sha256": "d1478ffcba6fdb0c386404f8c30e45617f29e0d587a909a12878601fd779b13c"
+          },
+          {
+            "path": "src/generaldataagent/evaluation/stage_six.py",
+            "sha256": "ee3f2dd20f2027ffb5e17d198b6979613bfd3df9230342b5a618554ca0565c84"
+          },
+          {
+            "path": "src/generaldataagent/evaluation/stage_six_models.py",
+            "sha256": "5b4ccc0d0db683c55f46920ad504e8a5d74d79e54ad41c4c2d8644a204426e54"
+          },
+          {
+            "path": "src/generaldataagent/evaluation/stage_six_worker.py",
+            "sha256": "fce9cf2a8d2c655c07d48b1ae901aef97a500f323665f28e5cb38b5f85866102"
+          },
+          {
+            "path": "src/generaldataagent/evaluation/stage_six_control.py",
+            "sha256": "7a1a69f537a046b6d7a479db8708cdee30874bab402bd5be77c5d344e98d809c"
+          },
+          {
+            "path": "src/generaldataagent/evaluation/stage_six_sql_precision.py",
+            "sha256": "879f40a6236a28b6f4924c3642758b33526eb5426aac6734d22706c747d829f2"
+          },
+          {
+            "path": "uv.lock",
+            "sha256": "06a88e5cc8bda03d532de75cdf8d6e8e41a055957ac8b76a217ec35cae4cc5b3"
+          },
+          {
+            "path": "src/generaldataagent/evaluation/stage_six_analysis.py",
+            "sha256": "684604d6eb920257c7d050b2277436271d0acc2bae9461acb78500bf2f812bdd"
+          },
+          {
+            "path": "src/generaldataagent/evaluation/stage_six_repair.py",
+            "sha256": "2d15f5f8db4d7b16c7278abd6bd3beb329118d1f9fcc339ce4cb44e754f48a03"
+          },
+          {
+            "path": "src/generaldataagent/evaluation/stage_six_protocol.py",
+            "sha256": "341ccba5f2994cc51f5c63f0ab02d829aac24a3829adbeca0a272adc95f327ce",
+            "binding": "recorded protocol mapping verified"
+          }
+        ],
+        "all_reported_fingerprints_verified": true,
+        "protocol_mapping_verified": true,
+        "cohort_verified": true,
+        "base_prompt_sha256": "30a588182f21e44d954c22248fc4979a7b1e475398dcd2ffa848d027f402483e",
+        "active_precision_prompt_sha256": "3fcfa8dfbe2ce22dd7b867504e2e3311d88c3366d7430066688cb2757da1c077",
+        "prompt_hash_note": "Original prompt_hash records the shared base template; active precision template is bound by precision_tools_hash and the additional hash here."
+      }
+    }
+  },
+  "scorer_fingerprint_matches_current": true,
+  "production_accepted": false
+}
