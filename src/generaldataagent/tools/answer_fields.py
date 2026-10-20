@@ -148,11 +148,16 @@ def binding_receipts(bindings, evidence, submitted, fields):
 
 def infer_public_field_rules(instructions: str, columns: list[str]) -> dict[str, AnswerFieldSpec]:
     """Read explicit @key[placeholder] type/precision definitions, never label contents."""
-    placeholders = dict(re.findall(r"@(\w+)\[(\w+)\]", instructions))
+    declared = re.findall(r"@(\w+)\[([^]\n]{1,200})\]", instructions)
+    placeholders = {}
+    for key, value in declared:
+        if key in placeholders and placeholders[key] != value:
+            return {}
+        placeholders[key] = value
     rules = {}
     # A public format may use "where" once, followed by several quoted definitions.
     # Keep spans in the original text so every rule retains exact provenance.
-    quoted = r"[\"']\w+[\"']"
+    quoted = r"[\"'][^\"'\n]{1,200}[\"']"
     subjects = quoted + r"(?:\s*(?:,\s*(?:and\s+)?|and\s+)" + quoted + r"){0,19}"
     definitions = list(
         re.finditer(
@@ -167,7 +172,7 @@ def infer_public_field_rules(instructions: str, columns: list[str]) -> dict[str,
         excerpt = instructions[match.start() : end].strip()
         names = match.group("names") or match.group("plain")
         description = instructions[match.end() : end]
-        defined = set(re.findall(r"[\"'](\w+)[\"']", names))
+        defined = set(re.findall(r"[\"']([^\"'\n]{1,200})[\"']", names))
         if not defined and re.fullmatch(r"\w+", names.strip()):
             defined = {names.strip()}
         kind = (
@@ -176,7 +181,11 @@ def infer_public_field_rules(instructions: str, columns: list[str]) -> dict[str,
             else "integer"
             if re.search(r"\binteger\b", description, re.I)
             else "number"
-            if re.search(r"\bnumbers?\b|\bfloat(?:ing)?\b|\bdecimal\b", description, re.I)
+            if re.search(
+                r"\bnumbers?\b|\bfloat(?:ing)?\b|\bdecimal\b|\breal\s+(?:value|number)\b",
+                description,
+                re.I,
+            )
             else None
         )
         precision = public_precisions(description)

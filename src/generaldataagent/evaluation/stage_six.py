@@ -603,6 +603,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                         "search_documents": "search",
                         "collect_values": "collect",
                         "submit_answers": "answers",
+                        "declare_unsupported": "unsupported",
                     }
                     if name == "analysis_action":
                         content = json.dumps(arguments)
@@ -707,6 +708,16 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     failure = "invalid_output"
                     continue
                 if "unsupported" in action:
+                    if semantic:
+                        trace.append(
+                            {
+                                "step": step,
+                                "tool": "capability_declaration",
+                                "status": "unsupported",
+                                "code": "unsupported_capability",
+                                "response_mode": "native_function" if calls else "json",
+                            }
+                        )
                     failure = "unsupported_capability"
                     break
                 if "answers" in action and task.benchmark == "bird-mini-dev-sqlite":

@@ -141,3 +141,16 @@ def test_one_where_introduces_several_independent_public_field_definitions():
     )
     rules = infer_public_field_rules(grouped, ["a", "b"])
     assert set(rules) == {"a", "b"} and rules["a"].decimals == rules["b"].decimals == 2
+
+
+def test_public_placeholder_can_contain_percent_symbols_without_losing_its_type():
+    from generaldataagent.tools.answer_fields import infer_public_field_rules
+
+    text = (
+        '@rate[rate_%] where "rate_%" is a positive real value between 0 and 100, '
+        "rounded to two decimal places."
+    )
+    rules = infer_public_field_rules(text, ["rate"])
+    assert rules["rate"].kind == "number" and rules["rate"].decimals == 2
+    assert rules["rate"].source_excerpt in text
+    assert not infer_public_field_rules(text + " @rate[other]", ["rate"])

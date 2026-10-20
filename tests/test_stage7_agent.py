@@ -365,6 +365,7 @@ def test_native_statistics_use_two_actions_and_keep_full_precision_receipts(data
                 "search_documents",
                 "collect_values",
                 "submit_answers",
+                "declare_unsupported",
             }
             return self
 
@@ -511,3 +512,57 @@ def test_undefined_percentage_is_replanned_instead_of_submitted_as_success(datab
     assert result["failure"] is None
     assert result["trace"][0]["checks"] == ["undefined_percentage_check_population"]
     assert "WHERE id<0" not in result["final_sql"]
+
+
+def test_native_unavailable_method_has_a_typed_exit_without_fabricating_results(database):
+    from langchain_core.messages import AIMessage
+
+    class Native:
+        def bind(self, **kwargs):
+            assert "declare_unsupported" in {tool["function"]["name"] for tool in kwargs["tools"]}
+            assert kwargs["tool_choice"] == "required"
+            return self
+
+        def invoke(self, messages):
+            return AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "declare_unsupported",
+                        "args": {"reason": "p-value unavailable; do-not-log"},
+                        "id": "one",
+                    }
+                ],
+                usage_metadata={"total_tokens": 10, "input_tokens": 8, "output_tokens": 2},
+            )
+
+    task = Task("infiagent-dabench", "synthetic", "p-value?", "@p[value]", "hard", "people")
+    result = BoundedSQLAgent(Native(), tool_profile="sql-semantic").run(task, database)
+    assert result["failure"] == "unsupported_capability" and not result["answers"]
+    assert result["trace"] == [
+        {
+            "step": 1,
+            "tool": "capability_declaration",
+            "status": "unsupported",
+            "code": "unsupported_capability",
+            "response_mode": "native_function",
+        }
+    ]
+    assert "do-not-log" not in json.dumps(result)
+
+
+def test_public_percent_placeholder_flows_into_automatic_answer_binding(database):
+    result = run(
+        database,
+        [
+            {"sql": "SELECT 100.0*SUM(score=10)/COUNT(*) AS rate FROM people"},
+            {"submit_answers": {"fields": [{"name": "rate", "step": 1, "path": ["rows", 0, 0]}]}},
+        ],
+        benchmark="infiagent-dabench",
+        question="matching rate?",
+        instructions=(
+            '@rate[rate_%] where "rate_%" is a positive real value, rounded to two decimal places.'
+        ),
+    )
+    assert result["failure"] is None and result["answers"] == {"rate": "100.00"}
+    assert result["task_contract"]["answer"]["fields"]["rate"]["kind"] == "number"

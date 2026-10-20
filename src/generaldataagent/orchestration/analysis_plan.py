@@ -70,6 +70,7 @@ def normalize_protocol_action(action):
         "search_documents": "search",
         "collect_values": "collect",
         "submit_answers": "answers",
+        "declare_unsupported": "unsupported",
     }
     if not isinstance(action, dict):
         return action
@@ -106,6 +107,12 @@ def normalize_protocol_action(action):
             "evidence_steps": sorted({v[0] for v in bindings.values()}),
             "field_rules": rules,
         }
+    if name == "declare_unsupported":
+        return (
+            {"unsupported": arguments["reason"]}
+            if isinstance(arguments, dict) and set(arguments) == {"reason"}
+            else action
+        )
     if name == "search_documents":
         return (
             {"search": arguments["query"]}
