@@ -14,6 +14,8 @@ def canonical_report_hash(report: dict) -> str:
 def repeated_evidence(
     reports: list[dict], *, max_flip_rate: float = 0.1, max_service_error_rate: float = 0.05
 ) -> dict:
+    if not 0 <= max_flip_rate <= 1 or not 0 <= max_service_error_rate <= 1:
+        raise ValueError("invalid repeat policy")
     if len(reports) < 2:
         raise ValueError("at least two independently recorded runs required")
     hashes = [canonical_report_hash(r) for r in reports]

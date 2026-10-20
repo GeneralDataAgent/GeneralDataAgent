@@ -21,10 +21,24 @@ def validate_report(report: dict) -> dict:
     for row in results:
         if not isinstance(row["passed"], bool):
             raise ValueError("passed must be a boolean")
-        if not math.isfinite(row["elapsed_seconds"]) or row["elapsed_seconds"] < 0:
+        if (
+            type(row["elapsed_seconds"]) not in {int, float}
+            or not math.isfinite(row["elapsed_seconds"])
+            or row["elapsed_seconds"] < 0
+        ):
             raise ValueError("invalid latency")
         if type(row["tokens"]) is not int or row["tokens"] < 0:
             raise ValueError("invalid token telemetry")
+        if (
+            not isinstance(row["case_id"], str)
+            or not row["case_id"]
+            or type(row["sub_hits"]) is not int
+            or type(row["sub_total"]) is not int
+            or not 0 <= row["sub_hits"] <= row["sub_total"]
+        ):
+            raise ValueError("invalid case or subquestion evidence")
+        if row["passed"] and (row["sub_total"] == 0 or row["sub_hits"] != row["sub_total"]):
+            raise ValueError("successful task has incomplete subquestion evidence")
         cost = row.get("cost_usd")
         if cost is not None and (
             type(cost) not in {int, float} or not math.isfinite(cost) or cost < 0
@@ -45,10 +59,22 @@ def release_diagnostics(
     min_success_rate: float = 0.8,
     max_p95_seconds: float = 120,
     max_model_error_rate: float = 0.05,
+    repeated_runs: list[dict] | None = None,
 ) -> dict:
     """Provisional internal gates, not benchmark-author thresholds or production approval."""
     if not 0 <= min_success_rate <= 1 or not 0 <= max_model_error_rate <= 1 or max_p95_seconds <= 0:
         raise ValueError("invalid release policy")
+    from generaldataagent.evaluation.stage_six_stability import (
+        canonical_report_hash,
+        repeated_evidence,
+    )
+
+    repeat_by_track = {}
+    for repeated in repeated_runs or []:
+        if repeated["benchmark"] not in REQUIRED_TRACKS:
+            raise ValueError("unknown repeated-run track")
+        repeat_by_track.setdefault(repeated["benchmark"], []).append(repeated)
+    stability = {}
     tracks = {}
     blocks = []
     baseline_map = {r["benchmark"]: r for r in baselines or []}
@@ -87,13 +113,21 @@ def release_diagnostics(
                 reasons.append("paired_regression")
         else:
             reasons.append("paired_baseline_not_supplied")
+        if name in repeat_by_track:
+            supplied = repeat_by_track[name]
+            current_hash = canonical_report_hash(report)
+            if sum(canonical_report_hash(r) == current_hash for r in supplied) > 1:
+                raise ValueError("duplicated candidate in repeated evidence")
+            inputs = [report] + [r for r in supplied if canonical_report_hash(r) != current_hash]
+            stability[name] = repeated_evidence(inputs)
         tracks[name] = {"summary": summary, "blocked_by": reasons, "paired": paired}
         blocks.extend(f"{name}:{reason}" for reason in reasons)
     for name in REQUIRED_TRACKS.keys() - tracks.keys():
         blocks.append(name + ":missing_track")
+    if not all(stability.get(name, {}).get("qualified", False) for name in REQUIRED_TRACKS):
+        blocks.append("repeat_stability_not_qualified")
     blocks.extend(
         [
-            "repeat_stability_not_qualified",
             "independent_human_review_not_supplied",
             "production_supervisor_not_evaluated",
             "shadow_and_canary_not_qualified",
@@ -103,6 +137,7 @@ def release_diagnostics(
         "passed": not blocks,
         "production_accepted": False,
         "tracks": tracks,
+        "stability": stability,
         "blocked_by": blocks,
         "policy": {
             "min_success_rate": min_success_rate,

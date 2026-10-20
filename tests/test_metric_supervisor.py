@@ -230,3 +230,48 @@ def test_supervisor_enforces_total_runtime_budget(monkeypatch, tmp_path) -> None
 
     assert result.status == "failed"
     assert result.limitations == ("model invocation failed: TimeoutError",)
+
+
+@pytest.mark.parametrize(
+    "changed",
+    [
+        {"dimensions": []},
+        {"metric_version": "v2"},
+        {"start_time": "2025-01-02T00:00:00+00:00"},
+        {"end_time": "2025-01-03T00:00:00+00:00"},
+    ],
+)
+def test_tool_execution_cannot_drift_from_bound_request(tmp_path, changed):
+    from datetime import UTC, datetime
+
+    runtime = build_supervisor_runtime(tmp_path)
+    bound = MetricQuery(
+        metric_name="event_count",
+        metric_version="v1",
+        dimensions=("segment",),
+        start_time=datetime(2025, 1, 1, tzinfo=UTC),
+        end_time=datetime(2025, 2, 1, tzinfo=UTC),
+    )
+    candidates = {}
+    groups = runtime._build_actor_tools(actor(), candidates, [], bound_query=bound)
+    arguments = {"metric_name": "event_count", "metric_version": "v1", "dimensions": ["segment"]}
+    groups["discovery"][0].invoke(arguments)
+    execution = {**arguments, "start_time": bound.start_time, "end_time": bound.end_time, **changed}
+    with pytest.raises(PermissionError, match="bound request"):
+        groups["data_analysis"][0].invoke(execution)
+    assert candidates == {}
+
+
+def test_discovery_and_cached_execution_are_request_bound(tmp_path):
+    runtime = build_supervisor_runtime(tmp_path)
+    bound = MetricQuery(metric_name="event_count", metric_version="v1", dimensions=("segment",))
+    candidates = {}
+    groups = runtime._build_actor_tools(actor(), candidates, [], bound_query=bound)
+    args = {"metric_name": "event_count", "metric_version": "v1", "dimensions": ["segment"]}
+    with pytest.raises(PermissionError, match="bound request"):
+        groups["discovery"][0].invoke({**args, "dimensions": []})
+    groups["discovery"][0].invoke(args)
+    result = groups["data_analysis"][0].invoke(args)
+    with pytest.raises(PermissionError, match="bound request"):
+        groups["data_analysis"][0].invoke({**args, "dimensions": []})
+    assert groups["data_analysis"][0].invoke(args)["task_id"] == result["task_id"]

@@ -39,3 +39,15 @@ def test_paired_allows_subject_change_and_blocks_data_or_duplicates():
         paired_gate(before, other)
     with pytest.raises(ValueError):
         paired_gate(before, after, max_regressions=-1)
+
+
+def test_scalar_helpers_are_part_of_the_scorer_fingerprint(monkeypatch):
+    import generaldataagent.evaluation.stage_six_protocol as module
+
+    original = protocol_hash(module.evaluation_protocol(workers=1))
+
+    def other_number(value):
+        return 0
+
+    monkeypatch.setattr(module, "_number", other_number)
+    assert protocol_hash(module.evaluation_protocol(workers=1)) != original

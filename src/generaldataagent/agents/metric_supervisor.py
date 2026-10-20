@@ -80,7 +80,7 @@ class MetricSupervisorRuntime:
             raise ValueError("max_runtime_seconds must be positive")
         candidates: dict[str, dict[str, Any]] = {}
         role_events: list[str] = []
-        tool_groups = self._build_actor_tools(actor, candidates, role_events)
+        tool_groups = self._build_actor_tools(actor, candidates, role_events, bound_query=query)
         specs = tuple(spec for spec in SPECIALIST_SPECS if spec.name in _PHASE_ONE_ROLES)
         middleware = (
             (
@@ -189,6 +189,8 @@ class MetricSupervisorRuntime:
         actor: ActorContext,
         candidates: dict[str, dict[str, Any]],
         role_events: list[str] | None = None,
+        *,
+        bound_query: MetricQuery | None = None,
     ) -> dict[str, list[StructuredTool]]:
         events = role_events if role_events is not None else []
 
@@ -198,6 +200,12 @@ class MetricSupervisorRuntime:
             dimensions: list[str],
         ) -> dict[str, Any]:
             _record_role(events, "discovery")
+            if bound_query is not None and (metric_name, metric_version, tuple(dimensions)) != (
+                bound_query.metric_name,
+                bound_query.metric_version,
+                bound_query.dimensions,
+            ):
+                raise PermissionError("metric discovery differs from the bound request")
             metric = self.catalog.get(metric_name, metric_version)
             if metric.data_domain not in actor.data_domains:
                 raise PermissionError(f"unauthorized data domain: {metric.data_domain}")
@@ -228,18 +236,18 @@ class MetricSupervisorRuntime:
             end_time: datetime | None = None,
         ) -> dict[str, Any]:
             _record_role(events, "data-analyst")
+            proposed_query = MetricQuery(
+                metric_name=metric_name,
+                metric_version=metric_version,
+                dimensions=tuple(dimensions),
+                start_time=start_time,
+                end_time=end_time,
+            )
+            if bound_query is not None and proposed_query != bound_query:
+                raise PermissionError("metric execution differs from the bound request")
             if "current" in candidates:
                 return candidates["current"]["tool_result"]
-            result = self.metric_runtime.run(
-                MetricQuery(
-                    metric_name=metric_name,
-                    metric_version=metric_version,
-                    dimensions=tuple(dimensions),
-                    start_time=start_time,
-                    end_time=end_time,
-                ),
-                actor,
-            )
+            result = self.metric_runtime.run(proposed_query, actor)
             delivery = result["delivery_package"]
             tool_result = {
                 "task_id": result["task_id"],

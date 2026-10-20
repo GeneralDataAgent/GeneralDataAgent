@@ -2,6 +2,7 @@
 
 import argparse
 import hashlib
+import inspect
 import json
 import platform
 import subprocess
@@ -29,6 +30,9 @@ from generaldataagent.evaluation.stage_six_control import (
     ServiceCircuitBreaker,
     not_attempted_result,
 )
+from generaldataagent.evaluation.stage_six_import import (
+    build_identifier_preserving_database,
+)
 from generaldataagent.evaluation.stage_six_models import resolve_evaluation_model
 from generaldataagent.evaluation.stage_six_protocol import evaluation_protocol
 from generaldataagent.tools import SQLiteReadOnlyExecutor
@@ -44,6 +48,9 @@ def main():
     parser.add_argument("--workers", type=int, choices=range(1, 5), default=1)
     parser.add_argument("--app-type", choices=["claude", "codex"], default="claude")
     parser.add_argument("--provider-id")
+    parser.add_argument(
+        "--csv-importer", choices=["legacy-v1", "identifier-v2"], default="legacy-v1"
+    )
     parser.add_argument("--request-interval-seconds", type=float, default=0)
     parser.add_argument("--thinking", choices=["default", "on", "off"], default="default")
     parser.add_argument("--json-mode", action="store_true")
@@ -87,10 +94,26 @@ def main():
         thinking_mode=args.thinking,
         json_mode=args.json_mode,
     )
+    build_csv = (
+        build_identifier_preserving_database
+        if args.csv_importer == "identifier-v2"
+        else build_csv_database
+    )
     args.output.mkdir(parents=True)
     code_hash = digest(Path(__file__).resolve())
     protocol = evaluation_protocol(workers=args.workers)
     protocol["request_interval_seconds"] = args.request_interval_seconds
+    if args.csv_importer == "identifier-v2":
+        protocol["csv_importer"] = args.csv_importer
+        protocol["numeric_import"] = (
+            "preserve leading zero/large integer text; other finite numeric REAL"
+        )
+        protocol["import_source_hash"] = hashlib.sha256(
+            (
+                (ROOT / "src/generaldataagent/evaluation/stage_six_import.py").read_text()
+                + inspect.getsource(add_json_tables)
+            ).encode()
+        ).hexdigest()
     system_fingerprint = {
         "prompt_hash": hashlib.sha256(SYSTEM_PROMPT.encode()).hexdigest(),
         "agent_hash": digest(ROOT / "src/generaldataagent/evaluation/stage_six.py"),
@@ -137,7 +160,7 @@ def main():
     if args.benchmark == "dabstep":
         database = (args.output / "databases/payments.sqlite").resolve()
         d = root / "dabstep"
-        build_csv_database(
+        build_csv(
             {
                 name: d / (name + ".csv")
                 for name in ["payments", "acquirer_countries", "merchant_category_codes"]
@@ -162,7 +185,7 @@ def main():
                     / "databases"
                     / (hashlib.sha256(asset.encode()).hexdigest() + ".sqlite")
                 ).resolve()
-                build_csv_database({"data": root / "infi/da-dev-tables" / asset}, database)
+                build_csv({"data": root / "infi/da-dev-tables" / asset}, database)
             databases[asset] = database
 
     circuit = ServiceCircuitBreaker()

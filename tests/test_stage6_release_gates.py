@@ -104,3 +104,38 @@ def test_source_changes_and_duplicate_baselines_cannot_be_paired():
         release_diagnostics([r], baselines=[other])
     with pytest.raises(ValueError, match="duplicate baseline"):
         release_diagnostics([r], baselines=[r, r])
+
+
+def test_actual_repeated_runs_are_recomputed_and_bound_to_candidate():
+    r = report()
+    r.update(system_fingerprint={"agent": "a"}, model_route={"model": "m"}, completed_at="one")
+    for row in r["results"]:
+        row["database_hash"] = "d"
+    second, third = copy.deepcopy(r), copy.deepcopy(r)
+    second["completed_at"] = "two"
+    third["completed_at"] = "three"
+    result = release_diagnostics([r], repeated_runs=[second, third])
+    assert result["stability"]["dabstep-dev"]["qualified"]
+    assert result["stability"]["dabstep-dev"]["repeats"] == 3
+    assert not result["production_accepted"]
+    with pytest.raises(ValueError):
+        release_diagnostics([r], repeated_runs=[second, second])
+
+
+@pytest.mark.parametrize(
+    "key,value",
+    [
+        ("elapsed_seconds", True),
+        ("elapsed_seconds", "fast"),
+        ("tokens", True),
+        ("cost_usd", -1),
+        ("cost_usd", float("inf")),
+        ("sub_hits", -1),
+        ("sub_total", 0),
+    ],
+)
+def test_invalid_evidence_cannot_be_summarized_into_acceptance(key, value):
+    r = report()
+    r["results"][0][key] = value
+    with pytest.raises(ValueError):
+        validate_report(r)

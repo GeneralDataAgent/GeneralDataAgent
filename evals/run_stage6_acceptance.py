@@ -11,11 +11,13 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--report", type=Path, action="append", required=True)
     parser.add_argument("--baseline", type=Path, action="append", default=[])
+    parser.add_argument("--repeat-report", type=Path, action="append", default=[])
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     result = release_diagnostics(
         [json.loads(p.read_text()) for p in args.report],
         baselines=[json.loads(p.read_text()) for p in args.baseline],
+        repeated_runs=[json.loads(p.read_text()) for p in args.repeat_report],
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2) + "\n")
