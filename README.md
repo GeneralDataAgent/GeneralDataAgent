@@ -530,8 +530,9 @@ but its model evaluation remains unqualified due provider errors. A context-awar
 now blocks a failed calibration before new model requests. Per-call output budgets are explicit
 protocol invariants. Public development scores do not establish official ranking or production acceptance.
 
-The complete suite passes 728 tests with one optional skip and 88.70% coverage on Python 3.11 and 3.12.
-See the [latest measured iteration](docs/validation/stage6-iteration-summary-2026-10-20.md),
+The complete suite passes 741 tests with one optional skip and 88.81% coverage on Python 3.11 and 3.12.
+See the [Magpie integration and actual validation](docs/validation/stage6-magpie-v10.md),
+[previous paired iteration](docs/validation/stage6-iteration-summary-2026-10-20.md),
 [paired evidence](docs/validation/stage6-iteration-v7-results.md),
 [selection and protocol](docs/research/stage6-benchmark-plan.md), and
 [reproduction commands](docs/operations/stage6-evaluation-runbook.md).

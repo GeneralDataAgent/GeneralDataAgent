@@ -288,8 +288,17 @@ caps and context-aware preflight prevent expanding a failed calibration: the act
 made zero new model requests. Current protocol version is `stage6-v7`; historical measured pairs
 retain their exact `stage6-v6` metadata and cannot be mixed across changed budgets.
 
-The full suite passes 728 tests, one optional skip and 88.70% coverage on both Python 3.11 and 3.12.
+The full suite passes 741 tests, one optional skip and 88.81% coverage on both Python 3.11 and 3.12.
 Cost, regressions, repeats, independent review and live-environment gates remain incomplete.
 See the [latest measured iteration](validation/stage6-iteration-summary-2026-10-20.md),
 [full paired evidence](validation/stage6-iteration-v7-results.md), and
 [initial validation](validation/stage6-evaluation.md).
+
+Magpie is now an additional read-only connection source alongside CC Switch. Its explicit WorkBuddy
+DeepSeek route completed 130 public-development task runs plus 18 service-calibration runs; every
+formal scoring decision replays consistently, and the actual TLC Supervisor completes 3/3 tasks.
+The narrative smoke entry uses explicit function calling for this gateway because the selected
+upstream did not honor native Responses JSON schema output. These results use a different model
+route from earlier pairs and do not establish a causal strategy gain. See the
+[Magpie evidence](validation/stage6-magpie-v10.md) and
+[complete machine bundle](validation/stage6-magpie-v10-results.json).
