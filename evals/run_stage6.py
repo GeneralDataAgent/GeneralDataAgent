@@ -56,6 +56,16 @@ def main():
     selected = sample_cases(cases, args.limit, args.seed)
     if args.benchmark == "bird" and not args.bird_databases:
         parser.error("BIRD real database snapshot required; gold SQL is never a substitute")
+    if args.benchmark == "bird":
+        database_manifest = json.loads((root / "bird/database-manifest.json").read_text())
+        expected_hashes = {
+            Path(item["path"]).parent.name: item["sha256"]
+            for item in database_manifest["databases"]
+        }
+        for asset in {case.task.asset for case in selected}:
+            path = args.bird_databases / asset / (asset + ".sqlite")
+            if digest(path) != expected_hashes[asset]:
+                raise ValueError("BIRD database does not match the pinned official snapshot")
     provider = (CcSwitchProvider if args.app_type == "claude" else OpenAiCcSwitchProvider).load(
         provider_id=args.provider_id
     )

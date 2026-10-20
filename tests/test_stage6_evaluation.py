@@ -123,6 +123,8 @@ def test_budget_counts_consumed_tokens(database):
         ("2.01", "2", False),
         ("NaN", "2", False),
         ("inf", "2", False),
+        ("1,000", "1000", False),
+        ("2,0", "20", False),
         ("BLUE", "blue", False),
         ("blue", "blue", True),
         ("the blue", "blue", False),
@@ -315,3 +317,45 @@ def test_bird_requires_sql_and_rejects_narrative_before_retry(database):
     assert result["final_sql"] == "SELECT AVG(value) FROM data"
     assert result["failure"] is None
     assert '"required_output": "final_sql"' in str(model.messages)
+
+
+def test_bird_runner_rejects_changed_database_before_loading_model(tmp_path, monkeypatch):
+    import importlib.util
+    import sys
+    from pathlib import Path
+
+    spec = importlib.util.spec_from_file_location(
+        "stage6_runner_under_test", Path(__file__).resolve().parents[1] / "evals/run_stage6.py"
+    )
+    runner = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(runner)
+
+    data = tmp_path / "data/stage6/bird"
+    data.mkdir(parents=True)
+    (data / "database-manifest.json").write_text(
+        json.dumps({"databases": [{"path": "databases/bank/bank.sqlite", "sha256": "wrong_hash"}]})
+    )
+    db = tmp_path / "databases/bank/bank.sqlite"
+    db.parent.mkdir(parents=True)
+    db.write_bytes(b"substituted database")
+    c = Case(Task("bird-mini-dev-sqlite", "1", "q", "", "simple", "bank"), {}, "SELECT 1")
+    monkeypatch.setattr(runner, "ROOT", tmp_path)
+    monkeypatch.setattr(runner, "verify_sources", lambda root: {"sources": []})
+    monkeypatch.setattr(runner, "load_bird", lambda path: [c])
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "run_stage6.py",
+            "--benchmark",
+            "bird",
+            "--limit",
+            "1",
+            "--bird-databases",
+            str(tmp_path / "databases"),
+            "--output",
+            str(tmp_path / "output"),
+        ],
+    )
+    with pytest.raises(ValueError, match="pinned official snapshot"):
+        runner.main()

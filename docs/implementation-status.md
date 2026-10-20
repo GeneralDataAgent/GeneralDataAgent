@@ -279,8 +279,8 @@ or business-value acceptance and does not change earlier stages' outstanding ext
 `feat/stage6-benchmark-evaluation` implements pinned public-development data preparation, three
 benchmark adapters, guarded real-model SQL execution, process deadlines, deterministic scorers,
 case-level reports, model-free replay and release diagnostics. It reruns the existing Stage 1–5
-regressions and adds 55 evaluator/security/gate tests. The complete suite passes 631 tests with one
-opt-in skip and 88.42% coverage. The 130-task public-development run is dominated by model-provider
+regressions and adds 58 evaluator/security/gate tests. The complete suite passes 634 tests with one
+opt-in skip and 88.43% coverage. The 130-task public-development run is dominated by model-provider
 rate limits; quality, service, cost, repeat stability, independent review and live production gates
 remain incomplete. This is not production Supervisor acceptance or official benchmark ranking.
 See [Stage 6 validation](validation/stage6-evaluation.md).

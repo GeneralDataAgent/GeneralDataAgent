@@ -255,10 +255,13 @@ def score_answers(case: Case, answers: dict) -> tuple[bool, int, int]:
                 v.strip().casefold() for v in expected.split(",")
             )
         elif case.task.benchmark == "infiagent-dabench":
-            a, b = _number(actual), _number(expected)
-            good = str(actual) == expected or (
-                a is not None and b is not None and abs(a - b) < 1e-6
-            )
+            # Upstream float parsing does not accept grouped strings such as "1,000".
+            try:
+                a, b = float(str(actual)), float(expected)
+                numeric_equal = math.isfinite(a) and math.isfinite(b) and abs(a - b) < 1e-6
+            except (ValueError, TypeError):
+                numeric_equal = False
+            good = str(actual) == expected or numeric_equal
         else:
             good = compare_value(str(actual), expected, relative=1e-6)
         hits += good
