@@ -1,0 +1,25 @@
+"""Per-field answer presentation and method requirements."""
+
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class AnswerFieldSpec(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
+    kind: Literal["number", "integer", "string", "boolean", "set"]
+    nullable: bool | None = None
+    decimals: int | None = Field(default=None, ge=0, le=15)
+    unit: str | None = Field(default=None, max_length=50)
+    method: (
+        Literal[
+            "sql",
+            "describe",
+            "describe.sample_std",
+            "pearson",
+            "linear_regression",
+            "complete_collection",
+        ]
+        | None
+    ) = None
+    source_excerpt: str = Field(default="", max_length=2000)

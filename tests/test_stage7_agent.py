@@ -176,10 +176,9 @@ def test_native_tool_calls_use_same_strict_runtime_validation(database):
             )
 
         def bind(self, **kwargs):
-            assert (
-                kwargs["tool_choice"] == "required"
-                or kwargs["tool_choice"]["function"]["name"] == "plan_analysis"
-            )
+            assert kwargs["tool_choice"] == "required" or kwargs["tool_choice"]["function"][
+                "name"
+            ] in {"plan_analysis", "submit_sql"}
             assert not kwargs["parallel_tool_calls"]
             return self
 

@@ -224,7 +224,11 @@ def check_public_change_direction(sql: str, question: str) -> list[str]:
             return None
         where = select.args.get("where")
         dates = set()
-        for predicate in _conjuncts(where.this) if where else []:
+        conditions = _conjuncts(where.this) if where else []
+        for join in select.args.get("joins", []):
+            if not join.args.get("side") and join.args.get("on") is not None:
+                conditions.extend(_conjuncts(join.args["on"]))
+        for predicate in conditions:
             if not isinstance(predicate, exp.EQ):
                 continue
             for field, literal in (
@@ -273,6 +277,27 @@ def check_public_rank_and_age(sql: str, question: str) -> list[str]:
         and any(isinstance(w.this, exp.RowNumber) for w in tree.find_all(exp.Window))
     ):
         issues.append("rank_ties_require_rank")
+    if re.search(r"\bamong\s+(?:the\s+)?top\s+\d+", question, re.I) and not re.search(
+        r"non.?null|exclude|missing|null|known scores|valid scores", question, re.I
+    ):
+        for select in tree.find_all(exp.Select):
+            ordering = {
+                column.name.casefold()
+                for window in select.find_all(exp.Window)
+                for order in [window.args.get("order")]
+                if order is not None
+                for column in order.find_all(exp.Column)
+            }
+            where = select.args.get("where")
+            for condition in _conjuncts(where.this) if where else []:
+                if (
+                    isinstance(condition, exp.Not)
+                    and isinstance(condition.this, exp.Is)
+                    and isinstance(condition.this.expression, exp.Null)
+                    and isinstance(condition.this.this, exp.Column)
+                    and condition.this.this.name.casefold() in ordering
+                ):
+                    issues.append("unrequested_rank_population_filter")
     if re.search(r"\bage\b|\bhow old\b", question, re.I) and re.search(
         r"arriv|admi", question, re.I
     ):

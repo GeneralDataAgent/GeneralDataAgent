@@ -461,6 +461,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
         guard = SqlGuard(dialect="sqlite")
         started = time.monotonic()
         trace, answers = [], {}
+        answer_evidence = {}
         action_counts = Counter()
         tokens = input_tokens = output_tokens = 0
         usage_complete = cost_complete = True
@@ -732,6 +733,11 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                         answers = assemble_answers(
                             action.get("bindings", {}), evidence, task_spec.answer
                         )
+                        from generaldataagent.tools.answer_fields import binding_receipts
+
+                        answer_evidence = binding_receipts(
+                            action["bindings"], evidence, answers, task_spec.answer.fields
+                        )
                     failure = None
                     break
                 if semantic and "crosscheck" in action:
@@ -782,6 +788,16 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                             raise SemanticError(",".join(issues))
                     result_data = {"columns": result.columns, "rows": result.rows}
                     tool = "sql"
+                if semantic:
+                    result_data["method_id"] = (
+                        result_data["operation"]
+                        if tool == "fixed_analysis"
+                        else "complete_collection"
+                        if tool == "complete_collection"
+                        else "sql"
+                        if tool in {"sql", "sql_crosscheck"}
+                        else "document_search"
+                    )
                 event = {
                     "step": step,
                     "tool": tool,
@@ -805,7 +821,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     break
                 trace.append(event)
                 if semantic and tool != "document_search":
-                    evidence[step] = result_data
+                    evidence[step] = dict(result_data)
                 if action_counts[action_key] > 1:
                     result_data["warning"] = (
                         "Identical action repeated with no new evidence; revise your plan."
@@ -873,6 +889,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
         return {
             "answers": answers,
             "raw_answers": raw_answers,
+            "answer_evidence": answer_evidence,
             "task_contract": task_spec.model_dump() if task_spec else None,
             "final_sql": final_sql,
             "failure": failure,

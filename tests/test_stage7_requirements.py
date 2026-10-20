@@ -155,3 +155,29 @@ def test_public_rank_and_completed_age_do_not_silently_drop_ties_or_birthdays():
         "(strftime('%m-%d',arrived)<strftime('%m-%d',birthday)) AS age FROM t"
     )
     assert not check_public_rank_and_age(completed, "What age was the person on arrival?")
+
+
+def test_period_equalities_in_inner_join_are_resolved_without_losing_population():
+    from generaldataagent.tools.semantic_requirements import (
+        check_public_change_direction,
+        check_public_rank_and_age,
+    )
+
+    sql = (
+        "SELECT (a.v-b.v)/b.v FROM "
+        "(SELECT t.v FROM accounts d JOIN records t ON d.id=t.id AND t.day='2020-01-01') a, "
+        "(SELECT t.v FROM accounts d JOIN records t ON d.id=t.id AND t.day='2021-01-01') b"
+    )
+    assert set(check_public_change_direction(sql, "growth rate from 2020/1/1 to 2021/1/1")) == {
+        "change_direction",
+        "change_reference_period",
+    }
+    ranking = (
+        "SELECT RANK() OVER(PARTITION BY g ORDER BY score DESC) FROM t WHERE score IS NOT NULL"
+    )
+    assert check_public_rank_and_age(ranking, "among the top 5 per group") == [
+        "unrequested_rank_population_filter"
+    ]
+    assert not check_public_rank_and_age(
+        ranking, "among the top 5 per group; exclude missing scores"
+    )

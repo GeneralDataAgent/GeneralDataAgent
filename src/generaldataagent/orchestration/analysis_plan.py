@@ -1,7 +1,6 @@
 """Bounded task planning: public text is authoritative; model interpretations are proposals."""
 
 import json
-import re
 
 from generaldataagent.contracts.analysis import AnalysisTaskSpec, ToolAction
 
@@ -34,29 +33,20 @@ def accept_contract(proposal: dict, *, question: str, instructions: str) -> Anal
     validate_requirement_sources(spec.requirements, question, instructions)
     if spec.conflicts:
         raise ValueError("public requirement conflicts require clarification")
-    # Only explicit rounding phrases count; never infer precision from labels or examples.
-    words = {
-        "zero": 0,
-        "one": 1,
-        "two": 2,
-        "three": 3,
-        "four": 4,
-        "five": 5,
-        "six": 6,
-        "seven": 7,
-        "eight": 8,
-        "nine": 9,
-        "ten": 10,
-    }
-    matches = re.findall(
-        r"\b(?:round(?:ed)?(?:\s+the\s+\w+)?|round\s+the\s+result)\s+to\s+"
-        r"(\d+|zero|one|two|three|four|five|six|seven|eight|nine|ten)\s+decimal\s+places?\b",
-        question + "\n" + instructions,
-        re.I,
-    )
-    digits = {int(v) if v.isdigit() else words[v.lower()] for v in matches}
+    from generaldataagent.tools.answer_fields import public_precisions, validate_field_sources
+
+    validate_field_sources(spec.answer.fields, spec.answer.columns, question, instructions)
+    digits = public_precisions(question + "\n" + instructions)
     if len(digits) > 1:
-        raise ValueError("conflicting public rounding requirements")
+        if (
+            not spec.answer.fields
+            or spec.answer.decimals is not None
+            or any(field.decimals is None for field in spec.answer.fields.values())
+        ):
+            raise ValueError(
+                "conflicting public rounding requirements need complete per-field rules"
+            )
+        return spec
     if not digits and spec.answer.decimals is not None:
         raise ValueError("precision requires an explicit public rounding rule")
     if digits:

@@ -5,7 +5,6 @@ SqlGuard remains the independent read-only and relation-scope authority.
 """
 
 import math
-from decimal import ROUND_HALF_EVEN, Decimal
 
 from sqlglot import exp, parse_one
 
@@ -97,6 +96,8 @@ def assemble_answers(bindings: dict, evidence: dict[int, dict], answer: AnswerSp
     """Resolve each answer from full successful evidence; preserve full precision upstream."""
     if not bindings or (answer.columns and set(bindings) != set(answer.columns)):
         raise SemanticError("every answer field needs an evidence binding")
+    from generaldataagent.tools.answer_fields import format_decimal, validate_field_value
+
     output = {}
     for key, (step, path) in bindings.items():
         if step not in evidence or not path:
@@ -112,12 +113,18 @@ def assemble_answers(bindings: dict, evidence: dict[int, dict], answer: AnswerSp
                 value = value[part]
         except (KeyError, IndexError, TypeError) as exc:
             raise SemanticError("evidence path not found") from exc
+        field = answer.fields.get(key)
+        if field is not None:
+            try:
+                value = validate_field_value(value, field, evidence[step], path)
+            except ValueError as exc:
+                raise SemanticError(str(exc)) from None
         if isinstance(value, list) and path == ["items"]:
             result = evidence[step]
             if (
                 result.get("complete") is not True
                 or result.get("total_count") != len(value)
-                or answer.shape != "set"
+                or (answer.shape != "set" and (field is None or field.kind != "set"))
             ):
                 raise SemanticError("collection completeness not verified")
             checks = validate_rows(
@@ -136,13 +143,9 @@ def assemble_answers(bindings: dict, evidence: dict[int, dict], answer: AnswerSp
         if isinstance(value, (int, float)) and not isinstance(value, bool):
             if not math.isfinite(value):
                 raise SemanticError("nonfinite evidence")
-            if answer.decimals is not None:
-                value = format(
-                    Decimal(str(value)).quantize(
-                        Decimal(1).scaleb(-answer.decimals), rounding=ROUND_HALF_EVEN
-                    ),
-                    f".{answer.decimals}f",
-                )
+            decimals = field.decimals if field and field.decimals is not None else answer.decimals
+            if decimals is not None:
+                value = format_decimal(value, decimals)
         output[key] = value
     # Validate numeric ranges before converting numeric values to formatted strings.
     unrounded = AnswerSpec.model_validate(answer.model_dump() | {"columns": [], "shape": "rows"})

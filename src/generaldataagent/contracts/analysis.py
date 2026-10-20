@@ -4,6 +4,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from generaldataagent.contracts.answer_fields import AnswerFieldSpec
 from generaldataagent.contracts.semantic_requirements import SemanticRequirements
 
 
@@ -21,6 +22,7 @@ class AnswerSpec(Contract):
     nullable: bool = True
     minimum: float | None = None
     maximum: float | None = None
+    fields: dict[str, AnswerFieldSpec] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def coherent(self):
