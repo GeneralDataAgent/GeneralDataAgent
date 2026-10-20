@@ -232,6 +232,8 @@ For Pearson bind path ["correlation"]; for sample std ["statistics","column","sa
 For complete collections bind ["items"] and rule {"kind":"set","method":"complete_collection"}.
 Every public answer key must be bound. Optional rule fields: kind number/integer/string/boolean/set,
 decimals, unit, method, source_excerpt. Precision and units require exact public source excerpts.
+Use no rule when the public contract already supplies its type/precision. rule.method, if given,
+must match the result's method_id: use sql for compute_sql even if SQL implements statistics.
 Runtime assembles values and rounds only as publicly requested. Never supply guessed final values.
 One action per turn, six actions and 24000 total observed tokens. Once evidence suffices, submit.
 """

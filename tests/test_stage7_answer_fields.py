@@ -93,3 +93,31 @@ def test_assembly_has_independent_precision_and_provenance_receipts():
     assert receipts["mean"]["raw_value"] == 1.235
     assert receipts["mean"]["method_id"] == "sql"
     assert receipts["mean"]["result_hash"] == receipts["total"]["result_hash"]
+
+
+def test_explicit_closed_form_definitions_supply_per_field_types_and_precision():
+    from generaldataagent.tools.answer_fields import infer_public_field_rules
+
+    text = (
+        "@r[coefficient] @p[probability] @label[relationship]\n"
+        'where "coefficient" is a number, rounded to two decimal places.\n'
+        'where "probability" is a number, rounded to four decimal places.\n'
+        'where "relationship" is a string, either positive or none.'
+    )
+    rules = infer_public_field_rules(text, ["r", "p", "label"])
+    assert rules["r"].decimals == 2 and rules["p"].decimals == 4
+    assert rules["label"].kind == "string"
+    assert all(field.source_excerpt in text for field in rules.values())
+    assert not infer_public_field_rules("@r[coefficient] no explicit type definition", ["r"])
+    assert not infer_public_field_rules(text, ["hidden_reference_key"])
+
+
+def test_float_with_decimal_places_is_an_explicit_format_not_a_guess():
+    from generaldataagent.tools.answer_fields import infer_public_field_rules
+
+    text = '@speed[number] where "number" is a float with two decimal places.'
+    assert public_precisions(text) == {2}
+    assert infer_public_field_rules(text, ["speed"])["speed"].decimals == 2
+    assert validate_field_value(1, AnswerFieldSpec(kind="boolean"), {}, []) is True
+    with pytest.raises(ValueError, match="boolean"):
+        validate_field_value(2, AnswerFieldSpec(kind="boolean"), {}, [])

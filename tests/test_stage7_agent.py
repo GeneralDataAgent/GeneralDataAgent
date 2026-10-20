@@ -393,3 +393,18 @@ def test_native_statistics_use_two_actions_and_keep_full_precision_receipts(data
     assert result["answers"] == {"mean": "10.00"}
     assert result["answer_evidence"]["mean"]["raw_value"] == 10
     assert result["answer_evidence"]["mean"]["method_id"] == "describe"
+
+
+def test_public_float_definition_is_rounded_without_a_model_precision_declaration(database):
+    result = run(
+        database,
+        [
+            {"sql": "SELECT AVG(id) AS mean FROM people"},
+            {"submit_answers": {"fields": [{"name": "mean", "step": 1, "path": ["rows", 0, 0]}]}},
+        ],
+        benchmark="infiagent-dabench",
+        question="mean?",
+        instructions='@mean[number] where "number" is a float with two decimal places.',
+    )
+    assert result["failure"] is None
+    assert result["answers"] == {"mean": "1.50"}

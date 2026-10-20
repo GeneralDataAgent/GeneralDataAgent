@@ -28,10 +28,8 @@ def public_precisions(text: str) -> set[int]:
         "fourteen": 14,
         "fifteen": 15,
     }
-    pattern = (
-        r"\bround(?:ed)?(?:\s+[a-z_][\w-]*){0,5}\s+to\s+"
-        r"(\d+|" + "|".join(words) + r")\s+decimal\s+places?\b"
-    )
+    # Public formatting also uses "a float with two decimal places", without "round".
+    pattern = r"\b(\d+|" + "|".join(words) + r")\s+decimal\s+places?\b"
     matches = re.findall(pattern, text, re.I)
     digits = {int(value) if value.isdigit() else words[value.casefold()] for value in matches}
     chinese = {
@@ -85,7 +83,9 @@ def validate_field_value(raw, field: AnswerFieldSpec, result: dict, path: list):
             if method != "describe" or not path or path[-1] != "sample_std":
                 raise ValueError("field method does not match sample-standard-deviation evidence")
         elif method != field.method:
-            raise ValueError("field method does not match computed evidence")
+            raise ValueError(
+                f"field method must match computed method_id {method}; omit optional method rule"
+            )
     if raw is None:
         if field.nullable is False:
             raise ValueError("field is not nullable")
@@ -97,7 +97,9 @@ def validate_field_value(raw, field: AnswerFieldSpec, result: dict, path: list):
         if not isinstance(raw, str):
             raise ValueError("field requires a string; cast explicitly in the computation")
     elif field.kind == "boolean":
-        if type(raw) is not bool:
+        if type(raw) is int and raw in (0, 1):
+            raw = bool(raw)  # SQLite boolean predicates are 0/1; the field contract is explicit.
+        elif type(raw) is not bool:
             raise ValueError("field requires boolean evidence")
     else:
         if type(raw) not in {int, float} or not math.isfinite(raw):
@@ -142,3 +144,41 @@ def binding_receipts(bindings, evidence, submitted, fields):
             ).hexdigest(),
         }
     return receipts
+
+
+def infer_public_field_rules(instructions: str, columns: list[str]) -> dict[str, AnswerFieldSpec]:
+    """Read explicit @key[placeholder] type/precision definitions, never label contents."""
+    placeholders = dict(re.findall(r"@(\w+)\[(\w+)\]", instructions))
+    rules = {}
+    for match in re.finditer(r"\bwhere\b.*?(?=\bwhere\b|\Z)", instructions, re.I | re.S):
+        excerpt = match.group().strip()
+        definition = re.match(r"where\s+(.{1,500}?)\s+(?:is|are)\s+(.+)", excerpt, re.I | re.S)
+        if not definition:
+            continue
+        names, description = definition.groups()
+        defined = set(re.findall(r"[\"'](\w+)[\"']", names))
+        if not defined and re.fullmatch(r"\w+", names.strip()):
+            defined = {names.strip()}
+        kind = (
+            "string"
+            if re.search(r"\bstring\b", description, re.I)
+            else "integer"
+            if re.search(r"\binteger\b", description, re.I)
+            else "number"
+            if re.search(r"\bnumbers?\b|\bfloat(?:ing)?\b|\bdecimal\b", description, re.I)
+            else None
+        )
+        precision = public_precisions(description)
+        if kind is None or len(precision) > 1 or len(excerpt) > 2000:
+            continue
+        for key in columns:
+            if placeholders.get(key) in defined:
+                candidate = AnswerFieldSpec(
+                    kind=kind,
+                    decimals=next(iter(precision)) if precision else None,
+                    source_excerpt=excerpt,
+                )
+                if key in rules and rules[key] != candidate:
+                    return {}  # Conflicting public definitions need explicit clarification.
+                rules[key] = candidate
+    return rules if set(rules) == set(columns) else {}

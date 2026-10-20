@@ -38,11 +38,10 @@ def accept_contract(proposal: dict, *, question: str, instructions: str) -> Anal
     validate_field_sources(spec.answer.fields, spec.answer.columns, question, instructions)
     digits = public_precisions(question + "\n" + instructions)
     if len(digits) > 1:
-        if (
-            not spec.answer.fields
-            or spec.answer.decimals is not None
-            or any(field.decimals is None for field in spec.answer.fields.values())
-        ):
+        declared = {
+            field.decimals for field in spec.answer.fields.values() if field.decimals is not None
+        }
+        if not spec.answer.fields or spec.answer.decimals is not None or declared != digits:
             raise ValueError(
                 "conflicting public rounding requirements need complete per-field rules"
             )

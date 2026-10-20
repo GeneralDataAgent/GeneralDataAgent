@@ -15,6 +15,12 @@ class SemanticError(ValueError):
     pass
 
 
+class ColumnScopeError(SemanticError):
+    def __init__(self, candidates):
+        self.candidates = candidates
+        super().__init__("unresolved or ambiguous scoped SQL column; check schema")
+
+
 def inspect_semantics(sql: str, spec: AnalysisTaskSpec) -> list[str]:
     tree = parse_one(sql, read="sqlite")
     issues = []
@@ -204,5 +210,14 @@ def validate_column_scope(database, sql: str, *, allowed_relations: set[str]) ->
             validate_qualify_columns=True,
             infer_schema=False,
         )
-    except OptimizeError:
-        raise SemanticError("unresolved or ambiguous scoped SQL column; check schema") from None
+    except OptimizeError as exc:
+        import difflib
+        import re
+
+        matched = re.search(r"Column ['\"]([\w .-]{1,120})['\"]", str(exc))
+        unknown = matched.group(1).split(".")[-1] if matched else ""
+        physical = sorted({column for columns in schema.values() for column in columns})
+        candidates = (
+            difflib.get_close_matches(unknown, physical, n=5, cutoff=0.35) if unknown else []
+        )
+        raise ColumnScopeError(candidates) from None

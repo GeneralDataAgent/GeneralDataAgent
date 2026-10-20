@@ -379,6 +379,7 @@ class BoundedSQLAgent:
             validate_action,
         )
         from generaldataagent.tools.sql_semantics import (
+            ColumnScopeError,
             SemanticError,
             assemble_answers,
             collect_complete,
@@ -443,7 +444,9 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
         ]
         if semantic and task.benchmark != "bird-mini-dev-sqlite":
             from generaldataagent.contracts.analysis import AnalysisTaskSpec, AnswerSpec
-            from generaldataagent.tools.answer_fields import public_precisions
+            from generaldataagent.tools.answer_fields import (
+                public_precisions,
+            )
 
             names = sorted(set(re.findall(r"@(\w+)\[", task.instructions))) or ["answer"]
             precision = public_precisions(task.question + "\n" + task.instructions)
@@ -753,7 +756,9 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     if semantic:
                         proposal = task_spec.model_dump()
                         if action.get("field_rules"):
-                            proposal["answer"]["fields"] = action["field_rules"]
+                            proposal["answer"]["fields"] = (
+                                proposal["answer"]["fields"] | action["field_rules"]
+                            )
                         try:
                             task_spec = accept_contract(
                                 proposal, question=task.question, instructions=task.instructions
@@ -902,12 +907,19 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     )
                 elif semantic and isinstance(exc, SemanticError):
                     event.update(code="semantic_contract", repair_type="revise_plan_or_query")
+                    checks = str(exc).split(",")
+                    if all(re.fullmatch(r"[a-z_]{1,80}", check) for check in checks):
+                        event["checks"] = checks
                 if isinstance(action, dict) and not semantic:
                     attempted_sql = action.get("final_sql", action.get("sql"))
                     if isinstance(attempted_sql, str):
                         event["attempted_sql"] = attempted_sql[:10000]
                 trace.append(event)
+                if semantic and isinstance(exc, ColumnScopeError):
+                    event.update(code="unknown_column", field_candidates=exc.candidates)
                 feedback = {"step": step, "error": kind, "code": event["code"]}
+                if semantic and isinstance(exc, ColumnScopeError):
+                    feedback["field_candidates"] = exc.candidates
                 if semantic and isinstance(exc, ActionSchemaError):
                     feedback["schema_errors"] = exc.paths
                 if semantic and isinstance(exc, SemanticError):

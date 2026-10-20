@@ -125,3 +125,17 @@ def test_join_profile_counts_actual_matches_and_excludes_null_or_unmatched_dupli
     assert observed["matched_left_rows"] == 2
     assert observed["expansion_per_matched_left"] == 2
     assert result["public_field_mappings"]["mappings"][0]["table"] == "c"
+
+
+def test_column_repair_candidates_are_physical_and_scoped(tmp_path):
+    from generaldataagent.tools.sql_semantics import ColumnScopeError, validate_column_scope
+
+    path = tmp_path / "suggest.sqlite"
+    with sqlite3.connect(path) as db:
+        db.executescript(
+            "CREATE TABLE visible(birthday TEXT); CREATE TABLE hidden(birthdate_secret TEXT);"
+        )
+    with pytest.raises(ColumnScopeError) as caught:
+        validate_column_scope(path, "SELECT birthda FROM visible", allowed_relations={"visible"})
+    assert caught.value.candidates == ["birthday"]
+    assert "secret" not in str(caught.value.candidates)
