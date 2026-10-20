@@ -54,7 +54,9 @@ def main():
     parser.add_argument("--request-interval-seconds", type=float, default=0)
     parser.add_argument("--thinking", choices=["default", "on", "off"], default="default")
     parser.add_argument("--json-mode", action="store_true")
-    parser.add_argument("--tool-profile", choices=["sql", "sql-analysis"], default="sql")
+    parser.add_argument(
+        "--tool-profile", choices=["sql", "sql-analysis", "sql-repair"], default="sql"
+    )
     parser.add_argument("--model", help="Per-run model ID; never modifies CC Switch")
     parser.add_argument("--transport", choices=["configured", "openai-chat"], default="configured")
     parser.add_argument("--bird-databases", type=Path)
@@ -120,6 +122,7 @@ def main():
         "analysis_tools_hash": digest(
             ROOT / "src/generaldataagent/evaluation/stage_six_analysis.py"
         ),
+        "repair_tools_hash": digest(ROOT / "src/generaldataagent/evaluation/stage_six_repair.py"),
         "model_adapter_hash": digest(ROOT / "src/generaldataagent/evaluation/stage_six_models.py"),
         "worker_hash": digest(ROOT / "src/generaldataagent/evaluation/stage_six_worker.py"),
         "dependency_lock_hash": digest(ROOT / "uv.lock"),

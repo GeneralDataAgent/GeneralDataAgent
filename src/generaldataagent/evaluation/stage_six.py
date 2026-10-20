@@ -331,7 +331,7 @@ class BoundedSQLAgent:
         if max_steps < 1 or max_seconds <= 0 or max_tokens < 1:
             raise ValueError("invalid agent budget")
         if (
-            tool_profile not in {"sql", "sql-analysis"}
+            tool_profile not in {"sql", "sql-analysis", "sql-repair"}
             or not math.isfinite(max_cost_usd)
             or max_cost_usd <= 0
         ):
@@ -353,7 +353,15 @@ class BoundedSQLAgent:
         )
 
         context, relations = database_context(database.resolve())
-        enhanced = self.tool_profile == "sql-analysis"
+        from generaldataagent.evaluation.stage_six_repair import (
+            REPAIR_PROMPT,
+            bounded_observation,
+            execution_hint,
+            repair_action,
+        )
+
+        repair = self.tool_profile == "sql-repair"
+        enhanced = self.tool_profile in {"sql-analysis", "sql-repair"}
         extra = (
             """
 You also have fixed read-only tools. Search business documents with {"search":"terms"};
@@ -370,7 +378,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
             else ""
         )
         messages = [
-            ("system", SYSTEM_PROMPT + extra),
+            ("system", SYSTEM_PROMPT + extra + (REPAIR_PROMPT if repair else "")),
             (
                 "human",
                 json.dumps(
@@ -407,6 +415,18 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                 failure = "cost_budget"
                 break
             action = None
+            if repair:
+                messages.append(
+                    (
+                        "human",
+                        json.dumps(
+                            {
+                                "remaining_actions": self.max_steps - step + 1,
+                                "finish_hint": ("Finish now if observed evidence is sufficient."),
+                            }
+                        ),
+                    )
+                )
             try:
                 try:
                     response = self.model.invoke(messages)
@@ -464,6 +484,10 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                 if not isinstance(action, dict):
                     raise ValueError("one JSON object required")
                 messages.append(("assistant", raw))
+                if repair:
+                    action, correction = repair_action(action)
+                    if correction:
+                        trace.append({"step": step, "status": "repaired", "code": correction})
                 allowed_actions = {"sql", "final_sql", "answers", "unsupported"}
                 if enhanced:
                     allowed_actions.update({"search", "analysis"})
@@ -513,6 +537,19 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                         or not set(citations).issubset(valid)
                     ):
                         failure = "missing_evidence"
+                        if repair:
+                            messages.append(
+                                (
+                                    "human",
+                                    json.dumps(
+                                        {
+                                            "error": "cite successful observed tool steps",
+                                            "valid_steps": sorted(valid),
+                                        }
+                                    ),
+                                )
+                            )
+                            continue
                         break
                     if not isinstance(action["answers"], dict):
                         failure = "invalid_output"
@@ -521,6 +558,27 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     answers = (
                         normalize_visible_answers(task, raw_answers) if enhanced else raw_answers
                     )
+                    if repair:
+                        visible = (
+                            set(re.findall(r"@(\w+)\[", task.instructions))
+                            if task.benchmark == "infiagent-dabench"
+                            else {"answer"}
+                        )
+                        if visible and set(answers) != visible:
+                            messages.append(
+                                (
+                                    "human",
+                                    json.dumps(
+                                        {
+                                            "error": "Use every public answer field as a key",
+                                            "answer_fields": sorted(visible),
+                                        }
+                                    ),
+                                )
+                            )
+                            answers = {}
+                            failure = "invalid_output"
+                            continue
                     failure = None
                     break
                 if enhanced and "search" in action:
@@ -564,7 +622,8 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                 if "final_sql" in action and tool == "sql":
                     final_sql, failure = sql, None
                     break
-                messages.append(("human", json.dumps({"step": step, **result_data}, default=str)))
+                feedback = bounded_observation(result_data) if repair else result_data
+                messages.append(("human", json.dumps({"step": step, **feedback}, default=str)))
             except Exception as exc:
                 kind = type(exc).__name__
                 text = str(exc).lower()
@@ -584,8 +643,16 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     ),
                     "invalid_action",
                 )
-                trace.append({"step": step, "status": "error", "error": kind, "code": code})
-                messages.append(("human", json.dumps({"step": step, "error": kind, "code": code})))
+                event = {"step": step, "status": "error", "error": kind, "code": code}
+                if isinstance(action, dict):
+                    attempted_sql = action.get("final_sql", action.get("sql"))
+                    if isinstance(attempted_sql, str):
+                        event["attempted_sql"] = attempted_sql[:10000]
+                trace.append(event)
+                feedback = {"step": step, "error": kind, "code": code}
+                if repair:
+                    feedback["hint"] = execution_hint(exc)
+                messages.append(("human", json.dumps(feedback)))
                 failure = "execution_or_model_error"
         return {
             "answers": answers,
