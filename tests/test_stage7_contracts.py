@@ -60,3 +60,24 @@ def test_public_rounding_overrides_omission_but_never_conflicting_precision():
         accept_contract(
             proposal, question=proposal["question"], instructions=proposal["public_requirements"]
         )
+
+
+def test_stage_specific_native_schemas_do_not_offer_unavailable_tools():
+    from generaldataagent.evaluation.stage_seven import bind_typed_tools
+
+    class Model:
+        def bind(self, **kwargs):
+            return kwargs
+
+    planning = bind_typed_tools(Model(), sql_output=True)
+    assert [t["function"]["name"] for t in planning["tools"]] == ["plan_analysis"]
+    plan_schema = planning["tools"][0]["function"]["parameters"]
+    assert "question" not in plan_schema["properties"]
+    execution = bind_typed_tools(Model(), sql_output=True, planned=True)
+    assert {t["function"]["name"] for t in execution["tools"]} == {
+        "execute_sql",
+        "submit_sql",
+        "crosscheck_sql",
+    }
+    for tool in execution["tools"][:2]:
+        assert tool["function"]["parameters"]["required"] == ["sql"]

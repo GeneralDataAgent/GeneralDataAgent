@@ -73,7 +73,7 @@ No answer/search/analysis/collect actions for SQL-output tasks. Do not repeat un
 """
 
 
-def bind_typed_tools(model, *, sql_output: bool):
+def bind_typed_tools(model, *, sql_output: bool, planned: bool = False):
     """Use the existing native function-calling transport, preserving bound model budgets."""
     from generaldataagent.contracts.analysis import ToolAction
 
@@ -101,6 +101,58 @@ def bind_typed_tools(model, *, sql_output: bool):
             break
         needed = expanded
     schema["$defs"] = {k: definitions[k] for k in sorted(needed)}
+    if sql_output:
+        if not planned:
+            plan = dict(schema["$defs"]["AnalysisTaskSpec"])
+            plan["$defs"] = {"AnswerSpec": schema["$defs"]["AnswerSpec"]}
+            tools = [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "plan_analysis",
+                        "description": "Plan public task semantics once",
+                        "parameters": plan,
+                    },
+                }
+            ]
+            choice = {"type": "function", "function": {"name": "plan_analysis"}}
+        else:
+            sql_schema = {
+                "type": "object",
+                "properties": {"sql": {"type": "string"}},
+                "required": ["sql"],
+                "additionalProperties": False,
+            }
+            tools = [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": name,
+                        "description": description,
+                        "parameters": sql_schema,
+                    },
+                }
+                for name, description in (
+                    ("execute_sql", "Explore data using one scoped read-only SQL query"),
+                    (
+                        "submit_sql",
+                        "Execute and submit the final SQL answering the exact public question",
+                    ),
+                )
+            ]
+            check_schema = dict(schema["$defs"]["CrosscheckArguments"])
+            tools.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "crosscheck_sql",
+                        "description": "One independent verification query",
+                        "parameters": check_schema,
+                    },
+                }
+            )
+            choice = "required"
+        return model.bind(tools=tools, tool_choice=choice, parallel_tool_calls=False)
     return model.bind(
         tools=[
             {

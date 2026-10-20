@@ -408,11 +408,6 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
             if enhanced
             else ""
         )
-        active_model = (
-            bind_typed_tools(self.model, sql_output=task.benchmark == "bird-mini-dev-sqlite")
-            if semantic
-            else self.model
-        )
         messages = [
             (
                 "system",
@@ -488,6 +483,15 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                 )
             try:
                 try:
+                    active_model = (
+                        bind_typed_tools(
+                            self.model,
+                            sql_output=task.benchmark == "bird-mini-dev-sqlite",
+                            planned=task_spec is not None,
+                        )
+                        if semantic
+                        else self.model
+                    )
                     response = active_model.invoke(messages)
                 except Exception as exc:
                     status = getattr(exc, "status_code", None)
@@ -538,9 +542,25 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                 content = response.content
                 calls = getattr(response, "tool_calls", []) if semantic else []
                 if calls:
-                    if len(calls) != 1 or calls[0].get("name") != "analysis_action":
+                    if len(calls) != 1:
                         raise ActionSchemaError([{"path": ["tool_calls"], "type": "one_action"}])
-                    content = json.dumps(calls[0]["args"])
+                    name, arguments = calls[0].get("name"), calls[0].get("args")
+                    keys = {
+                        "plan_analysis": "contract",
+                        "execute_sql": "sql",
+                        "submit_sql": "final_sql",
+                        "crosscheck_sql": "crosscheck",
+                    }
+                    if name == "analysis_action":
+                        content = json.dumps(arguments)
+                    elif name in keys:
+                        if name in {"execute_sql", "submit_sql"}:
+                            if set(arguments) != {"sql"}:
+                                raise ActionSchemaError([{"path": [name], "type": "sql_required"}])
+                            arguments = arguments["sql"]
+                        content = json.dumps({keys[name]: arguments})
+                    else:
+                        raise ActionSchemaError([{"path": ["tool_calls"], "type": "unknown_tool"}])
                 if isinstance(content, list):
                     content = "".join(x.get("text", "") for x in content if isinstance(x, dict))
                 raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", str(content).strip())

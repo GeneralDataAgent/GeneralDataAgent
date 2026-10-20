@@ -176,16 +176,22 @@ def test_native_tool_calls_use_same_strict_runtime_validation(database):
             )
 
         def bind(self, **kwargs):
-            assert kwargs["tool_choice"]["function"]["name"] == "analysis_action"
+            assert (
+                kwargs["tool_choice"] == "required"
+                or kwargs["tool_choice"]["function"]["name"] == "plan_analysis"
+            )
             assert not kwargs["parallel_tool_calls"]
             return self
 
         def invoke(self, messages):
+            action = next(self.actions)
+            if "contract" in action:
+                name, arguments = "plan_analysis", action["contract"]
+            else:
+                name, arguments = "submit_sql", {"sql": action["final_sql"]}
             return SimpleNamespace(
                 content="",
-                tool_calls=[
-                    {"name": "analysis_action", "args": next(self.actions), "id": "call-1"}
-                ],
+                tool_calls=[{"name": name, "args": arguments, "id": "call-1"}],
                 usage_metadata={"total_tokens": 10},
                 response_metadata={},
             )
