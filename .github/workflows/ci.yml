@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, "feat/stage4-*", "feat/stage5-*", "feat/stage6-*"]
+    branches: [main, "feat/stage4-*", "feat/stage5-*", "feat/stage6-*", "feat/stage7-*"]
   pull_request:
 
 permissions:
