@@ -277,3 +277,20 @@ def test_sqlite_rowid_aliases_need_real_table_support(tmp_path):
             validate_column_scope(
                 path, f'SELECT "{alias}" FROM stable', allowed_relations={"stable"}
             )
+
+
+def test_sqlite_non_ascii_column_case_is_not_silently_folded(tmp_path):
+    from generaldataagent.tools.sql_semantics import ColumnScopeError, validate_column_scope
+    from generaldataagent.tools.sqlite import SQLiteReadOnlyExecutor
+
+    path = tmp_path / "unicode.sqlite"
+    with sqlite3.connect(path) as db:
+        db.executescript(
+            'CREATE TABLE data("Σ" INT,"σ" INT,"Ω" INT,"Mixed" INT);'
+            "INSERT INTO data VALUES(10,20,30,40);"
+        )
+    sql = 'SELECT "Σ","σ","Ω","MIXED" FROM data'
+    validate_column_scope(path, sql, allowed_relations={"data"})
+    assert SQLiteReadOnlyExecutor(path).execute(sql).rows == ((10, 20, 30, 40),)
+    with pytest.raises(ColumnScopeError):
+        validate_column_scope(path, 'SELECT "ω" FROM data', allowed_relations={"data"})

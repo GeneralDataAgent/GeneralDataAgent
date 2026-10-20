@@ -237,13 +237,25 @@ def validate_column_scope(database, sql: str, *, allowed_relations: set[str]) ->
                 except sqlite3.Error:
                     continue  # WITHOUT ROWID tables do not have these implicit fields.
                 schema[table][alias] = "UNKNOWN"
+    # SQLite folds ASCII identifier case only. Opaque validation names prevent sqlglot
+    # from trimming physical whitespace or folding distinct non-ASCII identifiers together.
+    ascii_case = str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")
+
+    def validation_name(name):
+        return "_scope_" + name.translate(ascii_case).encode("utf-8").hex()
+
+    parsed = parse_one(sql, read="sqlite")
+    for identifier in parsed.find_all(exp.Identifier):
+        identifier.set("this", validation_name(identifier.name))
     try:
         qualify(
-            parse_one(sql, read="sqlite"),
+            parsed,
             dialect="sqlite",
             schema=MappingSchema(
                 {
-                    table.lower(): {column.lower(): kind for column, kind in columns.items()}
+                    validation_name(table): {
+                        validation_name(column): kind for column, kind in columns.items()
+                    }
                     for table, columns in schema.items()
                 },
                 dialect="sqlite",
@@ -256,8 +268,13 @@ def validate_column_scope(database, sql: str, *, allowed_relations: set[str]) ->
         import difflib
         import re
 
-        matched = re.search(r"Column ['\"]([\w .-]{1,120})['\"]", str(exc))
+        matched = re.search(r"Column ['\"]([\w .-]{1,4096})['\"]", str(exc))
         unknown = matched.group(1).split(".")[-1] if matched else ""
+        if unknown.startswith("_scope_"):
+            try:
+                unknown = bytes.fromhex(unknown.removeprefix("_scope_")).decode("utf-8")
+            except (ValueError, UnicodeDecodeError):
+                unknown = ""
         physical = sorted(physical_fields)
         matched_names = (
             difflib.get_close_matches(
