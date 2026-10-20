@@ -256,7 +256,7 @@ def sql_data_dependencies(
     """
     from sqlglot.errors import SqlglotError
     from sqlglot.lineage import lineage
-    from sqlglot.optimizer.scope import Scope, build_scope
+    from sqlglot.optimizer.scope import Scope, traverse_scope
 
     allowed = {name.casefold() for name in allowed_relations}
 
@@ -284,16 +284,28 @@ def sql_data_dependencies(
     output = []
     for name in names:
         try:
-            node = lineage(name, tree, dialect="sqlite")
+            node = lineage(name, tree, dialect="sqlite", trim_selects=False)
             dependent = False
             for item in node.walk():
                 if isinstance(item.expression, exp.Table):
                     dependent |= SqlGuard._relation_name(item.expression).casefold() in allowed
-                if any(
-                    isinstance(count.this, exp.Star)
-                    for count in item.expression.find_all(exp.Count)
-                ):
-                    dependent |= row_dependency(build_scope(item.source), set())
+                for count in item.expression.find_all(exp.Count):
+                    argument = count.this
+                    row_count = isinstance(argument, (exp.Star, exp.Literal))
+                    if not row_count:
+                        continue
+                    select = count.find_ancestor(exp.Select)
+                    # Preserve lexical CTE visibility, but never borrow row sources from an
+                    # enclosing SELECT for a constant-only scalar subquery's COUNT.
+                    count_scope = next(
+                        (
+                            scope
+                            for scope in traverse_scope(count.root())
+                            if scope.expression is select
+                        ),
+                        None,
+                    )
+                    dependent |= row_dependency(count_scope, set())
             output.append(dependent)
         except (SqlglotError, ValueError, TypeError):
             output.append(False)

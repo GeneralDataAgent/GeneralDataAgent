@@ -218,3 +218,16 @@ def test_percentage_population_guard_does_not_bound_arbitrary_weighted_ratios():
         "",
         [(None,)],
     ) == ["undefined_percentage_check_population"]
+
+
+def test_count_lineage_uses_its_own_scope_and_supports_count_one():
+    from generaldataagent.tools.sql_semantics import sql_data_dependencies
+
+    examples = [
+        ("SELECT COUNT(1) AS x FROM people", True),
+        ("SELECT COUNT(NULL) AS x FROM people", False),
+        ("SELECT (SELECT COUNT(*) FROM (SELECT 1 AS n) a) AS x FROM people", False),
+        ("WITH a AS (SELECT id FROM people) SELECT (SELECT COUNT(*) FROM a) AS x", True),
+    ]
+    for sql, expected in examples:
+        assert sql_data_dependencies(sql, ["x"], allowed_relations={"people"}) == [expected]
