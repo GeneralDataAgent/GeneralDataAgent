@@ -231,3 +231,49 @@ def test_count_lineage_uses_its_own_scope_and_supports_count_one():
     ]
     for sql, expected in examples:
         assert sql_data_dependencies(sql, ["x"], allowed_relations={"people"}) == [expected]
+
+
+def test_physical_column_spaces_and_dots_are_not_normalized_into_sqlite_constants(tmp_path):
+    from generaldataagent.tools.sql_semantics import ColumnScopeError, validate_column_scope
+    from generaldataagent.tools.sqlite import SQLiteReadOnlyExecutor
+
+    path = tmp_path / "literal-schema.sqlite"
+    with sqlite3.connect(path) as db:
+        db.executescript(
+            'CREATE TABLE data(" BARO" REAL,"trailing " REAL,"dotted.name" REAL);'
+            "INSERT INTO data VALUES(10,20,30);"
+            'CREATE TABLE hidden("BARO_private" REAL);'
+        )
+    before = path.read_bytes()
+    for sql, expected in [
+        ('SELECT "BARO" FROM data', " BARO"),
+        ('SELECT "trailing" FROM data', "trailing "),
+    ]:
+        with pytest.raises(ColumnScopeError) as error:
+            validate_column_scope(path, sql, allowed_relations={"data"})
+        assert expected in error.value.candidates
+        assert not any("private" in name for name in error.value.candidates)
+    sql = 'SELECT " BARO", "trailing ", "dotted.name" FROM data'
+    validate_column_scope(path, sql, allowed_relations={"data"})
+    assert SQLiteReadOnlyExecutor(path).execute(sql).rows == ((10, 20, 30),)
+    assert path.read_bytes() == before
+
+
+def test_sqlite_rowid_aliases_need_real_table_support(tmp_path):
+    from generaldataagent.tools.sql_semantics import ColumnScopeError, validate_column_scope
+    from generaldataagent.tools.sqlite import SQLiteReadOnlyExecutor
+
+    path = tmp_path / "rowid.sqlite"
+    with sqlite3.connect(path) as db:
+        db.executescript(
+            "CREATE TABLE ordinary(value INT); INSERT INTO ordinary VALUES(7);"
+            "CREATE TABLE stable(id INT PRIMARY KEY) WITHOUT ROWID; INSERT INTO stable VALUES(9);"
+        )
+    sql = "SELECT rowid, _rowid_, oid FROM ordinary"
+    validate_column_scope(path, sql, allowed_relations={"ordinary"})
+    assert SQLiteReadOnlyExecutor(path).execute(sql).rows == ((1, 1, 1),)
+    for alias in ("rowid", "_rowid_", "oid"):
+        with pytest.raises(ColumnScopeError):
+            validate_column_scope(
+                path, f'SELECT "{alias}" FROM stable', allowed_relations={"stable"}
+            )

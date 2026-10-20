@@ -213,22 +213,42 @@ def validate_column_scope(database, sql: str, *, allowed_relations: set[str]) ->
 
     from sqlglot.errors import OptimizeError
     from sqlglot.optimizer.qualify import qualify
+    from sqlglot.schema import MappingSchema
 
     from generaldataagent.tools.sql_guard import SqlGuard
 
     SqlGuard(dialect="sqlite").inspect(sql, allowed_relations=allowed_relations)
     schema = {}
+    physical_fields = set()
     with sqlite3.connect(database.resolve().as_uri() + "?mode=ro", uri=True) as db:
         for table in sorted(allowed_relations):
             quoted = '"' + table.replace('"', '""') + '"'
             schema[table] = {
                 row[1]: "UNKNOWN" for row in db.execute(f"PRAGMA table_info({quoted})")
             }
+            physical_fields.update(schema[table])
+            for alias in ("rowid", "_rowid_", "oid"):
+                if alias in {name.lower() for name in schema[table]}:
+                    continue
+                try:
+                    db.execute(
+                        f'SELECT _scope_probe."{alias}" FROM {quoted} AS _scope_probe LIMIT 0'
+                    )
+                except sqlite3.Error:
+                    continue  # WITHOUT ROWID tables do not have these implicit fields.
+                schema[table][alias] = "UNKNOWN"
     try:
         qualify(
             parse_one(sql, read="sqlite"),
             dialect="sqlite",
-            schema=schema,
+            schema=MappingSchema(
+                {
+                    table.lower(): {column.lower(): kind for column, kind in columns.items()}
+                    for table, columns in schema.items()
+                },
+                dialect="sqlite",
+                normalize=False,
+            ),
             validate_qualify_columns=True,
             infer_schema=False,
         )
@@ -238,10 +258,17 @@ def validate_column_scope(database, sql: str, *, allowed_relations: set[str]) ->
 
         matched = re.search(r"Column ['\"]([\w .-]{1,120})['\"]", str(exc))
         unknown = matched.group(1).split(".")[-1] if matched else ""
-        physical = sorted({column for columns in schema.values() for column in columns})
-        candidates = (
-            difflib.get_close_matches(unknown, physical, n=5, cutoff=0.35) if unknown else []
+        physical = sorted(physical_fields)
+        matched_names = (
+            difflib.get_close_matches(
+                unknown.casefold(), sorted({name.casefold() for name in physical}), n=5, cutoff=0.35
+            )
+            if unknown
+            else []
         )
+        candidates = [
+            name for folded in matched_names for name in physical if name.casefold() == folded
+        ][:5]
         raise ColumnScopeError(candidates) from None
 
 
