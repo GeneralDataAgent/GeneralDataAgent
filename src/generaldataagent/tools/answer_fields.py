@@ -150,12 +150,23 @@ def infer_public_field_rules(instructions: str, columns: list[str]) -> dict[str,
     """Read explicit @key[placeholder] type/precision definitions, never label contents."""
     placeholders = dict(re.findall(r"@(\w+)\[(\w+)\]", instructions))
     rules = {}
-    for match in re.finditer(r"\bwhere\b.*?(?=\bwhere\b|\Z)", instructions, re.I | re.S):
-        excerpt = match.group().strip()
-        definition = re.match(r"where\s+(.{1,500}?)\s+(?:is|are)\s+(.+)", excerpt, re.I | re.S)
-        if not definition:
-            continue
-        names, description = definition.groups()
+    # A public format may use "where" once, followed by several quoted definitions.
+    # Keep spans in the original text so every rule retains exact provenance.
+    quoted = r"[\"']\w+[\"']"
+    subjects = quoted + r"(?:\s*(?:,\s*(?:and\s+)?|and\s+)" + quoted + r"){0,19}"
+    definitions = list(
+        re.finditer(
+            r"(?:\bwhere\s+)?(?P<names>" + subjects + r")\s+(?:is|are)\s+"
+            r"|\bwhere\s+(?P<plain>\w+)\s+(?:is|are)\s+",
+            instructions,
+            re.I,
+        )
+    )
+    for index, match in enumerate(definitions):
+        end = definitions[index + 1].start() if index + 1 < len(definitions) else len(instructions)
+        excerpt = instructions[match.start() : end].strip()
+        names = match.group("names") or match.group("plain")
+        description = instructions[match.end() : end]
         defined = set(re.findall(r"[\"'](\w+)[\"']", names))
         if not defined and re.fullmatch(r"\w+", names.strip()):
             defined = {names.strip()}

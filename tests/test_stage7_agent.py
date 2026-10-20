@@ -414,8 +414,8 @@ def test_runtime_applies_mixed_public_field_rules_without_model_restatement(data
     instructions = (
         "@mean[average] @total[sum_value] @label[category]\n"
         'where "average" is a number rounded to two decimal places.\n'
-        'where "sum_value" is a number rounded to four decimal places.\n'
-        'where "category" is a string.'
+        '"sum_value" is a number rounded to four decimal places.\n'
+        '"category" is a string.'
     )
     result = run(
         database,

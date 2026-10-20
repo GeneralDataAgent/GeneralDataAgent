@@ -121,3 +121,23 @@ def test_float_with_decimal_places_is_an_explicit_format_not_a_guess():
     assert validate_field_value(1, AnswerFieldSpec(kind="boolean"), {}, []) is True
     with pytest.raises(ValueError, match="boolean"):
         validate_field_value(2, AnswerFieldSpec(kind="boolean"), {}, [])
+
+
+def test_one_where_introduces_several_independent_public_field_definitions():
+    from generaldataagent.tools.answer_fields import infer_public_field_rules
+
+    text = (
+        "@r[coefficient] @p[probability] @label[relationship]. "
+        'Where "coefficient" is a number rounded to two decimal places. '
+        '"probability" is a number rounded to four decimal places. '
+        '"relationship" is a string, either "positive" or "none".'
+    )
+    rules = infer_public_field_rules(text, ["r", "p", "label"])
+    assert rules["r"].decimals == 2 and rules["p"].decimals == 4
+    assert rules["label"].kind == "string"
+    assert all(rule.source_excerpt in text for rule in rules.values())
+    grouped = (
+        '@a[first] @b[second] where "first" and "second" are numbers rounded to two decimal places.'
+    )
+    rules = infer_public_field_rules(grouped, ["a", "b"])
+    assert set(rules) == {"a", "b"} and rules["a"].decimals == rules["b"].decimals == 2

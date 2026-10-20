@@ -1,12 +1,17 @@
 """Read-only, scoped field and relationship evidence with explicit preview limits."""
 
 import json
+import re
 import sqlite3
 
-from generaldataagent.catalog.field_evidence import date_candidates, public_field_mappings
+from generaldataagent.catalog.field_evidence import (
+    date_candidates,
+    enum_label_candidates,
+    public_field_mappings,
+)
 from generaldataagent.evaluation.stage_six_sql_precision import schema_relationships
 from generaldataagent.tools.sql_guard import SqlGuard
-from generaldataagent.tools.sqlite import SQLiteReadOnlyExecutor
+from generaldataagent.tools.sqlite import QueryExecutionError, SQLiteReadOnlyExecutor
 
 
 def semantic_context(
@@ -32,6 +37,9 @@ def semantic_context(
 
     tables = {}
     full_schema = {}
+    value_candidates = []
+    enum_checks = 0
+    enum_failures = 0
     with sqlite3.connect(database.resolve().as_uri() + "?mode=ro", uri=True) as db:
         for table in sorted(allowed_relations)[:12]:
             fields = []
@@ -46,6 +54,36 @@ def semantic_context(
                 profile = date_candidates(
                     name, [row[0] for row in samples[:5]], complete=len(samples) < 6
                 )
+                if (
+                    enum_checks < 3
+                    and any(mark in public_text for mark in ('"', "“"))
+                    and re.search(r"(?<!\w)" + re.escape(name) + r"(?!\w)", public_text, re.I)
+                    and any(isinstance(row[0], str) for row in samples)
+                ):
+                    enum_checks += 1
+                    enum_sql = (
+                        f"SELECT DISTINCT {quote(name)} FROM {quote(table)} "
+                        f"WHERE {quote(name)} IS NOT NULL ORDER BY {quote(name)} LIMIT 65"
+                    )
+                    guard.inspect(enum_sql, allowed_relations=allowed_relations)
+                    try:
+                        domain = (
+                            SQLiteReadOnlyExecutor(database, max_rows=65, timeout_seconds=2)
+                            .execute(enum_sql)
+                            .rows
+                        )
+                    except QueryExecutionError:
+                        enum_failures += 1
+                    else:
+                        value_candidates.extend(
+                            enum_label_candidates(
+                                public_text,
+                                table,
+                                name,
+                                [row[0] for row in domain],
+                                complete=len(domain) < 65,
+                            )
+                        )
                 fields.append(
                     {
                         "name": name,
@@ -127,6 +165,9 @@ def semantic_context(
     output = {
         "tables": tables,
         "public_field_mappings": mappings,
+        "observed_value_candidates": value_candidates,
+        "enum_domain_checks": enum_checks,
+        "enum_domain_failures": enum_failures,
         "omitted_table_previews": max(0, len(allowed_relations) - 12),
         "omitted_cardinality_checks": max(0, len(groups) - 24),
         "relationships": relationships,
@@ -161,6 +202,9 @@ def semantic_context(
             output["omitted_declared_relationships"] = (
                 output.get("omitted_declared_relationships", 0) + 1
             )
+        elif output["observed_value_candidates"]:
+            output["observed_value_candidates"].pop()
+            output["omitted_value_candidates"] = output.get("omitted_value_candidates", 0) + 1
         elif mappings["ambiguous"]:
             mappings["ambiguous"].pop()
             output["omitted_public_mappings"] = output.get("omitted_public_mappings", 0) + 1

@@ -84,3 +84,46 @@ def public_field_mappings(text: str, schema: dict[str, list[str]]) -> dict:
         table, field = candidates[0]
         mappings.append(record | {"table": table, "column": field, "enum_value": value})
     return {"mappings": mappings, "ambiguous": ambiguous}
+
+
+def enum_label_candidates(text: str, table: str, column: str, values: list, *, complete: bool):
+    """Suggest observed spelling variants only for complete, bounded value domains.
+
+    Case, spaces, hyphens and underscores may differ between public labels and data. A match
+    is evidence to inspect, never permission to replace a filter or assert business equivalence.
+    """
+    if not complete:
+        return []
+    labels = re.findall(r'"([^"\n]{1,160})"|“([^”\n]{1,160})”', text)
+    labels = sorted({left or right for left, right in labels})
+
+    def normalized(value):
+        return re.sub(r"[\s_-]+", "", value.casefold())
+
+    output = []
+    for label in labels:
+        matches = sorted(
+            {
+                value
+                for value in values
+                if isinstance(value, str)
+                and 0 < len(value) <= 160
+                and normalized(value) == normalized(label)
+            }
+        )
+        if not matches or matches == [label]:
+            continue
+        output.append(
+            {
+                "table": table,
+                "column": column,
+                "public_label": label,
+                "observed_values": matches,
+                "ambiguous": len(matches) != 1,
+                "domain_complete": True,
+                "domain_distinct_n": len(values),
+                "basis": "observed_spelling_candidate",
+                "verified_business_semantics": False,
+            }
+        )
+    return output
