@@ -489,3 +489,25 @@ def test_constant_answer_cannot_bypass_dependency_check_via_crosscheck(database)
     )
     assert result["failure"] == "execution_or_model_error"
     assert result["trace"][1]["checks"] == ["data_dependent_answer_required"]
+
+
+def test_undefined_percentage_is_replanned_instead_of_submitted_as_success(database):
+    question = "What is the percentage of people scoring 10?"
+    spec = {"answer": {"columns": ["pct"], "shape": "scalar"}}
+    result = run(
+        database,
+        [
+            {
+                "final_sql": "SELECT 100.0*SUM(score=10)/COUNT(*) AS pct FROM people WHERE id<0",
+                "task_spec": spec,
+            },
+            {
+                "final_sql": "SELECT 100.0*SUM(score=10)/COUNT(*) AS pct FROM people",
+                "task_spec": spec,
+            },
+        ],
+        question=question,
+    )
+    assert result["failure"] is None
+    assert result["trace"][0]["checks"] == ["undefined_percentage_check_population"]
+    assert "WHERE id<0" not in result["final_sql"]

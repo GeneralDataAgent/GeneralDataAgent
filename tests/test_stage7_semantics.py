@@ -186,3 +186,35 @@ def test_constant_complete_collection_does_not_certify_model_selected_ids(tmp_pa
         db.executescript("CREATE TABLE ids(id INT); INSERT INTO ids VALUES(1),(2);")
     with pytest.raises(SemanticError, match="data_dependent_answer_required"):
         collect_complete(path, "SELECT DISTINCT 999 AS id FROM ids", allowed_relations={"ids"})
+
+
+def test_percentage_bounds_do_not_constrain_growth_or_explicit_null_policy():
+    from generaldataagent.tools.sql_semantics import check_percentage_result
+
+    sql = "SELECT 100.0*SUM(matches)/NULLIF(COUNT(*),0) AS pct FROM records"
+    assert check_percentage_result(sql, "percentage of eligible records?", "", [(None,)]) == [
+        "undefined_percentage_check_population"
+    ]
+    assert check_percentage_result(sql, "percentage of eligible records?", "", [(101,)]) == [
+        "percentage_out_of_range"
+    ]
+    assert not check_percentage_result(sql, "percentage of eligible records?", "", [(100,)])
+    assert not check_percentage_result(sql, "percentage increase of records?", "", [(200,)])
+    assert not check_percentage_result(
+        sql, "percentage of eligible records?", "Return NULL if no records.", [(None,)]
+    )
+
+
+def test_percentage_population_guard_does_not_bound_arbitrary_weighted_ratios():
+    from generaldataagent.tools.sql_semantics import check_percentage_result
+
+    question = "percentage of cash flow?"
+    assert not check_percentage_result(
+        "SELECT SUM(inflow)*100.0/SUM(net_flow) FROM accounts", question, "", [(200,)]
+    )
+    assert check_percentage_result(
+        "SELECT SUM(eligible)*100.0/SUM(CASE WHEN active THEN 1 ELSE 0 END) FROM accounts",
+        "percentage of accounts?",
+        "",
+        [(None,)],
+    ) == ["undefined_percentage_check_population"]

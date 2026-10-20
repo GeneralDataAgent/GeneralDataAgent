@@ -294,3 +294,52 @@ def sql_data_dependencies(
         except (SqlglotError, ValueError, TypeError):
             output.append(False)
     return output
+
+
+def check_percentage_result(sql: str, question: str, instructions: str, rows) -> list[str]:
+    """Narrow fraction-of-population bounds; growth/change percentages may be unbounded."""
+    import re
+
+    public = question + "\n" + instructions
+    if not re.search(r"\bpercentage\s+of\b|\bwhat\s+percent\b", question, re.I):
+        return []
+    if re.search(r"increas|decreas|growth|change|difference|return\b", question, re.I):
+        return []
+    if re.search(r"\b(?:return|report|use)\s+(?:null|none|not applicable)\b", public, re.I):
+        return []
+    projections = parse_one(sql, read="sqlite").selects
+    if any(item.is_star for item in projections):
+        return []
+
+    def population_count(node):
+        while isinstance(node, (exp.Paren, exp.Cast, exp.Nullif)):
+            node = node.this
+        if isinstance(node, exp.Count):
+            return True
+        if isinstance(node, exp.Sum) and isinstance(node.this, exp.Case):
+            branches = [branch.args.get("true") for branch in node.this.args.get("ifs", [])]
+            branches.append(node.this.args.get("default"))
+            return bool(branches) and all(
+                branch is None
+                or isinstance(branch, exp.Null)
+                or isinstance(branch, exp.Literal)
+                and not branch.is_string
+                and branch.this in {"0", "1"}
+                for branch in branches
+            )
+        return False
+
+    indices = [
+        index
+        for index, item in enumerate(projections)
+        if any(population_count(division.expression) for division in item.find_all(exp.Div))
+    ]
+    issues = []
+    for row in rows:
+        for index in indices:
+            value = row[index]
+            if value is None:
+                issues.append("undefined_percentage_check_population")
+            elif type(value) in {int, float} and not 0 <= value <= 100:
+                issues.append("percentage_out_of_range")
+    return sorted(set(issues))
