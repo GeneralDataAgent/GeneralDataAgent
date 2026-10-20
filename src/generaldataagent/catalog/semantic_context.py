@@ -106,6 +106,34 @@ def semantic_context(
                 col[1] for col in db.execute("PRAGMA table_info(" + quote(table) + ")")
             ]
     mappings = public_field_mappings(public_text, full_schema)
+    literal_checks = literal_failures = 0
+    for mapping in [m for m in mappings["ambiguous"] if m.get("literal_kind") == "string"][:2]:
+        value = mapping.get("enum_value")
+        if value is None:
+            continue
+        observations = []
+        for relation, column in mapping["candidates"][:4]:
+            literal_checks += 1
+            sql = f"SELECT COUNT(*) FROM {quote(relation)} WHERE {quote(column)} = ?"
+            guard.inspect(sql, allowed_relations=allowed_relations)
+            try:
+                rows = (
+                    SQLiteReadOnlyExecutor(database, max_rows=1, timeout_seconds=1)
+                    .execute(sql, (value,))
+                    .rows
+                )
+            except QueryExecutionError:
+                literal_failures += 1
+                observations.append({"candidate": [relation, column], "status": "unavailable"})
+            else:
+                observations.append(
+                    {"candidate": [relation, column], "exact_match_rows": rows[0][0]}
+                )
+        mapping["omitted_literal_candidates"] = max(
+            0, len(mapping["candidates"]) - len(observations)
+        )
+        mapping["literal_observations"] = observations
+        mapping["observation_scope"] = "full-table exact public literal; not business certification"
     # Composite FK components must be profiled together, never as independent joins.
     groups = {}
     for fk in relationships["foreign_keys"]:
@@ -166,6 +194,8 @@ def semantic_context(
         "tables": tables,
         "public_field_mappings": mappings,
         "observed_value_candidates": value_candidates,
+        "public_literal_checks": literal_checks,
+        "public_literal_failures": literal_failures,
         "enum_domain_checks": enum_checks,
         "enum_domain_failures": enum_failures,
         "omitted_table_previews": max(0, len(allowed_relations) - 12),
@@ -205,15 +235,17 @@ def semantic_context(
         elif output["observed_value_candidates"]:
             output["observed_value_candidates"].pop()
             output["omitted_value_candidates"] = output.get("omitted_value_candidates", 0) + 1
+        elif output["tables"]:
+            # Schema is already in database_context. Empty preview metadata is less useful
+            # than exact public mappings and scoped population observations.
+            output["tables"].popitem()
+            output["omitted_table_previews"] += 1
         elif mappings["ambiguous"]:
             mappings["ambiguous"].pop()
             output["omitted_public_mappings"] = output.get("omitted_public_mappings", 0) + 1
         elif mappings["mappings"]:
             mappings["mappings"].pop()
             output["omitted_public_mappings"] = output.get("omitted_public_mappings", 0) + 1
-        elif output["tables"]:
-            output["tables"].popitem()
-            output["omitted_table_previews"] += 1
         else:
             raise ValueError("semantic context metadata exceeds budget")
     return output

@@ -46,6 +46,7 @@ def public_field_mappings(text: str, schema: dict[str, list[str]]) -> dict:
     remain untrusted evidence and never modify the certified metric catalog.
     """
     mappings, ambiguous = [], []
+    ascii_case = str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")
     for sentence in re.split(r"[;\n]", text):
         match = re.fullmatch(
             r"\s*(.{1,150}?)\s+(?:means|refers to|表示|是指)\s+(.{1,250}?)\s*\.?", sentence, re.I
@@ -61,7 +62,9 @@ def public_field_mappings(text: str, schema: dict[str, list[str]]) -> dict:
             continue
         node = tree.selects[0]
         value = None
+        literal_kind = None
         if isinstance(node, exp.EQ) and isinstance(node.expression, exp.Literal):
+            literal_kind = "string" if node.expression.is_string else "number"
             value, node = node.expression.this, node.this
         if not isinstance(node, exp.Column) or node.db or node.catalog:
             continue
@@ -69,17 +72,19 @@ def public_field_mappings(text: str, schema: dict[str, list[str]]) -> dict:
             (table, field)
             for table, fields in schema.items()
             for field in fields
-            if field.casefold() == node.name.casefold()
-            and (not node.table or node.table.casefold() == table.casefold())
+            if field.translate(ascii_case) == node.name.translate(ascii_case)
+            and (not node.table or node.table.translate(ascii_case) == table.translate(ascii_case))
         ]
         record = {
             "label": label.strip(),
             "source_excerpt": sentence.strip(),
             "basis": "explicit_public_mapping",
         }
+        if literal_kind is not None:
+            record["literal_kind"] = literal_kind
         if len(candidates) != 1:
             if candidates:
-                ambiguous.append(record | {"candidates": candidates})
+                ambiguous.append(record | {"candidates": candidates, "enum_value": value})
             continue
         table, field = candidates[0]
         mappings.append(record | {"table": table, "column": field, "enum_value": value})
