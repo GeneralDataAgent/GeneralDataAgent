@@ -50,7 +50,13 @@ def inspect_semantics(sql: str, spec: AnalysisTaskSpec) -> list[str]:
             issues.append("missing_ratio")
         elif any(not d.expression.find(exp.Nullif) for d in divisions):
             issues.append("zero_denominator_unprotected")
-    return issues
+    from generaldataagent.tools.semantic_requirements import check_requirements
+
+    try:
+        issues.extend(check_requirements(sql, spec.requirements))
+    except (ValueError, TypeError):
+        issues.append("invalid_semantic_requirement")
+    return sorted(set(issues))
 
 
 def validate_rows(columns, rows, answer: AnswerSpec, *, complete: bool = True) -> list[str]:

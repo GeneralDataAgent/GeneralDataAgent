@@ -1,0 +1,167 @@
+"""Fail-closed checks of declared predicate location, date bounds, and ratio operands.
+
+Public excerpts establish provenance, not correctness of a model's interpretation. Checks are
+structural and deliberately reject unsupported algebra rather than claim semantic equivalence.
+"""
+
+from decimal import Decimal
+
+from sqlglot import exp, parse, parse_one
+
+from generaldataagent.contracts.semantic_requirements import SemanticRequirements
+
+
+def _unparen(node):
+    while isinstance(node, exp.Paren):
+        node = node.this
+    return node
+
+
+def _normalized(node):
+    def normalize(part):
+        if isinstance(part, exp.Paren):
+            return part.this
+        if isinstance(part, exp.Identifier):
+            return exp.to_identifier(part.name.casefold(), quoted=False)
+        if isinstance(part, exp.Literal) and not part.is_string:
+            return exp.Literal.number(format(Decimal(part.this).normalize(), "f"))
+        return part
+
+    return node.copy().transform(normalize).sql(dialect="sqlite", pretty=False)
+
+
+def _expression(text):
+    statements = parse("SELECT " + text, read="sqlite")
+    if len(statements) != 1 or len(statements[0].selects) != 1:
+        raise ValueError("one semantic expression required")
+    return statements[0].selects[0]
+
+
+def _scope(tree, name):
+    if name == "root":
+        return tree if isinstance(tree, exp.Select) else None
+    candidates = [
+        node.this
+        for cls in (exp.CTE, exp.Subquery)
+        for node in tree.find_all(cls)
+        if node.alias.casefold() == name.casefold()
+    ]
+    return candidates[0] if len(candidates) == 1 and isinstance(candidates[0], exp.Select) else None
+
+
+def _conjuncts(node):
+    node = _unparen(node)
+    if isinstance(node, exp.And):
+        return _conjuncts(node.this) + _conjuncts(node.expression)
+    return [node]
+
+
+def _conditions(select, clause):
+    if clause == "join":
+        nodes = [join.args.get("on") for join in select.args.get("joins", [])]
+    else:
+        wrapper = select.args.get(clause)
+        nodes = [wrapper.this] if wrapper else []
+    return {_normalized(term) for node in nodes if node is not None for term in _conjuncts(node)}
+
+
+def _numeric(node):
+    node = _unparen(node)
+    if isinstance(node, exp.Literal) and not node.is_string:
+        return Decimal(node.this)
+    return None
+
+
+def _scaled(node):
+    node = _unparen(node)
+    if isinstance(node, exp.Mul):
+        for constant, other in ((node.this, node.expression), (node.expression, node.this)):
+            value = _numeric(constant)
+            if value is not None:
+                expression, factor = _scaled(other)
+                return expression, factor * value
+    return node, Decimal(1)
+
+
+def _ratio(node):
+    node, scale = _scaled(node)
+    if not isinstance(node, exp.Div):
+        return None
+    numerator, inner_scale = _scaled(node.this)
+    denominator = _unparen(node.expression)
+    guarded = isinstance(denominator, exp.Nullif) and _numeric(denominator.expression) == 0
+    if guarded:
+        denominator = denominator.this
+    return numerator, denominator, scale * inner_scale, guarded
+
+
+def check_requirements(sql: str, requirements: SemanticRequirements) -> list[str]:
+    tree = parse_one(sql, read="sqlite")
+    issues = []
+    for item in requirements.predicates:
+        select = _scope(tree, item.scope)
+        if select is None:
+            issues.append("predicate_scope")
+            continue
+        expected = {_normalized(term) for term in _conjuncts(_expression(item.expression))}
+        if not expected <= _conditions(select, item.clause):
+            issues.append("predicate_placement_or_population")
+    for item in requirements.dates:
+        select = _scope(tree, item.scope)
+        if select is None:
+            issues.append("date_scope")
+            continue
+        column = _expression(item.column)
+        predicates = []
+        for value, inclusive, lower in (
+            (item.start, item.start_inclusive, True),
+            (item.end, item.end_inclusive, False),
+        ):
+            encoded = value if item.encoding == "iso_date" else value.replace("-", "")
+            literal = (
+                exp.Literal.number(encoded)
+                if item.encoding == "compact_integer"
+                else exp.Literal.string(encoded)
+            )
+            cls = (
+                (exp.GTE if inclusive else exp.GT) if lower else (exp.LTE if inclusive else exp.LT)
+            )
+            predicates.append(cls(this=column.copy(), expression=literal))
+        if not {_normalized(p) for p in predicates} <= _conditions(select, "where"):
+            issues.append("date_boundary_or_encoding")
+    for item in requirements.ratios:
+        select = _scope(tree, item.scope)
+        if select is None:
+            issues.append("ratio_scope")
+            continue
+        outputs = [
+            p for p in select.selects if p.alias_or_name.casefold() == item.output_column.casefold()
+        ]
+        shape = (
+            _ratio(outputs[0].this if isinstance(outputs[0], exp.Alias) else outputs[0])
+            if len(outputs) == 1
+            else None
+        )
+        if shape is None:
+            issues.append("ratio_projection")
+            continue
+        numerator, denominator, scale, guarded = shape
+        if _normalized(numerator) != _normalized(_expression(item.numerator)):
+            issues.append("ratio_numerator")
+        if _normalized(denominator) != _normalized(_expression(item.denominator)):
+            issues.append("ratio_denominator_population")
+        if scale != item.multiplier:
+            issues.append("ratio_scale")
+        if item.zero_guard and not guarded:
+            issues.append("ratio_zero_guard")
+    return sorted(set(issues))
+
+
+def validate_requirement_sources(
+    requirements: SemanticRequirements, question: str, instructions: str
+):
+    public = question + "\n" + instructions
+    for collection in (requirements.predicates, requirements.dates, requirements.ratios):
+        for item in collection:
+            if item.source_excerpt not in public:
+                raise ValueError("semantic requirement needs an exact public source excerpt")

@@ -29,6 +29,9 @@ def accept_contract(proposal: dict, *, question: str, instructions: str) -> Anal
     spec = AnalysisTaskSpec.model_validate(proposal)
     if spec.question != question or spec.public_requirements != instructions:
         raise ValueError("contract must preserve both public task texts exactly")
+    from generaldataagent.tools.semantic_requirements import validate_requirement_sources
+
+    validate_requirement_sources(spec.requirements, question, instructions)
     if spec.conflicts:
         raise ValueError("public requirement conflicts require clarification")
     # Only explicit rounding phrases count; never infer precision from labels or examples.

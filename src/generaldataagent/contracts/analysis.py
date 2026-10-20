@@ -4,6 +4,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from generaldataagent.contracts.semantic_requirements import SemanticRequirements
+
 
 class Contract(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
@@ -43,6 +45,7 @@ class AnalysisTaskSpec(Contract):
     order_direction: Literal["asc", "desc"] | None = None
     conflicts: list[str] = Field(default_factory=list, max_length=20)
     answer: AnswerSpec = Field(default_factory=AnswerSpec)
+    requirements: SemanticRequirements = Field(default_factory=SemanticRequirements)
 
 
 class AnalysisArguments(Contract):

@@ -316,3 +316,21 @@ def test_native_transcript_pairs_every_rejected_call_with_a_result():
     assert all(isinstance(message, ToolMessage) for message in transcript[2:])
     assert [message.tool_call_id for message in transcript[2:]] == ["one", "two"]
     assert not transcript.pending
+
+
+def test_public_predicate_requirement_is_enforced_before_execution(database):
+    spec = {
+        "answer": {"columns": ["id"]},
+        "requirements": {"predicates": [{"expression": "id=1", "source_excerpt": "id 1"}]},
+    }
+    result = run(
+        database,
+        [
+            {"final_sql": "SELECT id FROM people WHERE id=1 OR score=10", "task_spec": spec},
+            {"final_sql": "SELECT id FROM people WHERE id=1", "task_spec": spec},
+        ],
+        question="return id 1",
+    )
+    assert result["failure"] is None
+    assert result["trace"][0]["code"] == "semantic_contract"
+    assert len([e for e in result["trace"] if e["status"] == "ok"]) == 1

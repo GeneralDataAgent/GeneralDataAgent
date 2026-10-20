@@ -71,11 +71,10 @@ def test_stage_specific_native_schemas_do_not_offer_unavailable_tools():
 
     planning = bind_typed_tools(Model(), sql_output=True)
     assert {t["function"]["name"] for t in planning["tools"]} == {
-        "plan_analysis",
         "submit_sql",
         "execute_sql",
     }
-    plan_schema = planning["tools"][2]["function"]["parameters"]
+    plan_schema = planning["tools"][0]["function"]["parameters"]["$defs"]["AnalysisTaskSpec"]
     assert "question" not in plan_schema["properties"]
     execution = bind_typed_tools(Model(), sql_output=True, planned=True)
     assert {t["function"]["name"] for t in execution["tools"]} == {

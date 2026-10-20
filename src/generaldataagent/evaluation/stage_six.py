@@ -448,7 +448,11 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
             messages[1] = ("human", json.dumps(request))
         if semantic:
             request = json.loads(messages[1][1])
-            request["semantic_context"] = semantic_context(database, allowed_relations=relations)
+            request["semantic_context"] = semantic_context(
+                database,
+                allowed_relations=relations,
+                max_chars=1500 if task.benchmark == "bird-mini-dev-sqlite" else 4000,
+            )
             messages[1] = ("human", json.dumps(request))
         if semantic:
             messages = ToolConversation(messages)
