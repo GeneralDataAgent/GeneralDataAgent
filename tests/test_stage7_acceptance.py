@@ -57,3 +57,41 @@ def test_small_sample_or_missing_track_cannot_close_full_acceptance():
         qualify_stage7([report()], [report()], [report()])
     with pytest.raises(ValueError, match="all three"):
         qualify_stage7([report()] * 3, [report()] * 3, [report()] * 3)
+
+
+def test_receipt_hash_does_not_certify_a_fabricated_sql_value_or_method():
+    from generaldataagent.evaluation.stage_seven_acceptance import answer_receipt_errors
+
+    data = {
+        "benchmark": "infiagent-dabench",
+        "results": [
+            {
+                "case_id": "synthetic",
+                "passed": True,
+                "answers": {"mean": 0.99},
+                "answer_evidence": {
+                    "mean": {
+                        "step": 1,
+                        "path": ["rows", 0, 0],
+                        "method_id": "sql",
+                        "result_hash": "same",
+                        "submitted_value": 0.99,
+                    }
+                },
+                "trace": [
+                    {
+                        "step": 1,
+                        "status": "ok",
+                        "tool": "sql",
+                        "result_hash": "same",
+                        "sql": "WITH a AS (SELECT 0.99 AS x) SELECT x FROM a",
+                    }
+                ],
+            }
+        ],
+    }
+    assert answer_receipt_errors(data) == ["synthetic:unverified_sql_data_dependency"]
+    data["results"][0]["trace"][0]["sql"] = "SELECT AVG(value) FROM measurements"
+    assert not answer_receipt_errors(data)
+    data["results"][0]["answer_evidence"]["mean"]["method_id"] = "pearson"
+    assert answer_receipt_errors(data) == ["synthetic:receipt_method_mismatch"]

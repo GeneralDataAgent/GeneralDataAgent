@@ -50,6 +50,51 @@ def answer_receipt_errors(report: dict) -> list[str]:
             continue
         for key, receipt in receipts.items():
             event = trace.get(receipt.get("step"), {})
+            tool = event.get("tool")
+            expected_method = (
+                event.get("action", {}).get("analysis", {}).get("operation")
+                if tool == "fixed_analysis"
+                else "sql"
+                if tool in {"sql", "sql_crosscheck"}
+                else "complete_collection"
+                if tool == "complete_collection"
+                else None
+            )
+            if expected_method is None or receipt.get("method_id") != expected_method:
+                errors.append(row["case_id"] + ":receipt_method_mismatch")
+            if tool in {"sql", "sql_crosscheck", "complete_collection"}:
+                from sqlglot import parse_one
+
+                from generaldataagent.tools.sql_guard import SqlGuard
+                from generaldataagent.tools.sql_semantics import sql_data_dependencies
+
+                action = event.get("action", {})
+                sql = (
+                    event.get("sql")
+                    or action.get("crosscheck", {}).get("sql")
+                    or action.get("collect", {}).get("sql")
+                )
+                path = receipt.get("path", [])
+                try:
+                    relations = SqlGuard(dialect="sqlite").inspect(sql or "").relations
+                    size = len(parse_one(sql, read="sqlite").selects)
+                    dependencies = sql_data_dependencies(
+                        sql, [str(i) for i in range(size)], allowed_relations=set(relations)
+                    )
+                    index = (
+                        0
+                        if tool == "complete_collection" and path == ["items"]
+                        else (path[2] if len(path) == 3 and path[0] == "rows" else None)
+                    )
+                    verified = (
+                        type(index) is int
+                        and 0 <= index < len(dependencies)
+                        and dependencies[index]
+                    )
+                except (ValueError, TypeError):
+                    verified = False
+                if not verified:
+                    errors.append(row["case_id"] + ":unverified_sql_data_dependency")
             if (
                 not receipt.get("method_id")
                 or not receipt.get("result_hash")
@@ -95,6 +140,7 @@ def qualify_stage7(baselines: list[dict], candidates: list[dict], historical: li
         }
         blockers.extend(name + ":" + reason for reason in reasons)
     return {
+        "validator_version": "stage7-full-with-lineage-review-20261021",
         "stage7_development_qualified": not blockers,
         "tracks": tracks,
         "historical_correct_n": sum(t["historical_correct_guard"]["n"] for t in tracks.values()),
