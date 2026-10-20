@@ -63,3 +63,30 @@ def test_conservative_long_pacing_still_rejects_slots_outside_case_deadline(tmp_
     assert pacer.reserve(now=100, max_wait_seconds=30) == 16
     with pytest.raises(ValueError):
         SharedRequestPacer(tmp_path / "slow.sqlite", scope="model", interval_seconds=61)
+
+
+def test_paced_model_binding_preserves_shared_pacer_and_original_deadline():
+    from generaldataagent.evaluation.stage_six_control import PacedModel
+
+    class Pacer:
+        def __init__(self):
+            self.calls = 0
+
+        def reserve(self, **kwargs):
+            self.calls += 1
+            return 0
+
+    class Model:
+        def bind(self, **kwargs):
+            self.options = kwargs
+            return self
+
+        def invoke(self, messages):
+            return self.options
+
+    pacer = Pacer()
+    original = PacedModel(Model(), pacer)
+    bound = original.bind(tools=[{"name": "test"}])
+    assert bound.pacer is pacer and bound.deadline == original.deadline
+    assert bound.invoke([]) == {"tools": [{"name": "test"}]}
+    assert pacer.calls == 1
