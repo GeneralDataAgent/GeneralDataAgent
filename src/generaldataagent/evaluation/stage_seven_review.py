@@ -28,6 +28,11 @@ def review_comparison(baseline: dict, candidate: dict, reviews: list[dict]) -> d
     comparison = compare_runs(baseline, candidate)
     before = {row["case_id"]: row for row in baseline["results"]}
     after = {row["case_id"]: row for row in candidate["results"]}
+    for key in before:
+        if not before[key].get("database_hash") or before[key]["database_hash"] != after[key].get(
+            "database_hash"
+        ):
+            raise ValueError("paired task database snapshot differs or is missing")
     parsed = [LabelReview.model_validate(row) for row in reviews]
     keys = [(row.benchmark, row.case_id) for row in parsed]
     if len(set(keys)) != len(keys):

@@ -25,7 +25,7 @@ def test_side_ledger_does_not_award_disputed_credit(monkeypatch):
     before = {
         "protocol": {"version": "stage7-v1"},
         "benchmark": "test",
-        "results": [{"case_id": "a", "passed": True}],
+        "results": [{"case_id": "a", "passed": True, "database_hash": "fixed"}],
     }
     after = copy.deepcopy(before)
     after["results"][0]["passed"] = False

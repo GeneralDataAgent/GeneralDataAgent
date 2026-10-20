@@ -1,0 +1,23 @@
+[
+  {
+    "benchmark": "bird-mini-dev-sqlite",
+    "case_id": "219",
+    "issue": "Public evidence and reference query appear to use different condition populations; preserve strict score pending independent adjudication.",
+    "evidence_refs": ["docs/validation/stage6-magpie-error-audit.json"],
+    "status": "pending_independent_adjudication"
+  },
+  {
+    "benchmark": "bird-mini-dev-sqlite",
+    "case_id": "672",
+    "issue": "Distinct entity count versus joined record count is ambiguous; preserve strict score pending independent adjudication.",
+    "evidence_refs": ["docs/validation/stage6-magpie-error-audit.json"],
+    "status": "pending_independent_adjudication"
+  },
+  {
+    "benchmark": "infiagent-dabench",
+    "case_id": "300",
+    "issue": "Independent full-data Pearson differs from the public reference coefficient; do not change the algorithm to match the label.",
+    "evidence_refs": ["docs/validation/stage6-magpie-error-audit.json"],
+    "status": "pending_independent_adjudication"
+  }
+]
