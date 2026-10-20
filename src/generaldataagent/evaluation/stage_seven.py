@@ -78,7 +78,10 @@ For changes from a start to an end period, increase is (end-start)/start; verify
 actual period filters before submitting, including any public formula's A/B mapping.
 Check exact entity grain, requested projections, distinct entities versus joined records, explicit
 numerator/denominator population, real division, null handling, actual date encoding and boundaries.
-For oldest by birthday use ascending date; compute age when age is asked. Preserve requested ties.
+For oldest by birthday use ascending date; compute completed years when age at arrival is asked:
+year(arrival)-year(birth) minus one if arrival month/day precedes birthday. Verify date encoding.
+For "among the top N" preserve ties with RANK, not ROW_NUMBER, unless exactly N or tie-breaking is
+explicitly requested. Avoid rejoining by nonunique display names when fields are already projected.
 Never infer full results from samples. Do not add filters from preview values. Empty results are
 not proof of correct logic. Use exact columns and quote identifiers separately from string values.
 One crosscheck action is allowed: sql plus purpose ties/entity_grain/denominator/date_boundary/

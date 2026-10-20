@@ -126,3 +126,32 @@ def test_public_change_reference_is_resolved_without_model_alias_claims():
     assert not check_public_change_direction(
         "SELECT (a.value-b.value)/b.value" + sources, "ordinary ratio?"
     )
+
+
+def test_public_rank_and_completed_age_do_not_silently_drop_ties_or_birthdays():
+    from generaldataagent.tools.semantic_requirements import check_public_rank_and_age
+
+    question = "List entities among the top 3 in their respective groups."
+    assert check_public_rank_and_age(
+        "SELECT ROW_NUMBER() OVER(PARTITION BY g ORDER BY score DESC) FROM t", question
+    ) == ["rank_ties_require_rank"]
+    assert not check_public_rank_and_age(
+        "SELECT RANK() OVER(PARTITION BY g ORDER BY score DESC) FROM t", question
+    )
+    assert not check_public_rank_and_age(
+        "SELECT ROW_NUMBER() OVER(ORDER BY score DESC) FROM t",
+        "Return exactly top 3; break ties by id",
+    )
+    year_only = (
+        "SELECT CAST(strftime('%Y',arrived) AS INT)-"
+        "CAST(strftime('%Y',birthday) AS INT) AS age FROM t"
+    )
+    assert check_public_rank_and_age(year_only, "What age was the person on arrival?") == [
+        "age_requires_birthday_boundary"
+    ]
+    completed = (
+        "SELECT CAST(strftime('%Y',arrived) AS INT)-"
+        "CAST(strftime('%Y',birthday) AS INT)-"
+        "(strftime('%m-%d',arrived)<strftime('%m-%d',birthday)) AS age FROM t"
+    )
+    assert not check_public_rank_and_age(completed, "What age was the person on arrival?")

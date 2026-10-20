@@ -259,3 +259,32 @@ def check_public_change_direction(sql: str, question: str) -> list[str]:
             if left is not None and right is not None and (left != end or right != start):
                 issues.append("change_direction")
     return sorted(set(issues))
+
+
+def check_public_rank_and_age(sql: str, question: str) -> list[str]:
+    """Enforce narrow, explicit public ranking and completed-age conventions."""
+    import re
+
+    tree = parse_one(sql, read="sqlite")
+    issues = []
+    if (
+        re.search(r"\bamong\s+(?:the\s+)?top\s+\d+", question, re.I)
+        and not re.search(r"\bexactly\b|\bbreak\s+ties\b", question, re.I)
+        and any(isinstance(w.this, exp.RowNumber) for w in tree.find_all(exp.Window))
+    ):
+        issues.append("rank_ties_require_rank")
+    if re.search(r"\bage\b|\bhow old\b", question, re.I) and re.search(
+        r"arriv|admi", question, re.I
+    ):
+        for projection in tree.selects:
+            expression = projection.this if isinstance(projection, exp.Alias) else projection
+            code = expression.sql(dialect="sqlite")
+            # Recognize the incomplete year-only shortcut; alternative age algorithms remain
+            # unclassified instead of being falsely certified.
+            if (
+                "%Y" in code
+                and isinstance(_unparen(expression), exp.Sub)
+                and not any(pattern in code for pattern in ("%m", "%d", "%j", "%J"))
+            ):
+                issues.append("age_requires_birthday_boundary")
+    return sorted(set(issues))
