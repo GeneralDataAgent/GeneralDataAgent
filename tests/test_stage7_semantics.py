@@ -156,3 +156,33 @@ def test_entity_count_checks_keep_join_and_aggregate_in_the_same_scope():
         "WITH n AS (SELECT COUNT(*) AS c FROM people p JOIN events e ON p.id=e.id) SELECT c FROM n"
     )
     assert "joined_entity_count_requires_distinct" in inspect_semantics(invalid, spec)
+
+
+def test_data_dependencies_distinguish_computations_counts_and_constant_wrappers():
+    from generaldataagent.tools.sql_semantics import sql_data_dependencies
+
+    cases = [
+        ("SELECT AVG(id) AS x FROM people", True),
+        ("SELECT COUNT(*) AS x FROM people", True),
+        ("WITH a AS (SELECT id FROM people) SELECT COUNT(*) AS x FROM a", True),
+        ("SELECT CASE WHEN COUNT(*)>1 THEN 'many' ELSE 'few' END AS x FROM people", True),
+        ("SELECT 0.99 AS x FROM people", False),
+        ("WITH a AS (SELECT 0.99 AS x FROM people) SELECT x FROM a", False),
+        (
+            "WITH unused AS (SELECT id FROM people), a AS (SELECT 7 AS x) "
+            "SELECT COUNT(*) AS x FROM a",
+            False,
+        ),
+    ]
+    for sql, expected in cases:
+        assert sql_data_dependencies(sql, ["x"], allowed_relations={"people"}) == [expected]
+
+
+def test_constant_complete_collection_does_not_certify_model_selected_ids(tmp_path):
+    from generaldataagent.tools.sql_semantics import collect_complete
+
+    path = tmp_path / "constant.sqlite"
+    with sqlite3.connect(path) as db:
+        db.executescript("CREATE TABLE ids(id INT); INSERT INTO ids VALUES(1),(2);")
+    with pytest.raises(SemanticError, match="data_dependent_answer_required"):
+        collect_complete(path, "SELECT DISTINCT 999 AS id FROM ids", allowed_relations={"ids"})

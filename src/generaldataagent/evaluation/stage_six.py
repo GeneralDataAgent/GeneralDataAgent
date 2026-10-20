@@ -840,6 +840,15 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     result_data = {"columns": result.columns, "rows": result.rows}
                     tool = "sql"
                 if semantic:
+                    if task.benchmark != "bird-mini-dev-sqlite" and tool in {
+                        "sql",
+                        "sql_crosscheck",
+                    }:
+                        from generaldataagent.tools.sql_semantics import sql_data_dependencies
+
+                        result_data["data_dependent_columns"] = sql_data_dependencies(
+                            sql, list(result.columns), allowed_relations=relations
+                        )
                     result_data["method_id"] = (
                         result_data["operation"]
                         if tool == "fixed_analysis"

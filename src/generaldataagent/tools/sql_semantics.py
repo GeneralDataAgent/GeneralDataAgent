@@ -123,6 +123,16 @@ def assemble_answers(bindings: dict, evidence: dict[int, dict], answer: AnswerSp
                 value = value[part]
         except (KeyError, IndexError, TypeError) as exc:
             raise SemanticError("evidence path not found") from exc
+        dependencies = evidence[step].get("data_dependent_columns")
+        if dependencies is not None and (
+            len(path) != 3
+            or path[0] != "rows"
+            or type(path[2]) is not int
+            or path[2] < 0
+            or path[2] >= len(dependencies)
+            or dependencies[path[2]] is not True
+        ):
+            raise SemanticError("data_dependent_answer_required")
         field = answer.fields.get(key)
         if field is not None:
             try:
@@ -183,6 +193,10 @@ def collect_complete(database, sql: str, *, allowed_relations: set[str]) -> dict
     result = SQLiteReadOnlyExecutor(database, max_rows=10000, timeout_seconds=5).execute(sql)
     if len(result.columns) != 1:
         raise SemanticError("complete collection requires one explicit output column")
+    if not all(
+        sql_data_dependencies(sql, list(result.columns), allowed_relations=allowed_relations)
+    ):
+        raise SemanticError("data_dependent_answer_required")
     items = [row[0] for row in result.rows]
     if len(set(items)) != len(items):
         raise SemanticError("complete set contains duplicates; use distinct entity grain")
@@ -225,3 +239,58 @@ def validate_column_scope(database, sql: str, *, allowed_relations: set[str]) ->
             difflib.get_close_matches(unknown, physical, n=5, cutoff=0.35) if unknown else []
         )
         raise ColumnScopeError(candidates) from None
+
+
+def sql_data_dependencies(
+    sql: str, columns: list[str], *, allowed_relations: set[str]
+) -> list[bool]:
+    """Detect syntactic data dependencies, not correctness of a calculation or interpretation.
+
+    A successful SELECT of model-supplied constants cannot become full-data answer evidence.
+    COUNT(*) depends on source rows even though column lineage has no physical column leaf.
+    Unsupported lineage remains unverified and cannot certify a bound answer.
+    """
+    from sqlglot.errors import SqlglotError
+    from sqlglot.lineage import lineage
+    from sqlglot.optimizer.scope import Scope, build_scope
+
+    allowed = {name.casefold() for name in allowed_relations}
+
+    def row_dependency(scope, seen):
+        if scope is None or id(scope) in seen:
+            return False
+        seen = seen | {id(scope)}
+        return any(
+            SqlGuard._relation_name(source).casefold() in allowed
+            if isinstance(source, exp.Table)
+            else row_dependency(source, seen)
+            if isinstance(source, Scope)
+            else False
+            for _, source in scope.selected_sources.values()
+        )
+
+    from generaldataagent.tools.sql_guard import SqlGuard
+
+    tree = parse_one(sql, read="sqlite")
+    if len(tree.selects) != len(columns) or any(isinstance(p, exp.Star) for p in tree.selects):
+        return [False] * len(columns)
+    names = ["_evidence_" + str(index) for index in range(len(columns))]
+    for projection, alias in zip(list(tree.selects), names, strict=True):
+        projection.replace(exp.alias_(projection.unalias().copy(), alias, quoted=True))
+    output = []
+    for name in names:
+        try:
+            node = lineage(name, tree, dialect="sqlite")
+            dependent = False
+            for item in node.walk():
+                if isinstance(item.expression, exp.Table):
+                    dependent |= SqlGuard._relation_name(item.expression).casefold() in allowed
+                if any(
+                    isinstance(count.this, exp.Star)
+                    for count in item.expression.find_all(exp.Count)
+                ):
+                    dependent |= row_dependency(build_scope(item.source), set())
+            output.append(dependent)
+        except (SqlglotError, ValueError, TypeError):
+            output.append(False)
+    return output

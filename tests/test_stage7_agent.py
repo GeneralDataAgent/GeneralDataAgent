@@ -420,7 +420,10 @@ def test_runtime_applies_mixed_public_field_rules_without_model_restatement(data
     result = run(
         database,
         [
-            {"sql": "SELECT AVG(id), SUM(id), 'observed' FROM people"},
+            {
+                "sql": "SELECT AVG(id), SUM(id), "
+                "CASE WHEN COUNT(*)>0 THEN 'observed' ELSE 'empty' END FROM people"
+            },
             {
                 "submit_answers": {
                     "fields": [
@@ -453,3 +456,36 @@ def test_public_string_contract_rejects_numeric_evidence_without_model_rule(data
     )
     assert result["failure"] == "execution_or_model_error"
     assert not result["answers"]
+
+
+def test_model_constants_cannot_be_laundered_through_successful_sql(database):
+    result = run(
+        database,
+        [
+            {"sql": "WITH fabricated AS (SELECT 0.99 AS estimate) SELECT estimate FROM fabricated"},
+            {"submit_answers": {"fields": [{"name": "mean", "step": 1, "path": ["rows", 0, 0]}]}},
+            {"sql": "SELECT AVG(id) AS mean FROM people"},
+            {"submit_answers": {"fields": [{"name": "mean", "step": 3, "path": ["rows", 0, 0]}]}},
+        ],
+        benchmark="infiagent-dabench",
+        question="mean?",
+        instructions="@mean[value]",
+    )
+    assert result["failure"] is None
+    assert result["trace"][1]["checks"] == ["data_dependent_answer_required"]
+    assert result["answers"] == {"mean": 1.5}
+
+
+def test_constant_answer_cannot_bypass_dependency_check_via_crosscheck(database):
+    result = run(
+        database,
+        [
+            {"crosscheck": {"sql": "SELECT 0.99 AS x", "purpose": "output_range"}},
+            {"submit_answers": {"fields": [{"name": "n", "step": 1, "path": ["rows", 0, 0]}]}},
+        ],
+        benchmark="infiagent-dabench",
+        question="count?",
+        instructions="@n[value]",
+    )
+    assert result["failure"] == "execution_or_model_error"
+    assert result["trace"][1]["checks"] == ["data_dependent_answer_required"]

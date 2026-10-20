@@ -230,6 +230,11 @@ one DISTINCT output column and no LIMIT/OFFSET, bounded to 10000 values with com
 Then submit_answers with fields [{"name":"public_key","step":1,"path":["rows",0,0]}].
 For Pearson bind path ["correlation"]; for sample std ["statistics","column","sample_std"].
 For complete collections bind ["items"] and rule {"kind":"set","method":"complete_collection"}.
+SQL answer evidence must use explicit projections with data dependencies. A SELECT of model-
+supplied constants, including constants wrapped in a CTE, cannot certify an answer. Calculate
+from scoped data or use fixed_analysis; unsupported statistical methods must not be approximated
+by guessing a value then returning it from SQL.
+Dependency checks are structural, not correctness proof.
 Every public answer key must be bound. Optional rule fields: kind number/integer/string/boolean/set,
 decimals, unit, method, source_excerpt. Precision and units require exact public source excerpts.
 Use no rule when the public contract already supplies its type/precision. rule.method, if given,
