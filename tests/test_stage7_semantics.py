@@ -84,3 +84,26 @@ def test_semantic_context_has_a_global_serialized_budget(tmp_path):
     context = semantic_context(path, allowed_relations={"wide"}, max_chars=1500)
     assert len(json.dumps(context)) <= 1500
     assert context["tables"]["wide"]["omitted_fields"] > 0
+
+
+def test_scope_resolution_rejects_sqlite_double_quoted_string_typos(tmp_path):
+    from generaldataagent.tools.sql_semantics import validate_column_scope
+
+    path = tmp_path / "scope.sqlite"
+    with sqlite3.connect(path) as db:
+        db.executescript(
+            'CREATE TABLE people(id INT, "Birth Date" TEXT);'
+            "INSERT INTO people VALUES(1,'2000-01-01');"
+        )
+    before = path.read_bytes()
+    for sql in ['SELECT "misspelled" FROM people', "SELECT absent FROM people"]:
+        with pytest.raises(SemanticError, match="scoped SQL column"):
+            validate_column_scope(path, sql, allowed_relations={"people"})
+    for sql in [
+        "WITH p AS (SELECT id FROM people) SELECT id FROM p",
+        "SELECT id AS identifier FROM people ORDER BY identifier",
+        'SELECT "Birth Date" FROM people',
+        "SELECT COUNT(*) FROM people",
+    ]:
+        validate_column_scope(path, sql, allowed_relations={"people"})
+    assert path.read_bytes() == before

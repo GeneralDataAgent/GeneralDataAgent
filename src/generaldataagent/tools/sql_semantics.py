@@ -151,6 +151,7 @@ def collect_complete(database, sql: str, *, allowed_relations: set[str]) -> dict
     from generaldataagent.tools.sqlite import SQLiteReadOnlyExecutor
 
     SqlGuard(dialect="sqlite").inspect(sql, allowed_relations=allowed_relations)
+    validate_column_scope(database, sql, allowed_relations=allowed_relations)
     tree = parse_one(sql, read="sqlite")
     if tree.find(exp.Limit) or tree.find(exp.Offset):
         raise SemanticError("complete collections cannot use LIMIT or OFFSET")
@@ -161,3 +162,32 @@ def collect_complete(database, sql: str, *, allowed_relations: set[str]) -> dict
     if len(set(items)) != len(items):
         raise SemanticError("complete set contains duplicates; use distinct entity grain")
     return {"items": items, "total_count": len(items), "complete": True}
+
+
+def validate_column_scope(database, sql: str, *, allowed_relations: set[str]) -> None:
+    """Resolve identifiers before SQLite's double-quoted-string compatibility can mask typos."""
+    import sqlite3
+
+    from sqlglot.errors import OptimizeError
+    from sqlglot.optimizer.qualify import qualify
+
+    from generaldataagent.tools.sql_guard import SqlGuard
+
+    SqlGuard(dialect="sqlite").inspect(sql, allowed_relations=allowed_relations)
+    schema = {}
+    with sqlite3.connect(database.resolve().as_uri() + "?mode=ro", uri=True) as db:
+        for table in sorted(allowed_relations):
+            quoted = '"' + table.replace('"', '""') + '"'
+            schema[table] = {
+                row[1]: "UNKNOWN" for row in db.execute(f"PRAGMA table_info({quoted})")
+            }
+    try:
+        qualify(
+            parse_one(sql, read="sqlite"),
+            dialect="sqlite",
+            schema=schema,
+            validate_qualify_columns=True,
+            infer_schema=False,
+        )
+    except OptimizeError:
+        raise SemanticError("unresolved or ambiguous scoped SQL column; check schema") from None

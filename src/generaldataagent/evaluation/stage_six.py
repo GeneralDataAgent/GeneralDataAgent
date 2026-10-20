@@ -381,6 +381,7 @@ class BoundedSQLAgent:
             assemble_answers,
             collect_complete,
             inspect_semantics,
+            validate_column_scope,
             validate_rows,
         )
 
@@ -736,6 +737,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     crosscheck_used = True
                     sql = action["crosscheck"]["sql"]
                     guard.inspect(sql, allowed_relations=relations)
+                    validate_column_scope(database, sql, allowed_relations=relations)
                     result = executor.execute(sql)
                     crosscheck_rows = result.rows
                     result_data = {
@@ -760,6 +762,8 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                 else:
                     sql = action.get("final_sql", action.get("sql", ""))
                     guard.inspect(sql, allowed_relations=relations)
+                    if semantic:
+                        validate_column_scope(database, sql, allowed_relations=relations)
                     if semantic and "final_sql" in action:
                         issues = inspect_semantics(sql, task_spec)
                         if issues:
