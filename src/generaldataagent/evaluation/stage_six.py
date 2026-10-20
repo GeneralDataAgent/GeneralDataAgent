@@ -358,6 +358,7 @@ class BoundedSQLAgent:
         from generaldataagent.evaluation.stage_seven import (
             STAGE7_PROMPT,
             STAGE7_SQL_PROMPT,
+            ToolConversation,
             bind_typed_tools,
         )
         from generaldataagent.evaluation.stage_six_repair import (
@@ -449,6 +450,8 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
             request = json.loads(messages[1][1])
             request["semantic_context"] = semantic_context(database, allowed_relations=relations)
             messages[1] = ("human", json.dumps(request))
+        if semantic:
+            messages = ToolConversation(messages)
         executor = SQLiteReadOnlyExecutor(database, max_rows=200, timeout_seconds=5)
         guard = SqlGuard(dialect="sqlite")
         started = time.monotonic()
@@ -466,6 +469,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
             if observed_cost >= self.max_cost_usd:
                 failure = "cost_budget"
                 break
+            previous_task_spec = task_spec
             action = None
             calls = []
             if repair:
@@ -545,6 +549,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                 content = response.content
                 calls = getattr(response, "tool_calls", []) if semantic else []
                 if calls:
+                    messages.record_calls(response)
                     if len(calls) != 1:
                         raise ActionSchemaError([{"path": ["tool_calls"], "type": "one_action"}])
                     name, arguments = calls[0].get("name"), calls[0].get("args")
@@ -576,7 +581,8 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     action = normalize_protocol_action(action)
                 if not isinstance(action, dict):
                     raise ValueError("one JSON object required")
-                messages.append(("assistant", raw))
+                if not calls:
+                    messages.append(("assistant", raw))
                 if repair and not semantic:
                     action, correction = repair_action(action)
                     if correction:
@@ -814,6 +820,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                 messages.append(("human", json.dumps({"step": step, **feedback}, default=str)))
             except Exception as exc:
                 if semantic:
+                    task_spec = previous_task_spec
                     answers = {}
                 kind = type(exc).__name__
                 text = str(exc).lower()

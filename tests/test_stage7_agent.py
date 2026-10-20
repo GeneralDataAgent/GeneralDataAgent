@@ -282,3 +282,37 @@ def test_age_projection_is_computed_instead_of_returning_birthday(database):
     from generaldataagent.tools.sqlite import SQLiteReadOnlyExecutor
 
     assert SQLiteReadOnlyExecutor(database).execute(result["final_sql"]).rows == ((66,), (56,))
+
+
+def test_rejected_inline_contract_does_not_lock_future_repair(database):
+    result = run(
+        database,
+        [
+            {"final_sql": "SELECT id FROM people", "task_spec": {"answer": {"columns": ["wrong"]}}},
+            {"final_sql": "SELECT id FROM people", "task_spec": {"answer": {"columns": ["id"]}}},
+        ],
+    )
+    assert result["failure"] is None
+    assert result["task_contract"]["answer"]["columns"] == ["id"]
+    assert result["trace"][0]["code"] == "semantic_contract"
+
+
+def test_native_transcript_pairs_every_rejected_call_with_a_result():
+    from langchain_core.messages import AIMessage, ToolMessage
+
+    from generaldataagent.evaluation.stage_seven import ToolConversation
+
+    transcript = ToolConversation([("system", "read only")])
+    response = AIMessage(
+        content="",
+        tool_calls=[
+            {"name": "execute_sql", "args": {"sql": "SELECT 1"}, "id": "one"},
+            {"name": "execute_sql", "args": {"sql": "SELECT 2"}, "id": "two"},
+        ],
+    )
+    transcript.record_calls(response)
+    transcript.append(("human", '{"error":"one action required"}'))
+    assert isinstance(transcript[1], AIMessage)
+    assert all(isinstance(message, ToolMessage) for message in transcript[2:])
+    assert [message.tool_call_id for message in transcript[2:]] == ["one", "two"]
+    assert not transcript.pending

@@ -205,3 +205,30 @@ def bind_typed_tools(model, *, sql_output: bool, planned: bool = False):
         tool_choice={"type": "function", "function": {"name": "analysis_action"}},
         parallel_tool_calls=False,
     )
+
+
+class ToolConversation(list):
+    """Keep native tool calls and their results paired, including rejected multi-actions."""
+
+    def __init__(self, messages):
+        super().__init__(messages)
+        self.pending = []
+
+    def record_calls(self, response):
+        from langchain_core.messages import AIMessage
+
+        calls = [dict(call) for call in response.tool_calls]
+        for index, call in enumerate(calls):
+            call.setdefault("id", f"analysis-call-{index}")
+        self.pending = [call["id"] for call in calls]
+        super().append(AIMessage(content=response.content or "", tool_calls=calls))
+
+    def append(self, message):
+        from langchain_core.messages import ToolMessage
+
+        if self.pending and isinstance(message, tuple) and message[0] == "human":
+            for call_id in self.pending:
+                super().append(ToolMessage(content=message[1], tool_call_id=call_id))
+            self.pending = []
+        else:
+            super().append(message)
