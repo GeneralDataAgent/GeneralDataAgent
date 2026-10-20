@@ -331,7 +331,7 @@ class BoundedSQLAgent:
         if max_steps < 1 or max_seconds <= 0 or max_tokens < 1:
             raise ValueError("invalid agent budget")
         if (
-            tool_profile not in {"sql", "sql-analysis", "sql-repair"}
+            tool_profile not in {"sql", "sql-analysis", "sql-repair", "sql-precision"}
             or not math.isfinite(max_cost_usd)
             or max_cost_usd <= 0
         ):
@@ -359,8 +359,15 @@ class BoundedSQLAgent:
             execution_hint,
             repair_action,
         )
+        from generaldataagent.evaluation.stage_six_sql_precision import (
+            SQL_PRECISION_PROMPT,
+            schema_relationships,
+        )
 
-        repair = self.tool_profile == "sql-repair"
+        precision = self.tool_profile == "sql-precision"
+        if precision and task.benchmark != "bird-mini-dev-sqlite":
+            raise ValueError("SQL precision requires a SQL-output task")
+        repair = self.tool_profile in {"sql-repair", "sql-precision"}
         enhanced = self.tool_profile in {"sql-analysis", "sql-repair"}
         extra = (
             """
@@ -378,7 +385,12 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
             else ""
         )
         messages = [
-            ("system", SYSTEM_PROMPT + extra + (REPAIR_PROMPT if repair else "")),
+            (
+                "system",
+                SQL_PRECISION_PROMPT
+                if precision
+                else SYSTEM_PROMPT + extra + (REPAIR_PROMPT if repair else ""),
+            ),
             (
                 "human",
                 json.dumps(
@@ -397,6 +409,11 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                 ),
             ),
         ]
+        if precision:
+            request = json.loads(messages[1][1])
+            request.pop("answer_fields", None)
+            request["relationships"] = schema_relationships(database, allowed_relations=relations)
+            messages[1] = ("human", json.dumps(request))
         executor = SQLiteReadOnlyExecutor(database, max_rows=200, timeout_seconds=5)
         guard = SqlGuard(dialect="sqlite")
         started = time.monotonic()
@@ -422,7 +439,11 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                         json.dumps(
                             {
                                 "remaining_actions": self.max_steps - step + 1,
-                                "finish_hint": ("Finish now if observed evidence is sufficient."),
+                                "finish_hint": (
+                                    "Return final_sql if ready."
+                                    if precision
+                                    else "Finish now if observed evidence is sufficient."
+                                ),
                             }
                         ),
                     )
@@ -488,7 +509,11 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     action, correction = repair_action(action)
                     if correction:
                         trace.append({"step": step, "status": "repaired", "code": correction})
-                allowed_actions = {"sql", "final_sql", "answers", "unsupported"}
+                allowed_actions = (
+                    {"sql", "final_sql", "unsupported"}
+                    if precision
+                    else {"sql", "final_sql", "answers", "unsupported"}
+                )
                 if enhanced:
                     allowed_actions.update({"search", "analysis"})
                 if len(allowed_actions.intersection(action)) != 1:
@@ -652,6 +677,12 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                 feedback = {"step": step, "error": kind, "code": code}
                 if repair:
                     feedback["hint"] = execution_hint(exc)
+                    if precision:
+                        feedback["hint"] = (
+                            feedback["hint"]
+                            .replace(" or use a fixed analysis tool", "")
+                            .replace(" or the fixed analysis tool", "")
+                        )
                 messages.append(("human", json.dumps(feedback)))
                 failure = "execution_or_model_error"
         return {

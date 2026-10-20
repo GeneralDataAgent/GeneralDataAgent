@@ -55,13 +55,17 @@ def main():
     parser.add_argument("--thinking", choices=["default", "on", "off"], default="default")
     parser.add_argument("--json-mode", action="store_true")
     parser.add_argument(
-        "--tool-profile", choices=["sql", "sql-analysis", "sql-repair"], default="sql"
+        "--tool-profile",
+        choices=["sql", "sql-analysis", "sql-repair", "sql-precision"],
+        default="sql",
     )
     parser.add_argument("--model", help="Per-run model ID; never modifies CC Switch")
     parser.add_argument("--transport", choices=["configured", "openai-chat"], default="configured")
     parser.add_argument("--bird-databases", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
+    if args.tool_profile == "sql-precision" and args.benchmark != "bird":
+        parser.error("SQL precision requires the SQL-output benchmark")
     if not 0 <= args.request_interval_seconds <= 10:
         parser.error("request interval must be finite and between zero and ten seconds")
     if args.output.exists():
@@ -121,6 +125,9 @@ def main():
         "agent_hash": digest(ROOT / "src/generaldataagent/evaluation/stage_six.py"),
         "analysis_tools_hash": digest(
             ROOT / "src/generaldataagent/evaluation/stage_six_analysis.py"
+        ),
+        "precision_tools_hash": digest(
+            ROOT / "src/generaldataagent/evaluation/stage_six_sql_precision.py"
         ),
         "repair_tools_hash": digest(ROOT / "src/generaldataagent/evaluation/stage_six_repair.py"),
         "model_adapter_hash": digest(ROOT / "src/generaldataagent/evaluation/stage_six_models.py"),
