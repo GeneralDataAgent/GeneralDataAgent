@@ -51,3 +51,15 @@ def test_pacing_is_shared_between_instances_and_does_not_reserve_expired_slot(tm
     assert b.reserve(now=100, max_wait_seconds=10) == 4
     other = SharedRequestPacer(path, scope="other_endpoint", interval_seconds=2)
     assert other.reserve(now=100, max_wait_seconds=10) == 0
+
+
+def test_conservative_long_pacing_still_rejects_slots_outside_case_deadline(tmp_path):
+    from generaldataagent.evaluation.stage_six_control import SharedRequestPacer
+
+    pacer = SharedRequestPacer(tmp_path / "slow.sqlite", scope="model", interval_seconds=16)
+    assert pacer.reserve(now=100, max_wait_seconds=30) == 0
+    with pytest.raises(TimeoutError):
+        pacer.reserve(now=100, max_wait_seconds=10)
+    assert pacer.reserve(now=100, max_wait_seconds=30) == 16
+    with pytest.raises(ValueError):
+        SharedRequestPacer(tmp_path / "slow.sqlite", scope="model", interval_seconds=61)

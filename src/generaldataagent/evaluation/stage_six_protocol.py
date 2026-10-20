@@ -20,7 +20,9 @@ from generaldataagent.tools import SQLiteReadOnlyExecutor
 from generaldataagent.tools.sql_guard import SqlGuard
 
 
-def evaluation_protocol(*, workers: int) -> dict:
+def evaluation_protocol(*, workers: int, max_output_tokens: int = 3000) -> dict:
+    if type(max_output_tokens) is not int or not 32 <= max_output_tokens <= 3000:
+        raise ValueError("invalid per-call output token budget")
     scoring = "\n".join(
         inspect.getsource(fn) for fn in [_number, compare_value, score_answers, equivalent_rows]
     )
@@ -29,7 +31,8 @@ def evaluation_protocol(*, workers: int) -> dict:
     )
     execution = "\n".join(inspect.getsource(cls) for cls in [SqlGuard, SQLiteReadOnlyExecutor])
     return {
-        "version": "stage6-v6",
+        "version": "stage6-v7",
+        "max_output_tokens_per_call": max_output_tokens,
         "python_runtime": platform.python_version(),
         "sqlite_runtime": sqlite3.sqlite_version,
         "dependency_lock_hash": digest(Path(__file__).resolve().parents[3] / "uv.lock"),

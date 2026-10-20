@@ -29,6 +29,7 @@ from generaldataagent.evaluation.stage_six import (
 from generaldataagent.evaluation.stage_six_control import (
     ServiceCircuitBreaker,
     not_attempted_result,
+    service_readiness,
 )
 from generaldataagent.evaluation.stage_six_import import (
     build_identifier_preserving_database,
@@ -52,6 +53,8 @@ def main():
         "--csv-importer", choices=["legacy-v1", "identifier-v2"], default="legacy-v1"
     )
     parser.add_argument("--request-interval-seconds", type=float, default=0)
+    parser.add_argument("--max-output-tokens", type=int, default=3000)
+    parser.add_argument("--preflight-report", type=Path)
     parser.add_argument("--thinking", choices=["default", "on", "off"], default="default")
     parser.add_argument("--json-mode", action="store_true")
     parser.add_argument(
@@ -66,8 +69,8 @@ def main():
     args = parser.parse_args()
     if args.tool_profile == "sql-precision" and args.benchmark != "bird":
         parser.error("SQL precision requires the SQL-output benchmark")
-    if not 0 <= args.request_interval_seconds <= 10:
-        parser.error("request interval must be finite and between zero and ten seconds")
+    if not 0 <= args.request_interval_seconds <= 60:
+        parser.error("request interval must be finite and between zero and sixty seconds")
     if args.output.exists():
         parser.error("output exists; choose a new run directory")
     root = ROOT / "data/stage6"
@@ -99,6 +102,7 @@ def main():
         transport=args.transport,
         thinking_mode=args.thinking,
         json_mode=args.json_mode,
+        max_output_tokens=args.max_output_tokens,
     )
     build_csv = (
         build_identifier_preserving_database
@@ -107,7 +111,7 @@ def main():
     )
     args.output.mkdir(parents=True)
     code_hash = digest(Path(__file__).resolve())
-    protocol = evaluation_protocol(workers=args.workers)
+    protocol = evaluation_protocol(workers=args.workers, max_output_tokens=args.max_output_tokens)
     protocol["request_interval_seconds"] = args.request_interval_seconds
     if args.csv_importer == "identifier-v2":
         protocol["csv_importer"] = args.csv_importer
@@ -120,6 +124,30 @@ def main():
                 + inspect.getsource(add_json_tables)
             ).encode()
         ).hexdigest()
+    if args.preflight_report:
+        preflight = json.loads(args.preflight_report.read_text())
+        readiness = service_readiness(preflight)
+        expected_protocol = hashlib.sha256(
+            json.dumps(protocol, sort_keys=True).encode()
+        ).hexdigest()
+        for key, expected in {
+            "benchmark": selected[0].task.benchmark,
+            "protocol_hash": expected_protocol,
+            "model_route": route,
+            "source_manifest_hash": digest(root / "sources.json"),
+        }.items():
+            if preflight.get(key) != expected:
+                readiness["blocked_by"].append("incomparable_preflight_" + key)
+        readiness["ready"] = not readiness["blocked_by"]
+        readiness.update(
+            preflight_sha256=digest(args.preflight_report),
+            planned_n=args.limit,
+            new_model_calls=0,
+        )
+        (args.output / "service-preflight.json").write_text(json.dumps(readiness, indent=2) + "\n")
+        if not readiness["ready"]:
+            print(json.dumps(readiness, indent=2), flush=True)
+            raise SystemExit(2)
     system_fingerprint = {
         "prompt_hash": hashlib.sha256(SYSTEM_PROMPT.encode()).hexdigest(),
         "agent_hash": digest(ROOT / "src/generaldataagent/evaluation/stage_six.py"),
@@ -128,6 +156,9 @@ def main():
         ),
         "precision_tools_hash": digest(
             ROOT / "src/generaldataagent/evaluation/stage_six_sql_precision.py"
+        ),
+        "service_control_hash": digest(
+            ROOT / "src/generaldataagent/evaluation/stage_six_control.py"
         ),
         "repair_tools_hash": digest(ROOT / "src/generaldataagent/evaluation/stage_six_repair.py"),
         "model_adapter_hash": digest(ROOT / "src/generaldataagent/evaluation/stage_six_models.py"),
@@ -219,6 +250,7 @@ def main():
                 tool_profile=args.tool_profile,
                 thinking_mode=args.thinking,
                 json_mode=args.json_mode,
+                max_output_tokens=args.max_output_tokens,
                 request_interval_seconds=args.request_interval_seconds,
                 pacing_database=ROOT / ".state/stage6/request-pacing.sqlite",
             )

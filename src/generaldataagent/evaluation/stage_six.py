@@ -796,6 +796,7 @@ def run_isolated(
     tool_profile: str = "sql",
     thinking_mode: str = "default",
     json_mode: bool = False,
+    max_output_tokens: int = 3000,
     request_interval_seconds: float = 0,
     pacing_database: Path | None = None,
 ) -> dict:
@@ -811,6 +812,7 @@ def run_isolated(
         "tool_profile": tool_profile,
         "thinking_mode": thinking_mode,
         "json_mode": json_mode,
+        "max_output_tokens": max_output_tokens,
         "request_interval_seconds": request_interval_seconds,
         "pacing_database": str(pacing_database) if pacing_database else None,
         "documents": documents,

@@ -87,3 +87,29 @@ def test_native_thinking_and_json_parameters_are_explicit(provider, monkeypatch)
     assert captured["model_kwargs"] == {"response_format": {"type": "json_object"}}
     with pytest.raises(ValueError):
         resolve_evaluation_model(app_type="codex", provider_id="p", thinking_mode="off")
+
+
+def test_output_cap_is_request_scoped_and_fingerprinted(provider, monkeypatch):
+    import generaldataagent.evaluation.stage_six_models as module
+
+    selected, limited = resolve_evaluation_model(
+        app_type="codex",
+        provider_id="p",
+        transport="openai-chat",
+        max_output_tokens=1024,
+    )
+    _, default = resolve_evaluation_model(
+        app_type="codex", provider_id="p", transport="openai-chat"
+    )
+    assert limited["route_hash"] != default["route_hash"]
+    captured = {}
+    monkeypatch.setattr(module, "ChatOpenAI", lambda **kwargs: captured.update(kwargs))
+    module.build_evaluation_model(selected, limited)
+    assert captured["max_tokens"] == 1024
+    assert provider.model == "old/model"
+
+
+@pytest.mark.parametrize("cap", [0, 31, 3001, True, 1.5])
+def test_invalid_output_caps_are_rejected(provider, cap):
+    with pytest.raises(ValueError, match="output token limit"):
+        resolve_evaluation_model(app_type="codex", provider_id="p", max_output_tokens=cap)

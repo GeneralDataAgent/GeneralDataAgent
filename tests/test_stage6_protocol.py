@@ -51,3 +51,13 @@ def test_scalar_helpers_are_part_of_the_scorer_fingerprint(monkeypatch):
 
     monkeypatch.setattr(module, "_number", other_number)
     assert protocol_hash(module.evaluation_protocol(workers=1)) != original
+
+
+def test_per_call_output_budget_is_an_evaluator_invariant():
+    normal = evaluation_protocol(workers=1)
+    constrained = evaluation_protocol(workers=1, max_output_tokens=1024)
+    assert normal["max_output_tokens_per_call"] == 3000
+    assert constrained["max_output_tokens_per_call"] == 1024
+    assert protocol_hash(normal) != protocol_hash(constrained)
+    with pytest.raises(ValueError):
+        evaluation_protocol(workers=1, max_output_tokens=0)

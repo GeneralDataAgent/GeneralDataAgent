@@ -34,6 +34,42 @@ class ServiceCircuitBreaker:
                     self._reason = "repeated_provider_failure"
 
 
+def service_readiness(report: dict, *, min_tasks: int = 6, max_error_rate: float = 0.05) -> dict:
+    """A successful tiny request is insufficient evidence for a full-context batch."""
+    from generaldataagent.evaluation.stage_six_gates import validate_report
+
+    if type(min_tasks) is not int or min_tasks < 1 or not 0 <= max_error_rate <= 1:
+        raise ValueError("invalid service calibration policy")
+    summary = validate_report(report)
+    rows = report["results"]
+    errors = sum(
+        row["failure"] in {"model_error", "worker_error", "worker_deadline", "service_circuit_open"}
+        for row in rows
+    )
+    replied = sum(row["tokens"] > 0 for row in rows)
+    blockers = []
+    if summary["n"] < min_tasks:
+        blockers.append("insufficient_calibration_tasks")
+    if report.get("requested_n", summary["n"]) != summary["n"]:
+        blockers.append("incomplete_calibration_cohort")
+    if any(not row.get("attempted", True) for row in rows) or replied < summary["n"]:
+        blockers.append("insufficient_observed_model_replies")
+    if errors / summary["n"] > max_error_rate:
+        blockers.append("provider_error_rate_exceeded")
+    if not summary["token_telemetry_complete"]:
+        blockers.append("incomplete_token_telemetry")
+    return {
+        "ready": not blockers,
+        "n": summary["n"],
+        "observed_model_replies": replied,
+        "service_errors": errors,
+        "service_error_rate": errors / summary["n"],
+        "blocked_by": blockers,
+        "scope": "sampled service and telemetry preflight; not task quality qualification",
+        "production_accepted": False,
+    }
+
+
 def not_attempted_result(reason: str) -> dict:
     return {
         "answers": {},
@@ -63,7 +99,7 @@ class SharedRequestPacer:
     def __init__(self, database, *, scope: str, interval_seconds: float):
         import math
 
-        if not scope or not math.isfinite(interval_seconds) or not 0 < interval_seconds <= 10:
+        if not scope or not math.isfinite(interval_seconds) or not 0 < interval_seconds <= 60:
             raise ValueError("invalid request pacing")
         self.database, self.scope, self.interval = database, scope, interval_seconds
         database.parent.mkdir(parents=True, exist_ok=True)
