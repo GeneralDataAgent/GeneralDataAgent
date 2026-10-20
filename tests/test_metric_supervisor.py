@@ -275,3 +275,40 @@ def test_discovery_and_cached_execution_are_request_bound(tmp_path):
     with pytest.raises(PermissionError, match="bound request"):
         groups["data_analysis"][0].invoke({**args, "dimensions": []})
     assert groups["data_analysis"][0].invoke(args)["task_id"] == result["task_id"]
+
+
+def test_no_argument_bound_tools_execute_exact_request_and_reject_overrides(tmp_path):
+    from pydantic import ValidationError
+
+    runtime = build_supervisor_runtime(tmp_path)
+    runtime.bound_tool_arguments = True
+    query = MetricQuery(metric_name="event_count", metric_version="v1", dimensions=("segment",))
+    candidates, events = {}, []
+    tools = runtime._build_actor_tools(actor(), candidates, events, bound_query=query)
+    for _name, tool in [
+        ("discovery", tools["discovery"][0]),
+        ("data_analysis", tools["data_analysis"][0]),
+    ]:
+        assert tool.args_schema.model_json_schema()["additionalProperties"] is False
+        with pytest.raises(ValidationError):
+            tool.invoke({"metric_name": "other"})
+        result = tool.invoke({})
+        assert result
+    assert candidates["current"]["analysis"]["delivery_package"]["rows"] == [["a", 1], ["b", 1]]
+    assert tools["verification"][0].invoke({})["status"] == "pass"
+    assert tools["reporting"][0].invoke({})["rows"] == [["a", 1], ["b", 1]]
+    assert events == ["discovery", "data-analyst", "verifier", "reporter"]
+    with pytest.raises(ValueError, match="explicit request"):
+        runtime._build_actor_tools(actor(), {}, [])
+
+
+def test_bound_tools_keep_domain_denial_and_role_order(tmp_path):
+    runtime = build_supervisor_runtime(tmp_path)
+    runtime.bound_tool_arguments = True
+    query = MetricQuery(metric_name="event_count", metric_version="v1")
+    groups = runtime._build_actor_tools(actor(("unrelated",)), {}, [], bound_query=query)
+    with pytest.raises(PermissionError, match="unauthorized"):
+        groups["discovery"][0].invoke({})
+    groups = runtime._build_actor_tools(actor(), {}, [], bound_query=query)
+    with pytest.raises(PermissionError, match="expected.*discovery"):
+        groups["data_analysis"][0].invoke({})

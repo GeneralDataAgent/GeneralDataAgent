@@ -33,6 +33,7 @@ async def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--provider-id", required=True)
     parser.add_argument("--model", required=True)
+    parser.add_argument("--bound-tools", action="store_true")
     parser.add_argument("--limit", type=int, default=3, choices=range(1, 4))
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
@@ -65,7 +66,12 @@ async def main():
         executor=SQLiteReadOnlyExecutor(database, max_rows=100),
         artifacts=LocalArtifactStore(args.output.parent / "oracle-artifacts"),
     )
-    supervisor = MetricSupervisorRuntime(model=model, catalog=catalog, metric_runtime=runtime)
+    supervisor = MetricSupervisorRuntime(
+        model=model,
+        catalog=catalog,
+        metric_runtime=runtime,
+        bound_tool_arguments=args.bound_tools,
+    )
     cases = [
         json.loads(line) for line in (root / "evals/datasets/stage1.jsonl").read_text().splitlines()
     ][: args.limit]
@@ -74,6 +80,7 @@ async def main():
         "supervisor_hash": digest(root / "src/generaldataagent/agents/metric_supervisor.py"),
         "cost_usd": None,
         "evaluation": "actual-governed-supervisor-tlc",
+        "bound_tool_arguments": args.bound_tools,
         "model_route": route,
         "database_hash": before,
         "source_cases_hash": digest(root / "evals/datasets/stage1.jsonl"),

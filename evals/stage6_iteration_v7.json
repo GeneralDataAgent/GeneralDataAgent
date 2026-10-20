@@ -1,0 +1,10 @@
+{
+  "iteration": "stage6-v7-system-iteration",
+  "pairs": [
+    {"track": "BIRD Mini-Dev", "baseline": "bird-super-control-full-v7", "candidate": "bird-super-repair-full-v7"},
+    {"track": "InfiAgent-DABench", "baseline": "infi-super-control-full-v7", "candidate": "infi-super-repair-full-v7"},
+    {"track": "DABstep dev", "baseline": "dabstep-super-control-v7", "candidate": "dabstep-super-repair-v7"}
+  ],
+  "supervisor_runs": ["supervisor-super-control-v7", "supervisor-super-bound-v7"],
+  "qualification": "repair-observations-v7.json"
+}

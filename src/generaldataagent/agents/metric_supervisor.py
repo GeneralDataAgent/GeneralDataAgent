@@ -2,12 +2,14 @@
 
 import asyncio
 import json
+from dataclasses import replace
 from datetime import datetime
 from typing import Any
 
 from deepagents.backends import StateBackend
 from langchain_core.tools import StructuredTool
 from langgraph.checkpoint.memory import InMemorySaver
+from pydantic import BaseModel, ConfigDict
 
 from generaldataagent.agents.contracts import SpecialistResult, SupervisorResult
 from generaldataagent.agents.factory import build_supervisor
@@ -35,6 +37,17 @@ passes; a completed answer without reporter is invalid.
 _REQUIRED_ROLE_SEQUENCE = ("discovery", "data-analyst", "verifier", "reporter")
 
 
+class _NoToolArguments(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class _BoundRequestTool(StructuredTool):
+    def _to_args_and_kwargs(self, tool_input, tool_call_id):
+        # LangChain's empty-schema fast path skips validation. Explicitly reject extras.
+        _NoToolArguments.model_validate(tool_input)
+        return (), {}
+
+
 class MetricSupervisorRuntime:
     """Bind a Supervisor and its specialists to one authenticated actor."""
 
@@ -45,7 +58,11 @@ class MetricSupervisorRuntime:
         catalog: InMemoryMetricCatalog,
         metric_runtime: MetricAnalysisRuntime,
         orchestration_router: OrchestrationRouter | None = None,
+        bound_tool_arguments: bool = False,
     ) -> None:
+        if type(bound_tool_arguments) is not bool:
+            raise ValueError("bound_tool_arguments must be a boolean")
+        self.bound_tool_arguments = bound_tool_arguments
         self.model = model
         self.catalog = catalog
         self.metric_runtime = metric_runtime
@@ -82,6 +99,20 @@ class MetricSupervisorRuntime:
         role_events: list[str] = []
         tool_groups = self._build_actor_tools(actor, candidates, role_events, bound_query=query)
         specs = tuple(spec for spec in SPECIALIST_SPECS if spec.name in _PHASE_ONE_ROLES)
+        if self.bound_tool_arguments:
+            specs = tuple(
+                replace(
+                    spec,
+                    system_prompt=spec.system_prompt
+                    + (
+                        " Your tool is already bound to the authenticated request. "
+                        "Call it with {}. "
+                        "Do not reconstruct metric arguments or write SQL. "
+                        "Use the returned evidence."
+                    ),
+                )
+                for spec in specs
+            )
         middleware = (
             (
                 self.orchestration_router.for_task(
@@ -103,7 +134,13 @@ class MetricSupervisorRuntime:
             checkpointer=InMemorySaver(),
             specialist_specs=specs,
             response_formats={spec.name: SpecialistResult.model_json_schema() for spec in specs},
-            system_prompt=METRIC_SUPERVISOR_PROMPT,
+            system_prompt=METRIC_SUPERVISOR_PROMPT
+            + (
+                " All specialist tools already bind the exact authenticated request; "
+                "call them with empty argument objects."
+                if self.bound_tool_arguments
+                else ""
+            ),
         )
         request = {
             "metric_query": query.model_dump(mode="json"),
@@ -280,7 +317,7 @@ class MetricSupervisorRuntime:
                 raise PermissionError("candidate has not passed validation")
             return candidate["delivery_package"]
 
-        return {
+        groups = {
             "supervisor": [],
             "discovery": [
                 StructuredTool.from_function(
@@ -322,6 +359,55 @@ class MetricSupervisorRuntime:
                 )
             ],
         }
+        if self.bound_tool_arguments:
+            if bound_query is None:
+                raise ValueError("bound tools require an explicit request")
+
+            def discover_bound_request():
+                return resolve_certified_metric(
+                    bound_query.metric_name,
+                    bound_query.metric_version,
+                    list(bound_query.dimensions),
+                )
+
+            def execute_bound_request():
+                return execute_certified_metric(
+                    bound_query.metric_name,
+                    bound_query.metric_version,
+                    list(bound_query.dimensions),
+                    bound_query.start_time,
+                    bound_query.end_time,
+                )
+
+            groups["discovery"] = [
+                _BoundRequestTool.from_function(
+                    discover_bound_request,
+                    name="resolve_certified_metric",
+                    description=(
+                        "Resolve the exact bound certified metric request. Takes no arguments."
+                    ),
+                    args_schema=_NoToolArguments,
+                )
+            ]
+            groups["data_analysis"] = [
+                _BoundRequestTool.from_function(
+                    execute_bound_request,
+                    name="execute_certified_metric",
+                    description="Execute the bound request with policy and evidence. No arguments.",
+                    args_schema=_NoToolArguments,
+                )
+            ]
+            for group in ("verification", "reporting"):
+                previous = groups[group][0]
+                groups[group] = [
+                    _BoundRequestTool.from_function(
+                        previous.func,
+                        name=previous.name,
+                        description=previous.description,
+                        args_schema=_NoToolArguments,
+                    )
+                ]
+        return groups
 
 
 def _candidate(candidates: dict[str, dict[str, Any]]) -> dict[str, Any]:

@@ -1,6 +1,7 @@
 """Paired system comparisons with explicit model-service confounding diagnostics."""
 
 import math
+from collections import Counter
 
 from generaldataagent.evaluation.stage_six import paired_gate
 from generaldataagent.evaluation.stage_six_gates import validate_report
@@ -44,6 +45,22 @@ def compare_runs(baseline: dict, candidate: dict, *, max_service_error_rate: flo
         "pass_rate_delta": after["pass_at_1"] - before["pass_at_1"],
         "service_failures": {"baseline": failures[0], "candidate": failures[1]},
         "observed_cost_usd": {"baseline": observed_cost[0], "candidate": observed_cost[1]},
+        "efficiency": {
+            name: {
+                "reported_tokens": summary["tokens"],
+                "token_telemetry_complete": summary["token_telemetry_complete"],
+                "p50_seconds": summary["p50_seconds"],
+                "p95_seconds": summary["p95_seconds"],
+                "cost_usd": summary["cost_usd"],
+            }
+            for name, summary in [("baseline", before), ("candidate", after)]
+        },
+        "failure_transitions": dict(
+            Counter(
+                (old[key]["failure"] or "passed") + "->" + (new[key]["failure"] or "passed")
+                for key in old
+            )
+        ),
         "attribution_valid": not blockers,
         "blocked_by": blockers,
         "mcnemar_exact_two_sided_p": exact_p,

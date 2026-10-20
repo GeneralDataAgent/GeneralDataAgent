@@ -57,3 +57,16 @@ def test_service_confounding_preserves_denominator_and_suppresses_inference():
     assert not result["attribution_valid"]
     assert result["mcnemar_exact_two_sided_p"] is None
     assert result["service_failures"]["baseline"] == 1
+
+
+def test_efficiency_and_failure_transitions_preserve_unknown_usage():
+    a, b = report(), report()
+    b["results"][0].update(failure="token_budget", tokens=20, cost_usd=None)
+    b["summary"] = summarize(b["results"])
+    result = compare_runs(a, b)
+    assert result["efficiency"]["baseline"]["reported_tokens"] == 100
+    assert result["efficiency"]["candidate"]["reported_tokens"] == 110
+    assert not result["efficiency"]["candidate"]["token_telemetry_complete"]
+    assert result["efficiency"]["candidate"]["cost_usd"] is None
+    assert result["failure_transitions"]["answer_mismatch->token_budget"] == 1
+    assert result["failure_transitions"]["answer_mismatch->answer_mismatch"] == 9
