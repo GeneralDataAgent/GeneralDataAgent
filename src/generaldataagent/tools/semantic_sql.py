@@ -218,16 +218,28 @@ def compile_semantic_plan(
     return sql, spec
 
 
+def physical_plan_schema(database, *, relations, allowed_relations):
+    """Read exact authorized physical field names; no sampled schema inference."""
+    import sqlite3
+
+    if not set(relations) <= set(allowed_relations):
+        raise ValueError("plan relation is outside authorized scope")
+    schema = {}
+    with sqlite3.connect(database.resolve().as_uri() + "?mode=ro", uri=True) as db:
+        for table in relations:
+            quoted = '"' + table.replace('"', '""') + '"'
+            schema[table] = [row[1] for row in db.execute(f"PRAGMA table_info({quoted})")]
+    return schema
+
+
 def execute_semantic_plan(
     database, plan, *, allowed_relations, question, instructions="", max_rows=200
 ):
     """Compile against physical scoped schema and execute a complete bounded read-only result.
 
-    This API is not registered as a model tool. Compilation and execution remain separate from
+    Compilation and execution remain separate from
     independent business interpretation review and benchmark scoring.
     """
-    import sqlite3
-
     from generaldataagent.tools.sql_semantics import (
         SemanticError,
         inspect_semantics,
@@ -238,11 +250,9 @@ def execute_semantic_plan(
 
     if type(max_rows) is not int or not 1 <= max_rows <= 10000:
         raise ValueError("plan result limit must be between one and ten thousand")
-    schema = {}
-    with sqlite3.connect(database.resolve().as_uri() + "?mode=ro", uri=True) as db:
-        for table in allowed_relations:
-            quoted = '"' + table.replace('"', '""') + '"'
-            schema[table] = [row[1] for row in db.execute(f"PRAGMA table_info({quoted})")]
+    schema = physical_plan_schema(
+        database, relations=plan.relations, allowed_relations=allowed_relations
+    )
     sql, spec = compile_semantic_plan(
         plan, schema=schema, question=question, instructions=instructions
     )

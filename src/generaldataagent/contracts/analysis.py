@@ -5,6 +5,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from generaldataagent.contracts.answer_fields import AnswerFieldSpec
+from generaldataagent.contracts.query_plan import SemanticQueryPlan
 from generaldataagent.contracts.semantic_requirements import SemanticRequirements
 
 
@@ -72,6 +73,7 @@ class CrosscheckArguments(CollectionArguments):
 
 class ToolAction(Contract):
     sql: str | None = Field(default=None, min_length=1, max_length=30000)
+    query_plan: SemanticQueryPlan | None = None
     answer_sql: str | None = Field(default=None, min_length=1, max_length=30000)
     final_sql: str | None = Field(default=None, min_length=1, max_length=30000)
     search: str | None = Field(default=None, min_length=1, max_length=300)
@@ -93,6 +95,7 @@ class ToolAction(Contract):
             "sql",
             "final_sql",
             "answer_sql",
+            "query_plan",
             "search",
             "analysis",
             "collect",

@@ -62,7 +62,14 @@ def main():
     parser.add_argument("--json-mode", action="store_true")
     parser.add_argument(
         "--tool-profile",
-        choices=["sql", "sql-analysis", "sql-repair", "sql-precision", "sql-semantic"],
+        choices=[
+            "sql",
+            "sql-analysis",
+            "sql-repair",
+            "sql-precision",
+            "sql-semantic",
+            "sql-semantic-plan",
+        ],
         default="sql",
     )
     parser.add_argument(
@@ -73,8 +80,13 @@ def main():
     parser.add_argument("--bird-databases", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    if args.tool_profile == "sql-semantic" and args.evaluation_protocol != "stage7-v1":
+    if (
+        args.tool_profile in {"sql-semantic", "sql-semantic-plan"}
+        and args.evaluation_protocol != "stage7-v1"
+    ):
         parser.error("sql-semantic requires stage7-v1; rerun both comparison arms")
+    if args.tool_profile == "sql-semantic-plan" and args.benchmark != "bird":
+        parser.error("structured query plans require the SQL-output benchmark")
     if args.tool_profile == "sql-precision" and args.benchmark != "bird":
         parser.error("SQL precision requires the SQL-output benchmark")
     if not 0 <= args.request_interval_seconds <= 60:
@@ -176,7 +188,9 @@ def main():
         "worker_hash": digest(ROOT / "src/generaldataagent/evaluation/stage_six_worker.py"),
         "dependency_lock_hash": digest(ROOT / "uv.lock"),
         "tool_profile": args.tool_profile,
-        "stage7_sources": stage7_fingerprint(ROOT) if args.tool_profile == "sql-semantic" else None,
+        "stage7_sources": stage7_fingerprint(ROOT)
+        if args.tool_profile in {"sql-semantic", "sql-semantic-plan"}
+        else None,
         "route_hash": route["route_hash"],
     }
     report = {

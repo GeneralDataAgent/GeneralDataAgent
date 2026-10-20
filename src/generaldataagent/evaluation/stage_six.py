@@ -332,7 +332,14 @@ class BoundedSQLAgent:
             raise ValueError("invalid agent budget")
         if (
             tool_profile
-            not in {"sql", "sql-analysis", "sql-repair", "sql-precision", "sql-semantic"}
+            not in {
+                "sql",
+                "sql-analysis",
+                "sql-repair",
+                "sql-precision",
+                "sql-semantic",
+                "sql-semantic-plan",
+            }
             or not math.isfinite(max_cost_usd)
             or max_cost_usd <= 0
         ):
@@ -357,6 +364,7 @@ class BoundedSQLAgent:
         from generaldataagent.catalog.semantic_context import semantic_context
         from generaldataagent.evaluation.stage_seven import (
             STAGE7_ANALYSIS_PROMPT,
+            STAGE7_PLAN_PROMPT,
             STAGE7_PROMPT,
             STAGE7_SQL_PROMPT,
             ToolConversation,
@@ -388,7 +396,10 @@ class BoundedSQLAgent:
             validate_rows,
         )
 
-        semantic = self.tool_profile == "sql-semantic"
+        plan_mode = self.tool_profile == "sql-semantic-plan"
+        semantic = self.tool_profile in {"sql-semantic", "sql-semantic-plan"}
+        if plan_mode and task.benchmark != "bird-mini-dev-sqlite":
+            raise ValueError("structured query plans require SQL-output tasks")
         task_spec = None
         automatic_spec = False
         evidence = {}
@@ -397,8 +408,18 @@ class BoundedSQLAgent:
         precision = self.tool_profile == "sql-precision"
         if precision and task.benchmark != "bird-mini-dev-sqlite":
             raise ValueError("SQL precision requires a SQL-output task")
-        repair = self.tool_profile in {"sql-repair", "sql-precision", "sql-semantic"}
-        enhanced = self.tool_profile in {"sql-analysis", "sql-repair", "sql-semantic"}
+        repair = self.tool_profile in {
+            "sql-repair",
+            "sql-precision",
+            "sql-semantic",
+            "sql-semantic-plan",
+        }
+        enhanced = self.tool_profile in {
+            "sql-analysis",
+            "sql-repair",
+            "sql-semantic",
+            "sql-semantic-plan",
+        }
         extra = (
             """
 You also have fixed read-only tools. Search business documents with {"search":"terms"};
@@ -464,7 +485,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
             precision = False  # Preserve the independent SQL-output profile flag.
             messages[0] = ("system", STAGE7_ANALYSIS_PROMPT)
         if semantic and task.benchmark == "bird-mini-dev-sqlite":
-            messages[0] = ("system", STAGE7_SQL_PROMPT)
+            messages[0] = ("system", STAGE7_SQL_PROMPT + (STAGE7_PLAN_PROMPT if plan_mode else ""))
         if precision:
             request = json.loads(messages[1][1])
             request.pop("answer_fields", None)
@@ -508,6 +529,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
             if observed_cost >= self.max_cost_usd:
                 failure = "cost_budget"
                 break
+            compiled_plan = None
             previous_task_spec = task_spec
             previous_automatic_spec = automatic_spec
             action = None
@@ -535,6 +557,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                             self.model,
                             sql_output=task.benchmark == "bird-mini-dev-sqlite",
                             planned=task_spec is not None,
+                            plan_enabled=plan_mode,
                         )
                         if semantic
                         else self.model
@@ -605,6 +628,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                         "submit_answers": "answers",
                         "declare_unsupported": "unsupported",
                         "submit_sql_answers": "answer_sql",
+                        "submit_query_plan": "query_plan",
                     }
                     if name == "analysis_action":
                         content = json.dumps(arguments)
@@ -632,6 +656,27 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                             action[field].setdefault("question", task.question)
                             action[field].setdefault("public_requirements", task.instructions)
                     action = validate_action(action)
+                    if "query_plan" in action:
+                        if not plan_mode or task_spec is not None:
+                            raise SemanticError("query_plan_requires_unplanned_opt_in_task")
+                        from generaldataagent.contracts.query_plan import SemanticQueryPlan
+                        from generaldataagent.tools.semantic_sql import (
+                            compile_semantic_plan,
+                            physical_plan_schema,
+                        )
+
+                        compiled_plan = SemanticQueryPlan.model_validate(action["query_plan"])
+                        sql, compiled_spec = compile_semantic_plan(
+                            compiled_plan,
+                            schema=physical_plan_schema(
+                                database,
+                                relations=compiled_plan.relations,
+                                allowed_relations=relations,
+                            ),
+                            question=task.question,
+                            instructions=task.instructions,
+                        )
+                        action = {"final_sql": sql, "task_spec": compiled_spec.model_dump()}
                     if "task_spec" in action:
                         if task_spec is not None:
                             raise SemanticError("contract is immutable within a run")
@@ -928,6 +973,8 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                 }
                 if semantic:
                     event["response_mode"] = "native_function" if calls else "json"
+                    if compiled_plan is not None:
+                        event["compiled_query_plan"] = compiled_plan.model_dump()
                 if tool == "sql":
                     event.update(sql=sql, row_count=len(result.rows), elapsed_ms=result.elapsed_ms)
                 else:

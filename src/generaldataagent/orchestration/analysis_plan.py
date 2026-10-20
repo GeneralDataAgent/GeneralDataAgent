@@ -72,6 +72,7 @@ def normalize_protocol_action(action):
         "submit_answers": "answers",
         "declare_unsupported": "unsupported",
         "submit_sql_answers": "answer_sql",
+        "submit_query_plan": "query_plan",
     }
     if not isinstance(action, dict):
         return action

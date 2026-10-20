@@ -53,6 +53,8 @@ def stage7_fingerprint(root: Path) -> dict:
         "catalog/field_evidence.py",
         "tools/sql_semantics.py",
         "evaluation/stage_seven.py",
+        "contracts/query_plan.py",
+        "tools/semantic_sql.py",
     ]
     return {name: digest(root / "src/generaldataagent" / name) for name in files}
 
@@ -93,7 +95,7 @@ No answer/search/analysis/collect actions for SQL-output tasks. Do not repeat un
 """
 
 
-def bind_typed_tools(model, *, sql_output: bool, planned: bool = False):
+def bind_typed_tools(model, *, sql_output: bool, planned: bool = False, plan_enabled=False):
     """Small native wire schemas; complete strict contracts remain enforced locally."""
     if not hasattr(model, "bind"):
         return model
@@ -159,6 +161,20 @@ def bind_typed_tools(model, *, sql_output: bool, planned: bool = False):
                 ),
             ]
         choice = {"type": "function", "function": {"name": "submit_sql"}}
+        if plan_enabled and not planned:
+            from generaldataagent.contracts.query_plan import SemanticQueryPlan
+
+            tools.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "submit_query_plan",
+                        "description": "Compile entity counts or tie-preserving ranks",
+                        "parameters": SemanticQueryPlan.model_json_schema(),
+                    },
+                }
+            )
+            choice = "required"
     else:
         field = {
             "type": "object",
@@ -289,3 +305,23 @@ class ToolConversation(list):
             self.pending = []
         else:
             super().append(message)
+
+
+STAGE7_PLAN_PROMPT = """
+An optional submit_query_plan tool compiles a bounded relational plan into final SQLite. Prefer
+it for entity counts and ranked entities if the declared plan can express the whole public task.
+Use physical relation and column names. Field references are {relation,column}. A projection is
+{field:{relation,column},name:output_name}. Declare entity_keys, projections and metric, optional
+partition_by and aggregation none/sum/avg/count. top_k defaults to 1. ties=all preserves every tie;
+single winners require tie_break_by with explicit public field/direction/source_excerpt.
+Connected joins use {left:{relation,column},right:{relation,column},kind:inner/left}.
+Filters use {field,operator:eq/ne/lt/lte/gt/gte/in/is_null/is_not_null,value,source_excerpt,
+phase:before/after_rank}. Choose the ranking population explicitly: selecting requested members
+AMONG the top N of a whole group is not the same as ranking only those members. Use after_rank
+for membership that applies after ranking; use before for conditions defining the ranked population.
+The plan source_excerpt and every filter excerpt must be copied exactly from public text.
+Use count_basis entities with entity_keys for distinct entity counts; records counts joined rows.
+Self-joins, OR conditions, arbitrary formulas and computed output expressions need submit_sql.
+Do not force an unsuitable task into a plan. Compilation proves declared structure, not business
+interpretation. Retain the same six-action, token and time budgets. No reference answers or SQL.
+"""

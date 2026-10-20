@@ -20,7 +20,14 @@ def database(tmp_path):
     return path
 
 
-def run(database, actions, benchmark="bird-mini-dev-sqlite", question="champions", instructions=""):
+def run(
+    database,
+    actions,
+    benchmark="bird-mini-dev-sqlite",
+    question="champions",
+    instructions="",
+    profile="sql-semantic",
+):
     iterator = iter(actions)
 
     class Model:
@@ -32,7 +39,7 @@ def run(database, actions, benchmark="bird-mini-dev-sqlite", question="champions
             )
 
     task = Task(benchmark, "synthetic", question, instructions, "easy", "data")
-    return BoundedSQLAgent(Model(), tool_profile="sql-semantic", max_steps=len(actions)).run(
+    return BoundedSQLAgent(Model(), tool_profile=profile, max_steps=len(actions)).run(
         task, database
     )
 
@@ -643,3 +650,74 @@ def test_native_atomic_query_finishes_without_a_second_binding_call(database):
     assert result["failure"] is None and result["answers"] == {"n": 2}
     assert result["trace"][0]["response_mode"] == "native_function"
     assert result["answer_evidence"]["n"]["step"] == 1
+
+
+def test_native_query_plan_compiles_to_final_sql_in_one_opt_in_action(database):
+    from langchain_core.messages import AIMessage
+
+    from generaldataagent.tools.sqlite import SQLiteReadOnlyExecutor
+
+    class Native:
+        def bind(self, **kwargs):
+            assert {tool["function"]["name"] for tool in kwargs["tools"]} == {
+                "submit_sql",
+                "submit_query_plan",
+            }
+            assert kwargs["tool_choice"] == "required"
+            return self
+
+        def invoke(self, messages):
+            return AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "submit_query_plan",
+                        "id": "plan",
+                        "args": {
+                            "operation": "rank",
+                            "relations": ["people"],
+                            "entity_keys": [{"relation": "people", "column": "id"}],
+                            "projections": [
+                                {"field": {"relation": "people", "column": "id"}, "name": "id"}
+                            ],
+                            "metric": {"relation": "people", "column": "score"},
+                            "source_excerpt": "top 1 by score",
+                        },
+                    }
+                ],
+                usage_metadata={"total_tokens": 10, "input_tokens": 8, "output_tokens": 2},
+            )
+
+    before = database.read_bytes()
+    task = Task("bird-mini-dev-sqlite", "synthetic", "top 1 by score", "", "easy", "people")
+    result = BoundedSQLAgent(Native(), tool_profile="sql-semantic-plan", max_steps=1).run(
+        task, database
+    )
+    assert result["failure"] is None and len(result["trace"]) == 1
+    assert SQLiteReadOnlyExecutor(database).execute(result["final_sql"]).rows == ((1,), (2,))
+    assert result["trace"][0]["compiled_query_plan"]["ties"] == "all"
+    assert database.read_bytes() == before
+
+
+def test_query_plan_profile_is_explicit_and_sql_output_only(database):
+    action = {
+        "submit_query_plan": {
+            "operation": "count",
+            "relations": ["people"],
+            "entity_keys": [{"relation": "people", "column": "id"}],
+            "source_excerpt": "champions",
+        }
+    }
+    result = run(
+        database,
+        [action, {"submit_sql": {"sql": "SELECT id FROM people", "output_columns": ["id"]}}],
+    )
+    assert result["failure"] is None
+    assert result["trace"][0]["checks"] == ["query_plan_requires_unplanned_opt_in_task"]
+    with pytest.raises(ValueError, match="SQL-output"):
+        run(
+            database,
+            [{"unsupported": "method"}],
+            benchmark="infiagent-dabench",
+            profile="sql-semantic-plan",
+        )
