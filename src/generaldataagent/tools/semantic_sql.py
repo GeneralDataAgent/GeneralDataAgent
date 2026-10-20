@@ -1,0 +1,206 @@
+"""Compile scoped entity counts and tie-preserving ranks from a bounded relational plan.
+
+The compiler guarantees declared plan semantics, not that a model chose the right business
+interpretation. Only physical fields, fixed operators and public filter literals are accepted.
+"""
+
+import math
+import re
+from datetime import date
+
+from generaldataagent.contracts.analysis import AnalysisTaskSpec, AnswerSpec
+from generaldataagent.contracts.query_plan import SemanticQueryPlan
+from generaldataagent.tools.sql_guard import SqlGuard
+
+
+def compile_semantic_plan(
+    plan: SemanticQueryPlan, *, schema: dict[str, list[str]], question: str, instructions: str = ""
+) -> tuple[str, AnalysisTaskSpec]:
+    public = question + "\n" + instructions
+    if plan.source_excerpt not in public:
+        raise ValueError("plan needs an exact public source excerpt")
+    if not set(plan.relations) <= schema.keys():
+        raise ValueError("plan relation is outside authorized scope")
+
+    def quote(value):
+        return '"' + value.replace('"', '""') + '"'
+
+    def field(reference):
+        if (
+            reference.relation not in plan.relations
+            or reference.column not in schema[reference.relation]
+        ):
+            raise ValueError("unknown or out-of-scope plan field")
+        return quote(reference.relation) + "." + quote(reference.column)
+
+    joined = {plan.relations[0]}
+    source = quote(plan.relations[0])
+    for join in plan.joins:
+        if join.left.relation not in joined or join.right.relation in joined:
+            raise ValueError("join graph must be connected and introduce one relation per join")
+        left, right = field(join.left), field(join.right)
+        source += f" {join.kind.upper()} JOIN {quote(join.right.relation)} ON {left}={right}"
+        joined.add(join.right.relation)
+    if joined != set(plan.relations):
+        raise ValueError("unjoined relations or Cartesian products are not permitted")
+
+    def literal(value, evidence):
+        if value is None:
+            raise ValueError("null values need explicit is_null/is_not_null operators")
+        if type(value) is bool:
+            if str(value).casefold() not in evidence.casefold():
+                raise ValueError("boolean filter value has no public evidence")
+            return "1" if value else "0"
+        if type(value) in {int, float}:
+            if (
+                (type(value) is float and not math.isfinite(value))
+                or len(str(value)) > 100
+                or not re.search(r"(?<!\w)" + re.escape(str(value)) + r"(?!\w)", evidence)
+            ):
+                raise ValueError("numeric filter value has no public evidence")
+            return str(value)
+        if isinstance(value, str) and len(value) <= 1000:
+            evidenced = value.casefold() in evidence.casefold()
+            if not evidenced and re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+                candidates = re.findall(r"\d{4}[/-]\d{1,2}[/-]\d{1,2}", evidence)
+                for candidate in candidates:
+                    try:
+                        evidenced |= (
+                            date(*map(int, re.split(r"[/-]", candidate))).isoformat() == value
+                        )
+                    except ValueError:
+                        continue
+            if not evidenced:
+                raise ValueError("text filter value has no public evidence")
+            return "'" + value.replace("'", "''") + "'"
+        raise ValueError("unsupported plan literal")
+
+    conditions = []
+    operators = {"eq": "=", "ne": "<>", "lt": "<", "lte": "<=", "gt": ">", "gte": ">="}
+    for predicate in plan.filters:
+        if predicate.source_excerpt not in public:
+            raise ValueError("filter needs an exact public source excerpt")
+        column = field(predicate.field)
+        if predicate.operator in {"is_null", "is_not_null"}:
+            if not re.search(r"null|missing|缺失|空值", predicate.source_excerpt, re.I):
+                raise ValueError("null filtering must be publicly requested")
+            if predicate.value is not None:
+                raise ValueError("null filters do not take a value")
+            conditions.append(
+                column + (" IS NULL" if predicate.operator == "is_null" else " IS NOT NULL")
+            )
+        elif predicate.operator == "in":
+            if not isinstance(predicate.value, list) or not 1 <= len(predicate.value) <= 100:
+                raise ValueError("IN needs one to one hundred public values")
+            conditions.append(
+                column
+                + " IN ("
+                + ",".join(literal(v, predicate.source_excerpt) for v in predicate.value)
+                + ")"
+            )
+        else:
+            conditions.append(
+                column
+                + operators[predicate.operator]
+                + literal(predicate.value, predicate.source_excerpt)
+            )
+    where = " WHERE " + " AND ".join(conditions) if conditions else ""
+    keys = [field(key) for key in plan.entity_keys]
+    if plan.operation == "count":
+        expression = "SELECT * FROM " + source + where
+        if plan.count_basis == "entities":
+            expression = "SELECT DISTINCT " + ",".join(keys) + " FROM " + source + where
+        sql = "SELECT COUNT(*) AS " + quote(plan.count_name) + " FROM (" + expression + ")"
+        answer = AnswerSpec(columns=[plan.count_name], shape="scalar", nullable=False)
+    else:
+        explicit = re.search(r"\btop\s+(\d+)\b", public, re.I)
+        if explicit and int(explicit.group(1)) != plan.top_k:
+            raise ValueError("top-k differs from the explicit public request")
+        if plan.top_k > 1 and not explicit:
+            raise ValueError("top-k greater than one requires an explicit public count")
+        if plan.ties == "single" and not re.search(
+            r"exactly|break\s+ties|neglect.*ties|choose.*first", public, re.I
+        ):
+            raise ValueError("single-winner tie breaking requires public evidence")
+        tie_values = []
+        for order in plan.tie_break_by:
+            excerpt = order.source_excerpt
+            direction_words = (
+                r"ascending|smallest|lowest"
+                if order.direction == "asc"
+                else r"descending|largest|highest"
+            )
+            if (
+                excerpt not in public
+                or not re.search(
+                    r"(?<!\w)" + re.escape(order.field.column) + r"(?!\w)", excerpt, re.I
+                )
+                or not re.search(direction_words, excerpt, re.I)
+            ):
+                raise ValueError("tie ordering needs explicit public field and direction evidence")
+            tie_values.append(field(order.field))
+        values = [field(p.field) for p in plan.projections]
+        partitions = [field(p) for p in plan.partition_by]
+        metric = field(plan.metric) if plan.metric else "*"
+        if plan.aggregation != "none":
+            metric = plan.aggregation.upper() + "(" + metric + ")"
+        select = [f"{value} AS {quote('_v' + str(i))}" for i, value in enumerate(values)]
+        select += [f"{value} AS {quote('_g' + str(i))}" for i, value in enumerate(partitions)]
+        select += [f"{value} AS {quote('_k' + str(i))}" for i, value in enumerate(keys)]
+        select += [f"{value} AS {quote('_t' + str(i))}" for i, value in enumerate(tie_values)]
+        select.append(metric + " AS " + quote("_metric"))
+        base = "SELECT " + ("DISTINCT " if plan.aggregation == "none" else "") + ",".join(select)
+        base += " FROM " + source + where
+        if plan.aggregation != "none":
+            base += " GROUP BY " + ",".join(dict.fromkeys(values + partitions + keys + tie_values))
+        partition = (
+            ("PARTITION BY " + ",".join(quote("_g" + str(i)) for i in range(len(partitions))) + " ")
+            if partitions
+            else ""
+        )
+        rank = "RANK" if plan.ties == "all" else "ROW_NUMBER"
+        tie_break = ""
+        if plan.ties == "single":
+            tie_break = "," + ",".join(
+                quote("_t" + str(i)) + " " + order.direction.upper()
+                for i, order in enumerate(plan.tie_break_by)
+            )
+        ranked = (
+            "SELECT *,"
+            + rank
+            + "() OVER ("
+            + partition
+            + "ORDER BY "
+            + quote("_metric")
+            + " "
+            + plan.direction.upper()
+            + tie_break
+            + ") AS "
+            + quote("_rank")
+            + " FROM ("
+            + base
+            + ")"
+        )
+        projection = ",".join(
+            quote("_v" + str(i)) + " AS " + quote(p.name) for i, p in enumerate(plan.projections)
+        )
+        sql = (
+            "SELECT "
+            + projection
+            + " FROM ("
+            + ranked
+            + ") WHERE "
+            + quote("_rank")
+            + " <= "
+            + str(plan.top_k)
+        )
+        answer = AnswerSpec(columns=[p.name for p in plan.projections], ties=plan.ties)
+    SqlGuard(dialect="sqlite").inspect(sql, allowed_relations=set(plan.relations))
+    spec = AnalysisTaskSpec(
+        question=question,
+        public_requirements=instructions,
+        grain=[key.relation + "." + key.column for key in plan.entity_keys],
+        filters=conditions,
+        answer=answer,
+    )
+    return sql, spec
