@@ -25,7 +25,8 @@ from generaldataagent.evaluation.stage_six import (
     summarize,
     verify_sources,
 )
-from generaldataagent.llm import CcSwitchProvider, OpenAiCcSwitchProvider
+from generaldataagent.evaluation.stage_six_models import resolve_evaluation_model
+from generaldataagent.evaluation.stage_six_protocol import evaluation_protocol
 from generaldataagent.tools import SQLiteReadOnlyExecutor
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -39,6 +40,9 @@ def main():
     parser.add_argument("--workers", type=int, choices=range(1, 5), default=1)
     parser.add_argument("--app-type", choices=["claude", "codex"], default="claude")
     parser.add_argument("--provider-id")
+    parser.add_argument("--tool-profile", choices=["sql", "sql-analysis"], default="sql")
+    parser.add_argument("--model", help="Per-run model ID; never modifies CC Switch")
+    parser.add_argument("--transport", choices=["configured", "openai-chat"], default="configured")
     parser.add_argument("--bird-databases", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
@@ -66,23 +70,26 @@ def main():
             path = args.bird_databases / asset / (asset + ".sqlite")
             if digest(path) != expected_hashes[asset]:
                 raise ValueError("BIRD database does not match the pinned official snapshot")
-    provider = (CcSwitchProvider if args.app_type == "claude" else OpenAiCcSwitchProvider).load(
-        provider_id=args.provider_id
+    provider, route = resolve_evaluation_model(
+        app_type=args.app_type,
+        provider_id=args.provider_id,
+        model_override=args.model,
+        transport=args.transport,
     )
     args.output.mkdir(parents=True)
     code_hash = digest(Path(__file__).resolve())
-    protocol = {
-        "scorer": "stage6-v1-upstream-infi-absolute1e-6-dab-local-1e-6",
+    protocol = evaluation_protocol(workers=args.workers)
+    system_fingerprint = {
         "prompt_hash": hashlib.sha256(SYSTEM_PROMPT.encode()).hexdigest(),
         "agent_hash": digest(ROOT / "src/generaldataagent/evaluation/stage_six.py"),
-        "steps": 6,
-        "workers": args.workers,
-        "hard_case_deadline_seconds": 125,
-        "seconds": 120,
-        "tokens": 24000,
-        "call_timeout_seconds": 30,
-        "numeric_import": "finite REAL; empty NULL",
-        "result_row_limit": 200,
+        "analysis_tools_hash": digest(
+            ROOT / "src/generaldataagent/evaluation/stage_six_analysis.py"
+        ),
+        "model_adapter_hash": digest(ROOT / "src/generaldataagent/evaluation/stage_six_models.py"),
+        "worker_hash": digest(ROOT / "src/generaldataagent/evaluation/stage_six_worker.py"),
+        "dependency_lock_hash": digest(ROOT / "uv.lock"),
+        "tool_profile": args.tool_profile,
+        "route_hash": route["route_hash"],
     }
     report = {
         "benchmark": selected[0].task.benchmark,
@@ -96,6 +103,7 @@ def main():
         ).hexdigest(),
         "protocol_hash": hashlib.sha256(json.dumps(protocol, sort_keys=True).encode()).hexdigest(),
         "protocol": protocol,
+        "system_fingerprint": system_fingerprint,
         "source_manifest_hash": digest(root / "sources.json"),
         "source_revisions": sorted({x["revision"] for x in manifest["sources"]}),
         "runner_hash": code_hash,
@@ -104,6 +112,8 @@ def main():
             ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
         ).strip(),
         "model": provider.model,
+        "model_route": route,
+        "tool_profile": args.tool_profile,
         "provider_id": provider.provider_id,
         "results": [],
         "scope": "bounded SQL evaluation baseline; not production Supervisor or Python DS agent",
@@ -153,6 +163,10 @@ def main():
             app_type=args.app_type,
             provider_id=provider.provider_id,
             documents=docs,
+            model_override=args.model,
+            transport=args.transport,
+            route_hash=route["route_hash"],
+            tool_profile=args.tool_profile,
         )
         if case.reference_sql:
             expected = None

@@ -23,8 +23,13 @@ def validate_report(report: dict) -> dict:
             raise ValueError("passed must be a boolean")
         if not math.isfinite(row["elapsed_seconds"]) or row["elapsed_seconds"] < 0:
             raise ValueError("invalid latency")
-        if not isinstance(row["tokens"], int) or row["tokens"] < 0:
+        if type(row["tokens"]) is not int or row["tokens"] < 0:
             raise ValueError("invalid token telemetry")
+        cost = row.get("cost_usd")
+        if cost is not None and (
+            type(cost) not in {int, float} or not math.isfinite(cost) or cost < 0
+        ):
+            raise ValueError("invalid cost telemetry")
         if row["passed"] and (row["failure"] or row.get("severe_incident")):
             raise ValueError("contradictory success")
     expected = summarize(results)

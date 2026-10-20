@@ -1,0 +1,131 @@
+"""Fixed, read-only analysis and bounded document retrieval for evaluation tasks.
+
+No generated Python, imports, shell commands, files or database writes are accepted.
+"""
+
+import hashlib
+import math
+import re
+import sqlite3
+import statistics
+
+from generaldataagent.tools.sqlite import SQLiteReadOnlyExecutor
+
+
+def retrieve_documents(documents: str, query: str, *, max_chars: int = 6000) -> dict:
+    if not isinstance(query, str) or not query.strip() or len(query) > 300 or max_chars < 100:
+        raise ValueError("invalid document query")
+    terms = set(re.findall(r"[a-z0-9_]+", query.casefold()))
+    chunks = []
+    for section in re.split(r"(?m)(?=^#{1,4} )", documents):
+        for offset in range(0, len(section), 1800):
+            text = section[max(0, offset - 150) : offset + 2000]
+            words = set(re.findall(r"[a-z0-9_]+", text.casefold()))
+            score = len(terms & words)
+            if score:
+                chunks.append((score, text))
+    chunks.sort(key=lambda item: (-item[0], hashlib.sha256(item[1].encode()).hexdigest()))
+    results = []
+    remaining = max_chars
+    for _, text in chunks[:4]:
+        excerpt = text[:remaining]
+        if not excerpt:
+            break
+        results.append(
+            {"chunk_id": hashlib.sha256(text.encode()).hexdigest(), "untrusted_excerpt": excerpt}
+        )
+        remaining -= len(excerpt)
+    return {"query": query, "matches": results, "truncated": len(chunks) > len(results)}
+
+
+def document_outline(documents: str) -> str:
+    return "\n".join(line for line in documents.splitlines() if line.startswith("#"))[:3000]
+
+
+def fixed_analysis(database, specification: dict, *, allowed_relations: set[str]) -> dict:
+    if set(specification) - {"table", "columns", "operation"}:
+        raise ValueError("unknown analysis parameters")
+    table = specification["table"]
+    columns = specification["columns"]
+    operation = specification["operation"]
+    if table not in allowed_relations:
+        raise ValueError("analysis relation is outside task scope")
+    if (
+        not isinstance(columns, list)
+        or not 1 <= len(columns) <= 2
+        or not all(isinstance(c, str) and len(c) <= 200 for c in columns)
+    ):
+        raise ValueError("one or two explicit columns required")
+    if operation not in {"describe", "pearson", "linear_regression"}:
+        raise ValueError("unsupported fixed analysis")
+    if operation != "describe" and len(columns) != 2:
+        raise ValueError("paired analysis requires two columns")
+
+    def quote(value):
+        return '"' + value.replace('"', '""') + '"'
+
+    executor = SQLiteReadOnlyExecutor(database, max_rows=200_000, timeout_seconds=5)
+    result = executor.execute(
+        "SELECT " + ",".join(quote(c) for c in columns) + " FROM " + quote(table)
+    )
+    # Verify physical column names: SQLite double-quoted-string compatibility must not
+    # turn a misspelled identifier into an apparently valid constant numeric feature.
+    with sqlite3.connect(database.resolve().as_uri() + "?mode=ro", uri=True) as db:
+        physical = {row[1] for row in db.execute("PRAGMA table_info(" + quote(table) + ")")}
+    if not set(columns).issubset(physical):
+        raise ValueError("unknown analysis column")
+    rows = [
+        row
+        for row in result.rows
+        if all(
+            isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+            for v in row
+        )
+    ]
+    output = {
+        "operation": operation,
+        "columns": columns,
+        "observations": len(rows),
+        "dropped_rows": len(result.rows) - len(rows),
+        "method": "pairwise finite values",
+    }
+    if not rows:
+        raise ValueError("no finite observations")
+    if operation == "describe":
+        summaries = {}
+        for index, column in enumerate(columns):
+            values = [row[index] for row in rows]
+            summaries[column] = {
+                "count": len(values),
+                "sum": math.fsum(values),
+                "mean": statistics.mean(values),
+                "median": statistics.median(values),
+                "sample_std": statistics.stdev(values) if len(values) > 1 else None,
+                "min": min(values),
+                "max": max(values),
+            }
+        output["statistics"] = summaries
+    elif operation == "pearson":
+        output["correlation"] = statistics.correlation([r[0] for r in rows], [r[1] for r in rows])
+    else:
+        fit = statistics.linear_regression([r[0] for r in rows], [r[1] for r in rows])
+        output.update(
+            slope=fit.slope,
+            intercept=fit.intercept,
+            scope="descriptive full-snapshot fit; not held-out predictive evaluation",
+        )
+    return output
+
+
+def normalize_visible_answers(task, answers: dict) -> dict:
+    """Parse the task's public closed-form notation; never inspect golden label keys."""
+    if not isinstance(answers, dict):
+        raise ValueError("answers must be an object")
+    names = set(re.findall(r"@(\w+)\[", task.instructions))
+    if names and set(answers) == {"answer"} and isinstance(answers["answer"], str):
+        extracted = re.findall(r"@(\w+)\[([^\[\]]*)\]", answers["answer"])
+        if extracted and len({key for key, _ in extracted}) == len(extracted):
+            parsed = dict(extracted)
+            if set(parsed) == names:
+                return parsed
+    return answers
