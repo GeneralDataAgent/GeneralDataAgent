@@ -201,6 +201,7 @@ def compile_semantic_plan(
         public_requirements=instructions,
         grain=[key.relation + "." + key.column for key in plan.entity_keys],
         filters=conditions,
+        count_basis=plan.count_basis if plan.operation == "count" else "unspecified",
         answer=answer,
     )
     return sql, spec

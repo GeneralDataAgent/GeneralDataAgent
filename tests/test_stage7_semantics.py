@@ -139,3 +139,20 @@ def test_column_repair_candidates_are_physical_and_scoped(tmp_path):
         validate_column_scope(path, "SELECT birthda FROM visible", allowed_relations={"visible"})
     assert caught.value.candidates == ["birthday"]
     assert "secret" not in str(caught.value.candidates)
+
+
+def test_entity_count_checks_keep_join_and_aggregate_in_the_same_scope():
+    spec = AnalysisTaskSpec(question="count unique people", count_basis="entities")
+    valid = [
+        "SELECT COUNT(*) FROM (SELECT DISTINCT p.id FROM people p JOIN events e ON p.id=e.id)",
+        "WITH ids AS (SELECT DISTINCT p.id FROM people p JOIN events e ON p.id=e.id) "
+        "SELECT COUNT(*) FROM ids",
+        "SELECT COUNT(DISTINCT p.id) FROM people p JOIN events e ON p.id=e.id",
+        "SELECT (SELECT COUNT(*) FROM events) FROM people p JOIN departments d ON p.dept=d.id",
+    ]
+    for sql in valid:
+        assert "joined_entity_count_requires_distinct" not in inspect_semantics(sql, spec)
+    invalid = (
+        "WITH n AS (SELECT COUNT(*) AS c FROM people p JOIN events e ON p.id=e.id) SELECT c FROM n"
+    )
+    assert "joined_entity_count_requires_distinct" in inspect_semantics(invalid, spec)

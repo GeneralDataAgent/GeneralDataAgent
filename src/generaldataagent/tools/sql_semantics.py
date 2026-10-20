@@ -42,12 +42,16 @@ def inspect_semantics(sql: str, spec: AnalysisTaskSpec) -> list[str]:
             if bool(first.args.get("desc")) != (spec.order_direction == "desc"):
                 issues.append("order_direction")
     # A joined COUNT(*) contradicts an explicitly requested distinct entity count.
-    if (
-        spec.count_basis == "entities"
-        and any(tree.find_all(exp.Join))
-        and any(not isinstance(c.this, exp.Distinct) for c in tree.find_all(exp.Count))
-    ):
-        issues.append("joined_entity_count_requires_distinct")
+    if spec.count_basis == "entities":
+        for select in tree.find_all(exp.Select):
+            # Do not combine a join in one scope with a count in another. In particular,
+            # COUNT(*) over a DISTINCT entity subquery is a valid deduplication plan.
+            if select.args.get("joins") and any(
+                count.find_ancestor(exp.Select) is select
+                and not isinstance(count.this, exp.Distinct)
+                for count in select.find_all(exp.Count)
+            ):
+                issues.append("joined_entity_count_requires_distinct")
     # Only syntactic denominator safety can be certified without executing task-specific logic.
     if spec.denominator:
         divisions = list(tree.find_all(exp.Div))

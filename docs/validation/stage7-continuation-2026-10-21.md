@@ -17,7 +17,7 @@
 
 冻结源码使用独立 detached worktree，运行时导入路径固定；后续主开发目录改动不进入这批模型评估。源清单、协议哈希、逐题数据库哈希必须一致。运行目录 `.artifacts/stage7/20261021-full-v1/`；历史保护使用 stage6 magpie-*-full-v10 原始完整报告。历史协议不同，仅作保护证据，不能作因果对照。
 
-已结束基线：BIRD 24/60、DABstep 1/10。其余运行尚未结束，这两个数不构成第七期完成结论。失败原始记录保留；不挑选多轮中每题最好答案拼分。
+已结束基线：BIRD 24/60、DABstep 1/10。DABstep 候选也已完成，为 1/10；0 改善、0 回退，历史正确题 5 保持正确，逐字段证据收据检查通过。候选 229,339 token，高于基线 148,774；不宣称效率收益。其余运行尚未结束，这些数不构成第七期完成结论。失败原始记录保留；不挑选多轮中每题最好答案拼分。
 
 ```sh
 UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/stage7_progress.py --root .artifacts/stage7/20261021-full-v1 --historical-root .artifacts/stage6 --output .artifacts/stage7/20261021-full-v1/progress.json
@@ -32,3 +32,9 @@ UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/stage7_progre
 ## 仍需完成
 
 完整两臂模型结果、61 题历史保护与完整收据检查；随后根据真实回退定位通用机制。未见题、三次配对重复、独立复核及生产影子验证仍未通过。费用继续保持 unknown/null，不能由 token 量自行推算。
+
+## 查询作用域修复
+
+后续主分支还修复了实体计数检查的作用域误报：COUNT(*) 外层不能和去重子查询内的 JOIN 混为同一个计数作用域；同一作用域里未去重的连接计数仍拒绝。新增反例同时覆盖 CTE、子查询和独立标量子查询。该修复不进入已经启动的 7827fbe 冻结模型评估。编译器计数契约现在明确记录实体/记录口径。
+
+编译器增量全库回归：804 passed、1 skipped、覆盖率 88.29%；新增作用域修复另经完整本地回归通过。Ruff 与差异空白检查通过。

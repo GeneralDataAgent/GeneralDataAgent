@@ -60,12 +60,15 @@ def test_entity_and_record_counts_have_distinct_declared_grains(database):
     }
     schema = {"people": ["id", "name", "g", "score"], "events": ["person_id"]}
     for basis, expected in [("entities", 2), ("records", 3)]:
-        sql, _ = compile_semantic_plan(
+        sql, spec = compile_semantic_plan(
             SemanticQueryPlan.model_validate(plan | {"count_basis": basis}),
             schema=schema,
             question=question,
         )
         assert SQLiteReadOnlyExecutor(database).execute(sql).rows == ((expected,),)
+        from generaldataagent.tools.sql_semantics import inspect_semantics
+
+        assert not inspect_semantics(sql, spec)
 
 
 def test_unrequested_filters_unknown_fields_and_cartesian_joins_are_rejected(database):
