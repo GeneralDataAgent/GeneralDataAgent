@@ -107,3 +107,21 @@ def test_scope_resolution_rejects_sqlite_double_quoted_string_typos(tmp_path):
     ]:
         validate_column_scope(path, sql, allowed_relations={"people"})
     assert path.read_bytes() == before
+
+
+def test_join_profile_counts_actual_matches_and_excludes_null_or_unmatched_duplicates(tmp_path):
+    path = tmp_path / "cardinality.sqlite"
+    with sqlite3.connect(path) as db:
+        db.executescript(
+            "CREATE TABLE p(k INT); CREATE TABLE c(k INT REFERENCES p(k));"
+            "INSERT INTO p VALUES(1),(1),(NULL),(NULL),(9),(9);"
+            "INSERT INTO c VALUES(1),(1),(2),(2),(NULL),(NULL);"
+        )
+    result = semantic_context(
+        path, allowed_relations={"p", "c"}, public_text="identifier means c.k"
+    )
+    observed = result["cardinalities"][0]
+    assert observed["inner_join_rows"] == 4
+    assert observed["matched_left_rows"] == 2
+    assert observed["expansion_per_matched_left"] == 2
+    assert result["public_field_mappings"]["mappings"][0]["table"] == "c"

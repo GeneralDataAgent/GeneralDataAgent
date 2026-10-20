@@ -50,10 +50,14 @@ def inspect_semantics(sql: str, spec: AnalysisTaskSpec) -> list[str]:
             issues.append("missing_ratio")
         elif any(not d.expression.find(exp.Nullif) for d in divisions):
             issues.append("zero_denominator_unprotected")
-    from generaldataagent.tools.semantic_requirements import check_requirements
+    from generaldataagent.tools.semantic_requirements import (
+        check_public_change_direction,
+        check_requirements,
+    )
 
     try:
         issues.extend(check_requirements(sql, spec.requirements))
+        issues.extend(check_public_change_direction(sql, spec.question))
     except (ValueError, TypeError):
         issues.append("invalid_semantic_requirement")
     return sorted(set(issues))

@@ -105,3 +105,24 @@ def test_provenance_is_public_and_does_not_supply_reference_answers():
     validate_requirement_sources(req, "only kind A", "")
     with pytest.raises(ValueError, match="public source"):
         validate_requirement_sources(req, "different question", "")
+
+
+def test_public_change_reference_is_resolved_without_model_alias_claims():
+    from generaldataagent.tools.semantic_requirements import check_public_change_direction
+
+    question = "What is the percentage change from 2020/1/1 to 2021/1/1?"
+    sources = (
+        " FROM (SELECT value FROM facts WHERE day='2020-01-01') a, "
+        "(SELECT value FROM facts WHERE day='2021-01-01') b"
+    )
+    assert not check_public_change_direction(
+        "SELECT (b.value-a.value)*100/NULLIF(a.value,0)" + sources, question
+    )
+    errors = check_public_change_direction(
+        "SELECT (a.value-b.value)*100/NULLIF(b.value,0)" + sources, question
+    )
+    assert set(errors) == {"change_direction", "change_reference_period"}
+    assert not check_public_change_direction("SELECT x/y FROM facts", question)
+    assert not check_public_change_direction(
+        "SELECT (a.value-b.value)/b.value" + sources, "ordinary ratio?"
+    )

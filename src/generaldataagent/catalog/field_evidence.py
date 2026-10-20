@@ -1,0 +1,86 @@
+"""Conservative public field mappings and observed date-format candidates."""
+
+import re
+from datetime import datetime
+
+from sqlglot import exp, parse_one
+
+
+def date_candidates(column: str, values: list, *, complete: bool) -> dict | None:
+    if not values or not re.search(r"date|day|birth|time|日期|生日", column, re.I):
+        return None
+    patterns = {
+        "iso_date": "%Y-%m-%d",
+        "iso_datetime": "%Y-%m-%d %H:%M:%S",
+        "compact_date": "%Y%m%d",
+        "month_first_slash": "%m/%d/%Y",
+        "day_first_slash": "%d/%m/%Y",
+        "year_first_slash": "%Y/%m/%d",
+    }
+    candidates = []
+    for name, pattern in patterns.items():
+        valid = True
+        for value in values:
+            text = str(value)
+            try:
+                parsed = datetime.strptime(text, pattern)
+                # strptime accepts non-padded values. Preserve the observed encoding accurately.
+                if name in {"iso_date", "compact_date"} and parsed.strftime(pattern) != text:
+                    valid = False
+            except (ValueError, TypeError, OverflowError):
+                valid = False
+        if valid:
+            candidates.append(name)
+    return {
+        "candidates": candidates,
+        "observed_distinct_values": len(values),
+        "observed_values_complete": complete,
+        "verified_business_semantics": False,
+    }
+
+
+def public_field_mappings(text: str, schema: dict[str, list[str]]) -> dict:
+    """Only explicit 'label means/refers to field[=value]' mappings are admitted.
+
+    Unqualified columns occurring in several scoped relations remain ambiguous. Public mappings
+    remain untrusted evidence and never modify the certified metric catalog.
+    """
+    mappings, ambiguous = [], []
+    for sentence in re.split(r"[;\n]", text):
+        match = re.fullmatch(
+            r"\s*(.{1,150}?)\s+(?:means|refers to|表示|是指)\s+(.{1,250}?)\s*\.?", sentence, re.I
+        )
+        if not match:
+            continue
+        label, expression = match.groups()
+        try:
+            tree = parse_one("SELECT " + expression, read="sqlite")
+        except Exception:
+            continue
+        if len(tree.selects) != 1:
+            continue
+        node = tree.selects[0]
+        value = None
+        if isinstance(node, exp.EQ) and isinstance(node.expression, exp.Literal):
+            value, node = node.expression.this, node.this
+        if not isinstance(node, exp.Column) or node.db or node.catalog:
+            continue
+        candidates = [
+            (table, field)
+            for table, fields in schema.items()
+            for field in fields
+            if field.casefold() == node.name.casefold()
+            and (not node.table or node.table.casefold() == table.casefold())
+        ]
+        record = {
+            "label": label.strip(),
+            "source_excerpt": sentence.strip(),
+            "basis": "explicit_public_mapping",
+        }
+        if len(candidates) != 1:
+            if candidates:
+                ambiguous.append(record | {"candidates": candidates})
+            continue
+        table, field = candidates[0]
+        mappings.append(record | {"table": table, "column": field, "enum_value": value})
+    return {"mappings": mappings, "ambiguous": ambiguous}

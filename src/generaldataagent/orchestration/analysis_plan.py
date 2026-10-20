@@ -87,6 +87,19 @@ def normalize_protocol_action(action):
     if name not in names:
         return action
     arguments = action[name]
+    if name == "submit_sql" and isinstance(arguments, dict) and "output_columns" in arguments:
+        if set(arguments) - {"sql", "output_columns", "shape", "ties", "requirements"}:
+            return action
+        if "sql" not in arguments:
+            return action
+        answer = {"columns": arguments["output_columns"]}
+        for field in ("shape", "ties"):
+            if field in arguments:
+                answer[field] = arguments[field]
+        spec = {"answer": answer}
+        if "requirements" in arguments:
+            spec["requirements"] = arguments["requirements"]
+        return {"final_sql": arguments["sql"], "task_spec": spec}
     if name in {"execute_sql", "submit_sql"}:
         if (
             not isinstance(arguments, dict)

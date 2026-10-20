@@ -452,6 +452,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                 database,
                 allowed_relations=relations,
                 max_chars=1500 if task.benchmark == "bird-mini-dev-sqlite" else 4000,
+                public_text=task.question + "\n" + task.instructions,
             )
             messages[1] = ("human", json.dumps(request))
         if semantic:
@@ -566,15 +567,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     if name == "analysis_action":
                         content = json.dumps(arguments)
                     elif name in keys:
-                        if name in {"execute_sql", "submit_sql"}:
-                            if "sql" not in arguments or set(arguments) - {"sql", "task_spec"}:
-                                raise ActionSchemaError([{"path": [name], "type": "sql_required"}])
-                            content = {keys[name]: arguments["sql"]}
-                            if "task_spec" in arguments:
-                                content["task_spec"] = arguments["task_spec"]
-                            content = json.dumps(content)
-                        else:
-                            content = json.dumps({keys[name]: arguments})
+                        content = json.dumps(normalize_protocol_action({name: arguments}))
                     else:
                         raise ActionSchemaError([{"path": ["tool_calls"], "type": "unknown_tool"}])
                 if isinstance(content, list):

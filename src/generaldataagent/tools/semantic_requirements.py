@@ -165,3 +165,97 @@ def validate_requirement_sources(
         for item in collection:
             if item.source_excerpt not in public:
                 raise ValueError("semantic requirement needs an exact public source excerpt")
+
+
+def check_public_change_direction(sql: str, question: str) -> list[str]:
+    """Resolve explicit 'from DATE to DATE' reference periods through scalar subqueries.
+
+    Only plain projected columns with conjunctive date equalities are resolved. Other forms are
+    left unclassified, never guessed. No benchmark identity, label, or reference query is used.
+    """
+    import re
+    from datetime import date
+
+    if not re.search(
+        r"\b(?:increase rate|growth rate|percentage change|percent change)\b", question, re.I
+    ):
+        return []
+    matched = re.search(
+        r"\bfrom\s+(\d{4}[/-]\d{1,2}[/-]\d{1,2})\s+to\s+"
+        r"(\d{4}[/-]\d{1,2}[/-]\d{1,2})\b",
+        question,
+        re.I,
+    )
+    if not matched:
+        return []
+
+    def canonical(value):
+        try:
+            parts = re.split(r"[/-]", value)
+            return date(*map(int, parts)).isoformat()
+        except (ValueError, TypeError):
+            return None
+
+    start, end = (canonical(value) for value in matched.groups())
+    if start is None or end is None or start == end:
+        return []
+    tree = parse_one(sql, read="sqlite")
+    sources = {}
+    for cls in (exp.CTE, exp.Subquery):
+        for node in tree.find_all(cls):
+            sources.setdefault(node.alias.casefold(), []).append(node.this)
+
+    def period(column):
+        column = _unparen(column)
+        if not isinstance(column, exp.Column):
+            return None
+        candidates = sources.get(column.table.casefold(), [])
+        if len(candidates) != 1 or not isinstance(candidates[0], exp.Select):
+            return None
+        select = candidates[0]
+        projections = [
+            p for p in select.selects if p.alias_or_name.casefold() == column.name.casefold()
+        ]
+        if len(projections) != 1:
+            return None
+        projection = projections[0]
+        source = projection.this if isinstance(projection, exp.Alias) else projection
+        if not isinstance(source, exp.Column):
+            return None
+        where = select.args.get("where")
+        dates = set()
+        for predicate in _conjuncts(where.this) if where else []:
+            if not isinstance(predicate, exp.EQ):
+                continue
+            for field, literal in (
+                (predicate.this, predicate.expression),
+                (predicate.expression, predicate.this),
+            ):
+                if (
+                    isinstance(field, exp.Column)
+                    and field.table.casefold() == source.table.casefold()
+                    and re.search(r"date|day|time", field.name, re.I)
+                    and isinstance(literal, exp.Literal)
+                    and literal.is_string
+                ):
+                    value = canonical(literal.this)
+                    if value in {start, end}:
+                        dates.add(value)
+        return next(iter(dates)) if len(dates) == 1 else None
+
+    issues = []
+    for projection in tree.selects:
+        node = projection.this if isinstance(projection, exp.Alias) else projection
+        parts = _ratio(node)
+        if parts is None:
+            continue
+        numerator, denominator, _, _ = parts
+        reference = period(denominator)
+        if reference is not None and reference != start:
+            issues.append("change_reference_period")
+        numerator = _unparen(numerator)
+        if isinstance(numerator, exp.Sub):
+            left, right = period(numerator.this), period(numerator.expression)
+            if left is not None and right is not None and (left != end or right != start):
+                issues.append("change_direction")
+    return sorted(set(issues))
