@@ -514,6 +514,10 @@ aggregate production acceptance incomplete.
 
 ## Stage 6 public-development evaluation
 
+Both CC Switch and an existing Magpie gateway are supported without changing desktop settings.
+Use `--app-type magpie --provider-id magpie --model EXPLICIT_MODEL_ID`; see the
+[Magpie runbook](docs/operations/stage6-evaluation-runbook.md#magpie-网关) for calibration and dataset commands.
+
 The Stage 6 branch adds pinned BIRD Mini-Dev, InfiAgent-DABench and DABstep preparation, answer-blind
 bounded SQL/statistical tools, case-level evidence, model-free replay, paired comparisons and explicit
 release gates. On a fixed 60-task InfiAgent cohort, the latest same-model comparison improves from

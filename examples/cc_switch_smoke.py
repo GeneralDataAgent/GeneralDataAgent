@@ -1,4 +1,4 @@
-"""Run one bounded structured-output call against a selected CC Switch provider."""
+"""Run one bounded structured-output call against a selected CC Switch or Magpie provider."""
 
 import argparse
 import json
@@ -8,6 +8,7 @@ from generaldataagent.llm import (
     CcSwitchProvider,
     LangChainNarrator,
     LlmInvocationError,
+    MagpieProvider,
     OpenAiCcSwitchProvider,
 )
 
@@ -15,22 +16,28 @@ from generaldataagent.llm import (
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--provider-id", required=True)
-    parser.add_argument("--app-type", choices=("claude", "codex"), default="claude")
+    parser.add_argument("--app-type", choices=("claude", "codex", "magpie"), default="claude")
+    parser.add_argument("--model", help="Explicit Magpie model ID")
     parser.add_argument("--timeout-seconds", type=float, default=20)
     arguments = parser.parse_args()
 
-    provider = (
-        CcSwitchProvider.load(provider_id=arguments.provider_id)
-        if arguments.app_type == "claude"
-        else OpenAiCcSwitchProvider.load(provider_id=arguments.provider_id)
+    if arguments.app_type == "magpie":
+        if not arguments.model:
+            parser.error("Magpie requires --model")
+        provider = MagpieProvider.load(provider_id=arguments.provider_id, model=arguments.model)
+    else:
+        provider = (
+            CcSwitchProvider.load(provider_id=arguments.provider_id)
+            if arguments.app_type == "claude"
+            else OpenAiCcSwitchProvider.load(provider_id=arguments.provider_id)
+        )
+    model = provider.build_chat_model(
+        timeout_seconds=arguments.timeout_seconds,
+        max_retries=0,
     )
-    narrator = LangChainNarrator(
-        provider.build_chat_model(
-            timeout_seconds=arguments.timeout_seconds,
-            max_retries=0,
-        ),
-        model_name=provider.model,
-    )
+    if arguments.app_type == "magpie":
+        model.max_tokens = 3000
+    narrator = LangChainNarrator(model, model_name=provider.model)
     started = monotonic()
     try:
         narrative = narrator.generate(

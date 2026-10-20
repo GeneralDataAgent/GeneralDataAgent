@@ -167,3 +167,37 @@ LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false UV_CACHE_DIR=/tmp/deepagents-
 只读元数据资格可用 `evals/qualify_stage6_sql_schema.py --output PATH` 重现。
 本轮因服务校准失败尚未获得其有效完整能力结果，参见
 [迭代总结](../validation/stage6-iteration-summary-2026-10-20.md)。
+
+## Magpie 网关
+
+第六期 runner 和实际指标 Supervisor 资格脚本现在支持 `--app-type magpie`。
+连接只读解析 `~/.codex/config.toml` 中明确指定的 `model_providers.magpie`，使用其中的
+`base_url`、`wire_api`、`experimental_bearer_token` 和 `http_headers`；不修改 CC Switch、
+Codex 或 Magpie 设置，也不读取/复制 Magpie 上游供应商密钥。
+
+必须明确给出 `--model`。全局 Codex model 可能来自其他供应商，因此不能用作 Magpie 默认值。
+可先查询已配置网关的 `/v1/models`，选择固定路径，例如本机已发现的
+`workbuddy/deepseek-v4.1-flash`。避免用 `auto/` 路由作固定模型对照。网关返回的型号名称
+不构成服务端权重版本的独立证明；跨模型结果不能归因于单一算法改进。
+
+```bash
+# 沿用原有结构化叙述验证入口，也可选择 Magpie。
+LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python examples/cc_switch_smoke.py --app-type magpie --provider-id magpie --model workbuddy/deepseek-v4.1-flash --timeout-seconds 20
+
+# 使用真实任务上下文校准；先确认完整 report 的 service_readiness 通过。
+LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/run_stage6.py --benchmark infi --limit 6 --workers 1 --app-type magpie --provider-id magpie --model workbuddy/deepseek-v4.1-flash --transport openai-chat --json-mode --max-output-tokens 3000 --tool-profile sql-repair --csv-importer identifier-v2 --request-interval-seconds 3.5 --output .artifacts/stage6/magpie-infi-calibration
+
+# 同轨道、型号、路由与协议的服务预检通过后，运行固定六十题。
+LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/run_stage6.py --benchmark infi --limit 60 --workers 1 --app-type magpie --provider-id magpie --model workbuddy/deepseek-v4.1-flash --transport openai-chat --json-mode --max-output-tokens 3000 --tool-profile sql-repair --csv-importer identifier-v2 --request-interval-seconds 3.5 --preflight-report .artifacts/stage6/magpie-infi-calibration/report.json --output .artifacts/stage6/magpie-infi-full
+
+# 实际指标产品编排验证，不是公开数据集的代理成绩。
+LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/qualify_stage6_supervisor.py --app-type magpie --provider-id magpie --model workbuddy/deepseek-v4.1-flash --limit 3 --output .artifacts/stage6/magpie-supervisor/report.json
+```
+
+不指定 `--transport openai-chat` 时沿用配置的 Responses/Chat 协议；JSON mode 仍只允许
+Chat 路径。附加鉴权头在请求时解封，日志/报告只有头摘要与适配器源码摘要；父进程和隔离
+worker 重新核对路由，配置变化会拒绝运行。部署者可显式调用 `MagpieProvider.load(config_path=...)`
+读取其他只读配置，但当前评估 CLI 统一使用用户的现有 Codex 配置位置。
+
+单次小请求和 JSON mode 参数不保证供应商输出始终合法；必须保留真实任务中的无效动作、
+服务失败、超时和全部样本分母。服务校准通过也不代表答案质量或生产验收通过。
