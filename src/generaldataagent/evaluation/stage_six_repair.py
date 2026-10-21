@@ -75,6 +75,11 @@ def bounded_observation(result: dict, *, max_chars: int = 6000) -> dict:
 
 def execution_hint(exc: Exception) -> str:
     text = str(exc)
+    if "unrequested_all_count_null_filter" in text:
+        return (
+            "The public formula counts all objects. Excluding missing sum-field values also "
+            "changes that denominator population. Preserve the requested all-object count."
+        )
     if "percentage_requires_ratio_not_counts" in text:
         return (
             "The question asks for a percentage; raw population counts are only intermediate "

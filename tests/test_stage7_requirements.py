@@ -308,3 +308,56 @@ def test_semantic_cte_scopes_do_not_merge_unicode_case_variants():
     assert not check_requirements(
         'WITH "Ä" AS (SELECT id FROM t WHERE kind=1) SELECT * FROM "Ä"', req
     )
+
+
+def test_public_sum_over_count_all_does_not_allow_implicit_non_null_population():
+    from generaldataagent.contracts.analysis import AnalysisTaskSpec
+    from generaldataagent.tools.sql_semantics import inspect_semantics
+
+    spec = AnalysisTaskSpec(
+        question="Calculate average height for all people.",
+        public_requirements="average = DIVIDE(SUM(height), COUNT(all people));",
+    )
+    sql = "SELECT SUM(height)*1.0/COUNT(*) AS average FROM people WHERE height IS NOT NULL"
+    assert inspect_semantics(sql, spec) == ["unrequested_all_count_null_filter"]
+    assert not inspect_semantics(sql.replace(" WHERE height IS NOT NULL", ""), spec)
+    assert not inspect_semantics(sql.replace("height IS NOT NULL", "other IS NOT NULL"), spec)
+    assert not inspect_semantics(
+        sql, spec.model_copy(update={"question": "Average height for people with known height?"})
+    )
+    assert not inspect_semantics(
+        sql,
+        spec.model_copy(
+            update={
+                "public_requirements": "average = DIVIDE(SUM(height), COUNT(all known heights));"
+            }
+        ),
+    )
+    assert not inspect_semantics(
+        sql, spec.model_copy(update={"public_requirements": "Use the usual average."})
+    )
+
+
+def test_public_all_count_does_not_borrow_other_alias_or_nested_scope_filters():
+    from generaldataagent.tools.semantic_requirements import check_public_all_count_population
+
+    question, instructions = "average for all people", "DIVIDE(SUM(height), COUNT(all people))"
+    sql = (
+        "SELECT SUM(p.height)*1.0/COUNT(*) FROM people p JOIN other o ON p.id=o.id "
+        "WHERE o.height IS NOT NULL"
+    )
+    assert not check_public_all_count_population(sql, question, instructions)
+    assert check_public_all_count_population(
+        sql.replace("o.height IS NOT NULL", "p.height IS NOT NULL"), question, instructions
+    ) == ["unrequested_all_count_null_filter"]
+    assert not check_public_all_count_population(
+        "SELECT SUM(height)*1.0/COUNT(*) FROM people "
+        "WHERE EXISTS(SELECT 1 FROM other WHERE height IS NOT NULL)",
+        question,
+        instructions,
+    )
+    assert not check_public_all_count_population(
+        "SELECT SUM(height)/COUNT(*) FROM people",
+        question,
+        'DIVIDE(SUM("broken), COUNT(all people))',
+    )

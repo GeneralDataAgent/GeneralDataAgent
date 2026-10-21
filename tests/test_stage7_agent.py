@@ -853,3 +853,38 @@ def test_percentage_final_cannot_replace_ratio_with_intermediate_counts(database
     assert result["trace"][0]["checks"] == ["percentage_requires_ratio_not_counts"]
     assert result["task_contract"]["answer"]["columns"] == ["pct"]
     assert len(result["trace"]) == 2
+
+
+def test_all_object_denominator_null_filter_repair_preserves_requested_population(database):
+    from generaldataagent.tools.sqlite import SQLiteReadOnlyExecutor
+
+    with sqlite3.connect(database) as db:
+        db.execute("INSERT INTO people VALUES(3,'1980-01-01',NULL)")
+    actions = [
+        {
+            "submit_sql": {
+                "sql": "SELECT SUM(score)*1.0/COUNT(*) AS average FROM people "
+                "WHERE score IS NOT NULL",
+                "output_columns": ["average"],
+                "shape": "scalar",
+            }
+        },
+        {
+            "submit_sql": {
+                "sql": "SELECT SUM(score)*1.0/COUNT(*) AS average FROM people",
+                "output_columns": ["average"],
+                "shape": "scalar",
+            }
+        },
+    ]
+    result = run(
+        database,
+        actions,
+        question="Calculate average score for all people.",
+        instructions="average = DIVIDE(SUM(score), COUNT(all people));",
+    )
+    assert result["failure"] is None
+    assert result["trace"][0]["checks"] == ["unrequested_all_count_null_filter"]
+    assert SQLiteReadOnlyExecutor(database).execute(result["final_sql"]).rows[0][
+        0
+    ] == pytest.approx(20 / 3)

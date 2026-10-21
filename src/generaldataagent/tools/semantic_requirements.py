@@ -362,3 +362,64 @@ def check_public_rank_and_age(sql: str, question: str, instructions: str = "") -
             ):
                 issues.append("age_requires_birthday_boundary")
     return sorted(set(issues))
+
+
+def check_public_all_count_population(sql: str, question: str, instructions: str) -> list[str]:
+    """Catch a narrow contradiction of an explicit SUM(field)/COUNT(all ...) formula.
+
+    Only a direct ratio and a same-scope null exclusion of its sum field are classified.
+    Other formulas, aliases through subqueries, and explicitly restricted populations stay
+    unclassified. No entity, dataset, reference query or expected value is consulted.
+    """
+    import re
+
+    from sqlglot.errors import SqlglotError
+
+    match = re.search(
+        r"\bDIVIDE\s*\(\s*SUM\s*\(([^()]{1,160})\)\s*,\s*COUNT\s*\(\s*all\b",
+        instructions,
+        re.I,
+    )
+    if not match or re.search(
+        r"\b(?:where|with|whose|having|known|valid|exclude|missing)\b|\bnon[- ]?null\b",
+        question + "\n" + instructions,
+        re.I,
+    ):
+        return []
+    try:
+        field = _expression(match[1])
+    except (SqlglotError, ValueError, TypeError):
+        return []
+    if not isinstance(field, exp.Column):
+        return []
+    tree = parse_one(sql, read="sqlite")
+    for select in tree.find_all(exp.Select):
+        where = select.args.get("where")
+        excluded = (
+            {
+                _normalized(term.this.this)
+                for term in _conjuncts(where.this)
+                if where is not None
+                if isinstance(term, exp.Not)
+                and isinstance(term.this, exp.Is)
+                and isinstance(term.this.expression, exp.Null)
+            }
+            if where
+            else set()
+        )
+        for projection in select.selects:
+            for division in projection.find_all(exp.Div):
+                parts = _ratio(division)
+                if parts is None:
+                    continue
+                numerator, denominator, _, _ = parts
+                if (
+                    isinstance(numerator, exp.Sum)
+                    and isinstance(numerator.this, exp.Column)
+                    and _identifier_key(numerator.this.name) == _identifier_key(field.name)
+                    and isinstance(denominator, exp.Count)
+                    and isinstance(denominator.this, (exp.Star, exp.Literal))
+                    and _normalized(numerator.this) in excluded
+                ):
+                    return ["unrequested_all_count_null_filter"]
+    return []
