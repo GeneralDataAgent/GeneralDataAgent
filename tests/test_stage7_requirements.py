@@ -359,7 +359,9 @@ def test_change_direction_resolves_scalar_lookups_behind_derived_output_names():
         "SELECT (amounts.x-amounts.y)*100.0/amounts.y" + source, question
     ) == ["change_direction", "change_reference_period"]
     for ambiguous in [
-        source.replace("FROM ledger v", "FROM ledger v JOIN other w ON v.id=w.id"),
+        source.replace("FROM ledger v", "FROM ledger v JOIN other w ON v.id=w.id").replace(
+            "v.balance", "balance"
+        ),
         source.replace("v.day='2020-01-01'", "(v.day='2020-01-01' OR v.day='2021-01-01')"),
         source.replace("v.balance", "-v.balance"),
     ]:
@@ -394,6 +396,35 @@ def test_growth_periods_follow_unqualified_outputs_of_one_derived_source(cte):
     assert check_public_change_direction(reversed_sql + " JOIN extras e ON e.id=1", question) == []
     unrelated = "WITH amounts AS (" + derived + ") SELECT (x-y)*100.0/y FROM facts"
     assert check_public_change_direction(unrelated, question) == []
+
+
+def test_scalar_growth_lookup_can_prove_qualified_periods_through_inner_joins():
+    from generaldataagent.tools.semantic_requirements import check_public_change_direction
+
+    sql = (
+        "SELECT (b.x-b.y)*100.0/b.y FROM (SELECT "
+        "(SELECT v.balance FROM owners o JOIN ledger v ON v.owner_id=o.id "
+        "WHERE o.day='2019-06-03' AND v.day='2020-01-01' ORDER BY v.id LIMIT 1) AS x, "
+        "(SELECT v.balance FROM owners o JOIN ledger v ON v.owner_id=o.id "
+        "WHERE o.day='2019-06-03' AND v.day='2021-01-01' ORDER BY v.id LIMIT 1) AS y) b"
+    )
+    question = "What is the increase rate from 2020/1/1 to 2021/1/1?"
+    assert check_public_change_direction(sql, question) == [
+        "change_direction",
+        "change_reference_period",
+    ]
+    assert (
+        check_public_change_direction(
+            sql.replace("(b.x-b.y)*100.0/b.y", "(b.y-b.x)*100.0/NULLIF(b.x,0)"), question
+        )
+        == []
+    )
+    for ambiguous in [
+        sql.replace("v.balance", "balance"),
+        sql.replace("JOIN ledger", "LEFT JOIN ledger"),
+        sql.replace("v.day=", "o.day="),
+    ]:
+        assert check_public_change_direction(ambiguous, question) == []
 
 
 def test_public_supplemental_rank_policy_is_checked_with_question():

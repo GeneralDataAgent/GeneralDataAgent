@@ -291,15 +291,21 @@ def check_public_change_direction(sql: str, question: str) -> list[str]:
                     for table in select.find_all(exp.Table)
                     if table.find_ancestor(exp.Select) is select
                 ]
+                if not isinstance(source, exp.Column):
+                    return None
+                owners = (
+                    [
+                        table
+                        for table in tables
+                        if _identifier_key(table.alias_or_name) == _identifier_key(source.table)
+                    ]
+                    if source.table
+                    else tables
+                )
                 if (
-                    len(tables) != 1
-                    or select.args.get("joins")
-                    or not isinstance(source, exp.Column)
-                    or (
-                        source.table
-                        and _identifier_key(source.table)
-                        != _identifier_key(tables[0].alias_or_name)
-                    )
+                    len(owners) != 1
+                    or (not source.table and (len(tables) != 1 or select.args.get("joins")))
+                    or any(join.args.get("side") for join in select.args.get("joins", []))
                 ):
                     return None
             if not isinstance(source, exp.Column):

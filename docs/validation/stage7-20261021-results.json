@@ -45203,8 +45203,8 @@
     "validator_source_commit": "28e0ac5f05ac35e1a729ad5150a69d0df85543eb"
   },
   "latest_local_validation": {
-    "source_commit": "light native observation working tree; full v41 remains frozen 2f30d01",
-    "passed": 1035,
+    "source_commit": "qualified joined scalar growth working tree; full v41 remains frozen 2f30d01",
+    "passed": 1036,
     "skipped": 1,
     "coverage_percent": 89.11,
     "ruff_check": "passed",
@@ -138198,5 +138198,144 @@
     "serialized_tool_characters": 3302,
     "plan_profile_tool_characters": 10227,
     "scope": "local wire payload measurement, not provider token or quality improvement"
+  },
+  "light_diagnostic_v43": {
+    "selection": "explicit developer failure diagnostic, not the full cohort",
+    "case_ids": [
+      "116"
+    ],
+    "source_commit": "09b5be23d3c82542b61aa8b078ab4b9bd63b72b3",
+    "fingerprint": {
+      "contracts/analysis.py": "cb1d467b71c432c76d00b64deac92ec2a7ce5f86450e64f050fd15ac5c04a553",
+      "contracts/answer_fields.py": "debdfb2cb9bf170696e6f88996ddd1f3ff6645e63f01843c63c7e31ca8f74f7f",
+      "contracts/statistical_rules.py": "3f63abe15c76c51965c65b20c92fc9ec25c43b03b19a99c4a176de39017aa6f9",
+      "tools/pearson_test.py": "69eac7adc7d10fcd2e740f372315796903ea5f3dd4598e7f27ba5b2e65275259",
+      "evaluation/stage_six_analysis.py": "dd184b84cf3dd776fa20cbcb1008d8e00a7e72506db945a2822ca1f504717e98",
+      "tools/answer_fields.py": "07e50819be02725db00af261817e18b7b6ce7645133cbc178b49c68063f32fc3",
+      "contracts/semantic_requirements.py": "bc0683ead82ef284acbe9fe71b5af437ddce357db5b0c46027ae34622dfe867e",
+      "tools/semantic_requirements.py": "5c58df1a777d6b584d7353a49324b5565d7cb6572d7d13e4cb78d304f7b8f636",
+      "orchestration/analysis_plan.py": "cb9704c3b3af020317e5204a56013c83e93a3d1065b6e5ed1e08feff97770687",
+      "catalog/semantic_context.py": "d1e15351e2cbe3ba01fc35f6979f27ad28662e61f025d4a8a5f7f867119809ca",
+      "catalog/field_evidence.py": "e3fa95a2c4bf71f291ea3134329c5b926f666aad72a511411f9eb95a8fd2e926",
+      "catalog/join_evidence.py": "cd5ae4218c11eba66a7a3b7166ed226ac37b81ed6229c64978d63be51de7205e",
+      "tools/sql_semantics.py": "546d8c69ef13ed411c2cb3581aeaa61deb6619773dc13c520aac4da90f7d8946",
+      "tools/sql_guard.py": "72ef5c19eb4080f3a75f745588eff76780684a0691c3ab141c79d17c6ca5db59",
+      "tools/sqlite.py": "6cc32bffd2d0822f3a0805d63ab15624c0530d9e0b6e719053f2d0c869784251",
+      "evaluation/stage_six.py": "5692314910dc91c6a735fa30a2ee4afa380fcdee5108957284686a3338179239",
+      "evaluation/stage_six_sql_precision.py": "9636255157d5a6477972ff3dadd0d50454710dc3150b09b8c56841f8180d3fa6",
+      "evaluation/stage_six_repair.py": "5a02c8858b559cb7d2e4c0e05658e132f29f62ed293540744f2a8eaebf84698a",
+      "evaluation/stage_seven.py": "98b539eeda02ba5b1ef64ca21d95b9cf51b860af629d3c9c25c9f7c192443eb5",
+      "contracts/query_plan.py": "4b18902c4ee0a82f35b4776bde17713a18672f2ef87b45e903cae3c958c9ad9e",
+      "tools/semantic_sql.py": "5c8d17f177d3cd53ce08f9352c83a9a7e364d86089158f89481e6491603b461f"
+    },
+    "model_route": {
+      "provider_id": "magpie",
+      "app_type": "magpie",
+      "model": "workbuddy/deepseek-v4.1-flash",
+      "transport": "openai-chat",
+      "thinking_mode": "default",
+      "json_mode": false,
+      "max_output_tokens": 3000,
+      "endpoint_hash": "fe8827a6b46979db5015036d380dd4e1f10eda5b76101c62a322240bf51a0573",
+      "wire_api": "chat_completions",
+      "gateway_adapter_hash": "163619e55b3ee9dd7eaeda7e9275a0cdc2a07972b6b67602016151f66632b8e6",
+      "gateway_headers_hash": "0a6dda900b2ea6b80cb4df4282bd2ec368d99d39ee00f707de87660edce6d440",
+      "route_hash": "ddcb6a5429c4f5365aa21351db2a358e378a5beb5c3b07ae80138dd444b8fbd4"
+    },
+    "reference_inputs_sent_to_worker": false,
+    "production_accepted": false,
+    "results": [
+      {
+        "answers": {},
+        "raw_answers": null,
+        "answer_evidence": {},
+        "task_contract": {
+          "question": "For the client whose loan was approved first in 1993/7/5, what is the increase rate of his/her account balance from 1993/3/22 to 1998/12/27?",
+          "public_requirements": "Increase rate of his/her account balance = [(balance of date A - balance of date B) / balance of Date B] * 100%",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "answer"
+            ],
+            "shape": "scalar",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {}
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": "SELECT ((b.bal_a - b.bal_b) / b.bal_b) * 100 AS answer FROM (SELECT (SELECT t.balance FROM loan l JOIN trans t ON t.account_id=l.account_id WHERE l.date='1993-07-05' AND t.date='1993-03-22' ORDER BY l.loan_id LIMIT 1) AS bal_a, (SELECT t.balance FROM loan l JOIN trans t ON t.account_id=l.account_id WHERE l.date='1993-07-05' AND t.date='1998-12-27' ORDER BY l.loan_id LIMIT 1) AS bal_b) b",
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "status": "error",
+            "error": "ActionSchemaError",
+            "code": "action_schema",
+            "response_mode": "native_function",
+            "schema_errors": [
+              {
+                "path": [
+                  "tool_calls"
+                ],
+                "type": "one_action"
+              }
+            ],
+            "repair_type": "correct_parameters"
+          },
+          {
+            "step": 2,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "4b3c64b2c1f1609330ae1b12f7d4806e0730a96c268ef901015b0f8403399fa7",
+            "response_mode": "native_function",
+            "sql": "SELECT l.loan_id, l.account_id, l.date, t.date AS tdate, t.balance FROM loan l JOIN trans t ON t.account_id=l.account_id WHERE l.date='1993-07-05' AND t.date IN ('1993-03-22','1998-12-27') ORDER BY l.loan_id, t.date",
+            "row_count": 2,
+            "elapsed_ms": 112.61483300768305
+          },
+          {
+            "step": 3,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "565e58feff4ca0d361acdc5c5ad32eb176d1dcb6b0084d4307fba0e6909a37eb",
+            "response_mode": "native_function",
+            "sql": "SELECT ((b.bal_a - b.bal_b) / b.bal_b) * 100 AS answer FROM (SELECT (SELECT t.balance FROM loan l JOIN trans t ON t.account_id=l.account_id WHERE l.date='1993-07-05' AND t.date='1993-03-22' ORDER BY l.loan_id LIMIT 1) AS bal_a, (SELECT t.balance FROM loan l JOIN trans t ON t.account_id=l.account_id WHERE l.date='1993-07-05' AND t.date='1998-12-27' ORDER BY l.loan_id LIMIT 1) AS bal_b) b",
+            "row_count": 1,
+            "elapsed_ms": 139.97770799323916
+          }
+        ],
+        "tokens": 11857,
+        "input_tokens": 11388,
+        "output_tokens": 469,
+        "usage_status": "complete",
+        "elapsed_seconds": 33.60231366699736,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 30.571095499995863,
+        "case_id": "116",
+        "database_hash": "d15d89cdb068a202b6f2b99342af44dffc1d52545b39ceaf62efdc0ba570101e",
+        "passed": false,
+        "database_unchanged": true
+      }
+    ]
   }
 }
