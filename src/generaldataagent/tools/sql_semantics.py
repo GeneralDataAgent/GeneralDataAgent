@@ -64,6 +64,7 @@ def inspect_semantics(sql: str, spec: AnalysisTaskSpec) -> list[str]:
         check_public_age_direction,
         check_public_all_count_population,
         check_public_change_direction,
+        check_public_change_scale,
         check_public_rank_and_age,
         check_requirements,
     )
@@ -71,6 +72,7 @@ def inspect_semantics(sql: str, spec: AnalysisTaskSpec) -> list[str]:
     try:
         issues.extend(check_requirements(sql, spec.requirements))
         issues.extend(check_public_change_direction(sql, spec.question))
+        issues.extend(check_public_change_scale(sql, spec.question, spec.public_requirements))
         issues.extend(check_change_real_division(sql, spec.question))
         issues.extend(check_public_rank_and_age(sql, spec.question, spec.public_requirements))
         issues.extend(check_public_age_direction(sql, spec.question, spec.public_requirements))

@@ -430,6 +430,29 @@ def test_multi_action_summary_keeps_spent_budget_and_executes_neither_request(
     assert database.read_bytes() == before
 
 
+def test_public_percentage_scale_rejects_unscaled_fraction_before_final_submission(database):
+    result = run(
+        database,
+        [
+            {
+                "final_sql": "SELECT 1.0*(MAX(score)-MIN(score))/NULLIF(MIN(score),0) "
+                "AS rate FROM people",
+                "task_spec": {"answer": {"columns": ["rate"], "shape": "scalar"}},
+            },
+            {
+                "final_sql": "SELECT 100.0*(MAX(score)-MIN(score))/NULLIF(MIN(score),0) "
+                "AS rate FROM people",
+                "task_spec": {"answer": {"columns": ["rate"], "shape": "scalar"}},
+            },
+        ],
+        question="What is the growth rate from start to end?",
+        instructions="growth = [(ending-starting)/starting] * 100%",
+    )
+    assert result["failure"] is None
+    assert result["trace"][0]["checks"] == ["change_percent_scale"]
+    assert len([e for e in result["trace"] if e.get("status") == "ok"]) == 1
+
+
 def test_public_predicate_requirement_is_enforced_before_execution(database):
     spec = {
         "answer": {"columns": ["id"]},

@@ -124,25 +124,32 @@ def execution_hint(exc: Exception) -> str:
             "Choose the minimum or maximum in the direction required for oldest/youngest; "
             "preserve the requested population and every requested output."
         )
-    if "change_real_division_unproven" in text:
-        hint = (
-            "Promote a numerator or denominator to REAL before each growth-rate division, "
-            "e.g. 1.0*(end-start)/NULLIF(start,0). Multiplying by 100.0 or casting the final "
-            "result after division cannot restore discarded fractional digits. "
-            "Preserve periods, filters, scale and lookup selection."
+    if any(
+        code in text
+        for code in (
+            "change_real_division_unproven",
+            "change_direction",
+            "change_reference_period",
+            "change_percent_scale",
         )
-        if "change_direction" in text or "change_reference_period" in text:
-            hint += (
-                " Also fix the reported period errors: subtract the starting value from the "
-                "ending value and divide by the starting value. Fix all reported checks "
-                "together in one revised query; aliases alone cannot repair the formula."
+    ):
+        hints = []
+        if "change_real_division_unproven" in text:
+            hints.append(
+                "Promote a numerator or denominator to REAL before each growth-rate division, "
+                "e.g. 1.0*(end-start)/NULLIF(start,0). A decimal multiplier or cast after division "
+                "cannot restore discarded fractional digits."
             )
-        return hint
-    if "change_direction" in text or "change_reference_period" in text:
-        return (
-            "For the public change from a starting period to an ending period, subtract "
-            "start from end and divide by the starting value. Preserve the public scale, "
-            "filters and lookup selection; changing output aliases cannot repair the formula."
+        if "change_direction" in text or "change_reference_period" in text:
+            hints.append(
+                "For the public change subtract the starting value from the ending value and "
+                "divide by the starting value; aliases alone cannot repair the formula."
+            )
+        if "change_percent_scale" in text:
+            hints.append("The public output is a percentage: multiply the change fraction by 100.")
+        return " ".join(hints) + (
+            " Fix all reported checks together in one revised query. Preserve periods, filters "
+            "and lookup selection."
         )
     if "cell limit" in text:
         return (

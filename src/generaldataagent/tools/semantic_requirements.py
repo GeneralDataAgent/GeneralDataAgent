@@ -368,6 +368,39 @@ def check_public_change_direction(sql: str, question: str) -> list[str]:
     return sorted(set(issues))
 
 
+def check_public_change_scale(sql: str, question: str, instructions: str) -> list[str]:
+    """Check one direct growth ratio against an explicit public percentage scale."""
+    import re
+
+    if not re.search(
+        r"\b(?:increase rate|growth rate|percentage change|percent change)\b", question, re.I
+    ):
+        return []
+    clauses = re.split(r"[;\n]", instructions)
+    negated = r"\b(?:do not|don't|never|not to|rather than|instead of)\b"
+    conversion = r"(?:\*|×)\s*100(?:\.0+)?\s*(?:%|percent\b)"
+    if any(
+        re.search(negated, clause, re.I) and re.search(conversion, clause, re.I)
+        for clause in clauses
+    ):
+        return []  # An explicit conflicting unit instruction cannot be overridden by a keyword.
+    affirmative = "\n".join(clause for clause in clauses if not re.search(negated, clause, re.I))
+    if not (
+        re.search(r"\b(?:percentage|percent)\s+change\b", question, re.I)
+        or re.search(conversion, affirmative, re.I)
+    ):
+        return []
+    tree = parse_one(sql, read="sqlite")
+    if len(tree.selects) != 1:
+        return []  # Multiple outputs can have different units; require per-field contracts.
+    node = tree.selects[0]
+    node = node.this if isinstance(node, exp.Alias) else node
+    while isinstance(node, (exp.Cast, exp.Paren, exp.Round)):
+        node = node.this
+    parts = _ratio(node)
+    return ["change_percent_scale"] if parts is not None and parts[2] != Decimal(100) else []
+
+
 def check_change_real_division(sql: str, question: str) -> list[str]:
     """Require explicit REAL arithmetic for root growth-rate divisions.
 

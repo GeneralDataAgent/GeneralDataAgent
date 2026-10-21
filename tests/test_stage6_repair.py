@@ -127,11 +127,14 @@ def test_unknown_column_feedback_enables_a_valid_retry(tmp_path):
 
 def test_growth_repair_combines_real_promotion_and_period_errors():
     hint = execution_hint(
-        ValueError("change_direction,change_real_division_unproven,change_reference_period")
+        ValueError(
+            "change_direction,change_real_division_unproven,change_reference_period,change_percent_scale"
+        )
     )
     assert "REAL before" in hint
     assert "starting value from the ending value" in hint
     assert "all reported checks" in hint
+    assert "multiply the change fraction by 100" in hint
 
 
 def test_public_answer_keys_are_repaired_without_using_labels(tmp_path):

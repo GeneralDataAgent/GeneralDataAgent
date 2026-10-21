@@ -23654,7 +23654,7 @@
     ]
   },
   "pending": [
-    "Fresh real SQL diagnostic after rejected-call compaction and combined repair",
+    "Fresh real SQL diagnostic after public percent scale check",
     "Fresh six-case and complete paired evaluation of latest source",
     "BIRD >=36/60 and no fresh/historical regressions; strict labels and membership unchanged",
     "Independent instruction/label and scientific-method review",
@@ -45203,7 +45203,7 @@
     "validator_source_commit": "28e0ac5f05ac35e1a729ad5150a69d0df85543eb"
   },
   "latest_local_validation": {
-    "source_commit": "task-scoped compact wire working tree after 8ccd5df",
+    "source_commit": "public percentage scale working tree after 1bef67a",
     "stage7_fingerprint": {
       "contracts/analysis.py": "6765681aa5184f84a7b82d17c63b0df0108f77b2031d91c29aa6d96372c240fc",
       "contracts/answer_fields.py": "e6ecbd59912179bc23d1be8acb4c4a085e20169c53b43e1907175391d949095b",
@@ -45214,24 +45214,24 @@
       "evaluation/stage_six_analysis.py": "3f5f1a03cf4bcb45c8b08b5f63d659d4c625217b0e3d3176159e97e74f96ba0a",
       "tools/answer_fields.py": "07e50819be02725db00af261817e18b7b6ce7645133cbc178b49c68063f32fc3",
       "contracts/semantic_requirements.py": "bc0683ead82ef284acbe9fe71b5af437ddce357db5b0c46027ae34622dfe867e",
-      "tools/semantic_requirements.py": "99f92bd690af85d33713fce304dfce49c9860acf7031d3459cca681e43d59989",
+      "tools/semantic_requirements.py": "bf25b5955a61b460375ebef86e3c50c9c55fe516f639fcb10256c67187550d31",
       "orchestration/analysis_plan.py": "cb9704c3b3af020317e5204a56013c83e93a3d1065b6e5ed1e08feff97770687",
       "catalog/semantic_context.py": "d1e15351e2cbe3ba01fc35f6979f27ad28662e61f025d4a8a5f7f867119809ca",
       "catalog/field_evidence.py": "e3fa95a2c4bf71f291ea3134329c5b926f666aad72a511411f9eb95a8fd2e926",
       "catalog/join_evidence.py": "cd5ae4218c11eba66a7a3b7166ed226ac37b81ed6229c64978d63be51de7205e",
-      "tools/sql_semantics.py": "d2d78f123a48160e1308e3afc9c3389b4442e303e70ccb37510b51fbc0d8105c",
+      "tools/sql_semantics.py": "11b3ea4af471737a846e20a4e25556c279e8698d8a40893d6d54212912bd748f",
       "tools/sql_guard.py": "72ef5c19eb4080f3a75f745588eff76780684a0691c3ab141c79d17c6ca5db59",
       "tools/sqlite.py": "6cc32bffd2d0822f3a0805d63ab15624c0530d9e0b6e719053f2d0c869784251",
       "evaluation/stage_six.py": "ae3f3005760e8b9ac6e5400a00ed288b1a8523a50adbe2a431552ce85a3840a1",
       "evaluation/stage_six_sql_precision.py": "9636255157d5a6477972ff3dadd0d50454710dc3150b09b8c56841f8180d3fa6",
-      "evaluation/stage_six_repair.py": "b4b97e3b6a08449df4750548f28c73759dc9fd932bd4867feadca34517491f2f",
+      "evaluation/stage_six_repair.py": "f09b135700c38b4993c6761da1ca9fae60becb2ac9f2526c6b10d27c56a40679",
       "evaluation/stage_seven.py": "64388c6478b83fac64eff7684cce8ccc7a6779a07930fab70defde2427b1420e",
       "contracts/query_plan.py": "4b18902c4ee0a82f35b4776bde17713a18672f2ef87b45e903cae3c958c9ad9e",
       "tools/semantic_sql.py": "5c8d17f177d3cd53ce08f9352c83a9a7e364d86089158f89481e6491603b461f"
     },
-    "passed": 1066,
+    "passed": 1068,
     "skipped": 1,
-    "coverage_percent": 89.24,
+    "coverage_percent": 89.27,
     "ruff_check": "passed",
     "format_check": "passed",
     "diff_check": "passed",
@@ -161838,5 +161838,156 @@
     "compact_tool_characters": 1061,
     "scope": "serialized local schemas; provider token and quality effect not yet measured",
     "advanced_requirements": "full typed validation remains; advertised by opt-in plan profile and supported by JSON compatibility"
+  },
+  "compact_wire_v49": {
+    "selection": "explicit developer failure diagnostic, not the full cohort",
+    "case_ids": [
+      "116"
+    ],
+    "source_commit": "1bef67a10cd518de946aa0fc01a7d007f276a5cb",
+    "fingerprint": {
+      "contracts/analysis.py": "6765681aa5184f84a7b82d17c63b0df0108f77b2031d91c29aa6d96372c240fc",
+      "contracts/answer_fields.py": "e6ecbd59912179bc23d1be8acb4c4a085e20169c53b43e1907175391d949095b",
+      "contracts/statistical_rules.py": "3f63abe15c76c51965c65b20c92fc9ec25c43b03b19a99c4a176de39017aa6f9",
+      "contracts/independent_test.py": "4d7460f13ab7585d3e32d996183ee0c3100fe5102e26abb68215e5b6f34d3ec9",
+      "tools/independent_test.py": "8a3078a645b5fce2e540c279af96c85a646552f356799e1a7bf42f5f2594f297",
+      "tools/pearson_test.py": "69eac7adc7d10fcd2e740f372315796903ea5f3dd4598e7f27ba5b2e65275259",
+      "evaluation/stage_six_analysis.py": "3f5f1a03cf4bcb45c8b08b5f63d659d4c625217b0e3d3176159e97e74f96ba0a",
+      "tools/answer_fields.py": "07e50819be02725db00af261817e18b7b6ce7645133cbc178b49c68063f32fc3",
+      "contracts/semantic_requirements.py": "bc0683ead82ef284acbe9fe71b5af437ddce357db5b0c46027ae34622dfe867e",
+      "tools/semantic_requirements.py": "99f92bd690af85d33713fce304dfce49c9860acf7031d3459cca681e43d59989",
+      "orchestration/analysis_plan.py": "cb9704c3b3af020317e5204a56013c83e93a3d1065b6e5ed1e08feff97770687",
+      "catalog/semantic_context.py": "d1e15351e2cbe3ba01fc35f6979f27ad28662e61f025d4a8a5f7f867119809ca",
+      "catalog/field_evidence.py": "e3fa95a2c4bf71f291ea3134329c5b926f666aad72a511411f9eb95a8fd2e926",
+      "catalog/join_evidence.py": "cd5ae4218c11eba66a7a3b7166ed226ac37b81ed6229c64978d63be51de7205e",
+      "tools/sql_semantics.py": "d2d78f123a48160e1308e3afc9c3389b4442e303e70ccb37510b51fbc0d8105c",
+      "tools/sql_guard.py": "72ef5c19eb4080f3a75f745588eff76780684a0691c3ab141c79d17c6ca5db59",
+      "tools/sqlite.py": "6cc32bffd2d0822f3a0805d63ab15624c0530d9e0b6e719053f2d0c869784251",
+      "evaluation/stage_six.py": "ae3f3005760e8b9ac6e5400a00ed288b1a8523a50adbe2a431552ce85a3840a1",
+      "evaluation/stage_six_sql_precision.py": "9636255157d5a6477972ff3dadd0d50454710dc3150b09b8c56841f8180d3fa6",
+      "evaluation/stage_six_repair.py": "b4b97e3b6a08449df4750548f28c73759dc9fd932bd4867feadca34517491f2f",
+      "evaluation/stage_seven.py": "64388c6478b83fac64eff7684cce8ccc7a6779a07930fab70defde2427b1420e",
+      "contracts/query_plan.py": "4b18902c4ee0a82f35b4776bde17713a18672f2ef87b45e903cae3c958c9ad9e",
+      "tools/semantic_sql.py": "5c8d17f177d3cd53ce08f9352c83a9a7e364d86089158f89481e6491603b461f"
+    },
+    "model_route": {
+      "provider_id": "magpie",
+      "app_type": "magpie",
+      "model": "workbuddy/deepseek-v4.1-flash",
+      "transport": "openai-chat",
+      "thinking_mode": "default",
+      "json_mode": false,
+      "max_output_tokens": 3000,
+      "endpoint_hash": "fe8827a6b46979db5015036d380dd4e1f10eda5b76101c62a322240bf51a0573",
+      "wire_api": "chat_completions",
+      "gateway_adapter_hash": "163619e55b3ee9dd7eaeda7e9275a0cdc2a07972b6b67602016151f66632b8e6",
+      "gateway_headers_hash": "0a6dda900b2ea6b80cb4df4282bd2ec368d99d39ee00f707de87660edce6d440",
+      "route_hash": "ddcb6a5429c4f5365aa21351db2a358e378a5beb5c3b07ae80138dd444b8fbd4"
+    },
+    "reference_inputs_sent_to_worker": false,
+    "production_accepted": false,
+    "results": [
+      {
+        "answers": {},
+        "raw_answers": null,
+        "answer_evidence": {},
+        "task_contract": {
+          "question": "For the client whose loan was approved first in 1993/7/5, what is the increase rate of his/her account balance from 1993/3/22 to 1998/12/27?",
+          "public_requirements": "Increase rate of his/her account balance = [(balance of date A - balance of date B) / balance of Date B] * 100%",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "increase_rate"
+            ],
+            "shape": "scalar",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {}
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": "SELECT 1.0*((SELECT t.balance FROM trans t JOIN disp d ON d.account_id=t.account_id WHERE d.client_id=2166 AND t.date='1998-12-27' ORDER BY t.trans_id LIMIT 1) - (SELECT t.balance FROM trans t JOIN disp d ON d.account_id=t.account_id WHERE d.client_id=2166 AND t.date='1993-03-22' ORDER BY t.trans_id LIMIT 1)) / NULLIF((SELECT t.balance FROM trans t JOIN disp d ON d.account_id=t.account_id WHERE d.client_id=2166 AND t.date='1993-03-22' ORDER BY t.trans_id LIMIT 1),0) AS increase_rate",
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "status": "error",
+            "error": "ActionSchemaError",
+            "code": "action_schema",
+            "response_mode": "native_function",
+            "schema_errors": [
+              {
+                "path": [
+                  "tool_calls"
+                ],
+                "type": "one_action"
+              }
+            ],
+            "repair_type": "correct_parameters"
+          },
+          {
+            "step": 2,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "025112135ffbadfe89b3ddb71053b2918f8feb82214bd9916ab6a58d6be6935c",
+            "response_mode": "native_function",
+            "sql": "SELECT l.loan_id, l.account_id, l.date, d.client_id, d.type FROM loan l JOIN disp d ON d.account_id=l.account_id WHERE l.date='1993-07-05' ORDER BY l.loan_id",
+            "row_count": 1,
+            "elapsed_ms": 1.367625009152107
+          },
+          {
+            "step": 3,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "50cd7cb8e76c714ca2856e8989005ef8160bfa8e7284055276ad625aec9bf061",
+            "response_mode": "native_function",
+            "sql": "SELECT t.date, t.balance, t.trans_id FROM trans t JOIN disp d ON d.account_id=t.account_id WHERE d.client_id=2166 AND t.date IN ('1993-03-22','1998-12-27') ORDER BY t.date, t.trans_id",
+            "row_count": 2,
+            "elapsed_ms": 102.32266700768378
+          },
+          {
+            "step": 4,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "8613618e2b697e613871ee163d2a2f646b893edee2038db1c4f103bde1846010",
+            "response_mode": "native_function",
+            "sql": "SELECT 1.0*((SELECT t.balance FROM trans t JOIN disp d ON d.account_id=t.account_id WHERE d.client_id=2166 AND t.date='1998-12-27' ORDER BY t.trans_id LIMIT 1) - (SELECT t.balance FROM trans t JOIN disp d ON d.account_id=t.account_id WHERE d.client_id=2166 AND t.date='1993-03-22' ORDER BY t.trans_id LIMIT 1)) / NULLIF((SELECT t.balance FROM trans t JOIN disp d ON d.account_id=t.account_id WHERE d.client_id=2166 AND t.date='1993-03-22' ORDER BY t.trans_id LIMIT 1),0) AS increase_rate",
+            "row_count": 1,
+            "elapsed_ms": 71.23104199126828
+          }
+        ],
+        "tokens": 12431,
+        "input_tokens": 11875,
+        "output_tokens": 556,
+        "usage_status": "complete",
+        "elapsed_seconds": 15.580138624995016,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 12.205441500002053,
+        "case_id": "116",
+        "database_hash": "d15d89cdb068a202b6f2b99342af44dffc1d52545b39ceaf62efdc0ba570101e",
+        "passed": false,
+        "database_unchanged": true
+      }
+    ]
   }
 }

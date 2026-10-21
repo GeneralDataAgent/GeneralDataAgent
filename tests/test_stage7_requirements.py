@@ -467,6 +467,37 @@ def test_growth_real_division_matches_actual_sqlite_arithmetic(expression):
         assert db.execute("SELECT ((21-10)/10)*100.0").fetchone()[0] == 100
 
 
+def test_public_percentage_change_scale_is_explicit_and_output_scoped():
+    from generaldataagent.tools.semantic_requirements import check_public_change_scale
+
+    question = "What is the growth rate from 2020/1/1 to 2021/1/1?"
+    source = "growth = [(ending-starting)/starting] * 100%"
+    ratio = "SELECT 1.0*(ending-starting)/NULLIF(starting,0) AS change FROM facts"
+    assert check_public_change_scale(ratio, question, source) == ["change_percent_scale"]
+    for expression in [
+        "100.0*(ending-starting)/NULLIF(starting,0)",
+        "ROUND((ending-starting)*100.0/starting,2)",
+        "CAST((ending-starting)*100.0/starting AS REAL)",
+    ]:
+        assert (
+            check_public_change_scale("SELECT " + expression + " FROM facts", question, source)
+            == []
+        )
+    assert check_public_change_scale(ratio, "What is the percentage change?", "") == [
+        "change_percent_scale"
+    ]
+    assert check_public_change_scale(ratio, question, "") == []
+    assert check_public_change_scale(ratio, question, "Do not multiply by * 100%.") == []
+    assert (
+        check_public_change_scale(
+            ratio, "What is the percentage change?", "Do not multiply by * 100%."
+        )
+        == []
+    )
+    assert check_public_change_scale(ratio, "ordinary ratio?", source) == []
+    assert check_public_change_scale("SELECT x/y, z FROM facts", question, source) == []
+
+
 def test_public_supplemental_rank_policy_is_checked_with_question():
     from generaldataagent.tools.semantic_requirements import check_public_rank_and_age
 
