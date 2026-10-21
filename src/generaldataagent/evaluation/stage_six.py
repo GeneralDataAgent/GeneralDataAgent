@@ -857,7 +857,12 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     sql = action["crosscheck"]["sql"]
                     guard.inspect(sql, allowed_relations=relations)
                     validate_column_scope(database, sql, allowed_relations=relations)
-                    result = executor.execute(sql)
+                    result = SQLiteReadOnlyExecutor(
+                        database,
+                        max_rows=10000,
+                        max_cells=10000,
+                        timeout_seconds=5,
+                    ).execute(sql)
                     crosscheck_rows = result.rows
                     result_data = {
                         "columns": result.columns,
@@ -887,7 +892,16 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                         issues = inspect_semantics(sql, task_spec)
                         if issues:
                             raise SemanticError(",".join(issues))
-                    result = executor.execute(sql)
+                    result = (
+                        SQLiteReadOnlyExecutor(
+                            database,
+                            max_rows=10000,
+                            max_cells=10000,
+                            timeout_seconds=5,
+                        ).execute(sql)
+                        if "final_sql" in action
+                        else executor.execute(sql)
+                    )
                     if semantic and "final_sql" in action:
                         if crosscheck_rows is not None and Counter(result.rows) != Counter(
                             crosscheck_rows
@@ -1032,6 +1046,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                             ("syntax", "sql_syntax"),
                             ("interrupted", "query_timeout"),
                             ("row limit", "result_limit"),
+                            ("cell limit", "result_limit"),
                             ("not allowed", "policy_rejection"),
                         ]
                         if text_marker in text

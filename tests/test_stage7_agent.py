@@ -1002,3 +1002,58 @@ def test_public_boolean_type_cannot_be_changed_by_optional_binding_rule(database
     assert result["failure"] is None and result["answers"]["flag"] is True
     assert result["trace"][1]["status"] == "error"
     assert result["answer_evidence"]["flag"]["submitted_type"] == "bool"
+
+
+@pytest.mark.parametrize("profile", ["sql-precision", "sql-semantic"])
+def test_final_sql_can_verify_complete_wide_results_above_exploration_limit(database, profile):
+    with sqlite3.connect(database) as db:
+        db.executemany("INSERT INTO people VALUES(?,'1980-01-01',1)", [(i,) for i in range(3, 303)])
+    before = database.read_bytes()
+    sql = "SELECT id,score FROM people ORDER BY id"
+    action = (
+        {"final_sql": sql}
+        if profile == "sql-precision"
+        else {"submit_sql": {"sql": sql, "output_columns": ["id", "score"]}}
+    )
+    result = run(database, [action], profile=profile, question="List all people ids and scores.")
+    assert result["failure"] is None and result["final_sql"] == sql
+    assert result["trace"][0]["row_count"] == 302
+    assert database.read_bytes() == before
+
+
+@pytest.mark.parametrize("profile", ["sql-precision", "sql-semantic"])
+def test_final_sql_cell_budget_is_shared_by_both_arms_and_never_silently_truncates(
+    database, profile
+):
+    from generaldataagent.evaluation.stage_six_protocol import evaluation_protocol
+
+    cells = evaluation_protocol(workers=1)["final_and_crosscheck_cell_limit"]
+    with sqlite3.connect(database) as db:
+        db.executemany(
+            "INSERT INTO people VALUES(?,'1980-01-01',1)", [(i,) for i in range(3, cells // 2 + 2)]
+        )
+    sql = "SELECT id,score FROM people"
+    action = (
+        {"final_sql": sql}
+        if profile == "sql-precision"
+        else {"submit_sql": {"sql": sql, "output_columns": ["id", "score"]}}
+    )
+    result = run(database, [action], profile=profile, question="List all people ids and scores.")
+    assert result["failure"] == "execution_or_model_error"
+    assert result["final_sql"] is None and result["trace"][0]["code"] == "result_limit"
+
+
+def test_crosscheck_large_collection_stays_complete_with_one_check_budget(database):
+    with sqlite3.connect(database) as db:
+        db.executemany("INSERT INTO people VALUES(?,'1980-01-01',1)", [(i,) for i in range(3, 303)])
+    actions = [
+        {"plan_analysis": {"answer": {"columns": ["id"], "shape": "set"}}},
+        {"crosscheck_sql": {"sql": "SELECT id FROM people ORDER BY id", "purpose": "entity_grain"}},
+        {"submit_sql": {"sql": "SELECT DISTINCT id FROM people ORDER BY id"}},
+    ]
+    result = run(database, actions, profile="sql-semantic-plan", question="List all people ids.")
+    assert result["failure"] is None
+    assert result["trace"][1]["tool"] == "sql_crosscheck"
+    assert result["trace"][2]["row_count"] == 302
+    exploratory = run(database, [{"sql": "SELECT id FROM people"}], profile="sql-precision")
+    assert exploratory["trace"][0]["code"] == "result_limit"

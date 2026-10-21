@@ -75,6 +75,12 @@ def bounded_observation(result: dict, *, max_chars: int = 6000) -> dict:
 
 def execution_hint(exc: Exception) -> str:
     text = str(exc)
+    if "cell limit" in text:
+        return (
+            "The complete final/check result exceeds the bounded verification cell budget. "
+            "Do not add LIMIT, drop requested columns, or change filters merely to fit. "
+            "Declare unsupported if the requested full result cannot be certified."
+        )
     if "contradicts the explicit public format" in text:
         return (
             "Preserve the runtime's explicit public field type and nullability. Omit optional "

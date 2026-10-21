@@ -48,6 +48,8 @@ def evaluation_protocol(*, workers: int, max_output_tokens: int = 3000) -> dict:
         "max_cost_usd_per_case": 0.02,
         "call_timeout_seconds": 30,
         "result_row_limit": 200,
+        "final_and_crosscheck_row_limit": 10000,
+        "final_and_crosscheck_cell_limit": 10000,
         "workers": workers,
         "permitted_effects": "read-only",
         "numeric_import": "finite REAL; empty NULL",

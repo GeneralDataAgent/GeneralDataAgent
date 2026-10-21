@@ -23,7 +23,9 @@ Before the final query, check these semantic requirements:
 7. Use exact schema names. Quote identifier parts separately; use single quotes for string values.
    Distinguish NULL from zero/empty text and do not invent zero for an undefined ratio.
 
-Queries are bounded to 200 rows and five seconds. Use small exploratory projections/aggregates.
+Exploration is bounded to 200 rows. Final SQL is verified completely within 10000 rows and
+10000 cells, with a five-second query timeout. Over-budget results fail; never truncate a
+requested full result to fit. Use small exploratory projections/aggregates.
 Do not repeat an unchanged query. After sufficient evidence, return final_sql rather than narrate
 or continue exploring. An empty result does not prove the query logic is right.
 """

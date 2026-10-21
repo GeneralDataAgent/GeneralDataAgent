@@ -98,6 +98,8 @@ Every final output needs a table-data dependency. Do not submit guessed constant
 One crosscheck action is allowed: sql plus purpose ties/entity_grain/denominator/date_boundary/
 output_range, returning the same result as final_sql. Disagreement is rejected, at most one check.
 No answer/search/analysis/collect actions for SQL-output tasks. Do not repeat unchanged queries.
+Exploration is limited to 200 rows. Final/check results are verified completely up to 10000 rows
+and 10000 cells, within five seconds; over-budget results fail rather than truncate.
 """
 
 
