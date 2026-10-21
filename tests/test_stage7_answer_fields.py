@@ -98,6 +98,44 @@ def test_public_precision_is_explicit_and_can_differ_by_field():
         )
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Do not round to two decimal places.",
+        "Must not be rounded to two decimal places.",
+        "Never round to two decimal places.",
+        "Return the value without rounding to two decimal places.",
+        "Do not use two decimal places.",
+        "Not two decimal places.",
+        "不要保留两位小数",
+        "不保留两位小数",
+        "无需保留两位小数",
+    ],
+)
+def test_negated_precision_is_not_an_authorization_to_round(text):
+    from generaldataagent.orchestration.analysis_plan import accept_contract
+
+    assert public_precisions(text) == set()
+    spec = accept_contract(
+        {"question": "Value?", "public_requirements": text, "answer": {"columns": ["x"]}},
+        question="Value?",
+        instructions=text,
+    )
+    assert spec.answer.decimals is None
+    with pytest.raises(ValueError, match="explicit public rounding"):
+        validate_field_sources(
+            {"x": AnswerFieldSpec(kind="number", decimals=2, source_excerpt=text)},
+            ["x"],
+            "Value?",
+            text,
+        )
+
+
+def test_negated_precision_does_not_hide_a_separate_positive_requirement():
+    assert public_precisions("Not two decimal places; round to four decimal places.") == {4}
+    assert public_precisions("不要保留两位小数；保留三位小数") == {3}
+
+
 def test_types_and_sample_std_methods_are_not_guessed():
     result = {"operation": "describe"}
     sample = AnswerFieldSpec(kind="number", method="describe.sample_std")

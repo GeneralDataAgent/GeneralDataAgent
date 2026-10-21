@@ -30,8 +30,18 @@ def public_precisions(text: str) -> set[int]:
     }
     # Public formatting also uses "a float with two decimal places", without "round".
     pattern = r"\b(\d+|" + "|".join(words) + r")\s+decimal\s+places?\b"
-    matches = re.findall(pattern, text, re.I)
-    digits = {int(value) if value.isdigit() else words[value.casefold()] for value in matches}
+    digits = set()
+    for match in re.finditer(pattern, text, re.I):
+        prefix = text[max(0, match.start() - 60) : match.start()]
+        if re.search(
+            r"\b(?:not|never|without)\s+"
+            r"(?:(?:be\s+)?round(?:ed|ing)?\s+(?:to\s+)?|us(?:e|ing)\s+)?$",
+            prefix,
+            re.I,
+        ):
+            continue
+        value = match[1]
+        digits.add(int(value) if value.isdigit() else words[value.casefold()])
     chinese = {
         "零": 0,
         "一": 1,
@@ -46,7 +56,10 @@ def public_precisions(text: str) -> set[int]:
         "九": 9,
         "十": 10,
     }
-    for value in re.findall(r"保留\s*([0-9]+|[零一二两三四五六七八九十])\s*位小数", text):
+    for match in re.finditer(r"保留\s*([0-9]+|[零一二两三四五六七八九十])\s*位小数", text):
+        if re.search(r"(?:不|不要|无需|禁止)\s*$", text[max(0, match.start() - 8) : match.start()]):
+            continue
+        value = match[1]
         digits.add(int(value) if value.isdigit() else chinese[value])
     return digits
 
