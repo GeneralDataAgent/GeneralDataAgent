@@ -45203,8 +45203,8 @@
     "validator_source_commit": "28e0ac5f05ac35e1a729ad5150a69d0df85543eb"
   },
   "latest_local_validation": {
-    "source_commit": "unqualified growth lineage working tree; full v41 remains frozen 2f30d01",
-    "passed": 1033,
+    "source_commit": "light native observation working tree; full v41 remains frozen 2f30d01",
+    "passed": 1035,
     "skipped": 1,
     "coverage_percent": 89.11,
     "ruff_check": "passed",
@@ -138193,5 +138193,10 @@
     ],
     "false_rejection_among_original_passes": [],
     "natural_compiled_plans": []
+  },
+  "light_native_wire_schema": {
+    "serialized_tool_characters": 3302,
+    "plan_profile_tool_characters": 10227,
+    "scope": "local wire payload measurement, not provider token or quality improvement"
   }
 }

@@ -1522,8 +1522,9 @@ def test_native_mixed_atomic_tool_only_uses_available_collection_steps(database,
 
 
 @pytest.mark.parametrize("first_sql", ["SELECT DISTINCT score FROM people", "DELETE FROM people"])
-def test_native_plan_profile_can_observe_before_contract_with_same_read_only_budget(
-    database, first_sql
+@pytest.mark.parametrize("profile", ["sql-semantic", "sql-semantic-plan"])
+def test_native_profiles_can_observe_before_contract_with_same_read_only_budget(
+    database, first_sql, profile
 ):
     from langchain_core.messages import AIMessage, ToolMessage
 
@@ -1534,6 +1535,8 @@ def test_native_plan_profile_can_observe_before_contract_with_same_read_only_bud
             names = {tool["function"]["name"] for tool in kwargs["tools"]}
             assert "execute_sql" in names and "declare_unsupported" in names
             assert "crosscheck_sql" not in names
+            assert ("submit_query_plan" in names) == (profile == "sql-semantic-plan")
+            assert len(names) == len(kwargs["tools"])
             assert kwargs["tool_choice"] == "required" and not kwargs["parallel_tool_calls"]
             return self
 
@@ -1559,9 +1562,7 @@ def test_native_plan_profile_can_observe_before_contract_with_same_read_only_bud
 
     before = database.read_bytes()
     task = Task("bird-mini-dev-sqlite", "synthetic", "How many people?", "", "easy", "people")
-    result = BoundedSQLAgent(Native(), tool_profile="sql-semantic-plan", max_steps=2).run(
-        task, database
-    )
+    result = BoundedSQLAgent(Native(), tool_profile=profile, max_steps=2).run(task, database)
     assert result["failure"] is None and "COUNT(*)" in result["final_sql"]
     assert len(result["trace"]) == 2 and result["tokens"] == 20
     assert result["trace"][0]["status"] == ("error" if first_sql.startswith("DELETE") else "ok")
