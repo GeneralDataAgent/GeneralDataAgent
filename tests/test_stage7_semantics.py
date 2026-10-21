@@ -335,3 +335,21 @@ def test_percentage_projection_check_leaves_precomputed_or_averaged_rates_unclas
     assert not check_percentage_result(
         "SELECT COUNT(*) FROM records", "How many records?", "", [(5,)]
     )
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        'SELECT id AS x FROM "Ä"',
+        'SELECT COUNT(*) AS x FROM "Ä"',
+        'WITH "ß" AS (SELECT id FROM "Ä") SELECT id AS x FROM "ß"',
+    ],
+)
+def test_sql_data_dependency_preserves_unicode_physical_relation_identity(sql):
+    from generaldataagent.tools.sql_semantics import sql_data_dependencies
+
+    assert sql_data_dependencies(sql, ["x"], allowed_relations={"Ä"}) == [True]
+    assert sql_data_dependencies(sql, ["x"], allowed_relations={"ä"}) == [False]
+    assert sql_data_dependencies('SELECT id FROM "a.b"', ["id"], allowed_relations={"a.b"}) == [
+        True
+    ]

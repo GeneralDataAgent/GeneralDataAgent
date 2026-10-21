@@ -306,14 +306,19 @@ def sql_data_dependencies(
     from sqlglot.lineage import lineage
     from sqlglot.optimizer.scope import Scope, traverse_scope
 
-    allowed = {name.casefold() for name in allowed_relations}
+    ascii_case = str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")
+
+    def identifier_key(name):
+        return "_data_" + name.translate(ascii_case).encode("utf-8").hex()
+
+    allowed = {identifier_key(name) for name in allowed_relations}
 
     def row_dependency(scope, seen):
         if scope is None or id(scope) in seen:
             return False
         seen = seen | {id(scope)}
         return any(
-            SqlGuard._relation_name(source).casefold() in allowed
+            SqlGuard._relation_name(source) in allowed
             if isinstance(source, exp.Table)
             else row_dependency(source, seen)
             if isinstance(source, Scope)
@@ -326,6 +331,10 @@ def sql_data_dependencies(
     tree = parse_one(sql, read="sqlite")
     if len(tree.selects) != len(columns) or any(isinstance(p, exp.Star) for p in tree.selects):
         return [False] * len(columns)
+    # Isolate physical identifier identity from sqlglot's normalization. This is a
+    # validation copy; the caller's SQL and string literals are never rewritten.
+    for identifier in list(tree.find_all(exp.Identifier)):
+        identifier.replace(exp.to_identifier(identifier_key(identifier.name), quoted=True))
     names = ["_evidence_" + str(index) for index in range(len(columns))]
     for projection, alias in zip(list(tree.selects), names, strict=True):
         projection.replace(exp.alias_(projection.unalias().copy(), alias, quoted=True))
@@ -336,7 +345,7 @@ def sql_data_dependencies(
             dependent = False
             for item in node.walk():
                 if isinstance(item.expression, exp.Table):
-                    dependent |= SqlGuard._relation_name(item.expression).casefold() in allowed
+                    dependent |= SqlGuard._relation_name(item.expression) in allowed
                 for count in item.expression.find_all(exp.Count):
                     argument = count.this
                     row_count = isinstance(argument, (exp.Star, exp.Literal))

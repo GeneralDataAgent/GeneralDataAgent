@@ -96,8 +96,19 @@ class SqlGuard:
             if isinstance(source, exp.Table)
         )
         if allowed_relations is not None:
-            normalized_allowed = {name.lower() for name in allowed_relations}
-            unauthorized = {name for name in relations if name.lower() not in normalized_allowed}
+            # SQLite folds ASCII only: distinct quoted Unicode table names must never
+            # gain one another's authorization through Python's Unicode lowercasing.
+            def relation_key(name):
+                if self.dialect == "sqlite":
+                    return name.translate(
+                        str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")
+                    )
+                return name.lower()
+
+            normalized_allowed = {relation_key(name) for name in allowed_relations}
+            unauthorized = {
+                name for name in relations if relation_key(name) not in normalized_allowed
+            }
             if unauthorized:
                 raise SqlGuardError(f"unauthorized relations: {sorted(unauthorized)}")
 
