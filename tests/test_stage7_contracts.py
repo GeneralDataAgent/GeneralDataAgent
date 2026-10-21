@@ -157,6 +157,28 @@ def test_native_optional_requirements_advertise_strict_fields_and_required_publi
         assert "requirements" not in selected[name]["function"]["parameters"]["required"]
 
 
+def test_compact_sql_wire_keeps_basic_actions_and_full_requirements_stay_opt_in():
+    import json
+
+    from generaldataagent.evaluation.stage_seven import bind_typed_tools
+
+    class Model:
+        def bind(self, **kwargs):
+            return kwargs
+
+    compact = bind_typed_tools(Model(), sql_output=True, exploration_enabled=True, compact_sql=True)
+    rich = bind_typed_tools(Model(), sql_output=True, exploration_enabled=True)
+    assert compact["tool_choice"] == "required"
+    tools = {t["function"]["name"]: t["function"]["parameters"] for t in compact["tools"]}
+    assert set(tools) == {"submit_sql", "execute_sql", "declare_unsupported"}
+    assert set(tools["submit_sql"]["properties"]) == {"sql", "output_columns", "shape", "ties"}
+    assert len(json.dumps(compact["tools"])) < len(json.dumps(rich["tools"])) * 0.5
+    advanced = bind_typed_tools(Model(), sql_output=True, plan_enabled=True)
+    assert any(
+        "requirements" in t["function"]["parameters"]["properties"] for t in advanced["tools"]
+    )
+
+
 def test_model_rules_cannot_downgrade_known_public_types_or_swap_field_precisions():
     text = (
         "@a[first] @b[second] where 'first' is a number with two decimal places. "

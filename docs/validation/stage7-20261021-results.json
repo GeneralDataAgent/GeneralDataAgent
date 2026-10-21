@@ -45203,7 +45203,7 @@
     "validator_source_commit": "28e0ac5f05ac35e1a729ad5150a69d0df85543eb"
   },
   "latest_local_validation": {
-    "source_commit": "rejected-call context and combined repair working tree after ed795dc",
+    "source_commit": "task-scoped compact wire working tree after 8ccd5df",
     "stage7_fingerprint": {
       "contracts/analysis.py": "6765681aa5184f84a7b82d17c63b0df0108f77b2031d91c29aa6d96372c240fc",
       "contracts/answer_fields.py": "e6ecbd59912179bc23d1be8acb4c4a085e20169c53b43e1907175391d949095b",
@@ -45222,16 +45222,16 @@
       "tools/sql_semantics.py": "d2d78f123a48160e1308e3afc9c3389b4442e303e70ccb37510b51fbc0d8105c",
       "tools/sql_guard.py": "72ef5c19eb4080f3a75f745588eff76780684a0691c3ab141c79d17c6ca5db59",
       "tools/sqlite.py": "6cc32bffd2d0822f3a0805d63ab15624c0530d9e0b6e719053f2d0c869784251",
-      "evaluation/stage_six.py": "b3d2ab0cb64c0bcc772dfae95d29c38ee688003dca59e5580f282972c69bc9d1",
+      "evaluation/stage_six.py": "ae3f3005760e8b9ac6e5400a00ed288b1a8523a50adbe2a431552ce85a3840a1",
       "evaluation/stage_six_sql_precision.py": "9636255157d5a6477972ff3dadd0d50454710dc3150b09b8c56841f8180d3fa6",
       "evaluation/stage_six_repair.py": "b4b97e3b6a08449df4750548f28c73759dc9fd932bd4867feadca34517491f2f",
-      "evaluation/stage_seven.py": "1d0a33ed1f9f7b8ae77edaf460f52024feb735a645582733dec126e66d0ecb48",
+      "evaluation/stage_seven.py": "64388c6478b83fac64eff7684cce8ccc7a6779a07930fab70defde2427b1420e",
       "contracts/query_plan.py": "4b18902c4ee0a82f35b4776bde17713a18672f2ef87b45e903cae3c958c9ad9e",
       "tools/semantic_sql.py": "5c8d17f177d3cd53ce08f9352c83a9a7e364d86089158f89481e6491603b461f"
     },
-    "passed": 1063,
+    "passed": 1066,
     "skipped": 1,
-    "coverage_percent": 89.23,
+    "coverage_percent": 89.24,
     "ruff_check": "passed",
     "format_check": "passed",
     "diff_check": "passed",
@@ -111918,28 +111918,13 @@
       "tools/sql_semantics.py"
     ]
   },
-  "latest_remote_ci": [
-    {
-      "source_commit": "c20470b",
-      "conclusion": "success",
-      "run_id": 39552431634
-    },
-    {
-      "source_commit": "afd4264",
-      "conclusion": "success",
-      "run_id": 39552564022
-    },
-    {
-      "source_commit": "95c32f6",
-      "conclusion": "success",
-      "run_id": 39553128537
-    },
-    {
-      "source_commit": "fbd606e",
-      "conclusion": "success",
-      "run_id": 39553409410
-    }
-  ],
+  "latest_remote_ci": {
+    "source_commit": "8ccd5df",
+    "run_id": 39596507832,
+    "status": "completed",
+    "conclusion": "success",
+    "url": "https://github.com/GeneralDataAgent/GeneralDataAgent/actions/runs/39596507832"
+  },
   "infi_list_v29": {
     "kind": "explicit developer collection failure diagnostic; not a full or unseen cohort",
     "source_commit": "67a43dda4e7f9491c7405892eb4f3fe9a2717058",
@@ -161712,5 +161697,146 @@
       "evaluation/stage_six.py"
     ],
     "sdist_independent_test_membership": "passed"
+  },
+  "repair_context_v48": {
+    "selection": "explicit developer failure diagnostic, not the full cohort",
+    "case_ids": [
+      "116"
+    ],
+    "source_commit": "8ccd5df4ef6567f4a451031c536b56e52a82c144",
+    "fingerprint": {
+      "contracts/analysis.py": "6765681aa5184f84a7b82d17c63b0df0108f77b2031d91c29aa6d96372c240fc",
+      "contracts/answer_fields.py": "e6ecbd59912179bc23d1be8acb4c4a085e20169c53b43e1907175391d949095b",
+      "contracts/statistical_rules.py": "3f63abe15c76c51965c65b20c92fc9ec25c43b03b19a99c4a176de39017aa6f9",
+      "contracts/independent_test.py": "4d7460f13ab7585d3e32d996183ee0c3100fe5102e26abb68215e5b6f34d3ec9",
+      "tools/independent_test.py": "8a3078a645b5fce2e540c279af96c85a646552f356799e1a7bf42f5f2594f297",
+      "tools/pearson_test.py": "69eac7adc7d10fcd2e740f372315796903ea5f3dd4598e7f27ba5b2e65275259",
+      "evaluation/stage_six_analysis.py": "3f5f1a03cf4bcb45c8b08b5f63d659d4c625217b0e3d3176159e97e74f96ba0a",
+      "tools/answer_fields.py": "07e50819be02725db00af261817e18b7b6ce7645133cbc178b49c68063f32fc3",
+      "contracts/semantic_requirements.py": "bc0683ead82ef284acbe9fe71b5af437ddce357db5b0c46027ae34622dfe867e",
+      "tools/semantic_requirements.py": "99f92bd690af85d33713fce304dfce49c9860acf7031d3459cca681e43d59989",
+      "orchestration/analysis_plan.py": "cb9704c3b3af020317e5204a56013c83e93a3d1065b6e5ed1e08feff97770687",
+      "catalog/semantic_context.py": "d1e15351e2cbe3ba01fc35f6979f27ad28662e61f025d4a8a5f7f867119809ca",
+      "catalog/field_evidence.py": "e3fa95a2c4bf71f291ea3134329c5b926f666aad72a511411f9eb95a8fd2e926",
+      "catalog/join_evidence.py": "cd5ae4218c11eba66a7a3b7166ed226ac37b81ed6229c64978d63be51de7205e",
+      "tools/sql_semantics.py": "d2d78f123a48160e1308e3afc9c3389b4442e303e70ccb37510b51fbc0d8105c",
+      "tools/sql_guard.py": "72ef5c19eb4080f3a75f745588eff76780684a0691c3ab141c79d17c6ca5db59",
+      "tools/sqlite.py": "6cc32bffd2d0822f3a0805d63ab15624c0530d9e0b6e719053f2d0c869784251",
+      "evaluation/stage_six.py": "b3d2ab0cb64c0bcc772dfae95d29c38ee688003dca59e5580f282972c69bc9d1",
+      "evaluation/stage_six_sql_precision.py": "9636255157d5a6477972ff3dadd0d50454710dc3150b09b8c56841f8180d3fa6",
+      "evaluation/stage_six_repair.py": "b4b97e3b6a08449df4750548f28c73759dc9fd932bd4867feadca34517491f2f",
+      "evaluation/stage_seven.py": "1d0a33ed1f9f7b8ae77edaf460f52024feb735a645582733dec126e66d0ecb48",
+      "contracts/query_plan.py": "4b18902c4ee0a82f35b4776bde17713a18672f2ef87b45e903cae3c958c9ad9e",
+      "tools/semantic_sql.py": "5c8d17f177d3cd53ce08f9352c83a9a7e364d86089158f89481e6491603b461f"
+    },
+    "model_route": {
+      "provider_id": "magpie",
+      "app_type": "magpie",
+      "model": "workbuddy/deepseek-v4.1-flash",
+      "transport": "openai-chat",
+      "thinking_mode": "default",
+      "json_mode": false,
+      "max_output_tokens": 3000,
+      "endpoint_hash": "fe8827a6b46979db5015036d380dd4e1f10eda5b76101c62a322240bf51a0573",
+      "wire_api": "chat_completions",
+      "gateway_adapter_hash": "163619e55b3ee9dd7eaeda7e9275a0cdc2a07972b6b67602016151f66632b8e6",
+      "gateway_headers_hash": "0a6dda900b2ea6b80cb4df4282bd2ec368d99d39ee00f707de87660edce6d440",
+      "route_hash": "ddcb6a5429c4f5365aa21351db2a358e378a5beb5c3b07ae80138dd444b8fbd4"
+    },
+    "reference_inputs_sent_to_worker": false,
+    "production_accepted": false,
+    "results": [
+      {
+        "answers": {},
+        "raw_answers": null,
+        "answer_evidence": {},
+        "task_contract": null,
+        "final_sql": null,
+        "failure": "token_budget",
+        "trace": [
+          {
+            "step": 1,
+            "status": "error",
+            "error": "ActionSchemaError",
+            "code": "action_schema",
+            "response_mode": "native_function",
+            "schema_errors": [
+              {
+                "path": [
+                  "tool_calls"
+                ],
+                "type": "one_action"
+              }
+            ],
+            "repair_type": "correct_parameters"
+          },
+          {
+            "step": 2,
+            "status": "error",
+            "error": "QueryExecutionError",
+            "code": "result_limit",
+            "response_mode": "native_function",
+            "action_keys": [
+              "sql"
+            ]
+          },
+          {
+            "step": 3,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "d90447a762db0a7563d96a53ee12b40cb6e022909c2c9d19012f657e6d34b0ab",
+            "response_mode": "native_function",
+            "sql": "SELECT account_id, COUNT(*) FROM loan WHERE date='1993-07-05' GROUP BY account_id",
+            "row_count": 1,
+            "elapsed_ms": 0.23416700423695147
+          },
+          {
+            "step": 4,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "01e858cbde0d6384fe5756d9bf34f3e06ac656789f8c098ca9473bcc9f28abd9",
+            "response_mode": "native_function",
+            "sql": "SELECT date, balance FROM trans WHERE account_id=1787 AND date IN ('1993-03-22','1998-12-27') ORDER BY date",
+            "row_count": 2,
+            "elapsed_ms": 52.010957995662466
+          },
+          {
+            "step": 5,
+            "status": "error",
+            "error": "SemanticError",
+            "code": "semantic_contract",
+            "response_mode": "native_function",
+            "action_keys": [
+              "final_sql",
+              "task_spec"
+            ],
+            "repair_type": "revise_plan_or_query",
+            "checks": [
+              "change_direction",
+              "change_reference_period"
+            ]
+          }
+        ],
+        "tokens": 24398,
+        "input_tokens": 23564,
+        "output_tokens": 834,
+        "usage_status": "complete",
+        "elapsed_seconds": 23.243954207995557,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 20.005821458005812,
+        "case_id": "116",
+        "database_hash": "d15d89cdb068a202b6f2b99342af44dffc1d52545b39ceaf62efdc0ba570101e",
+        "passed": false,
+        "database_unchanged": true
+      }
+    ]
+  },
+  "compact_sql_wire": {
+    "rich_tool_characters": 3302,
+    "compact_tool_characters": 1061,
+    "scope": "serialized local schemas; provider token and quality effect not yet measured",
+    "advanced_requirements": "full typed validation remains; advertised by opt-in plan profile and supported by JSON compatibility"
   }
 }

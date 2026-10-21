@@ -365,6 +365,7 @@ class BoundedSQLAgent:
         from generaldataagent.catalog.semantic_context import semantic_context
         from generaldataagent.evaluation.stage_seven import (
             STAGE7_ANALYSIS_PROMPT,
+            STAGE7_INDEPENDENT_TEST_PROMPT,
             STAGE7_JSON_SQL_PROMPT,
             STAGE7_PLAN_PROMPT,
             STAGE7_PROMPT,
@@ -514,7 +515,15 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
             )
             automatic_spec = True
             precision = False  # Preserve the independent SQL-output profile flag.
-            messages[0] = ("system", STAGE7_ANALYSIS_PROMPT)
+            messages[0] = (
+                "system",
+                STAGE7_ANALYSIS_PROMPT
+                + (
+                    STAGE7_INDEPENDENT_TEST_PROMPT
+                    if requests_independent_test(public_task_text)
+                    else ""
+                ),
+            )
         if semantic and task.benchmark == "bird-mini-dev-sqlite":
             messages[0] = (
                 "system",
@@ -599,6 +608,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                             planned=task_spec is not None,
                             plan_enabled=plan_mode,
                             exploration_enabled=True,
+                            compact_sql=not plan_mode,
                             independent_test_requested=requests_independent_test(public_task_text),
                             answer_contract=task_spec.answer if task_spec is not None else None,
                             evidence_steps=sorted(evidence),

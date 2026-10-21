@@ -80,17 +80,10 @@ Use execute_sql for a necessary read-only observation when values or encodings a
 then submit_sql with the final contract. Prefer direct submission when the evidence suffices.
 Omit question/public_requirements: runtime preserves public texts.
 For native submit_sql use only the advertised flat fields sql, output_columns, shape, ties,
-and optional requirements. Do not add nested answer/task_spec or other contract fields to this
-flat tool. Rich contracts remain available through the separate JSON compatibility path.
-Omit requirements for ordinary direct SQL. A SQL error needs a corrected query, not a new
-optional contract. Declare structural requirements only when intentionally needed and sourced.
+and any explicitly advertised optional fields. Do not add nested answer/task_spec to this flat tool.
+Rich sourced contracts remain available through JSON compatibility and the opt-in plan profile.
+A SQL error needs a corrected query, not a new optional contract.
 Use submit_sql to finish. One action per turn, six total, including planning and checks.
-requirements optionally declares predicates(expression, clause where/having/join, scope root,
-CTE/subquery alias, or unique direct root source), dates(column,start,end,encoding
-iso_date/compact_text/compact_integer,start_inclusive,
-end_inclusive), ratios(output_column,numerator,denominator,multiplier 1 or 100,zero_guard).
-Every requirement needs source_excerpt copied exactly from public text. Checks are structural:
-required conditions must be conjuncts in the declared scope; ratios must use declared operands.
 For changes from a start to an end period, increase is (end-start)/start; verify aliases against
 actual period filters before submitting, including any public formula's A/B mapping.
 Check exact entity grain, requested projections, distinct entities versus joined records, explicit
@@ -143,6 +136,7 @@ def bind_typed_tools(
     planned: bool = False,
     plan_enabled=False,
     exploration_enabled=False,
+    compact_sql=False,
     independent_test_requested=False,
     collection_first=False,
     collection_task=False,
@@ -198,8 +192,9 @@ def bind_typed_tools(
                 "output_columns": strings,
                 "shape": {"enum": ["scalar", "rows", "set"], "type": "string"},
                 "ties": {"enum": ["all", "single", "unspecified"], "type": "string"},
-                "requirements": requirement_schema,
             }
+            if not compact_sql:
+                properties["requirements"] = requirement_schema
             required.append("output_columns")
         tools = [
             tool(
@@ -456,15 +451,6 @@ and quoted labels must occur in original public text. It applies p<alpha then ab
 to unrounded values. Labels express the public decision policy, not scientific proof of linearity.
 Bind ["public_rule_label"] for this policy label, ["p_value"] for p. Regression has no predictor
 p-values or held-out evaluation.
-When an independent sample t-test is explicitly requested, use fixed_analysis operation
-independent_t_test with columns=[numeric measure,group column], test={groups:[first,second],
-variance:"student" or "welch", filters:[{column,value,source_excerpt}],
-significance_rule:{alpha,significant_label,nonsignificant_label}}. Text equality filters require
-an exact public excerpt containing their value. Choose the variance model explicitly; assumptions
-are unverified. Bind every public field to this test's full-data evidence: ["groups",0,"mean"],
-["groups",0,"sample_std"], corresponding group 1, ["p_value"] or ["public_rule_label"].
-Do not use unfiltered Pearson as an independent group test or replace a finite-sample t
-distribution by a fixed 1.96 threshold. SQL-only answers cannot certify the requested test.
 If a required method cannot be computed by the available tools, call declare_unsupported with a
 brief reason. Do not consume the budget trying unsupported functions or invent an approximation.
 When every public field is scalar, prefer submit_sql_answers: SELECT exactly one
@@ -503,6 +489,19 @@ Use no rule when the public contract already supplies its type/precision. rule.m
 must match the result's method_id: use sql for compute_sql even if SQL implements statistics.
 Runtime assembles values and rounds only as publicly requested. Never supply guessed final values.
 One action per turn, six actions and 24000 total observed tokens. Once evidence suffices, submit.
+"""
+
+
+STAGE7_INDEPENDENT_TEST_PROMPT = """
+When an independent sample t-test is explicitly requested, use fixed_analysis operation
+independent_t_test with columns=[numeric measure,group column], test={groups:[first,second],
+variance:"student" or "welch", filters:[{column,value,source_excerpt}],
+significance_rule:{alpha,significant_label,nonsignificant_label}}. Text equality filters require
+an exact public excerpt containing their value. Choose the variance model explicitly; assumptions
+are unverified. Bind every public field to this test's full-data evidence: ["groups",0,"mean"],
+["groups",0,"sample_std"], corresponding group 1, ["p_value"] or ["public_rule_label"].
+Do not use unfiltered Pearson as an independent group test or replace a finite-sample t
+distribution by a fixed 1.96 threshold. SQL-only answers cannot certify the requested test.
 """
 
 
@@ -574,6 +573,12 @@ undefined percentage. Keep the same six actions, 24000-token and 120-second mode
 
 
 STAGE7_PLAN_PROMPT = """
+requirements optionally declares predicates(expression, clause where/having/join, scope root,
+CTE/subquery alias, or unique direct root source), dates(column,start,end,encoding
+iso_date/compact_text/compact_integer,start_inclusive,end_inclusive),
+ratios(output_column,numerator,denominator,multiplier 1 or 100,zero_guard).
+Every requirement needs source_excerpt copied exactly from public text. Checks are structural:
+required conditions must be conjuncts in the declared scope; ratios use the declared operands.
 For a count-based fraction of a population, submit_query_plan operation=population_ratio uses
 the runtime-bound public question as its top-level source. Omit that top-level source_excerpt.
 Per-filter source_excerpt must remain an exact substring of public question/instructions;

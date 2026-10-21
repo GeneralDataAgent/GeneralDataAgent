@@ -171,6 +171,30 @@ def test_native_test_schema_is_requested_and_self_contained():
             assert '"$ref"' not in json.dumps(props["test"])
 
 
+@pytest.mark.parametrize("requested", [False, True])
+def test_agent_sends_group_test_recipe_only_when_publicly_requested(database, requested):
+    class Model:
+        prompt = ""
+
+        def invoke(self, messages):
+            self.prompt = messages[0][1]
+            return SimpleNamespace(
+                content='{"unsupported":"fixture"}', usage_metadata={"total_tokens": 10}
+            )
+
+    model = Model()
+    task = Task(
+        "infiagent-dabench",
+        "synthetic",
+        PUBLIC if requested else "Compute the mean.",
+        "@answer[value]",
+        "easy",
+        "data.csv",
+    )
+    BoundedSQLAgent(model, tool_profile="sql-semantic").run(task, database)
+    assert ("independent_t_test with columns=" in model.prompt) is requested
+
+
 def test_agent_rejects_approximation_and_binds_actual_test(tmp_path):
     path = tmp_path / "agent.sqlite"
     with sqlite3.connect(path) as db:
