@@ -110,9 +110,19 @@ def validate_field_value(raw, field: AnswerFieldSpec, result: dict, path: list):
         if field.nullable is False:
             raise ValueError("field is not nullable")
         return raw
-    if field.kind == "set":
+    if field.kind in {"set", "list"}:
         if not isinstance(raw, list):
-            raise ValueError("field requires complete set evidence")
+            raise ValueError("field requires complete collection evidence")
+        if field.item_kind:
+            item_rule = AnswerFieldSpec(kind=field.item_kind, nullable=False)
+            raw = [validate_field_value(item, item_rule, {}, []) for item in raw]
+        if field.order:
+            try:
+                ordered = sorted(raw, reverse=field.order == "desc")
+            except TypeError:
+                raise ValueError("collection ordering requires comparable values") from None
+            if raw != ordered:
+                raise ValueError("collection violates the public ordering requirement")
     elif field.kind == "string":
         if not isinstance(raw, str):
             raise ValueError("field requires a string; cast explicitly in the computation")
@@ -223,6 +233,9 @@ def infer_public_field_rules(instructions: str, columns: list[str]) -> dict[str,
         defined = set(re.findall(r"[\"']([^\"'\n]{1,200})[\"']", names))
         if not defined and re.fullmatch(r"\w+", names.strip()):
             defined = {names.strip()}
+        collection = bool(
+            re.search(r"^(?:(?:a|the)\s+)?(?:list|collection)\b", description.strip(), re.I)
+        )
         kind = (
             "set"
             if re.search(r"^(?:(?:a|the)\s+)?set\b", description.strip(), re.I)
@@ -246,6 +259,33 @@ def infer_public_field_rules(instructions: str, columns: list[str]) -> dict[str,
             )
             else None
         )
+        item_kind = None
+        if collection:
+            kind = "set" if no_duplicates else "list"
+        if kind in {"set", "list"}:
+            element = re.search(
+                r"\b(?:set|list|collection)\s+of\s+"
+                r"(integers?|strings?|booleans?|numbers?|float(?:ing)?(?:\s+point)?)\b",
+                description,
+                re.I,
+            )
+            if element:
+                word = element[1].lower()
+                item_kind = (
+                    "integer"
+                    if word.startswith("integer")
+                    else "string"
+                    if word.startswith("string")
+                    else "boolean"
+                    if word.startswith("boolean")
+                    else "number"
+                )
+        order = None
+        if kind in {"set", "list"}:
+            ascending = bool(re.search(r"\bascending\b", description, re.I))
+            descending = bool(re.search(r"\bdescending\b", description, re.I))
+            if ascending != descending:
+                order = "asc" if ascending else "desc"
         precision = public_precisions(description)
         if kind is None or len(precision) > 1 or len(excerpt) > 2000:
             continue
@@ -253,8 +293,12 @@ def infer_public_field_rules(instructions: str, columns: list[str]) -> dict[str,
             if placeholders.get(key) in defined:
                 candidate = AnswerFieldSpec(
                     kind=kind,
-                    nullable=False if kind == "set" else None,
-                    decimals=next(iter(precision)) if precision and kind != "set" else None,
+                    item_kind=item_kind,
+                    order=order,
+                    nullable=False if kind in {"set", "list"} else None,
+                    decimals=next(iter(precision))
+                    if precision and kind not in {"set", "list"}
+                    else None,
                     source_excerpt=excerpt,
                 )
                 if key in rules and rules[key] != candidate:

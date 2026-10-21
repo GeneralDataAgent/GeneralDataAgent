@@ -903,7 +903,10 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     tool = "sql_crosscheck"
                 elif semantic and "collect" in action:
                     result_data = collect_complete(
-                        database, action["collect"]["sql"], allowed_relations=relations
+                        database,
+                        action["collect"]["sql"],
+                        allowed_relations=relations,
+                        collection_kind=action["collect"].get("collection_kind", "set"),
                     )
                     tool = "complete_collection"
                 elif enhanced and "search" in action:

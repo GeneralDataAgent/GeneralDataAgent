@@ -50,6 +50,50 @@ def test_types_and_sample_std_methods_are_not_guessed():
         validate_field_value(2, AnswerFieldSpec(kind="string"), {}, [])
 
 
+def test_public_integer_list_is_not_mistaken_for_a_scalar_and_order_is_authoritative():
+    from generaldataagent.orchestration.analysis_plan import accept_contract
+    from generaldataagent.tools.answer_fields import infer_public_field_rules
+
+    text = '@years[years_list] where "years_list" is a list of integer years in ascending order.'
+    fields = infer_public_field_rules(text, ["years"])
+    field = fields["years"]
+    assert field.kind == "list" and field.item_kind == "integer" and field.order == "asc"
+    assert validate_field_value([2001, 2001, 2020], field, {}, []) == [2001, 2001, 2020]
+    assert validate_field_value([], field, {}, []) == []
+    for value, message in [
+        (2001, "complete collection"),
+        ([2001.5], "nonintegral"),
+        (["2001"], "finite numeric"),
+        ([2020, 2001], "ordering"),
+    ]:
+        with pytest.raises(ValueError, match=message):
+            validate_field_value(value, field, {}, [])
+    proposal = {
+        "question": "years?",
+        "public_requirements": text,
+        "answer": {"columns": ["years"], "fields": {"years": {"kind": "list"}}},
+    }
+    accepted = accept_contract(proposal, question="years?", instructions=text)
+    assert accepted.answer.fields["years"].item_kind == "integer"
+    assert accepted.answer.fields["years"].order == "asc"
+    for override in [{"order": "desc"}, {"item_kind": "string"}, {"kind": "integer"}]:
+        changed = proposal | {
+            "answer": {"columns": ["years"], "fields": {"years": {"kind": "list"} | override}}
+        }
+        with pytest.raises(ValueError, match="contradict"):
+            accept_contract(changed, question="years?", instructions=text)
+
+
+def test_public_unique_list_retains_set_semantics_and_integer_elements():
+    from generaldataagent.tools.answer_fields import infer_public_field_rules
+
+    text = '@years[y] where "y" is a list of integers in descending order. No duplicates.'
+    field = infer_public_field_rules(text, ["years"])["years"]
+    assert field.kind == "set" and field.item_kind == "integer" and field.order == "desc"
+    with pytest.raises(ValueError, match="collection element"):
+        AnswerFieldSpec(kind="integer", item_kind="integer")
+
+
 def test_large_finite_values_keep_explicit_precision_without_decimal_context_failure():
     assert format_decimal(1e30, 2) == "1000000000000000000000000000000.00"
     assert format_decimal(1.2345, 3) == "1.234"

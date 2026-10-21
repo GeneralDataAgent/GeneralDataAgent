@@ -14,6 +14,48 @@ from generaldataagent.tools.sql_semantics import (
 )
 
 
+def test_complete_lists_keep_all_rows_duplicates_and_original_collection_guards(tmp_path):
+    from generaldataagent.tools.sql_semantics import collect_complete
+    from generaldataagent.tools.sqlite import QueryExecutionError
+
+    path = tmp_path / "list.sqlite"
+    with sqlite3.connect(path) as db:
+        db.executescript("CREATE TABLE observations(value INT);")
+        db.executemany("INSERT INTO observations VALUES(?)", [(n // 2,) for n in range(302)])
+    before = path.read_bytes()
+    result = collect_complete(
+        path,
+        "SELECT value FROM observations ORDER BY value",
+        allowed_relations={"observations"},
+        collection_kind="list",
+    )
+    assert result["complete"] and result["total_count"] == 302
+    assert result["items"] == [n // 2 for n in range(302)]
+    with pytest.raises(SemanticError, match="duplicates"):
+        collect_complete(path, "SELECT value FROM observations", allowed_relations={"observations"})
+    for query, message in [
+        ("SELECT value FROM observations LIMIT 200", "LIMIT"),
+        ("SELECT 302 FROM observations", "data_dependent"),
+        ("SELECT value,value FROM observations", "one explicit"),
+    ]:
+        with pytest.raises(SemanticError, match=message):
+            collect_complete(
+                path, query, allowed_relations={"observations"}, collection_kind="list"
+            )
+    assert path.read_bytes() == before
+    with sqlite3.connect(path) as db:
+        db.executemany("INSERT INTO observations VALUES(?)", [(1,)] * 9700)
+    before = path.read_bytes()
+    with pytest.raises(QueryExecutionError, match="row limit"):
+        collect_complete(
+            path,
+            "SELECT value FROM observations",
+            allowed_relations={"observations"},
+            collection_kind="list",
+        )
+    assert path.read_bytes() == before
+
+
 def test_ties_direction_projection_and_entity_grain():
     spec = AnalysisTaskSpec(
         question="all oldest people",

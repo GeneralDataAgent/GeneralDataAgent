@@ -1176,3 +1176,67 @@ def test_public_age_direction_hint_describes_public_semantics_without_input_valu
 
     hint = execution_hint(ValueError("public_age_order_direction"))
     assert "public instructions" in hint and "oldest/youngest" in hint
+
+
+def test_list_collection_preserves_duplicate_values_and_full_receipt(database):
+    before = database.read_bytes()
+    result = run(
+        database,
+        [
+            {
+                "collect_values": {
+                    "sql": "SELECT score FROM people ORDER BY score",
+                    "collection_kind": "list",
+                }
+            },
+            {"submit_answers": {"fields": [{"name": "scores", "step": 1, "path": ["items"]}]}},
+        ],
+        benchmark="infiagent-dabench",
+        question="List every score, including repeated values.",
+        instructions='@scores[values] where "values" is a list of integers in ascending order.',
+    )
+    assert result["failure"] is None and result["answers"] == {"scores": [10, 10]}
+    assert result["answer_evidence"]["scores"]["raw_value"] == [10, 10]
+    assert result["answer_evidence"]["scores"]["method_id"] == "complete_collection"
+    assert database.read_bytes() == before
+
+
+def test_public_list_order_is_checked_without_silently_sorting_evidence(database):
+    result = run(
+        database,
+        [
+            {
+                "collect_values": {
+                    "sql": "SELECT id FROM people ORDER BY id DESC",
+                    "collection_kind": "list",
+                }
+            },
+            {"submit_answers": {"fields": [{"name": "ids", "step": 1, "path": ["items"]}]}},
+            {
+                "collect_values": {
+                    "sql": "SELECT id FROM people ORDER BY id ASC",
+                    "collection_kind": "list",
+                }
+            },
+            {"submit_answers": {"fields": [{"name": "ids", "step": 3, "path": ["items"]}]}},
+        ],
+        benchmark="infiagent-dabench",
+        instructions='@ids[values] where "values" is a list of integers in ascending order.',
+    )
+    assert result["failure"] is None and result["answers"] == {"ids": [1, 2]}
+    assert result["trace"][1]["status"] == "error"
+    assert result["answer_evidence"]["ids"]["step"] == 3
+
+
+def test_list_mode_cannot_bypass_public_set_uniqueness(database):
+    result = run(
+        database,
+        [
+            {"collect_values": {"sql": "SELECT score FROM people", "collection_kind": "list"}},
+            {"submit_answers": {"fields": [{"name": "scores", "step": 1, "path": ["items"]}]}},
+        ],
+        benchmark="infiagent-dabench",
+        instructions='@scores[values] where "values" is a set of integers. No duplicates.',
+    )
+    assert result["failure"] and not result["answers"]
+    assert "duplicate_entities" in result["trace"][-1]["checks"]

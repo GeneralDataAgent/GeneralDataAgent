@@ -55,6 +55,14 @@ def accept_contract(proposal: dict, *, question: str, instructions: str) -> Anal
             if field.kind != expected.kind:
                 raise ValueError("field type contradicts the explicit public format")
             updates = {}
+            for attribute in ("item_kind", "order"):
+                known = getattr(expected, attribute)
+                if known is not None:
+                    if getattr(field, attribute) not in (None, known):
+                        raise ValueError(
+                            "collection elements contradict the explicit public format"
+                        )
+                    updates[attribute] = known
             if not field.source_excerpt:
                 updates["source_excerpt"] = expected.source_excerpt
             if expected.nullable is False:
@@ -163,7 +171,8 @@ def normalize_protocol_action(action):
             else action
         )
     if name in {"collect_values", "compute_sql", "submit_sql_answers"}:
-        if not isinstance(arguments, dict) or set(arguments) != {"sql"}:
+        allowed = {"sql", "collection_kind"} if name == "collect_values" else {"sql"}
+        if not isinstance(arguments, dict) or "sql" not in arguments or set(arguments) - allowed:
             return action
         return {names[name]: arguments if name == "collect_values" else arguments["sql"]}
     if name == "fixed_analysis":

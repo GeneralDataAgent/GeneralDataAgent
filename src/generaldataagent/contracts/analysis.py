@@ -65,9 +65,11 @@ class AnalysisArguments(Contract):
 
 class CollectionArguments(Contract):
     sql: str = Field(min_length=1, max_length=30000)
+    collection_kind: Literal["set", "list"] = "set"
 
 
-class CrosscheckArguments(CollectionArguments):
+class CrosscheckArguments(Contract):
+    sql: str = Field(min_length=1, max_length=30000)
     purpose: Literal["ties", "entity_grain", "denominator", "date_boundary", "output_range"]
 
 

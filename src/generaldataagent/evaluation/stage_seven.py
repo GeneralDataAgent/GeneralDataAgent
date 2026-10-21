@@ -279,8 +279,8 @@ def bind_typed_tools(model, *, sql_output: bool, planned: bool = False, plan_ena
             ),
             tool(
                 "collect_values",
-                "Complete distinct single-column set; no LIMIT/OFFSET, <=10000 items",
-                {"sql": string},
+                "Complete single-column set or list; no LIMIT/OFFSET, <=10000 items",
+                {"sql": string, "collection_kind": {"type": "string", "enum": ["set", "list"]}},
                 ["sql"],
             ),
             tool(
@@ -313,7 +313,7 @@ brief reason. Do not consume the budget trying unsupported functions or invent a
 When every public field is scalar, prefer submit_sql_answers: SELECT exactly one
 row and alias every output column to its exact public answer key. Runtime computes, checks and
 binds all fields atomically, with the public precision and full-data receipts. No guessed constants.
-If any public field has kind=set, use collect_values for that field and bind [items]. Use
+If any public field has kind=set or list, use collect_values for that field and bind [items]. Use
 compute_sql for other scalar fields, then bind all fields together. Runtime applies any public
 collection_separator after binding and retains the full raw collection; do not serialize it in SQL.
 For necessary exploration use compute_sql, read-only SQLite with exact listed columns and relations.
@@ -322,6 +322,9 @@ statistics from previews. Use sample_std for sample standard deviation. Preserve
 Search documents when needed with search_documents. For complete ID or column-name sets use
 collect_values with one DISTINCT output column and no LIMIT/OFFSET, bounded to 10000 values.
 Then submit_answers with fields [{"name":"public_key","step":1,"path":["rows",0,0]}].
+For lists pass collection_kind=list to preserve duplicates, and use the requested ORDER BY.
+Sets default to collection_kind=set and reject duplicates. Lists and sets retain element types
+and public ordering requirements; do not replace a list by a scalar or silently sort in prose.
 For Pearson bind path ["correlation"]; for sample std ["statistics","column","sample_std"].
 For complete collections bind ["items"] and rule {"kind":"set","method":"complete_collection"}.
 SQL answer evidence must use explicit projections with data dependencies. A SELECT of model-
@@ -329,8 +332,10 @@ supplied constants, including constants wrapped in a CTE, cannot certify an answ
 from scoped data or use fixed_analysis; unsupported statistical methods must not be approximated
 by guessing a value then returning it from SQL.
 Dependency checks are structural, not correctness proof.
-Every public answer key must be bound. Optional rule fields: kind number/integer/string/boolean/set,
-decimals, unit, method, source_excerpt. Precision and units require exact public source excerpts.
+Every public answer key must be bound. Optional rule fields:
+kind number/integer/string/boolean/set/list, item_kind, order (asc/desc), decimals, unit,
+method, source_excerpt.
+Precision and units require exact public source excerpts.
 Use no rule when the public contract already supplies its type/precision. rule.method, if given,
 must match the result's method_id: use sql for compute_sql even if SQL implements statistics.
 Runtime assembles values and rounds only as publicly requested. Never supply guessed final values.

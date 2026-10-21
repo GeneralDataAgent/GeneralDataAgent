@@ -105,11 +105,12 @@ def execution_hint(exc: Exception) -> str:
             "column, then bind path [items]. Column-name labels must be conditional on data "
             "for that exact physical field."
         )
-    if "field requires complete set evidence" in text:
+    if "field requires complete collection evidence" in text:
         return (
-            "Use collect_values with one DISTINCT full-data output column and no LIMIT/OFFSET, "
-            "then submit_answers binding path [items]. A JSON or comma-joined string is not "
-            "a verified complete collection. Preserve any public sorting requirement."
+            "Use collect_values with one full-data output column and no LIMIT/OFFSET, "
+            "then submit_answers binding path [items]. For a list use collection_kind=list "
+            "to preserve duplicates; sets require distinct values. Preserve public ordering. "
+            "A scalar or serialized string is not a verified complete collection."
         )
     if any(code in text for code in ("predicate_scope", "date_scope", "ratio_scope")):
         return (

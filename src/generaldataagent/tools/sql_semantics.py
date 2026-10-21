@@ -150,13 +150,18 @@ def assemble_answers(bindings: dict, evidence: dict[int, dict], answer: AnswerSp
             if (
                 result.get("complete") is not True
                 or result.get("total_count") != len(value)
-                or (answer.shape != "set" and (field is None or field.kind != "set"))
+                or (answer.shape != "set" and (field is None or field.kind not in {"set", "list"}))
             ):
                 raise SemanticError("collection completeness not verified")
             checks = validate_rows(
                 [key],
                 [(item,) for item in value],
-                answer.model_copy(update={"columns": [key], "shape": "set"}),
+                answer.model_copy(
+                    update={
+                        "columns": [key],
+                        "shape": "rows" if field and field.kind == "list" else "set",
+                    }
+                ),
             )
             if checks:
                 raise SemanticError(",".join(checks))
@@ -197,11 +202,15 @@ def assemble_answers(bindings: dict, evidence: dict[int, dict], answer: AnswerSp
     return output
 
 
-def collect_complete(database, sql: str, *, allowed_relations: set[str]) -> dict:
+def collect_complete(
+    database, sql: str, *, allowed_relations: set[str], collection_kind: str = "set"
+) -> dict:
     """A bounded complete one-column collection; over-limit queries fail, never truncate."""
     from generaldataagent.tools.sql_guard import SqlGuard
     from generaldataagent.tools.sqlite import SQLiteReadOnlyExecutor
 
+    if collection_kind not in {"set", "list"}:
+        raise SemanticError("unsupported collection kind")
     SqlGuard(dialect="sqlite").inspect(sql, allowed_relations=allowed_relations)
     validate_column_scope(database, sql, allowed_relations=allowed_relations)
     tree = parse_one(sql, read="sqlite")
@@ -215,9 +224,12 @@ def collect_complete(database, sql: str, *, allowed_relations: set[str]) -> dict
     ):
         raise SemanticError("data_dependent_answer_required")
     items = [row[0] for row in result.rows]
-    if len(set(items)) != len(items):
+    if collection_kind == "set" and len(set(items)) != len(items):
         raise SemanticError("complete set contains duplicates; use distinct entity grain")
-    return {"items": items, "total_count": len(items), "complete": True}
+    result = {"items": items, "total_count": len(items), "complete": True}
+    if collection_kind == "list":
+        result["collection_kind"] = "list"
+    return result
 
 
 def validate_column_scope(database, sql: str, *, allowed_relations: set[str]) -> None:
