@@ -115,6 +115,8 @@ def bind_typed_tools(
     plan_enabled=False,
     collection_first=False,
     collection_task=False,
+    answer_contract=None,
+    evidence_steps=None,
 ):
     """Small native wire schemas; complete strict contracts remain enforced locally."""
     if not hasattr(model, "bind"):
@@ -273,6 +275,14 @@ def bind_typed_tools(
             "required": ["name", "step", "path"],
             "additionalProperties": False,
         }
+        if answer_contract is not None:
+            if answer_contract.columns:
+                field["properties"]["name"] = string | {"enum": list(answer_contract.columns)}
+            if answer_contract.fields:
+                # Public rules already belong to the immutable runtime contract.
+                field["properties"].pop("rule")
+        if evidence_steps:
+            field["properties"]["step"]["enum"] = list(evidence_steps)
         tools = [
             tool(
                 "submit_sql_answers",
@@ -327,6 +337,8 @@ def bind_typed_tools(
             )
         )
         choice = "required"
+        if evidence_steps is not None and not evidence_steps:
+            tools = [item for item in tools if item["function"]["name"] != "submit_answers"]
         if collection_task:
             tools = [item for item in tools if item["function"]["name"] != "submit_sql_answers"]
         if collection_first:

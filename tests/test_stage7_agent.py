@@ -366,7 +366,7 @@ def test_native_statistics_use_two_actions_and_keep_full_precision_receipts(data
             self.calls = 0
 
         def bind(self, **kwargs):
-            assert {t["function"]["name"] for t in kwargs["tools"]} == {
+            expected = {
                 "compute_sql",
                 "fixed_analysis",
                 "search_documents",
@@ -375,6 +375,17 @@ def test_native_statistics_use_two_actions_and_keep_full_precision_receipts(data
                 "declare_unsupported",
                 "submit_sql_answers",
             }
+            if not self.calls:
+                expected.remove("submit_answers")
+            assert {t["function"]["name"] for t in kwargs["tools"]} == expected
+            if self.calls:
+                tool = next(t for t in kwargs["tools"] if t["function"]["name"] == "submit_answers")
+                properties = tool["function"]["parameters"]["properties"]["fields"]["items"][
+                    "properties"
+                ]
+                assert properties["name"]["enum"] == ["mean"]
+                assert properties["step"]["enum"] == [1]
+                assert "rule" in properties  # No explicit public per-field type here.
             return self
 
         def invoke(self, messages):
@@ -1499,6 +1510,54 @@ def test_native_plan_profile_has_a_typed_unsupported_exit_before_and_after_contr
     assert not result["answers"]
 
 
+def test_native_binding_schema_uses_successful_steps_only_after_failed_computation(database):
+    from langchain_core.messages import AIMessage
+
+    class Native:
+        calls = 0
+
+        def bind(self, **kwargs):
+            tools = {t["function"]["name"]: t["function"] for t in kwargs["tools"]}
+            if self.calls < 2:
+                assert "submit_answers" not in tools
+            else:
+                field = tools["submit_answers"]["parameters"]["properties"]["fields"]["items"]
+                assert field["properties"]["name"]["enum"] == ["n"]
+                assert field["properties"]["step"]["enum"] == [2]
+                assert "rule" not in field["properties"]
+            return self
+
+        def invoke(self, messages):
+            self.calls += 1
+            if self.calls == 1:
+                name, args = "compute_sql", {"sql": "SELECT absent FROM people"}
+            elif self.calls == 2:
+                name, args = "compute_sql", {"sql": "SELECT COUNT(*) AS n FROM people"}
+            else:
+                name, args = (
+                    "submit_answers",
+                    {"fields": [{"name": "n", "step": 2, "path": ["rows", 0, 0]}]},
+                )
+            return AIMessage(
+                content="",
+                tool_calls=[{"name": name, "args": args, "id": str(self.calls)}],
+                usage_metadata={"total_tokens": 10, "input_tokens": 8, "output_tokens": 2},
+            )
+
+    task = Task(
+        "infiagent-dabench",
+        "synthetic",
+        "Count people.",
+        '@n[value] where "value" is an integer.',
+        "easy",
+        "people",
+    )
+    result = BoundedSQLAgent(Native(), tool_profile="sql-semantic", max_steps=3).run(task, database)
+    assert result["failure"] is None and result["answers"] == {"n": 2}
+    assert result["trace"][0]["code"] == "unknown_column"
+    assert result["answer_evidence"]["n"]["step"] == 2
+
+
 @pytest.mark.parametrize("unsupported", [False, True])
 @pytest.mark.parametrize("with_documents", [False, True])
 def test_native_collection_phase_defers_scalar_actions_and_keeps_typed_exit(
@@ -1516,7 +1575,18 @@ def test_native_collection_phase_defers_scalar_actions_and_keeps_typed_exit(
             if not self.calls and not with_documents:
                 assert names == {"collect_values", "declare_unsupported"}
             else:
-                assert {"submit_answers", "compute_sql", "search_documents"} <= names
+                assert {"compute_sql", "search_documents"} <= names
+                assert ("submit_answers" in names) == bool(self.calls)
+                if self.calls:
+                    tool = next(
+                        t for t in kwargs["tools"] if t["function"]["name"] == "submit_answers"
+                    )
+                    properties = tool["function"]["parameters"]["properties"]["fields"]["items"][
+                        "properties"
+                    ]
+                    assert properties["name"]["enum"] == ["ids"]
+                    assert properties["step"]["enum"] == [1]
+                    assert "rule" not in properties
             return self
 
         def invoke(self, messages):

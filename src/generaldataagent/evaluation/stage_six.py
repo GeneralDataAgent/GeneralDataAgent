@@ -574,6 +574,8 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                             sql_output=task.benchmark == "bird-mini-dev-sqlite",
                             planned=task_spec is not None,
                             plan_enabled=plan_mode,
+                            answer_contract=task_spec.answer if task_spec is not None else None,
+                            evidence_steps=sorted(evidence),
                             collection_task=(
                                 task_spec is not None
                                 and any(
