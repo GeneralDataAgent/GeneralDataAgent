@@ -123,6 +123,25 @@ def bind_typed_tools(model, *, sql_output: bool, planned: bool = False, plan_ena
     string = {"type": "string"}
     strings = {"type": "array", "items": string}
     if sql_output:
+        from generaldataagent.contracts.semantic_requirements import SemanticRequirements
+
+        requirement_schema = SemanticRequirements.model_json_schema()
+        definitions = requirement_schema.get("$defs", {})
+
+        def inline_schema(node):
+            if isinstance(node, list):
+                return [inline_schema(item) for item in node]
+            if not isinstance(node, dict):
+                return node
+            if "$ref" in node:
+                return inline_schema(definitions[node["$ref"].split("/")[-1]])
+            return {
+                key: inline_schema(value)
+                for key, value in node.items()
+                if key not in {"$defs", "title", "default"}
+            }
+
+        requirement_schema = inline_schema(requirement_schema)
         properties = {"sql": string}
         required = ["sql"]
         if not planned:
@@ -130,7 +149,7 @@ def bind_typed_tools(model, *, sql_output: bool, planned: bool = False, plan_ena
                 "output_columns": strings,
                 "shape": {"enum": ["scalar", "rows", "set"], "type": "string"},
                 "ties": {"enum": ["all", "single", "unspecified"], "type": "string"},
-                "requirements": {"type": "object", "description": "Optional sourced requirements"},
+                "requirements": requirement_schema,
             }
             required.append("output_columns")
         tools = [
@@ -198,10 +217,7 @@ def bind_typed_tools(model, *, sql_output: bool, planned: bool = False, plan_ena
                             "required": ["columns"],
                             "additionalProperties": False,
                         },
-                        "requirements": {
-                            "type": "object",
-                            "description": "Optional sourced structural requirements",
-                        },
+                        "requirements": requirement_schema,
                     },
                     ["answer"],
                 )

@@ -121,3 +121,27 @@ def test_flat_native_bindings_reject_duplicates_and_boolean_step_ids():
     ]:
         with pytest.raises(ActionSchemaError):
             validate_action(normalize_protocol_action({"submit_answers": {"fields": fields}}))
+
+
+def test_native_optional_requirements_advertise_strict_fields_and_required_public_sources():
+    from generaldataagent.evaluation.stage_seven import bind_typed_tools
+
+    class Model:
+        def bind(self, **kwargs):
+            return kwargs
+
+    def requirements(tool):
+        return tool["function"]["parameters"]["properties"]["requirements"]
+
+    wire = bind_typed_tools(Model(), sql_output=True, plan_enabled=True)
+    selected = {t["function"]["name"]: t for t in wire["tools"]}
+    for name in ["submit_sql", "plan_analysis"]:
+        schema = requirements(selected[name])
+        assert schema["additionalProperties"] is False
+        assert set(schema["properties"]) == {"predicates", "dates", "ratios"}
+        for kind in ["predicates", "dates", "ratios"]:
+            item = schema["properties"][kind]["items"]
+            assert item["additionalProperties"] is False
+            assert "source_excerpt" in item["required"]
+        assert "$ref" not in str(schema) and "$defs" not in str(schema)
+        assert "requirements" not in selected[name]["function"]["parameters"]["required"]
