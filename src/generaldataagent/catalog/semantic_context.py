@@ -139,6 +139,7 @@ def semantic_context(
     for fk in relationships["foreign_keys"]:
         groups.setdefault((fk["table"], fk["relationship"]), []).append(fk)
     cardinalities = []
+    compact_joins = []
     for (table, _), components in sorted(groups.items())[:24]:
         components.sort(key=lambda f: f["sequence"])
         target = components[0]["references_table"]
@@ -148,6 +149,7 @@ def semantic_context(
             if len(target_pk) != len(components):
                 continue
             referenced = target_pk
+        compact_joins.append([table, [f["column"] for f in components], target, referenced])
         keys = ",".join(quote(f["column"]) for f in components)
         parent_keys = ",".join(quote(c) for c in referenced)
         maxima = []
@@ -213,6 +215,25 @@ def semantic_context(
                 field.pop("date_encoding")
             field.pop("declared_type", None)
     output["budget_chars"] = max_chars
+    mentioned = {
+        table
+        for table in allowed_relations
+        if re.search(r"(?<!\w)" + re.escape(table) + r"(?!\w)", public_text, re.I)
+    }
+    literal_targets = {
+        item["candidate"][0]
+        for mapping in mappings["ambiguous"]
+        for item in mapping.get("literal_observations", [])
+        if item.get("exact_match_rows", 0) > 0
+    }
+    compact_joins.sort(
+        key=lambda item: (
+            -sum(table in literal_targets for table in (item[0], item[2])),
+            -sum(table in mentioned for table in (item[0], item[2])),
+            str(item),
+        )
+    )
+    compacted = False
     while len(json.dumps(output, default=str)) > max_chars:
         fields = [t for t in output["tables"].values() if t["fields"]]
         if fields:
@@ -228,6 +249,13 @@ def semantic_context(
             output["cardinalities"].pop()
             output["omitted_cardinality_checks"] += 1
         elif output["relationships"]["foreign_keys"]:
+            if not compacted:
+                # Preserve composite order in a compact declared representation:
+                # [child relation, child columns, parent relation, parent columns].
+                output["relationships"]["join_keys"] = compact_joins.copy()
+                if len(groups) > len(compact_joins):
+                    output["omitted_compact_join_keys"] = len(groups) - len(compact_joins)
+                compacted = True
             output["relationships"]["foreign_keys"].pop()
             output["omitted_declared_relationships"] = (
                 output.get("omitted_declared_relationships", 0) + 1
@@ -237,6 +265,9 @@ def semantic_context(
             output["omitted_declared_relationships"] = (
                 output.get("omitted_declared_relationships", 0) + 1
             )
+        elif output["relationships"].get("join_keys"):
+            output["relationships"]["join_keys"].pop()
+            output["omitted_compact_join_keys"] = output.get("omitted_compact_join_keys", 0) + 1
         elif output["observed_value_candidates"]:
             output["observed_value_candidates"].pop()
             output["omitted_value_candidates"] = output.get("omitted_value_candidates", 0) + 1

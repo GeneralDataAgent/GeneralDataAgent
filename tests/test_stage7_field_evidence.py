@@ -209,3 +209,34 @@ def test_compact_context_preserves_declared_join_before_empty_preview_metadata(t
     assert result["public_field_mappings"]["ambiguous"][0]["literal_observations"]
     assert len(json.dumps(result)) <= 1500
     assert path.read_bytes() == before
+
+
+def test_compact_declared_join_keys_prioritize_public_literals_and_preserve_composite_order(
+    tmp_path,
+):
+    import json
+    import sqlite3
+
+    from generaldataagent.catalog.semantic_context import semantic_context
+
+    path = tmp_path / "compact-join.sqlite"
+    extra = {f"aux_{i}" for i in range(10)}
+    with sqlite3.connect(path) as db:
+        db.executescript(
+            "CREATE TABLE groups(a INT,b INT,name TEXT,PRIMARY KEY(b,a)); "
+            "CREATE TABLE items(x INT,y INT,name TEXT,FOREIGN KEY(x,y) REFERENCES groups(b,a)); "
+            "INSERT INTO groups VALUES(1,2,'Winter'); INSERT INTO items VALUES(2,1,'Snow');"
+        )
+        for table in sorted(extra):
+            db.execute(f'CREATE TABLE "{table}"(x INT REFERENCES groups(b))')
+    before = path.read_bytes()
+    result = semantic_context(
+        path,
+        allowed_relations=extra | {"items", "groups"},
+        max_chars=1500,
+        public_text="eligible items in group Winter; group Winter refers to name = 'Winter'",
+    )
+    assert ["items", ["x", "y"], "groups", ["b", "a"]] in result["relationships"]["join_keys"]
+    assert result["public_field_mappings"]["ambiguous"][0]["literal_observations"]
+    assert len(json.dumps(result)) <= 1500
+    assert path.read_bytes() == before
