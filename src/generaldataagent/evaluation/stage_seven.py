@@ -304,9 +304,11 @@ linear_regression (descriptive slope/intercept only). Pearson returns r and obse
 not p-values or significance tests. Regression has no predictor p-values or held-out evaluation.
 If a required method cannot be computed by the available tools, call declare_unsupported with a
 brief reason. Do not consume the budget trying unsupported functions or invent an approximation.
-For a complete answer available in one SQL query, prefer submit_sql_answers: SELECT exactly one
+When every public field is scalar, prefer submit_sql_answers: SELECT exactly one
 row and alias every output column to its exact public answer key. Runtime computes, checks and
 binds all fields atomically, with the public precision and full-data receipts. No guessed constants.
+If any public field has kind=set, use collect_values for that field and bind [items]. Use
+compute_sql for other scalar fields, then bind all fields together; never serialize sets as strings.
 For necessary exploration use compute_sql, read-only SQLite with exact listed columns and relations.
 Use only requested filters; keep missing-value and date conventions explicit. Do not estimate
 statistics from previews. Use sample_std for sample standard deviation. Preserve requested ties.

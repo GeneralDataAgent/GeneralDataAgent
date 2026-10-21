@@ -977,3 +977,28 @@ def test_public_collection_auto_contract_requires_complete_values_and_bindings(d
     assert result["answer_evidence"]["ids"]["method_id"] == "complete_collection"
     assert result["answer_evidence"]["ids"]["step"] == 2
     assert result["trace"][0]["status"] == "error"
+
+
+def test_public_boolean_type_cannot_be_changed_by_optional_binding_rule(database):
+    instructions = "@flag[value] where 'value' is a boolean."
+    actions = [
+        {"compute_sql": {"sql": "SELECT COUNT(*)>0 AS flag FROM people"}},
+        {
+            "submit_answers": {
+                "fields": [
+                    {"name": "flag", "step": 1, "path": ["rows", 0, 0], "rule": {"kind": "integer"}}
+                ]
+            }
+        },
+        {"submit_answers": {"fields": [{"name": "flag", "step": 1, "path": ["rows", 0, 0]}]}},
+    ]
+    result = run(
+        database,
+        actions,
+        benchmark="infiagent-dabench",
+        question="Are there any people?",
+        instructions=instructions,
+    )
+    assert result["failure"] is None and result["answers"]["flag"] is True
+    assert result["trace"][1]["status"] == "error"
+    assert result["answer_evidence"]["flag"]["submitted_type"] == "bool"

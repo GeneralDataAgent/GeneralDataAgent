@@ -75,6 +75,11 @@ def bounded_observation(result: dict, *, max_chars: int = 6000) -> dict:
 
 def execution_hint(exc: Exception) -> str:
     text = str(exc)
+    if "contradicts the explicit public format" in text:
+        return (
+            "Preserve the runtime's explicit public field type and nullability. Omit optional "
+            "rule overrides instead of changing a collection to a string or changing scalar types."
+        )
     if "data_dependent_answer_required" in text:
         return (
             "Bind a computed scalar projection, not constants or whole SQL row containers. "

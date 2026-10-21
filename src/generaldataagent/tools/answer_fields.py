@@ -200,6 +200,8 @@ def infer_public_field_rules(instructions: str, columns: list[str]) -> dict[str,
             )
             else "string"
             if re.search(r"\bstring\b", description, re.I)
+            else "boolean"
+            if re.search(r"\bboolean\b", description, re.I)
             else "integer"
             if re.search(r"\binteger\b", description, re.I)
             else "number"

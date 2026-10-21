@@ -145,3 +145,52 @@ def test_native_optional_requirements_advertise_strict_fields_and_required_publi
             assert "source_excerpt" in item["required"]
         assert "$ref" not in str(schema) and "$defs" not in str(schema)
         assert "requirements" not in selected[name]["function"]["parameters"]["required"]
+
+
+def test_model_rules_cannot_downgrade_known_public_types_or_swap_field_precisions():
+    text = (
+        "@a[first] @b[second] where 'first' is a number with two decimal places. "
+        "'second' is a number with four decimal places."
+    )
+    proposal = {
+        "question": "compute",
+        "public_requirements": text,
+        "answer": {
+            "columns": ["a", "b"],
+            "fields": {"a": {"kind": "number"}, "b": {"kind": "number"}},
+        },
+    }
+    spec = accept_contract(proposal, question="compute", instructions=text)
+    assert spec.answer.fields["a"].decimals == 2 and spec.answer.fields["b"].decimals == 4
+    proposal["answer"]["fields"]["a"] = {
+        "kind": "number",
+        "decimals": 4,
+        "source_excerpt": "'second' is a number with four decimal places.",
+    }
+    with pytest.raises(ValueError, match="precision contradicts"):
+        accept_contract(proposal, question="compute", instructions=text)
+    text = "@items[a,b,...] The answer should not contain any duplicates."
+    proposal = {
+        "question": "list",
+        "public_requirements": text,
+        "answer": {"columns": ["items"], "fields": {"items": {"kind": "string"}}},
+    }
+    with pytest.raises(ValueError, match="type contradicts"):
+        accept_contract(proposal, question="list", instructions=text)
+    proposal["answer"]["fields"]["items"] = {"kind": "set", "nullable": True}
+    with pytest.raises(ValueError, match="nullability contradicts"):
+        accept_contract(proposal, question="list", instructions=text)
+
+
+def test_known_public_type_does_not_admit_fabricated_source_excerpt():
+    text = "@flag[value] where 'value' is a boolean."
+    proposal = {
+        "question": "flag",
+        "public_requirements": text,
+        "answer": {
+            "columns": ["flag"],
+            "fields": {"flag": {"kind": "boolean", "source_excerpt": "invented source"}},
+        },
+    }
+    with pytest.raises(ValueError, match="exact public source"):
+        accept_contract(proposal, question="flag", instructions=text)
