@@ -91,6 +91,26 @@ def public_scalar_domain(text: str) -> dict:
     return domain
 
 
+def public_nullability(text: str) -> bool | None:
+    allows = bool(
+        re.search(
+            r"\b(?:may|can)\s+(?:also\s+)?be\s+null\b|\bor\s+null\b"
+            r"|(?:^|\bis\s+|\bare\s+)(?:(?:a|an|the)\s+)?nullable\b",
+            text.strip(),
+            re.I,
+        )
+    )
+    rejects = bool(
+        re.search(
+            r"\b(?:must\s+not|cannot)\s+be\s+null\b|\bnot\s+nullable\b"
+            r"|(?:^|\bis\s+|\bare\s+)(?:(?:a|an|the)\s+)?non[- ]?null(?:able)?\b",
+            text.strip(),
+            re.I,
+        )
+    )
+    return allows if allows != rejects else None
+
+
 def validate_field_sources(fields: dict[str, AnswerFieldSpec], columns, question, instructions):
     public = question + "\n" + instructions
     if fields and set(fields) != set(columns):
@@ -99,6 +119,8 @@ def validate_field_sources(fields: dict[str, AnswerFieldSpec], columns, question
         if field.source_excerpt and field.source_excerpt not in public:
             raise ValueError("field rule needs an exact public source excerpt")
         domain = public_scalar_domain(field.source_excerpt)
+        if field.nullable is True and public_nullability(field.source_excerpt) is not True:
+            raise ValueError("nullable fields require an explicit public null allowance")
         for attribute in ("minimum", "maximum", "choices"):
             proposed = getattr(field, attribute)
             if proposed is not None and proposed != domain.get(attribute):
@@ -137,7 +159,10 @@ def validate_field_value(raw, field: AnswerFieldSpec, result: dict, path: list):
                 f"field method must match computed method_id {method}; omit optional method rule"
             )
     if raw is None:
-        if field.nullable is False:
+        if field.nullable is False or (
+            field.nullable is None
+            and any(value is not None for value in (field.minimum, field.maximum, field.choices))
+        ):
             raise ValueError("field is not nullable")
         return raw
     if field.kind in {"set", "list"}:
@@ -269,18 +294,19 @@ def infer_public_field_rules(instructions: str, columns: list[str]) -> dict[str,
         defined = set(re.findall(r"[\"']([^\"'\n]{1,200})[\"']", names))
         if not defined and re.fullmatch(r"\w+", names.strip()):
             defined = {names.strip()}
+        prefix = r"^(?:(?:a|an|the)\s+)?(?:(?:nullable|non[- ]?null(?:able)?)\s+)?"
         collection = bool(
-            re.search(r"^(?:(?:a|the)\s+)?(?:list|collection)\b", description.strip(), re.I)
-        )
-        kind = (
-            "set"
-            if re.search(r"^(?:(?:a|the)\s+)?set\b", description.strip(), re.I)
-            or no_duplicates
-            and re.search(
-                r"^(?:(?:a|the)\s+)?(?:list|collection)\b",
+            re.search(
+                prefix + r"(?:list|collection|array|JSON\s+array|Python\s+list|native\s+list)\b",
                 description.strip(),
                 re.I,
             )
+        )
+        kind = (
+            "set"
+            if re.search(prefix + r"set\b", description.strip(), re.I)
+            or no_duplicates
+            and collection
             else "string"
             if re.search(r"\bstring\b", description, re.I)
             else "boolean"
@@ -300,7 +326,7 @@ def infer_public_field_rules(instructions: str, columns: list[str]) -> dict[str,
             kind = "set" if no_duplicates else "list"
         if kind in {"set", "list"}:
             element = re.search(
-                r"\b(?:set|list|collection)\s+of\s+"
+                r"\b(?:set|list|collection|array)\s+of\s+"
                 r"(integers?|strings?|booleans?|numbers?|float(?:ing)?(?:\s+point)?)\b",
                 description,
                 re.I,
@@ -331,7 +357,13 @@ def infer_public_field_rules(instructions: str, columns: list[str]) -> dict[str,
                     kind=kind,
                     item_kind=item_kind,
                     order=order,
-                    nullable=False if kind in {"set", "list"} else None,
+                    nullable=(
+                        public_nullability(description)
+                        if public_nullability(description) is not None
+                        else False
+                        if kind in {"set", "list"}
+                        else None
+                    ),
                     decimals=next(iter(precision))
                     if precision and kind not in {"set", "list"}
                     else None,

@@ -74,10 +74,10 @@ def accept_contract(proposal: dict, *, question: str, instructions: str) -> Anal
                     updates[attribute] = known
             if not field.source_excerpt:
                 updates["source_excerpt"] = expected.source_excerpt
-            if expected.nullable is False:
-                if field.nullable is True:
+            if expected.nullable is not None:
+                if field.nullable not in (None, expected.nullable):
                     raise ValueError("field nullability contradicts the explicit public format")
-                updates["nullable"] = False
+                updates["nullable"] = expected.nullable
             if expected.decimals is not None:
                 if field.decimals is not None and field.decimals != expected.decimals:
                     raise ValueError("field precision contradicts the explicit public format")

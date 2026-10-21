@@ -46,7 +46,7 @@ class AnswerFieldSpec(BaseModel):
         ):
             raise ValueError("distinct choices belong to string fields only")
         if self.collection_separator is not None and self.kind not in {"set", "list"}:
-            raise ValueError("collection separator belongs to set fields only")
+            raise ValueError("collection separator belongs to collection fields only")
         if (self.item_kind is not None or self.order is not None) and self.kind not in {
             "set",
             "list",

@@ -73,6 +73,8 @@ def test_public_per_field_domains_are_sourced_and_immutable():
             validate_field_value(raw, field, {}, [])
     assert validate_field_value(-1, fields["r"], {}, []) == -1
     assert validate_field_value(1, fields["p"], {}, []) == 1
+    with pytest.raises(ValueError, match="not nullable"):
+        validate_field_value(None, fields["p"], {}, [])
     proposal = {
         "question": "r and p?",
         "public_requirements": text,
@@ -100,6 +102,52 @@ def test_public_per_field_domains_are_sourced_and_immutable():
         validate_field_sources(
             {"label": AnswerFieldSpec(kind="string", choices=["a", "b"])}, ["label"], "label?", ""
         )
+
+
+def test_public_nullable_number_preserves_domain_and_cannot_be_invented():
+    from generaldataagent.orchestration.analysis_plan import accept_contract
+
+    text = '@p[value] where "value" is a number between 0 and 1 or null.'
+    spec = accept_contract(
+        {"question": "p?", "public_requirements": text, "answer": {"columns": ["p"]}},
+        question="p?",
+        instructions=text,
+    )
+    field = spec.answer.fields["p"]
+    assert field.nullable is True and field.minimum == 0 and field.maximum == 1
+    assert validate_field_value(None, field, {}, []) is None
+    with pytest.raises(ValueError, match="maximum"):
+        validate_field_value(2, field, {}, [])
+    unknown = AnswerFieldSpec(kind="number", nullable=True, source_excerpt="A number.")
+    with pytest.raises(ValueError, match="explicit public null allowance"):
+        validate_field_sources({"p": unknown}, ["p"], "", "A number.")
+
+
+@pytest.mark.parametrize(
+    "description,nullable",
+    [
+        ("a nullable list of integers", True),
+        ("a non-null array of integers", False),
+        ("a JSON array of integers", False),
+    ],
+)
+def test_collection_modifiers_do_not_turn_an_array_into_a_scalar(description, nullable):
+    from generaldataagent.orchestration.analysis_plan import accept_contract
+
+    text = f'@ids[values] where "values" is {description} in ascending order.'
+    spec = accept_contract(
+        {"question": "ids?", "public_requirements": text, "answer": {"columns": ["ids"]}},
+        question="ids?",
+        instructions=text,
+    )
+    field = spec.answer.fields["ids"]
+    assert field.kind == "list" and field.item_kind == "integer" and field.nullable is nullable
+    assert validate_field_value([1, 2], field, {}, []) == [1, 2]
+    if nullable:
+        assert validate_field_value(None, field, {}, []) is None
+    else:
+        with pytest.raises(ValueError, match="nullable"):
+            validate_field_value(None, field, {}, [])
 
 
 def test_public_integer_list_is_not_mistaken_for_a_scalar_and_order_is_authoritative():
