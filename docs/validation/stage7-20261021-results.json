@@ -45203,10 +45203,10 @@
     "validator_source_commit": "28e0ac5f05ac35e1a729ad5150a69d0df85543eb"
   },
   "latest_local_validation": {
-    "source_commit": "public-priority context working tree; full v41 remains frozen 2f30d01",
-    "passed": 1031,
+    "source_commit": "unqualified growth lineage working tree; full v41 remains frozen 2f30d01",
+    "passed": 1033,
     "skipped": 1,
-    "coverage_percent": 89.1,
+    "coverage_percent": 89.11,
     "ruff_check": "passed",
     "format_check": "passed",
     "diff_check": "passed",
@@ -138178,5 +138178,20 @@
       "3.13"
     ],
     "url": "https://github.com/GeneralDataAgent/GeneralDataAgent/actions/runs/39588605116"
+  },
+  "growth_replay_v42": {
+    "kind": "offline replay of original worker queries; no new model calls; original scores unchanged",
+    "records": [
+      {
+        "case_id": "116",
+        "original_passed": false,
+        "checks": [
+          "change_direction",
+          "change_reference_period"
+        ]
+      }
+    ],
+    "false_rejection_among_original_passes": [],
+    "natural_compiled_plans": []
   }
 }

@@ -370,6 +370,32 @@ def test_change_direction_resolves_scalar_lookups_behind_derived_output_names():
         )
 
 
+@pytest.mark.parametrize("cte", [False, True])
+def test_growth_periods_follow_unqualified_outputs_of_one_derived_source(cte):
+    from generaldataagent.tools.semantic_requirements import check_public_change_direction
+
+    derived = (
+        "SELECT (SELECT v.balance FROM ledger v WHERE v.day='2020-01-01') AS x, "
+        "(SELECT v.balance FROM ledger v WHERE v.day='2021-01-01') AS y FROM owners o"
+    )
+    prefix, source = (
+        ("WITH amounts AS (" + derived + ") ", " FROM amounts a")
+        if cte
+        else ("", " FROM (" + derived + ") amounts")
+    )
+    question = "What is the growth rate from 2020/1/1 to 2021/1/1?"
+    correct = prefix + "SELECT (y-x)*100.0/NULLIF(x,0)" + source
+    reversed_sql = prefix + "SELECT (x-y)*100.0/y" + source
+    assert check_public_change_direction(correct, question) == []
+    assert check_public_change_direction(reversed_sql, question) == [
+        "change_direction",
+        "change_reference_period",
+    ]
+    assert check_public_change_direction(reversed_sql + " JOIN extras e ON e.id=1", question) == []
+    unrelated = "WITH amounts AS (" + derived + ") SELECT (x-y)*100.0/y FROM facts"
+    assert check_public_change_direction(unrelated, question) == []
+
+
 def test_public_supplemental_rank_policy_is_checked_with_question():
     from generaldataagent.tools.semantic_requirements import check_public_rank_and_age
 

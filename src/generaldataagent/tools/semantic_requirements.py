@@ -246,6 +246,25 @@ def check_public_change_direction(sql: str, question: str) -> list[str]:
         if not isinstance(column, exp.Column):
             return None
         candidates = sources.get(_identifier_key(column.table), [])
+        if not column.table:
+            # An unqualified output has a provable derived owner only when the
+            # root has one source. Do not borrow an unrelated/nested same-name CTE.
+            owner = column.find_ancestor(exp.Select)
+            root_from = tree.args.get("from_")
+            if owner is not tree or tree.args.get("joins") or root_from is None:
+                return None
+            relation = root_from.this
+            if isinstance(relation, exp.Subquery):
+                candidates = [relation.this]
+            elif isinstance(relation, exp.Table):
+                root_with = tree.args.get("with_")
+                candidates = [
+                    cte.this
+                    for cte in (root_with.expressions if root_with else [])
+                    if _identifier_key(cte.alias) == _identifier_key(relation.name)
+                ]
+            else:
+                return None
         if candidates:
             if len(candidates) != 1 or not isinstance(candidates[0], exp.Select):
                 return None
