@@ -66,12 +66,11 @@ Prefer submit_sql immediately when the schema and public evidence suffice. Use f
 This is one atomic contract-and-query action. Submit directly; revise only on concrete errors.
 For uncertain tasks use execute_sql to explore; submit once sufficient evidence is observed.
 Omit question/public_requirements: runtime preserves public texts.
-Optional fields: entity (string), grain/filters (string lists), time_range/formula/denominator
-(string or null), count_basis (entities/records/unspecified), order_by (SQL expression string),
-order_direction (asc/desc), conflicts (string list), answer (object).
-Answer fields: columns (exact SQL output names), shape (scalar/rows/set), ties
-(all/single/unspecified), empty (allow/reject), nullable (boolean), decimals (integer),
-unit (string), minimum/maximum (numeric). Do not invent requirements.
+For native submit_sql use only the advertised flat fields sql, output_columns, shape, ties,
+and optional requirements. Do not add nested answer/task_spec or other contract fields to this
+flat tool. Rich contracts remain available through the separate JSON compatibility path.
+Omit requirements for ordinary direct SQL. A SQL error needs a corrected query, not a new
+optional contract. Declare structural requirements only when intentionally needed and sourced.
 Use execute_sql for exploration, submit_sql to finish. One action per turn, six total.
 requirements optionally declares predicates(expression, clause where/having/join, scope root/CTE
 name), dates(column,start,end,encoding iso_date/compact_text/compact_integer,start_inclusive,

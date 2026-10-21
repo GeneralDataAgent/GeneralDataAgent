@@ -721,3 +721,59 @@ def test_query_plan_profile_is_explicit_and_sql_output_only(database):
             benchmark="infiagent-dabench",
             profile="sql-semantic-plan",
         )
+
+
+def test_undefined_population_feedback_reuses_public_scoped_literal_evidence(database):
+    with sqlite3.connect(database) as db:
+        db.executescript(
+            "CREATE TABLE items(name TEXT, group_id INT, power INT);"
+            "CREATE TABLE groups(id INT,name TEXT); INSERT INTO groups VALUES(1,'Winter');"
+            "INSERT INTO items VALUES('A',1,1),('B',1,0);"
+        )
+
+    observed_feedback = []
+
+    class Model:
+        calls = 0
+
+        def invoke(self, messages):
+            self.calls += 1
+            if self.calls == 1:
+                sql = "SELECT SUM(power)*100.0/COUNT(*) AS pct FROM items WHERE name='Winter'"
+            else:
+                feedback = next(
+                    payload
+                    for role, content in reversed(messages)
+                    if role == "human" and "error" in (payload := json.loads(content))
+                )
+                observed_feedback.append(feedback)
+                sql = (
+                    "SELECT SUM(i.power)*100.0/COUNT(*) AS pct FROM items i "
+                    "JOIN groups g ON i.group_id=g.id WHERE g.name='Winter'"
+                )
+            return SimpleNamespace(
+                content=json.dumps(
+                    {"submit_sql": {"sql": sql, "output_columns": ["pct"], "shape": "scalar"}}
+                ),
+                usage_metadata={"total_tokens": 10},
+                response_metadata={},
+            )
+
+    task = Task(
+        "bird-mini-dev-sqlite",
+        "synthetic",
+        "percentage of eligible items in group Winter?",
+        "group Winter refers to name = 'Winter'",
+        "easy",
+        "items",
+    )
+    result = BoundedSQLAgent(Model(), tool_profile="sql-semantic", max_steps=2).run(task, database)
+    assert result["failure"] is None
+    assert result["trace"][0]["checks"] == ["undefined_percentage_check_population"]
+    feedback = observed_feedback[0]
+    observations = feedback["public_population_observations"][0]["literal_observations"]
+    assert {row["candidate"][0]: row["exact_match_rows"] for row in observations} == {
+        "groups": 1,
+        "items": 0,
+    }
+    assert "Do not merely add NULLIF" in feedback["hint"]

@@ -75,6 +75,14 @@ def bounded_observation(result: dict, *, max_chars: int = 6000) -> dict:
 
 def execution_hint(exc: Exception) -> str:
     text = str(exc)
+    if "undefined_percentage_check_population" in text:
+        return (
+            "The percentage is undefined for this population. Check the table/field and actual "
+            "public-literal matches before changing SQL. Do not merely add NULLIF or COALESCE, "
+            "and do not add optional requirements to repair a population error."
+        )
+    if "ratio_zero_guard" in text:
+        return "Use NULLIF(denominator,0) without changing the declared population or formula."
     # Only known local SQL diagnostics; never echo arbitrary model/SDK exceptions.
     for marker in (
         "no such column:",

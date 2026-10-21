@@ -1056,6 +1056,15 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     feedback["schema_errors"] = exc.paths
                 if semantic and isinstance(exc, SemanticError):
                     feedback["checks"] = str(exc)[:300]
+                    if "undefined_percentage_check_population" in str(exc):
+                        observations = (
+                            request.get("semantic_context", {})
+                            .get("public_field_mappings", {})
+                            .get("ambiguous", [])
+                        )
+                        feedback["public_population_observations"] = [
+                            item for item in observations if item.get("literal_observations")
+                        ][:2]
                 if repair:
                     feedback["hint"] = execution_hint(exc)
                     if precision:
