@@ -50,6 +50,33 @@ def contract(question="champions", instructions="", **answer):
     }
 
 
+def test_observed_token_countdown_preserves_spend_after_rejected_action(database):
+    countdown = []
+    actions = iter(
+        [
+            {"sql": 123},
+            {"submit_sql": {"sql": "SELECT id FROM people", "output_columns": ["id"]}},
+        ]
+    )
+
+    class Model:
+        def invoke(self, messages):
+            budget = json.loads(messages[-1][1])
+            countdown.append((budget["remaining_actions"], budget["remaining_observed_tokens"]))
+            assert "does not submit" in budget["submission_hint"]
+            return SimpleNamespace(
+                content=json.dumps(next(actions)),
+                usage_metadata={"total_tokens": 17},
+                response_metadata={},
+            )
+
+    result = BoundedSQLAgent(Model(), tool_profile="sql-semantic", max_steps=2, max_tokens=100).run(
+        Task("bird-mini-dev-sqlite", "synthetic", "List ids", "", "easy", "data"), database
+    )
+    assert countdown == [(2, 100), (1, 83)]
+    assert result["tokens"] == 34 and result["failure"] is None
+
+
 def test_sql_ties_rejection_then_repair(database):
     result = run(
         database,

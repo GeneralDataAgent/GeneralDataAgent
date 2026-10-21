@@ -594,6 +594,25 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                         json.dumps(
                             {
                                 "remaining_actions": self.max_steps - step + 1,
+                                **(
+                                    {
+                                        "remaining_observed_tokens": max(
+                                            0, self.max_tokens - tokens
+                                        ),
+                                        "token_budget_scope": (
+                                            "future input plus output; no reset after errors"
+                                        ),
+                                        "submission_hint": (
+                                            "Computing evidence does not submit it. "
+                                            "Once sufficient, use an advertised final "
+                                            "submission tool. Avoid repeating successful "
+                                            "computations or spending the last turn "
+                                            "on observation."
+                                        ),
+                                    }
+                                    if semantic
+                                    else {}
+                                ),
                                 "finish_hint": (
                                     "Return final_sql if ready."
                                     if precision
