@@ -75,6 +75,11 @@ def bounded_observation(result: dict, *, max_chars: int = 6000) -> dict:
 
 def execution_hint(exc: Exception) -> str:
     text = str(exc)
+    if "data_dependent_sql_required" in text:
+        return (
+            "Every final SQL output must depend on scoped table data. Use explicit data-derived "
+            "projections; constant answers and constants wrapped in a CTE cannot be certified."
+        )
     if "unrequested_all_count_null_filter" in text:
         return (
             "The public formula counts all objects. Excluding missing sum-field values also "

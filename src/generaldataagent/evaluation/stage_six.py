@@ -894,7 +894,19 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                         ):
                             raise SemanticError("final query disagrees with crosscheck result")
                         issues = validate_rows(result.columns, result.rows, task_spec.answer)
-                        from generaldataagent.tools.sql_semantics import check_percentage_result
+                        from generaldataagent.tools.sql_semantics import (
+                            check_percentage_result,
+                            sql_data_dependencies,
+                        )
+
+                        if not all(
+                            sql_data_dependencies(
+                                sql,
+                                list(result.columns),
+                                allowed_relations=relations,
+                            )
+                        ):
+                            issues.append("data_dependent_sql_required")
 
                         issues.extend(
                             check_percentage_result(

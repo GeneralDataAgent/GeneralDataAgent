@@ -888,3 +888,28 @@ def test_all_object_denominator_null_filter_repair_preserves_requested_populatio
     assert SQLiteReadOnlyExecutor(database).execute(result["final_sql"]).rows[0][
         0
     ] == pytest.approx(20 / 3)
+
+
+@pytest.mark.parametrize(
+    "sql,columns",
+    [
+        ("SELECT 2 AS n", ["n"]),
+        ("WITH guessed AS (SELECT 2 AS n) SELECT n FROM guessed", ["n"]),
+        ("SELECT COUNT(*) AS n, 0.99 AS score FROM people", ["n", "score"]),
+    ],
+)
+def test_sql_output_cannot_certify_constants_as_database_answers(database, sql, columns):
+    actions = [
+        {"submit_sql": {"sql": sql, "output_columns": columns}},
+        {
+            "submit_sql": {
+                "sql": "SELECT COUNT(*) AS n FROM people",
+                "output_columns": ["n"],
+                "shape": "scalar",
+            }
+        },
+    ]
+    result = run(database, actions, question="How many people?")
+    assert result["failure"] is None
+    assert result["trace"][0]["checks"] == ["data_dependent_sql_required"]
+    assert result["final_sql"] == "SELECT COUNT(*) AS n FROM people"

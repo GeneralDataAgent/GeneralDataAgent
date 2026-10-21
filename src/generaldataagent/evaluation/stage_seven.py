@@ -93,6 +93,7 @@ explicitly requested. Preserve the input population for ranking: do not silently
 on the ranking measure unless requested. Avoid rejoining by nonunique display names.
 Never infer full results from samples. Do not add filters from preview values. Empty results are
 not proof of correct logic. Use exact columns and quote identifiers separately from string values.
+Every final output needs a table-data dependency. Do not submit guessed constants as SQL.
 One crosscheck action is allowed: sql plus purpose ties/entity_grain/denominator/date_boundary/
 output_range, returning the same result as final_sql. Disagreement is rejected, at most one check.
 No answer/search/analysis/collect actions for SQL-output tasks. Do not repeat unchanged queries.

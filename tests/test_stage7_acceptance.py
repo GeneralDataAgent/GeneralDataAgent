@@ -95,3 +95,25 @@ def test_receipt_hash_does_not_certify_a_fabricated_sql_value_or_method():
     assert not answer_receipt_errors(data)
     data["results"][0]["answer_evidence"]["mean"]["method_id"] = "pearson"
     assert answer_receipt_errors(data) == ["synthetic:receipt_method_mismatch"]
+
+
+def test_sql_output_receipts_require_matching_execution_and_every_column_dependency():
+    from generaldataagent.evaluation.stage_seven_acceptance import answer_receipt_errors
+
+    sql = "SELECT COUNT(*) AS n FROM people"
+    row = {
+        "case_id": "synthetic",
+        "passed": True,
+        "final_sql": sql,
+        "trace": [{"step": 1, "tool": "sql", "status": "ok", "sql": sql, "result_hash": "a" * 64}],
+    }
+    report = {"benchmark": "bird-mini-dev-sqlite", "results": [row]}
+    assert not answer_receipt_errors(report)
+    row["final_sql"] = "SELECT 2 AS n"
+    assert answer_receipt_errors(report) == ["synthetic:missing_sql_execution_receipt"]
+    row["trace"][0]["sql"] = row["final_sql"]
+    assert answer_receipt_errors(report) == ["synthetic:unverified_sql_data_dependency"]
+    row["final_sql"] = row["trace"][0]["sql"] = "SELECT COUNT(*) AS n, 2 AS guess FROM people"
+    assert answer_receipt_errors(report) == ["synthetic:unverified_sql_data_dependency"]
+    row["passed"] = False
+    assert not answer_receipt_errors(report)

@@ -37,7 +37,42 @@ def historical_protection(historical: dict, candidate: dict) -> dict:
 def answer_receipt_errors(report: dict) -> list[str]:
     errors = []
     if report["benchmark"] == "bird-mini-dev-sqlite":
-        return errors
+        import re
+
+        from sqlglot import parse_one
+        from sqlglot.errors import SqlglotError
+
+        from generaldataagent.tools.sql_guard import SqlGuard
+        from generaldataagent.tools.sql_semantics import sql_data_dependencies
+
+        for row in report["results"]:
+            if not row["passed"]:
+                continue
+            sql = row.get("final_sql")
+            if not isinstance(sql, str) or not any(
+                event.get("status") == "ok"
+                and event.get("tool") == "sql"
+                and event.get("sql") == sql
+                and isinstance(event.get("result_hash"), str)
+                and re.fullmatch(r"[0-9a-f]{64}", event.get("result_hash", ""))
+                for event in row.get("trace", [])
+            ):
+                errors.append(row["case_id"] + ":missing_sql_execution_receipt")
+                continue
+            try:
+                relations = SqlGuard(dialect="sqlite").inspect(sql).relations
+                size = len(parse_one(sql, read="sqlite").selects)
+                dependencies = sql_data_dependencies(
+                    sql,
+                    [str(i) for i in range(size)],
+                    allowed_relations=set(relations),
+                )
+                verified = bool(dependencies) and all(dependencies)
+            except (SqlglotError, ValueError, TypeError):
+                verified = False
+            if not verified:
+                errors.append(row["case_id"] + ":unverified_sql_data_dependency")
+        return sorted(set(errors))
     for row in report["results"]:
         if not row["passed"]:
             continue
@@ -140,7 +175,7 @@ def qualify_stage7(baselines: list[dict], candidates: list[dict], historical: li
         }
         blockers.extend(name + ":" + reason for reason in reasons)
     return {
-        "validator_version": "stage7-full-with-lineage-review-20261021",
+        "validator_version": "stage7-full-with-sql-output-lineage-20261021",
         "stage7_development_qualified": not blockers,
         "tracks": tracks,
         "historical_correct_n": sum(t["historical_correct_guard"]["n"] for t in tracks.values()),
