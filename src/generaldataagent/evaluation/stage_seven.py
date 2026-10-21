@@ -95,6 +95,8 @@ For changes from a start to an end period, increase is (end-start)/start; verify
 actual period filters before submitting, including any public formula's A/B mapping.
 Check exact entity grain, requested projections, distinct entities versus joined records, explicit
 numerator/denominator population, real division, null handling, actual date encoding and boundaries.
+For change, promote before division: 1.0*(end-start)/NULLIF(start,0), with the requested scale.
+A decimal multiplier or REAL cast applied after division cannot restore lost fractional digits.
 Observed join candidates use keys=[child,column,parent,declared_key] and full-table match counts.
 They are naming-based observations, not declared foreign keys or certified business relationships.
 For oldest by birthday use ascending date. Honor an explicit public year-difference formula;
@@ -505,7 +507,7 @@ One action per turn, six actions and 24000 total observed tokens. Once evidence 
 
 
 class ToolConversation(list):
-    """Keep native tool calls and their results paired, including rejected multi-actions."""
+    """Pair native calls/results; summarize provably unexecuted rejected multi-actions."""
 
     def __init__(self, messages):
         super().__init__(messages)
@@ -521,9 +523,35 @@ class ToolConversation(list):
         super().append(AIMessage(content=response.content or "", tool_calls=calls))
 
     def append(self, message):
-        from langchain_core.messages import ToolMessage
+        import json
+
+        from langchain_core.messages import AIMessage, ToolMessage
 
         if self.pending and isinstance(message, tuple) and message[0] == "human":
+            try:
+                feedback = json.loads(message[1])
+            except (ValueError, TypeError):
+                feedback = None
+            if (
+                len(self.pending) > 1
+                and isinstance(self[-1], AIMessage)
+                and [call.get("id") for call in self[-1].tool_calls] == self.pending
+                and isinstance(feedback, dict)
+                and feedback.get("code") == "action_schema"
+                and any(
+                    isinstance(issue, dict) and issue.get("type") == "one_action"
+                    for issue in feedback.get("schema_errors", [])
+                )
+            ):
+                # Runtime rejects multiple calls before executing any of them. Replace
+                # that entire rejected protocol turn with an honest human summary,
+                # rather than fabricate successful results or keep repeated SQL args.
+                self.pop()
+                feedback["rejected_unexecuted_calls"] = len(self.pending)
+                feedback["rejected_arguments_omitted"] = True
+                super().append(("human", json.dumps(feedback)))
+                self.pending = []
+                return
             for call_id in self.pending:
                 super().append(ToolMessage(content=message[1], tool_call_id=call_id))
             self.pending = []

@@ -324,6 +324,112 @@ def test_native_transcript_pairs_every_rejected_call_with_a_result():
     assert not transcript.pending
 
 
+def test_schema_rejected_multi_action_is_summarized_without_fabricated_tool_results():
+    from langchain_core.messages import AIMessage, ToolMessage
+
+    from generaldataagent.evaluation.stage_seven import ToolConversation
+
+    response = AIMessage(
+        content="",
+        tool_calls=[
+            {"name": "execute_sql", "args": {"sql": "SELECT " + "x" * 8000}, "id": "one"},
+            {"name": "submit_sql", "args": {"sql": "SELECT y"}, "id": "two"},
+        ],
+    )
+    transcript = ToolConversation([("system", "read only")])
+    transcript.record_calls(response)
+    transcript.append(
+        (
+            "human",
+            json.dumps(
+                {
+                    "code": "action_schema",
+                    "schema_errors": [{"path": ["tool_calls"], "type": "one_action"}],
+                }
+            ),
+        )
+    )
+    assert not any(isinstance(m, (AIMessage, ToolMessage)) for m in transcript)
+    summary = json.loads(transcript[-1][1])
+    assert summary["rejected_unexecuted_calls"] == 2
+    assert summary["rejected_arguments_omitted"] is True
+    assert "x" * 100 not in transcript[-1][1] and not transcript.pending
+    assert response.tool_calls[0]["args"]["sql"].endswith("x" * 8000)
+
+
+def test_multi_action_summary_keeps_spent_budget_and_executes_neither_request(
+    database, monkeypatch
+):
+    from langchain_core.messages import AIMessage, ToolMessage
+
+    from generaldataagent.tools.sqlite import SQLiteReadOnlyExecutor
+
+    executed = []
+    original = SQLiteReadOnlyExecutor.execute
+
+    def observe(self, sql, parameters=()):
+        executed.append(sql)
+        return original(self, sql, parameters)
+
+    monkeypatch.setattr(SQLiteReadOnlyExecutor, "execute", observe)
+
+    class Native:
+        calls = 0
+
+        def bind(self, **kwargs):
+            return self
+
+        def invoke(self, messages):
+            self.calls += 1
+            if self.calls == 1:
+                calls = [
+                    {
+                        "name": "execute_sql",
+                        "args": {"sql": "SELECT id FROM people WHERE id=987654"},
+                        "id": "one",
+                    },
+                    {
+                        "name": "submit_sql",
+                        "args": {"sql": "SELECT 987654 FROM people", "output_columns": ["wrong"]},
+                        "id": "two",
+                    },
+                ]
+            else:
+                assert not any(isinstance(m, (AIMessage, ToolMessage)) for m in messages)
+                assert any(
+                    isinstance(message, tuple) and '"rejected_unexecuted_calls": 2' in message[1]
+                    for message in messages
+                )
+                calls = [
+                    {
+                        "name": "submit_sql",
+                        "args": {
+                            "sql": "SELECT COUNT(*) AS n FROM people",
+                            "output_columns": ["n"],
+                            "shape": "scalar",
+                        },
+                        "id": "finish",
+                    }
+                ]
+            return AIMessage(
+                content="",
+                tool_calls=calls,
+                usage_metadata={"total_tokens": 10, "input_tokens": 8, "output_tokens": 2},
+            )
+
+    before = database.read_bytes()
+    model = Native()
+    result = BoundedSQLAgent(model, tool_profile="sql-semantic", max_steps=2).run(
+        Task("bird-mini-dev-sqlite", "synthetic", "How many people?", "", "easy", "people"),
+        database,
+    )
+    assert result["failure"] is None and result["tokens"] == 20 and model.calls == 2
+    assert result["trace"][0]["code"] == "action_schema"
+    assert len([e for e in result["trace"] if e.get("status") == "ok"]) == 1
+    assert not any("987654" in sql for sql in executed)
+    assert database.read_bytes() == before
+
+
 def test_public_predicate_requirement_is_enforced_before_execution(database):
     spec = {
         "answer": {"columns": ["id"]},

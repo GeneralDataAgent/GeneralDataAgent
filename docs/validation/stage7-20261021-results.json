@@ -23654,9 +23654,9 @@
     ]
   },
   "pending": [
-    "Real independent t-test diagnostic on current source",
-    "Fresh six-case and complete paired evaluation of lightweight source after v41",
-    "BIRD >=36/60 plus no fresh/historical regressions; keep strict labels and cohort",
+    "Fresh real SQL diagnostic after rejected-call compaction and combined repair",
+    "Fresh six-case and complete paired evaluation of latest source",
+    "BIRD >=36/60 and no fresh/historical regressions; strict labels and membership unchanged",
     "Independent instruction/label and scientific-method review",
     "Unseen, repeated and independent promotion validation"
   ],
@@ -45203,7 +45203,7 @@
     "validator_source_commit": "28e0ac5f05ac35e1a729ad5150a69d0df85543eb"
   },
   "latest_local_validation": {
-    "source_commit": "independent finite-sample test working tree after 162adde",
+    "source_commit": "rejected-call context and combined repair working tree after ed795dc",
     "stage7_fingerprint": {
       "contracts/analysis.py": "6765681aa5184f84a7b82d17c63b0df0108f77b2031d91c29aa6d96372c240fc",
       "contracts/answer_fields.py": "e6ecbd59912179bc23d1be8acb4c4a085e20169c53b43e1907175391d949095b",
@@ -45224,14 +45224,14 @@
       "tools/sqlite.py": "6cc32bffd2d0822f3a0805d63ab15624c0530d9e0b6e719053f2d0c869784251",
       "evaluation/stage_six.py": "b3d2ab0cb64c0bcc772dfae95d29c38ee688003dca59e5580f282972c69bc9d1",
       "evaluation/stage_six_sql_precision.py": "9636255157d5a6477972ff3dadd0d50454710dc3150b09b8c56841f8180d3fa6",
-      "evaluation/stage_six_repair.py": "110e233cdb33f37d816d734a27897016d4b3e79ef16de2d0ab8a885fd3d1e7e5",
-      "evaluation/stage_seven.py": "6c6b2fe29d803b38d8067aab5ff6fd46c5324c77882a3ece9f8dc80d8fe01c58",
+      "evaluation/stage_six_repair.py": "b4b97e3b6a08449df4750548f28c73759dc9fd932bd4867feadca34517491f2f",
+      "evaluation/stage_seven.py": "1d0a33ed1f9f7b8ae77edaf460f52024feb735a645582733dec126e66d0ecb48",
       "contracts/query_plan.py": "4b18902c4ee0a82f35b4776bde17713a18672f2ef87b45e903cae3c958c9ad9e",
       "tools/semantic_sql.py": "5c8d17f177d3cd53ce08f9352c83a9a7e364d86089158f89481e6491603b461f"
     },
-    "passed": 1060,
+    "passed": 1063,
     "skipped": 1,
-    "coverage_percent": 89.21,
+    "coverage_percent": 89.23,
     "ruff_check": "passed",
     "format_check": "passed",
     "diff_check": "passed",
@@ -160204,5 +160204,1513 @@
     "requested_method_verified": false,
     "source_receipt_check_scope": "data dependence and method identity sql; does not certify requested scientific method",
     "independent_external_review_complete": false
+  },
+  "independent_test_v46": {
+    "kind": "explicit developer finite-sample method diagnostic; not a full or unseen cohort",
+    "source_commit": "ed795dc929857cfe2d555c9a9ff2f3b138deffdd",
+    "fingerprint": {
+      "contracts/analysis.py": "6765681aa5184f84a7b82d17c63b0df0108f77b2031d91c29aa6d96372c240fc",
+      "contracts/answer_fields.py": "e6ecbd59912179bc23d1be8acb4c4a085e20169c53b43e1907175391d949095b",
+      "contracts/statistical_rules.py": "3f63abe15c76c51965c65b20c92fc9ec25c43b03b19a99c4a176de39017aa6f9",
+      "contracts/independent_test.py": "4d7460f13ab7585d3e32d996183ee0c3100fe5102e26abb68215e5b6f34d3ec9",
+      "tools/independent_test.py": "8a3078a645b5fce2e540c279af96c85a646552f356799e1a7bf42f5f2594f297",
+      "tools/pearson_test.py": "69eac7adc7d10fcd2e740f372315796903ea5f3dd4598e7f27ba5b2e65275259",
+      "evaluation/stage_six_analysis.py": "3f5f1a03cf4bcb45c8b08b5f63d659d4c625217b0e3d3176159e97e74f96ba0a",
+      "tools/answer_fields.py": "07e50819be02725db00af261817e18b7b6ce7645133cbc178b49c68063f32fc3",
+      "contracts/semantic_requirements.py": "bc0683ead82ef284acbe9fe71b5af437ddce357db5b0c46027ae34622dfe867e",
+      "tools/semantic_requirements.py": "99f92bd690af85d33713fce304dfce49c9860acf7031d3459cca681e43d59989",
+      "orchestration/analysis_plan.py": "cb9704c3b3af020317e5204a56013c83e93a3d1065b6e5ed1e08feff97770687",
+      "catalog/semantic_context.py": "d1e15351e2cbe3ba01fc35f6979f27ad28662e61f025d4a8a5f7f867119809ca",
+      "catalog/field_evidence.py": "e3fa95a2c4bf71f291ea3134329c5b926f666aad72a511411f9eb95a8fd2e926",
+      "catalog/join_evidence.py": "cd5ae4218c11eba66a7a3b7166ed226ac37b81ed6229c64978d63be51de7205e",
+      "tools/sql_semantics.py": "d2d78f123a48160e1308e3afc9c3389b4442e303e70ccb37510b51fbc0d8105c",
+      "tools/sql_guard.py": "72ef5c19eb4080f3a75f745588eff76780684a0691c3ab141c79d17c6ca5db59",
+      "tools/sqlite.py": "6cc32bffd2d0822f3a0805d63ab15624c0530d9e0b6e719053f2d0c869784251",
+      "evaluation/stage_six.py": "b3d2ab0cb64c0bcc772dfae95d29c38ee688003dca59e5580f282972c69bc9d1",
+      "evaluation/stage_six_sql_precision.py": "9636255157d5a6477972ff3dadd0d50454710dc3150b09b8c56841f8180d3fa6",
+      "evaluation/stage_six_repair.py": "110e233cdb33f37d816d734a27897016d4b3e79ef16de2d0ab8a885fd3d1e7e5",
+      "evaluation/stage_seven.py": "6c6b2fe29d803b38d8067aab5ff6fd46c5324c77882a3ece9f8dc80d8fe01c58",
+      "contracts/query_plan.py": "4b18902c4ee0a82f35b4776bde17713a18672f2ef87b45e903cae3c958c9ad9e",
+      "tools/semantic_sql.py": "5c8d17f177d3cd53ce08f9352c83a9a7e364d86089158f89481e6491603b461f"
+    },
+    "benchmark": "infiagent-dabench",
+    "model_route": {
+      "provider_id": "magpie",
+      "app_type": "magpie",
+      "model": "workbuddy/deepseek-v4.1-flash",
+      "transport": "openai-chat",
+      "thinking_mode": "default",
+      "json_mode": false,
+      "max_output_tokens": 3000,
+      "endpoint_hash": "fe8827a6b46979db5015036d380dd4e1f10eda5b76101c62a322240bf51a0573",
+      "wire_api": "chat_completions",
+      "gateway_adapter_hash": "163619e55b3ee9dd7eaeda7e9275a0cdc2a07972b6b67602016151f66632b8e6",
+      "gateway_headers_hash": "0a6dda900b2ea6b80cb4df4282bd2ec368d99d39ee00f707de87660edce6d440",
+      "route_hash": "ddcb6a5429c4f5365aa21351db2a358e378a5beb5c3b07ae80138dd444b8fbd4"
+    },
+    "reference_inputs_sent_to_worker": false,
+    "source_csv_hash": "4a437fde05fe5264e1701a7387ac6fb75393772ba38bb2c9c566405af5af4bd7",
+    "production_accepted": false,
+    "results": [
+      {
+        "answers": {
+          "survived_fare_mean": "40.82",
+          "survived_fare_std": "71.36",
+          "not_survived_fare_mean": "21.96",
+          "not_survived_fare_std": "32.41",
+          "fare_difference_significance": "significant"
+        },
+        "raw_answers": {},
+        "answer_evidence": {
+          "survived_fare_mean": {
+            "step": 2,
+            "path": [
+              "groups",
+              0,
+              "mean"
+            ],
+            "raw_value": 40.82148440366973,
+            "submitted_value": "40.82",
+            "raw_type": "float",
+            "submitted_type": "str",
+            "method_id": "independent_t_test",
+            "declared_public_unit": null,
+            "result_hash": "95be0b8a3adb076b9a7ff97ca745e4c42a8cd4781b7b991d17f8b40dfc896474"
+          },
+          "survived_fare_std": {
+            "step": 2,
+            "path": [
+              "groups",
+              0,
+              "sample_std"
+            ],
+            "raw_value": 71.3559669634886,
+            "submitted_value": "71.36",
+            "raw_type": "float",
+            "submitted_type": "str",
+            "method_id": "independent_t_test",
+            "declared_public_unit": null,
+            "result_hash": "95be0b8a3adb076b9a7ff97ca745e4c42a8cd4781b7b991d17f8b40dfc896474"
+          },
+          "not_survived_fare_mean": {
+            "step": 2,
+            "path": [
+              "groups",
+              1,
+              "mean"
+            ],
+            "raw_value": 21.960992948717948,
+            "submitted_value": "21.96",
+            "raw_type": "float",
+            "submitted_type": "str",
+            "method_id": "independent_t_test",
+            "declared_public_unit": null,
+            "result_hash": "95be0b8a3adb076b9a7ff97ca745e4c42a8cd4781b7b991d17f8b40dfc896474"
+          },
+          "not_survived_fare_std": {
+            "step": 2,
+            "path": [
+              "groups",
+              1,
+              "sample_std"
+            ],
+            "raw_value": 32.409799221810125,
+            "submitted_value": "32.41",
+            "raw_type": "float",
+            "submitted_type": "str",
+            "method_id": "independent_t_test",
+            "declared_public_unit": null,
+            "result_hash": "95be0b8a3adb076b9a7ff97ca745e4c42a8cd4781b7b991d17f8b40dfc896474"
+          },
+          "fare_difference_significance": {
+            "step": 2,
+            "path": [
+              "public_rule_label"
+            ],
+            "raw_value": "significant",
+            "submitted_value": "significant",
+            "raw_type": "str",
+            "submitted_type": "str",
+            "method_id": "independent_t_test",
+            "declared_public_unit": null,
+            "result_hash": "95be0b8a3adb076b9a7ff97ca745e4c42a8cd4781b7b991d17f8b40dfc896474"
+          }
+        },
+        "task_contract": {
+          "question": "What is the distribution of fare paid by male passengers who survived? Are there any significant differences in the fare paid by male passengers who survived compared to male passengers who did not survive?",
+          "public_requirements": "Calculate the mean and standard deviation of fares paid by male passengers who survived and did not survive separately.\nConduct an independent sample t-test to compare the means of these two groups.\nUse a significance level of 0.05.\nReport whether there is a significant difference in the means based on the p-value of the test.\n@survived_fare_mean[mean_survived]\n@survived_fare_std[std_survived]\n@not_survived_fare_mean[mean_not_survived]\n@not_survived_fare_std[std_not_survived]\n@fare_difference_significance[significance]\nwhere \"mean_survived\" is the mean fare of male passengers who survived, rounded to two decimal places.\nwhere \"std_survived\" is the standard deviation of fare of male passengers who survived, rounded to two decimal places.\nwhere \"mean_not_survived\" is the mean fare of male passengers who did not survive, rounded to two decimal places.\nwhere \"std_not_survived\" is the standard deviation of fare of male passengers who did not survive, rounded to two decimal places.\nwhere \"significance\" is a string that can either be \"significant\" or \"not significant\" based on the conditions specified in the constraints.",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "fare_difference_significance",
+              "not_survived_fare_mean",
+              "not_survived_fare_std",
+              "survived_fare_mean",
+              "survived_fare_std"
+            ],
+            "shape": "rows",
+            "unit": null,
+            "decimals": 2,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {
+              "survived_fare_mean": {
+                "kind": "number",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": null,
+                "decimals": 2,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "where \"mean_survived\" is the mean fare of male passengers who survived, rounded to two decimal places.",
+                "collection_separator": null
+              },
+              "survived_fare_std": {
+                "kind": "number",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": null,
+                "decimals": 2,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "where \"std_survived\" is the standard deviation of fare of male passengers who survived, rounded to two decimal places.",
+                "collection_separator": null
+              },
+              "not_survived_fare_mean": {
+                "kind": "number",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": null,
+                "decimals": 2,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "where \"mean_not_survived\" is the mean fare of male passengers who did not survive, rounded to two decimal places.",
+                "collection_separator": null
+              },
+              "not_survived_fare_std": {
+                "kind": "number",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": null,
+                "decimals": 2,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "where \"std_not_survived\" is the standard deviation of fare of male passengers who did not survive, rounded to two decimal places.",
+                "collection_separator": null
+              },
+              "fare_difference_significance": {
+                "kind": "string",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": [
+                  "significant",
+                  "not significant"
+                ],
+                "nullable": null,
+                "decimals": null,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "where \"significance\" is a string that can either be \"significant\" or \"not significant\" based on the conditions specified in the constraints.",
+                "collection_separator": null
+              }
+            }
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": null,
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "status": "error",
+            "error": "ActionSchemaError",
+            "code": "action_schema",
+            "response_mode": "native_function",
+            "schema_errors": [
+              {
+                "path": [
+                  "tool_calls"
+                ],
+                "type": "one_action"
+              }
+            ],
+            "repair_type": "correct_parameters"
+          },
+          {
+            "step": 2,
+            "tool": "fixed_analysis",
+            "status": "ok",
+            "result_hash": "95be0b8a3adb076b9a7ff97ca745e4c42a8cd4781b7b991d17f8b40dfc896474",
+            "response_mode": "native_function",
+            "action": {
+              "analysis": {
+                "table": "data",
+                "columns": [
+                  "Fare",
+                  "Survived"
+                ],
+                "operation": "independent_t_test",
+                "test": {
+                  "groups": [
+                    1,
+                    0
+                  ],
+                  "filters": [
+                    {
+                      "column": "Sex",
+                      "value": "male",
+                      "source_excerpt": "male passengers"
+                    }
+                  ],
+                  "variance": "student",
+                  "significance_rule": {
+                    "alpha": 0.05,
+                    "significant_label": "significant",
+                    "nonsignificant_label": "not significant"
+                  }
+                }
+              }
+            }
+          }
+        ],
+        "tokens": 14262,
+        "input_tokens": 13648,
+        "output_tokens": 614,
+        "usage_status": "complete",
+        "elapsed_seconds": 10.492214958998375,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 8.905941083998187,
+        "case_id": "415",
+        "passed": true,
+        "database_unchanged": true,
+        "database_hash": "a1616973f410eb19938b7bd163490d4c5f2eed1086ffcd7a21a542a4082e6ab2",
+        "sub_hits": 5,
+        "sub_total": 5
+      }
+    ],
+    "receipt_errors": []
+  },
+  "independent_test_v46_recomputed_kernel": {
+    "kind": "offline recomputation from exact worker parameters and unchanged database; not additional model evidence",
+    "result": {
+      "operation": "independent_t_test",
+      "columns": [
+        "Fare",
+        "Survived"
+      ],
+      "variance": "student",
+      "equal_population_variances_assumed": true,
+      "alternative": "two-sided",
+      "statistic": 4.16895931897696,
+      "p_value": 3.531546685984532e-05,
+      "degrees_of_freedom": 575.0,
+      "observations": 577,
+      "dropped_rows": 0,
+      "filters": [
+        {
+          "column": "Sex",
+          "value": "male",
+          "source_excerpt": "male passengers"
+        }
+      ],
+      "groups": [
+        {
+          "value": 1,
+          "count": 109,
+          "mean": 40.82148440366973,
+          "sample_std": 71.3559669634886,
+          "population_std": 71.02789181437478
+        },
+        {
+          "value": 0,
+          "count": 468,
+          "mean": 21.960992948717948,
+          "sample_std": 32.409799221810125,
+          "population_std": 32.37515485143598
+        }
+      ],
+      "test_method": "scipy.stats.ttest_ind theoretical finite-sample t distribution",
+      "scipy_version": "1.18.1",
+      "assumptions_verified": false,
+      "scope": "declared groups/filters; independence, normality and group meanings unverified",
+      "public_rule_label": "significant",
+      "significance_rule": {
+        "alpha": 0.05,
+        "significant_label": "significant",
+        "nonsignificant_label": "not significant"
+      },
+      "policy_interpretation_verified": false,
+      "decision_source_sha256": "a9add9f1be9367d5b171d64241a9f9edd9397ea5db9b076aedf14b5db6040983",
+      "method_id": "independent_t_test"
+    },
+    "hash_matches_worker": true
+  },
+  "light_small_v47": {
+    "source_commit": "ed795dc",
+    "selection": "six repeatedly used development cases; not unseen",
+    "reports": {
+      "baseline": {
+        "benchmark": "bird-mini-dev-sqlite",
+        "started_at": "2026-10-21T11:49:03.336738+00:00",
+        "population_n": 500,
+        "seed": 20261020,
+        "requested_n": 6,
+        "selection": "difficulty x asset round-robin",
+        "cohort_hash": "bdb44e3c72908b8ef5e39af5f8576531df1530eee98d3eb35bb3c9f9c18797f1",
+        "protocol_hash": "6d73ef924ba3b4027f3cd1d158fa40c92def4e82147e9302b35f87cc7d34c574",
+        "protocol": {
+          "version": "stage7-v1",
+          "max_output_tokens_per_call": 3000,
+          "python_runtime": "3.12.13",
+          "sqlite_runtime": "3.50.4",
+          "dependency_lock_hash": "9f14264b67c2ffde8badd152ac3fccecf03e94ff6a0b692bfee7208ada50c475",
+          "service_circuit": "terminal_401_402_403_404_or_three_consecutive_provider_failures",
+          "scorer": "strict-infi-absolute1e-6-dab-local-1e-6",
+          "scorer_source_hash": "b44189f9848638755411912d4226ab61d435c20a59ffe5b20ac5ad0c284a0f9f",
+          "import_source_hash": "ff44a73a2b7885e8900ecad906a96621086d20fd3f241a1d7b13bacb79c141e8",
+          "execution_source_hash": "d909a815c2cc64ca4530b11f46244aad8178090cc30e8aa724b5645abbf212d0",
+          "steps": 6,
+          "seconds": 120,
+          "hard_case_deadline_seconds": 125,
+          "tokens": 24000,
+          "max_cost_usd_per_case": 0.02,
+          "call_timeout_seconds": 30,
+          "result_row_limit": 200,
+          "final_and_crosscheck_row_limit": 10000,
+          "final_and_crosscheck_cell_limit": 10000,
+          "workers": 1,
+          "permitted_effects": "read-only",
+          "numeric_import": "preserve leading zero/large integer text; other finite numeric REAL",
+          "request_interval_seconds": 3.5,
+          "csv_importer": "identifier-v2"
+        },
+        "system_fingerprint": {
+          "prompt_hash": "30a588182f21e44d954c22248fc4979a7b1e475398dcd2ffa848d027f402483e",
+          "agent_hash": "b3d2ab0cb64c0bcc772dfae95d29c38ee688003dca59e5580f282972c69bc9d1",
+          "analysis_tools_hash": "3f5f1a03cf4bcb45c8b08b5f63d659d4c625217b0e3d3176159e97e74f96ba0a",
+          "pearson_test_hash": "69eac7adc7d10fcd2e740f372315796903ea5f3dd4598e7f27ba5b2e65275259",
+          "independent_test_hash": "8a3078a645b5fce2e540c279af96c85a646552f356799e1a7bf42f5f2594f297",
+          "independent_test_contract_hash": "4d7460f13ab7585d3e32d996183ee0c3100fe5102e26abb68215e5b6f34d3ec9",
+          "analysis_contract_hash": "6765681aa5184f84a7b82d17c63b0df0108f77b2031d91c29aa6d96372c240fc",
+          "statistical_public_fields_hash": "e3fa95a2c4bf71f291ea3134329c5b926f666aad72a511411f9eb95a8fd2e926",
+          "statistical_rules_hash": "3f63abe15c76c51965c65b20c92fc9ec25c43b03b19a99c4a176de39017aa6f9",
+          "precision_tools_hash": "9636255157d5a6477972ff3dadd0d50454710dc3150b09b8c56841f8180d3fa6",
+          "service_control_hash": "37b8d4824307f8b0f66afd2d2a7ddc6722c98dc7da7935f6853ee4fa450dc8a3",
+          "repair_tools_hash": "110e233cdb33f37d816d734a27897016d4b3e79ef16de2d0ab8a885fd3d1e7e5",
+          "model_adapter_hash": "2c5eb7bc603a5e3d610757c89a55d1f89d2b1694fb36adccc1f37f7d29cd1fc6",
+          "worker_hash": "fce9cf2a8d2c655c07d48b1ae901aef97a500f323665f28e5cb38b5f85866102",
+          "dependency_lock_hash": "9f14264b67c2ffde8badd152ac3fccecf03e94ff6a0b692bfee7208ada50c475",
+          "tool_profile": "sql-precision",
+          "stage7_sources": null,
+          "route_hash": "ddcb6a5429c4f5365aa21351db2a358e378a5beb5c3b07ae80138dd444b8fbd4"
+        },
+        "source_manifest_hash": "7d2bdb7c48f2ac6392872c3823a89af4feebbc23ebad8d8a12e6b77fe801aa3f",
+        "source_revisions": [
+          "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+          "e0265538267d9e56f9d773bb6a8cafa136f8c843",
+          "f65faf4ae3b638c1fa6df1d3370c8d92c8366301"
+        ],
+        "runner_hash": "f307a17f3804f40f795f344d147f44925e96931f7b88b2e558401631c73e3fe1",
+        "python": "3.12.13",
+        "git_commit": "ed795dc929857cfe2d555c9a9ff2f3b138deffdd",
+        "model": "workbuddy/deepseek-v4.1-flash",
+        "model_route": {
+          "provider_id": "magpie",
+          "app_type": "magpie",
+          "model": "workbuddy/deepseek-v4.1-flash",
+          "transport": "openai-chat",
+          "thinking_mode": "default",
+          "json_mode": false,
+          "max_output_tokens": 3000,
+          "endpoint_hash": "fe8827a6b46979db5015036d380dd4e1f10eda5b76101c62a322240bf51a0573",
+          "wire_api": "chat_completions",
+          "gateway_adapter_hash": "163619e55b3ee9dd7eaeda7e9275a0cdc2a07972b6b67602016151f66632b8e6",
+          "gateway_headers_hash": "0a6dda900b2ea6b80cb4df4282bd2ec368d99d39ee00f707de87660edce6d440",
+          "route_hash": "ddcb6a5429c4f5365aa21351db2a358e378a5beb5c3b07ae80138dd444b8fbd4"
+        },
+        "tool_profile": "sql-precision",
+        "provider_id": "magpie",
+        "results": [
+          {
+            "answers": {},
+            "raw_answers": null,
+            "answer_evidence": {},
+            "task_contract": null,
+            "final_sql": "SELECT language FROM foreign_data WHERE multiverseid = 149934",
+            "failure": null,
+            "trace": [
+              {
+                "step": 1,
+                "tool": "sql",
+                "status": "ok",
+                "result_hash": "10839ed30ad6f08275a0ad8a098e345fb4a1cf71e61b235d9162b1d64bc857dc",
+                "sql": "SELECT language FROM foreign_data WHERE multiverseid = 149934",
+                "row_count": 1,
+                "elapsed_ms": 31.084458008990623
+              }
+            ],
+            "tokens": 3199,
+            "input_tokens": 3180,
+            "output_tokens": 19,
+            "usage_status": "complete",
+            "elapsed_seconds": 3.5578114579984685,
+            "observed_cost_usd": 0.0,
+            "cost_usd": null,
+            "cost_status": "partial_or_unknown",
+            "agent_elapsed_seconds": 0.9373543750116369,
+            "attempted": true,
+            "case_id": "422",
+            "difficulty": "simple",
+            "asset": "card_games",
+            "database_hash": "c98bdb57fe7474da798b407785544b9af0daaad5d61fd21e2a73309493bc1227",
+            "passed": true,
+            "sub_hits": 1,
+            "sub_total": 1,
+            "severe_incident": false
+          },
+          {
+            "answers": {},
+            "raw_answers": null,
+            "answer_evidence": {},
+            "task_contract": null,
+            "final_sql": "SELECT MAX(l.Date) AS \"Medical Laboratory Completion Date\", (CAST(strftime('%Y', p.\"First Date\") AS INTEGER) - CAST(strftime('%Y', p.Birthday) AS INTEGER)) AS \"Age at Initial Arrival\" FROM Patient p JOIN Laboratory l ON p.ID = l.ID WHERE p.Diagnosis LIKE '%SJS%' AND p.Birthday = (SELECT MAX(p2.Birthday) FROM Patient p2 WHERE p2.Diagnosis LIKE '%SJS%')",
+            "failure": "answer_mismatch",
+            "trace": [
+              {
+                "step": 1,
+                "status": "error",
+                "error": "JSONDecodeError",
+                "code": "invalid_action"
+              },
+              {
+                "step": 2,
+                "tool": "sql",
+                "status": "ok",
+                "result_hash": "52bb6e00cf8167b0a1d97a82339e76ad78845d12f8df92e479b23244be950a07",
+                "sql": "SELECT p.ID, p.Birthday, p.\"First Date\", l.Date AS LabDate FROM Patient p LEFT JOIN Laboratory l ON p.ID=l.ID WHERE p.Diagnosis LIKE '%SJS%' ORDER BY p.Birthday ASC LIMIT 20",
+                "row_count": 20,
+                "elapsed_ms": 0.8706670050742105
+              },
+              {
+                "step": 3,
+                "tool": "sql",
+                "status": "ok",
+                "result_hash": "fd3e45412edd1a908a9a66c9592d145e9c5ae5afc4011175de88c9ee3f8c8e60",
+                "sql": "SELECT p.ID, p.Birthday, p.\"First Date\", MAX(l.Date) AS MaxLabDate, MIN(l.Date) AS MinLabDate, strftime('%Y',p.\"First Date\")-strftime('%Y',p.Birthday) AS AgeAtArrival FROM Patient p JOIN Laboratory l ON p.ID=l.ID WHERE p.Diagnosis LIKE '%SJS%' GROUP BY p.ID ORDER BY p.Birthday ASC LIMIT 5",
+                "row_count": 5,
+                "elapsed_ms": 0.970584005699493
+              },
+              {
+                "step": 4,
+                "tool": "sql",
+                "status": "ok",
+                "result_hash": "3a8029a9345b0a5ca547ef1421055a7e9c224f30745ac8dea0868286f118eed6",
+                "sql": "SELECT MAX(l.Date) AS \"Medical Laboratory Completion Date\", (CAST(strftime('%Y', p.\"First Date\") AS INTEGER) - CAST(strftime('%Y', p.Birthday) AS INTEGER)) AS \"Age at Initial Arrival\" FROM Patient p JOIN Laboratory l ON p.ID = l.ID WHERE p.Diagnosis LIKE '%SJS%' AND p.Birthday = (SELECT MAX(p2.Birthday) FROM Patient p2 WHERE p2.Diagnosis LIKE '%SJS%')",
+                "row_count": 1,
+                "elapsed_ms": 0.5476249934872612
+              }
+            ],
+            "tokens": 8907,
+            "input_tokens": 8516,
+            "output_tokens": 391,
+            "usage_status": "complete",
+            "elapsed_seconds": 28.754625750007108,
+            "observed_cost_usd": 0.0,
+            "cost_usd": null,
+            "cost_status": "partial_or_unknown",
+            "agent_elapsed_seconds": 27.266613541010884,
+            "attempted": true,
+            "case_id": "1168",
+            "difficulty": "challenging",
+            "asset": "thrombosis_prediction",
+            "database_hash": "87583183c3dc472fba04de702965560a9d7c0a548836613f242317e0eeb83f00",
+            "passed": false,
+            "sub_hits": 0,
+            "sub_total": 1,
+            "severe_incident": false
+          },
+          {
+            "answers": {},
+            "raw_answers": null,
+            "answer_evidence": {},
+            "task_contract": null,
+            "final_sql": "SELECT ((b_a.balance - b_b.balance) * 100.0 / b_b.balance) AS increase_rate FROM (SELECT t.balance FROM loan l JOIN disp d ON d.account_id = l.account_id AND d.type = 'OWNER' JOIN trans t ON t.account_id = l.account_id AND t.date = '1993-03-22' WHERE l.date = '1993-07-05' ORDER BY l.loan_id ASC LIMIT 1) b_b CROSS JOIN (SELECT t.balance FROM loan l JOIN disp d ON d.account_id = l.account_id AND d.type = 'OWNER' JOIN trans t ON t.account_id = l.account_id AND t.date = '1998-12-27' WHERE l.date = '1993-07-05' ORDER BY l.loan_id ASC LIMIT 1) b_a",
+            "failure": null,
+            "trace": [
+              {
+                "step": 1,
+                "tool": "sql",
+                "status": "ok",
+                "result_hash": "e676aabae7eda737e8f6022485bce22f2a3cb6f64eff661fba37c1af9a8c5e03",
+                "sql": "SELECT ((b_a.balance - b_b.balance) * 100.0 / b_b.balance) AS increase_rate FROM (SELECT t.balance FROM loan l JOIN disp d ON d.account_id = l.account_id AND d.type = 'OWNER' JOIN trans t ON t.account_id = l.account_id AND t.date = '1993-03-22' WHERE l.date = '1993-07-05' ORDER BY l.loan_id ASC LIMIT 1) b_b CROSS JOIN (SELECT t.balance FROM loan l JOIN disp d ON d.account_id = l.account_id AND d.type = 'OWNER' JOIN trans t ON t.account_id = l.account_id AND t.date = '1998-12-27' WHERE l.date = '1993-07-05' ORDER BY l.loan_id ASC LIMIT 1) b_a",
+                "row_count": 1,
+                "elapsed_ms": 157.11324999574572
+              }
+            ],
+            "tokens": 2103,
+            "input_tokens": 1915,
+            "output_tokens": 188,
+            "usage_status": "complete",
+            "elapsed_seconds": 7.198232291993918,
+            "observed_cost_usd": 0.0,
+            "cost_usd": null,
+            "cost_status": "partial_or_unknown",
+            "agent_elapsed_seconds": 5.59025812499749,
+            "attempted": true,
+            "case_id": "116",
+            "difficulty": "challenging",
+            "asset": "financial",
+            "database_hash": "d15d89cdb068a202b6f2b99342af44dffc1d52545b39ceaf62efdc0ba570101e",
+            "passed": true,
+            "sub_hits": 1,
+            "sub_total": 1,
+            "severe_incident": false
+          },
+          {
+            "answers": {},
+            "raw_answers": null,
+            "answer_evidence": {},
+            "task_contract": null,
+            "final_sql": "SELECT SUM(f.\"Enrollment (Ages 5-17)\") AS total_enrolled FROM frpm AS f JOIN schools AS s ON f.CDSCode = s.CDSCode WHERE f.\"Academic Year\" = '2014-2015' AND s.EdOpsCode = 'SSS' AND s.City = 'Fremont'",
+            "failure": "answer_mismatch",
+            "trace": [
+              {
+                "step": 1,
+                "status": "error",
+                "error": "JSONDecodeError",
+                "code": "invalid_action"
+              },
+              {
+                "step": 2,
+                "tool": "sql",
+                "status": "ok",
+                "result_hash": "c8ec218dab0993d9ace7bbe2c56c837e9e0888a789ba1e329c2dc18849cb836e",
+                "sql": "SELECT SUM(f.\"Enrollment (Ages 5-17)\") AS total_enrolled FROM frpm AS f JOIN schools AS s ON f.CDSCode = s.CDSCode WHERE f.\"Academic Year\" = '2014-2015' AND s.EdOpsCode = 'SSS' AND s.City = 'Fremont'",
+                "row_count": 1,
+                "elapsed_ms": 5.604332996881567
+              }
+            ],
+            "tokens": 4776,
+            "input_tokens": 4499,
+            "output_tokens": 277,
+            "usage_status": "complete",
+            "elapsed_seconds": 12.705105417000595,
+            "observed_cost_usd": 0.0,
+            "cost_usd": null,
+            "cost_status": "partial_or_unknown",
+            "agent_elapsed_seconds": 11.225606499996502,
+            "attempted": true,
+            "case_id": "72",
+            "difficulty": "moderate",
+            "asset": "california_schools",
+            "database_hash": "c0903eec662e63068fd1d14403d3d6c1d473287fc10c4356333ea58f878db983",
+            "passed": false,
+            "sub_hits": 0,
+            "sub_total": 1,
+            "severe_incident": false
+          },
+          {
+            "answers": {},
+            "raw_answers": null,
+            "answer_evidence": {},
+            "task_contract": null,
+            "final_sql": "SELECT (SUM(CASE WHEN eye_colour_id = 7 THEN 1 ELSE 0 END) * 100.0) / COUNT(*) AS percentage FROM superhero",
+            "failure": null,
+            "trace": [
+              {
+                "step": 1,
+                "status": "error",
+                "error": "JSONDecodeError",
+                "code": "invalid_action"
+              },
+              {
+                "step": 2,
+                "tool": "sql",
+                "status": "ok",
+                "result_hash": "5b511ff0064f68700a270743c39e209a90643c13b6a4d8fce936cce71b88a5e3",
+                "sql": "SELECT (SUM(CASE WHEN eye_colour_id = 7 THEN 1 ELSE 0 END) * 100.0) / COUNT(*) AS percentage FROM superhero",
+                "row_count": 1,
+                "elapsed_ms": 0.38454199966508895
+              }
+            ],
+            "tokens": 3617,
+            "input_tokens": 3513,
+            "output_tokens": 104,
+            "usage_status": "complete",
+            "elapsed_seconds": 14.382967292011017,
+            "observed_cost_usd": 0.0,
+            "cost_usd": null,
+            "cost_status": "partial_or_unknown",
+            "agent_elapsed_seconds": 12.904076207996695,
+            "attempted": true,
+            "case_id": "800",
+            "difficulty": "moderate",
+            "asset": "superhero",
+            "database_hash": "75e94a2c3236ee3bb2c01fb97a1c4b4c1c269bcefd4eab1d04be323d2d0825b1",
+            "passed": true,
+            "sub_hits": 1,
+            "sub_total": 1,
+            "severe_incident": false
+          },
+          {
+            "answers": {},
+            "raw_answers": null,
+            "answer_evidence": {},
+            "task_contract": null,
+            "final_sql": "SELECT s.School FROM schools s JOIN satscores sc ON sc.cds = s.CDSCode WHERE s.Virtual = 'F' AND sc.AvgScrRead IS NOT NULL AND (SELECT COUNT(*) FROM schools s2 JOIN satscores sc2 ON sc2.cds = s2.CDSCode WHERE s2.Virtual = 'F' AND s2.County = s.County AND sc2.AvgScrRead > sc.AvgScrRead) < 5 ORDER BY s.County, sc.AvgScrRead DESC",
+            "failure": "answer_mismatch",
+            "trace": [
+              {
+                "step": 1,
+                "tool": "sql",
+                "status": "ok",
+                "result_hash": "2ef24396b9bfcfe813966af6b3aa79bc72577a1dc6c585666fdc05e435fa06a5",
+                "sql": "SELECT s.School FROM schools s JOIN satscores sc ON sc.cds = s.CDSCode WHERE s.Virtual = 'F' AND sc.AvgScrRead IS NOT NULL AND (SELECT COUNT(*) FROM schools s2 JOIN satscores sc2 ON sc2.cds = s2.CDSCode WHERE s2.Virtual = 'F' AND s2.County = s.County AND sc2.AvgScrRead > sc.AvgScrRead) < 5 ORDER BY s.County, sc.AvgScrRead DESC",
+                "row_count": 4,
+                "elapsed_ms": 15.952582994941622
+              }
+            ],
+            "tokens": 2335,
+            "input_tokens": 2212,
+            "output_tokens": 123,
+            "usage_status": "complete",
+            "elapsed_seconds": 6.995687582995743,
+            "observed_cost_usd": 0.0,
+            "cost_usd": null,
+            "cost_status": "partial_or_unknown",
+            "agent_elapsed_seconds": 5.499896124994848,
+            "attempted": true,
+            "case_id": "41",
+            "difficulty": "simple",
+            "asset": "california_schools",
+            "database_hash": "c0903eec662e63068fd1d14403d3d6c1d473287fc10c4356333ea58f878db983",
+            "passed": false,
+            "sub_hits": 0,
+            "sub_total": 1,
+            "severe_incident": false
+          }
+        ],
+        "scope": "bounded SQL evaluation baseline; not production Supervisor or Python DS agent",
+        "contamination": "public development data; no training-contamination guarantee",
+        "production_accepted": false,
+        "summary": {
+          "n": 6,
+          "passed": 3,
+          "pass_at_1": 0.5,
+          "wilson_95": [
+            0.1876163064826506,
+            0.8123836935173494
+          ],
+          "subquestion_accuracy": 0.5,
+          "p50_seconds": 9.951668854497257,
+          "p95_seconds": 28.754625750007108,
+          "tokens": 24937,
+          "token_telemetry_complete": true,
+          "failures": {
+            "answer_mismatch": 3
+          },
+          "difficulty": {
+            "challenging": {
+              "n": 2,
+              "passed": 1,
+              "rate": 0.5
+            },
+            "moderate": {
+              "n": 2,
+              "passed": 1,
+              "rate": 0.5
+            },
+            "simple": {
+              "n": 2,
+              "passed": 1,
+              "rate": 0.5
+            }
+          },
+          "official_leaderboard_comparable": false,
+          "production_accepted": false,
+          "cost_usd": null,
+          "attempted_n": 6,
+          "not_attempted_n": 0,
+          "attempted_p95_seconds": 28.754625750007108
+        },
+        "service_circuit_reason": null,
+        "run_status": "completed",
+        "completed_at": "2026-10-21T11:50:18.015090+00:00"
+      },
+      "candidate": {
+        "benchmark": "bird-mini-dev-sqlite",
+        "started_at": "2026-10-21T11:49:03.339118+00:00",
+        "population_n": 500,
+        "seed": 20261020,
+        "requested_n": 6,
+        "selection": "difficulty x asset round-robin",
+        "cohort_hash": "bdb44e3c72908b8ef5e39af5f8576531df1530eee98d3eb35bb3c9f9c18797f1",
+        "protocol_hash": "6d73ef924ba3b4027f3cd1d158fa40c92def4e82147e9302b35f87cc7d34c574",
+        "protocol": {
+          "version": "stage7-v1",
+          "max_output_tokens_per_call": 3000,
+          "python_runtime": "3.12.13",
+          "sqlite_runtime": "3.50.4",
+          "dependency_lock_hash": "9f14264b67c2ffde8badd152ac3fccecf03e94ff6a0b692bfee7208ada50c475",
+          "service_circuit": "terminal_401_402_403_404_or_three_consecutive_provider_failures",
+          "scorer": "strict-infi-absolute1e-6-dab-local-1e-6",
+          "scorer_source_hash": "b44189f9848638755411912d4226ab61d435c20a59ffe5b20ac5ad0c284a0f9f",
+          "import_source_hash": "ff44a73a2b7885e8900ecad906a96621086d20fd3f241a1d7b13bacb79c141e8",
+          "execution_source_hash": "d909a815c2cc64ca4530b11f46244aad8178090cc30e8aa724b5645abbf212d0",
+          "steps": 6,
+          "seconds": 120,
+          "hard_case_deadline_seconds": 125,
+          "tokens": 24000,
+          "max_cost_usd_per_case": 0.02,
+          "call_timeout_seconds": 30,
+          "result_row_limit": 200,
+          "final_and_crosscheck_row_limit": 10000,
+          "final_and_crosscheck_cell_limit": 10000,
+          "workers": 1,
+          "permitted_effects": "read-only",
+          "numeric_import": "preserve leading zero/large integer text; other finite numeric REAL",
+          "request_interval_seconds": 3.5,
+          "csv_importer": "identifier-v2"
+        },
+        "system_fingerprint": {
+          "prompt_hash": "30a588182f21e44d954c22248fc4979a7b1e475398dcd2ffa848d027f402483e",
+          "agent_hash": "b3d2ab0cb64c0bcc772dfae95d29c38ee688003dca59e5580f282972c69bc9d1",
+          "analysis_tools_hash": "3f5f1a03cf4bcb45c8b08b5f63d659d4c625217b0e3d3176159e97e74f96ba0a",
+          "pearson_test_hash": "69eac7adc7d10fcd2e740f372315796903ea5f3dd4598e7f27ba5b2e65275259",
+          "independent_test_hash": "8a3078a645b5fce2e540c279af96c85a646552f356799e1a7bf42f5f2594f297",
+          "independent_test_contract_hash": "4d7460f13ab7585d3e32d996183ee0c3100fe5102e26abb68215e5b6f34d3ec9",
+          "analysis_contract_hash": "6765681aa5184f84a7b82d17c63b0df0108f77b2031d91c29aa6d96372c240fc",
+          "statistical_public_fields_hash": "e3fa95a2c4bf71f291ea3134329c5b926f666aad72a511411f9eb95a8fd2e926",
+          "statistical_rules_hash": "3f63abe15c76c51965c65b20c92fc9ec25c43b03b19a99c4a176de39017aa6f9",
+          "precision_tools_hash": "9636255157d5a6477972ff3dadd0d50454710dc3150b09b8c56841f8180d3fa6",
+          "service_control_hash": "37b8d4824307f8b0f66afd2d2a7ddc6722c98dc7da7935f6853ee4fa450dc8a3",
+          "repair_tools_hash": "110e233cdb33f37d816d734a27897016d4b3e79ef16de2d0ab8a885fd3d1e7e5",
+          "model_adapter_hash": "2c5eb7bc603a5e3d610757c89a55d1f89d2b1694fb36adccc1f37f7d29cd1fc6",
+          "worker_hash": "fce9cf2a8d2c655c07d48b1ae901aef97a500f323665f28e5cb38b5f85866102",
+          "dependency_lock_hash": "9f14264b67c2ffde8badd152ac3fccecf03e94ff6a0b692bfee7208ada50c475",
+          "tool_profile": "sql-semantic",
+          "stage7_sources": {
+            "contracts/analysis.py": "6765681aa5184f84a7b82d17c63b0df0108f77b2031d91c29aa6d96372c240fc",
+            "contracts/answer_fields.py": "e6ecbd59912179bc23d1be8acb4c4a085e20169c53b43e1907175391d949095b",
+            "contracts/statistical_rules.py": "3f63abe15c76c51965c65b20c92fc9ec25c43b03b19a99c4a176de39017aa6f9",
+            "contracts/independent_test.py": "4d7460f13ab7585d3e32d996183ee0c3100fe5102e26abb68215e5b6f34d3ec9",
+            "tools/independent_test.py": "8a3078a645b5fce2e540c279af96c85a646552f356799e1a7bf42f5f2594f297",
+            "tools/pearson_test.py": "69eac7adc7d10fcd2e740f372315796903ea5f3dd4598e7f27ba5b2e65275259",
+            "evaluation/stage_six_analysis.py": "3f5f1a03cf4bcb45c8b08b5f63d659d4c625217b0e3d3176159e97e74f96ba0a",
+            "tools/answer_fields.py": "07e50819be02725db00af261817e18b7b6ce7645133cbc178b49c68063f32fc3",
+            "contracts/semantic_requirements.py": "bc0683ead82ef284acbe9fe71b5af437ddce357db5b0c46027ae34622dfe867e",
+            "tools/semantic_requirements.py": "99f92bd690af85d33713fce304dfce49c9860acf7031d3459cca681e43d59989",
+            "orchestration/analysis_plan.py": "cb9704c3b3af020317e5204a56013c83e93a3d1065b6e5ed1e08feff97770687",
+            "catalog/semantic_context.py": "d1e15351e2cbe3ba01fc35f6979f27ad28662e61f025d4a8a5f7f867119809ca",
+            "catalog/field_evidence.py": "e3fa95a2c4bf71f291ea3134329c5b926f666aad72a511411f9eb95a8fd2e926",
+            "catalog/join_evidence.py": "cd5ae4218c11eba66a7a3b7166ed226ac37b81ed6229c64978d63be51de7205e",
+            "tools/sql_semantics.py": "d2d78f123a48160e1308e3afc9c3389b4442e303e70ccb37510b51fbc0d8105c",
+            "tools/sql_guard.py": "72ef5c19eb4080f3a75f745588eff76780684a0691c3ab141c79d17c6ca5db59",
+            "tools/sqlite.py": "6cc32bffd2d0822f3a0805d63ab15624c0530d9e0b6e719053f2d0c869784251",
+            "evaluation/stage_six.py": "b3d2ab0cb64c0bcc772dfae95d29c38ee688003dca59e5580f282972c69bc9d1",
+            "evaluation/stage_six_sql_precision.py": "9636255157d5a6477972ff3dadd0d50454710dc3150b09b8c56841f8180d3fa6",
+            "evaluation/stage_six_repair.py": "110e233cdb33f37d816d734a27897016d4b3e79ef16de2d0ab8a885fd3d1e7e5",
+            "evaluation/stage_seven.py": "6c6b2fe29d803b38d8067aab5ff6fd46c5324c77882a3ece9f8dc80d8fe01c58",
+            "contracts/query_plan.py": "4b18902c4ee0a82f35b4776bde17713a18672f2ef87b45e903cae3c958c9ad9e",
+            "tools/semantic_sql.py": "5c8d17f177d3cd53ce08f9352c83a9a7e364d86089158f89481e6491603b461f"
+          },
+          "route_hash": "ddcb6a5429c4f5365aa21351db2a358e378a5beb5c3b07ae80138dd444b8fbd4"
+        },
+        "source_manifest_hash": "7d2bdb7c48f2ac6392872c3823a89af4feebbc23ebad8d8a12e6b77fe801aa3f",
+        "source_revisions": [
+          "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+          "e0265538267d9e56f9d773bb6a8cafa136f8c843",
+          "f65faf4ae3b638c1fa6df1d3370c8d92c8366301"
+        ],
+        "runner_hash": "f307a17f3804f40f795f344d147f44925e96931f7b88b2e558401631c73e3fe1",
+        "python": "3.12.13",
+        "git_commit": "ed795dc929857cfe2d555c9a9ff2f3b138deffdd",
+        "model": "workbuddy/deepseek-v4.1-flash",
+        "model_route": {
+          "provider_id": "magpie",
+          "app_type": "magpie",
+          "model": "workbuddy/deepseek-v4.1-flash",
+          "transport": "openai-chat",
+          "thinking_mode": "default",
+          "json_mode": false,
+          "max_output_tokens": 3000,
+          "endpoint_hash": "fe8827a6b46979db5015036d380dd4e1f10eda5b76101c62a322240bf51a0573",
+          "wire_api": "chat_completions",
+          "gateway_adapter_hash": "163619e55b3ee9dd7eaeda7e9275a0cdc2a07972b6b67602016151f66632b8e6",
+          "gateway_headers_hash": "0a6dda900b2ea6b80cb4df4282bd2ec368d99d39ee00f707de87660edce6d440",
+          "route_hash": "ddcb6a5429c4f5365aa21351db2a358e378a5beb5c3b07ae80138dd444b8fbd4"
+        },
+        "tool_profile": "sql-semantic",
+        "provider_id": "magpie",
+        "results": [
+          {
+            "answers": {},
+            "raw_answers": null,
+            "answer_evidence": {},
+            "task_contract": {
+              "question": "What is the language of the card with the multiverse number 149934?",
+              "public_requirements": "multiverse number 149934 refers to multiverseid = 149934;",
+              "entity": null,
+              "grain": [],
+              "filters": [],
+              "time_range": null,
+              "formula": null,
+              "denominator": null,
+              "count_basis": "unspecified",
+              "order_by": null,
+              "order_direction": null,
+              "conflicts": [],
+              "answer": {
+                "columns": [
+                  "language"
+                ],
+                "shape": "rows",
+                "unit": null,
+                "decimals": null,
+                "ties": "unspecified",
+                "empty": "allow",
+                "nullable": true,
+                "minimum": null,
+                "maximum": null,
+                "fields": {}
+              },
+              "requirements": {
+                "predicates": [],
+                "dates": [],
+                "ratios": []
+              }
+            },
+            "final_sql": "SELECT language FROM foreign_data WHERE multiverseid = 149934",
+            "failure": null,
+            "trace": [
+              {
+                "step": 1,
+                "tool": "sql",
+                "status": "ok",
+                "result_hash": "dc2db4edd9a61be860817620702333133a0338135eb0a278fb08035d09ea33f5",
+                "response_mode": "native_function",
+                "sql": "SELECT language FROM foreign_data WHERE multiverseid = 149934",
+                "row_count": 1,
+                "elapsed_ms": 29.640292006661184
+              }
+            ],
+            "tokens": 5027,
+            "input_tokens": 4941,
+            "output_tokens": 86,
+            "usage_status": "complete",
+            "elapsed_seconds": 8.228514542002813,
+            "observed_cost_usd": 0.0,
+            "cost_usd": null,
+            "cost_status": "partial_or_unknown",
+            "agent_elapsed_seconds": 3.3839697500079637,
+            "attempted": true,
+            "case_id": "422",
+            "difficulty": "simple",
+            "asset": "card_games",
+            "database_hash": "c98bdb57fe7474da798b407785544b9af0daaad5d61fd21e2a73309493bc1227",
+            "passed": true,
+            "sub_hits": 1,
+            "sub_total": 1,
+            "severe_incident": false
+          },
+          {
+            "answers": {},
+            "raw_answers": null,
+            "answer_evidence": {},
+            "task_contract": {
+              "question": "The oldest SJS patient's medical laboratory work was completed on what date, and what age was the patient when they initially arrived at the hospital?",
+              "public_requirements": "The larger the birthday value, the younger the person is, and vice versa; 'SJS' refers to diagnosis; (SUBTRACT(year(`First Date`)), year(Birthday)); age of the patients when they initially arrived at the hospital refers to year(Birthday)",
+              "entity": null,
+              "grain": [],
+              "filters": [],
+              "time_range": null,
+              "formula": null,
+              "denominator": null,
+              "count_basis": "unspecified",
+              "order_by": null,
+              "order_direction": null,
+              "conflicts": [],
+              "answer": {
+                "columns": [
+                  "Birthday",
+                  "Laboratory Date",
+                  "Age"
+                ],
+                "shape": "rows",
+                "unit": null,
+                "decimals": null,
+                "ties": "unspecified",
+                "empty": "allow",
+                "nullable": true,
+                "minimum": null,
+                "maximum": null,
+                "fields": {}
+              },
+              "requirements": {
+                "predicates": [],
+                "dates": [],
+                "ratios": []
+              }
+            },
+            "final_sql": "SELECT p.Birthday AS \"Birthday\", MAX(l.Date) AS \"Laboratory Date\", CAST(strftime('%Y', MAX(l.Date)) AS INTEGER) - CAST(strftime('%Y', p.Birthday) AS INTEGER) AS \"Age\" FROM Patient p JOIN Laboratory l ON l.ID = p.ID WHERE p.Diagnosis LIKE '%SJS%' GROUP BY p.ID ORDER BY p.Birthday ASC LIMIT 1",
+            "failure": "answer_mismatch",
+            "trace": [
+              {
+                "step": 1,
+                "status": "error",
+                "error": "ActionSchemaError",
+                "code": "action_schema",
+                "response_mode": "native_function",
+                "schema_errors": [
+                  {
+                    "path": [
+                      "tool_calls"
+                    ],
+                    "type": "one_action"
+                  }
+                ],
+                "repair_type": "correct_parameters"
+              },
+              {
+                "step": 2,
+                "status": "error",
+                "error": "QueryExecutionError",
+                "code": "result_limit",
+                "response_mode": "native_function",
+                "action_keys": [
+                  "sql"
+                ]
+              },
+              {
+                "step": 3,
+                "tool": "sql",
+                "status": "ok",
+                "result_hash": "246e30145e38ee5556401eb3999c891d4d9e2cf11751a37319116586913dd50b",
+                "response_mode": "native_function",
+                "sql": "SELECT 'P' s, Diagnosis, COUNT(*) c FROM Patient GROUP BY Diagnosis HAVING Diagnosis LIKE '%SJS%' UNION ALL SELECT 'E', Diagnosis, COUNT(*) FROM Examination GROUP BY Diagnosis HAVING Diagnosis LIKE '%SJS%' LIMIT 40",
+                "row_count": 40,
+                "elapsed_ms": 0.4280419962015003
+              },
+              {
+                "step": 4,
+                "tool": "sql",
+                "status": "ok",
+                "result_hash": "2ee231c549cb4c88969bc3b59ab24ee6b9fc0c76cdf03897330479c2e5938a3f",
+                "response_mode": "native_function",
+                "sql": "SELECT p.Birthday AS \"Birthday\", MAX(l.Date) AS \"Laboratory Date\", CAST(strftime('%Y', MAX(l.Date)) AS INTEGER) - CAST(strftime('%Y', p.Birthday) AS INTEGER) AS \"Age\" FROM Patient p JOIN Laboratory l ON l.ID = p.ID WHERE p.Diagnosis LIKE '%SJS%' GROUP BY p.ID ORDER BY p.Birthday ASC LIMIT 1",
+                "row_count": 1,
+                "elapsed_ms": 0.7086250116117299
+              }
+            ],
+            "tokens": 16742,
+            "input_tokens": 16263,
+            "output_tokens": 479,
+            "usage_status": "complete",
+            "elapsed_seconds": 27.565926208000747,
+            "observed_cost_usd": 0.0,
+            "cost_usd": null,
+            "cost_status": "partial_or_unknown",
+            "agent_elapsed_seconds": 25.98335812499863,
+            "attempted": true,
+            "case_id": "1168",
+            "difficulty": "challenging",
+            "asset": "thrombosis_prediction",
+            "database_hash": "87583183c3dc472fba04de702965560a9d7c0a548836613f242317e0eeb83f00",
+            "passed": false,
+            "sub_hits": 0,
+            "sub_total": 1,
+            "severe_incident": false
+          },
+          {
+            "answers": {},
+            "raw_answers": null,
+            "answer_evidence": {},
+            "task_contract": null,
+            "final_sql": null,
+            "failure": "token_budget",
+            "trace": [
+              {
+                "step": 1,
+                "status": "error",
+                "error": "ActionSchemaError",
+                "code": "action_schema",
+                "response_mode": "native_function",
+                "schema_errors": [
+                  {
+                    "path": [
+                      "tool_calls"
+                    ],
+                    "type": "one_action"
+                  }
+                ],
+                "repair_type": "correct_parameters"
+              },
+              {
+                "step": 2,
+                "tool": "sql",
+                "status": "ok",
+                "result_hash": "7272d808bed058e0cf7ffa4e2738dfdd185843f8d4f40f6875936b4ae94f6c2e",
+                "response_mode": "native_function",
+                "sql": "SELECT loan_id, account_id, date FROM loan WHERE date = '1993-07-05' ORDER BY loan_id",
+                "row_count": 1,
+                "elapsed_ms": 0.49679199582897127
+              },
+              {
+                "step": 3,
+                "tool": "sql",
+                "status": "ok",
+                "result_hash": "b707fa040b057361dc02c45ffb5d76200bb53b325294a6970e55dd62991d53e9",
+                "response_mode": "native_function",
+                "sql": "SELECT trans_id, date, balance FROM trans WHERE account_id=1787 AND date IN ('1993-03-22','1998-12-27')",
+                "row_count": 2,
+                "elapsed_ms": 39.03287499269936
+              },
+              {
+                "step": 4,
+                "status": "error",
+                "error": "SemanticError",
+                "code": "semantic_contract",
+                "response_mode": "native_function",
+                "action_keys": [
+                  "final_sql",
+                  "task_spec"
+                ],
+                "repair_type": "revise_plan_or_query",
+                "checks": [
+                  "change_direction",
+                  "change_real_division_unproven",
+                  "change_reference_period"
+                ]
+              },
+              {
+                "step": 5,
+                "status": "error",
+                "error": "SemanticError",
+                "code": "semantic_contract",
+                "response_mode": "native_function",
+                "action_keys": [
+                  "final_sql",
+                  "task_spec"
+                ],
+                "repair_type": "revise_plan_or_query",
+                "checks": [
+                  "change_direction",
+                  "change_reference_period"
+                ]
+              }
+            ],
+            "tokens": 25569,
+            "input_tokens": 24673,
+            "output_tokens": 896,
+            "usage_status": "complete",
+            "elapsed_seconds": 41.63847937500395,
+            "observed_cost_usd": 0.0,
+            "cost_usd": null,
+            "cost_status": "partial_or_unknown",
+            "agent_elapsed_seconds": 38.35737404100655,
+            "attempted": true,
+            "case_id": "116",
+            "difficulty": "challenging",
+            "asset": "financial",
+            "database_hash": "d15d89cdb068a202b6f2b99342af44dffc1d52545b39ceaf62efdc0ba570101e",
+            "passed": false,
+            "sub_hits": 0,
+            "sub_total": 1,
+            "severe_incident": false
+          },
+          {
+            "answers": {},
+            "raw_answers": null,
+            "answer_evidence": {},
+            "task_contract": {
+              "question": "How many students from the ages of 5 to 17 are enrolled at the State Special School school in Fremont for the 2014-2015 academic year?",
+              "public_requirements": "State Special School means EdOpsCode = 'SSS'",
+              "entity": null,
+              "grain": [],
+              "filters": [],
+              "time_range": null,
+              "formula": null,
+              "denominator": null,
+              "count_basis": "unspecified",
+              "order_by": null,
+              "order_direction": null,
+              "conflicts": [],
+              "answer": {
+                "columns": [
+                  "total_enrollment"
+                ],
+                "shape": "scalar",
+                "unit": null,
+                "decimals": null,
+                "ties": "unspecified",
+                "empty": "allow",
+                "nullable": true,
+                "minimum": null,
+                "maximum": null,
+                "fields": {}
+              },
+              "requirements": {
+                "predicates": [],
+                "dates": [],
+                "ratios": []
+              }
+            },
+            "final_sql": "SELECT SUM(f.\"Enrollment (Ages 5-17)\") AS total_enrollment FROM frpm f JOIN schools s ON f.CDSCode = s.CDSCode WHERE s.\"EdOpsCode\" = 'SSS' AND s.City = 'Fremont' AND f.\"Academic Year\" = '2014-2015'",
+            "failure": "answer_mismatch",
+            "trace": [
+              {
+                "step": 1,
+                "tool": "sql",
+                "status": "ok",
+                "result_hash": "9fa7fbede7f23964ca6ccf1a9680d91fbc4d2c6b2e23ba7ddc355ab3abb0ec61",
+                "response_mode": "native_function",
+                "sql": "SELECT SUM(f.\"Enrollment (Ages 5-17)\") AS total_enrollment FROM frpm f JOIN schools s ON f.CDSCode = s.CDSCode WHERE s.\"EdOpsCode\" = 'SSS' AND s.City = 'Fremont' AND f.\"Academic Year\" = '2014-2015'",
+                "row_count": 1,
+                "elapsed_ms": 7.618957999511622
+              }
+            ],
+            "tokens": 4294,
+            "input_tokens": 4144,
+            "output_tokens": 150,
+            "usage_status": "complete",
+            "elapsed_seconds": 3.6807145829952788,
+            "observed_cost_usd": 0.0,
+            "cost_usd": null,
+            "cost_status": "partial_or_unknown",
+            "agent_elapsed_seconds": 1.9325590420048684,
+            "attempted": true,
+            "case_id": "72",
+            "difficulty": "moderate",
+            "asset": "california_schools",
+            "database_hash": "c0903eec662e63068fd1d14403d3d6c1d473287fc10c4356333ea58f878db983",
+            "passed": false,
+            "sub_hits": 0,
+            "sub_total": 1,
+            "severe_incident": false
+          },
+          {
+            "answers": {},
+            "raw_answers": null,
+            "answer_evidence": {},
+            "task_contract": {
+              "question": "Calculate the percentage of superheroes with blue eyes.",
+              "public_requirements": "percentage = MULTIPLY(DIVIDE(SUM(superhero_name WHERE color = 'Blue'), COUNT(superhero_name)), 100.0); blue eyes refers to color = 'Blue' and color.id =  eye_colour_id = 7;",
+              "entity": null,
+              "grain": [],
+              "filters": [],
+              "time_range": null,
+              "formula": null,
+              "denominator": null,
+              "count_basis": "unspecified",
+              "order_by": null,
+              "order_direction": null,
+              "conflicts": [],
+              "answer": {
+                "columns": [
+                  "percentage"
+                ],
+                "shape": "scalar",
+                "unit": null,
+                "decimals": null,
+                "ties": "unspecified",
+                "empty": "allow",
+                "nullable": true,
+                "minimum": null,
+                "maximum": null,
+                "fields": {}
+              },
+              "requirements": {
+                "predicates": [],
+                "dates": [],
+                "ratios": []
+              }
+            },
+            "final_sql": "SELECT SUM(CASE WHEN c.colour = 'Blue' THEN 1 ELSE 0 END) * 100.0 / COUNT(s.superhero_name) AS percentage FROM superhero s JOIN colour c ON c.id = s.eye_colour_id",
+            "failure": null,
+            "trace": [
+              {
+                "step": 1,
+                "tool": "sql",
+                "status": "ok",
+                "result_hash": "8d1b5eb62f4ed08f2342156131422830b06ec030038160d17e6abd17df1b4c9a",
+                "response_mode": "native_function",
+                "sql": "SELECT SUM(CASE WHEN c.colour = 'Blue' THEN 1 ELSE 0 END) * 100.0 / COUNT(s.superhero_name) AS percentage FROM superhero s JOIN colour c ON c.id = s.eye_colour_id",
+                "row_count": 1,
+                "elapsed_ms": 0.4989170120097697
+              }
+            ],
+            "tokens": 3338,
+            "input_tokens": 3213,
+            "output_tokens": 125,
+            "usage_status": "complete",
+            "elapsed_seconds": 3.3790296660008607,
+            "observed_cost_usd": 0.0,
+            "cost_usd": null,
+            "cost_status": "partial_or_unknown",
+            "agent_elapsed_seconds": 1.859708416988724,
+            "attempted": true,
+            "case_id": "800",
+            "difficulty": "moderate",
+            "asset": "superhero",
+            "database_hash": "75e94a2c3236ee3bb2c01fb97a1c4b4c1c269bcefd4eab1d04be323d2d0825b1",
+            "passed": true,
+            "sub_hits": 1,
+            "sub_total": 1,
+            "severe_incident": false
+          },
+          {
+            "answers": {},
+            "raw_answers": null,
+            "answer_evidence": {},
+            "task_contract": {
+              "question": "List the names of virtual schools that are among the top 5 in their respective counties based on average reading scores.",
+              "public_requirements": "Exclusively virtual refers to Virtual = 'F'; respective counties means PARTITION BY County",
+              "entity": null,
+              "grain": [],
+              "filters": [],
+              "time_range": null,
+              "formula": null,
+              "denominator": null,
+              "count_basis": "unspecified",
+              "order_by": null,
+              "order_direction": null,
+              "conflicts": [],
+              "answer": {
+                "columns": [
+                  "name"
+                ],
+                "shape": "rows",
+                "unit": null,
+                "decimals": null,
+                "ties": "all",
+                "empty": "allow",
+                "nullable": true,
+                "minimum": null,
+                "maximum": null,
+                "fields": {}
+              },
+              "requirements": {
+                "predicates": [
+                  {
+                    "source_excerpt": "Exclusively virtual refers to Virtual = 'F'",
+                    "scope": "ranked",
+                    "expression": "sch.Virtual = 'F'",
+                    "clause": "where"
+                  }
+                ],
+                "dates": [],
+                "ratios": []
+              }
+            },
+            "final_sql": "WITH ranked AS (\n  SELECT sch.School AS name,\n         sch.County AS county,\n         sat.AvgScrRead AS avg_read,\n         RANK() OVER (PARTITION BY sch.County ORDER BY sat.AvgScrRead DESC) AS rnk\n  FROM schools sch\n  JOIN satscores sat ON sat.cds = sch.CDSCode\n  WHERE sch.Virtual = 'F'\n)\nSELECT name\nFROM ranked\nWHERE rnk <= 5\nORDER BY county, rnk",
+            "failure": null,
+            "trace": [
+              {
+                "step": 1,
+                "tool": "sql",
+                "status": "ok",
+                "result_hash": "8855f9229c7c67ffaf77184a7948de2727efdd6f64013e92afb64887774187dc",
+                "response_mode": "native_function",
+                "sql": "WITH ranked AS (\n  SELECT sch.School AS name,\n         sch.County AS county,\n         sat.AvgScrRead AS avg_read,\n         RANK() OVER (PARTITION BY sch.County ORDER BY sat.AvgScrRead DESC) AS rnk\n  FROM schools sch\n  JOIN satscores sat ON sat.cds = sch.CDSCode\n  WHERE sch.Virtual = 'F'\n)\nSELECT name\nFROM ranked\nWHERE rnk <= 5\nORDER BY county, rnk",
+                "row_count": 34,
+                "elapsed_ms": 3.2412080036010593
+              }
+            ],
+            "tokens": 4396,
+            "input_tokens": 4135,
+            "output_tokens": 261,
+            "usage_status": "complete",
+            "elapsed_seconds": 4.218854916995042,
+            "observed_cost_usd": 0.0,
+            "cost_usd": null,
+            "cost_status": "partial_or_unknown",
+            "agent_elapsed_seconds": 2.525355624995427,
+            "attempted": true,
+            "case_id": "41",
+            "difficulty": "simple",
+            "asset": "california_schools",
+            "database_hash": "c0903eec662e63068fd1d14403d3d6c1d473287fc10c4356333ea58f878db983",
+            "passed": true,
+            "sub_hits": 1,
+            "sub_total": 1,
+            "severe_incident": false
+          }
+        ],
+        "scope": "bounded SQL evaluation baseline; not production Supervisor or Python DS agent",
+        "contamination": "public development data; no training-contamination guarantee",
+        "production_accepted": false,
+        "summary": {
+          "n": 6,
+          "passed": 3,
+          "pass_at_1": 0.5,
+          "wilson_95": [
+            0.1876163064826506,
+            0.8123836935173494
+          ],
+          "subquestion_accuracy": 0.5,
+          "p50_seconds": 6.2236847294989275,
+          "p95_seconds": 41.63847937500395,
+          "tokens": 59366,
+          "token_telemetry_complete": true,
+          "failures": {
+            "answer_mismatch": 2,
+            "token_budget": 1
+          },
+          "difficulty": {
+            "challenging": {
+              "n": 2,
+              "passed": 0,
+              "rate": 0.0
+            },
+            "moderate": {
+              "n": 2,
+              "passed": 1,
+              "rate": 0.5
+            },
+            "simple": {
+              "n": 2,
+              "passed": 2,
+              "rate": 1.0
+            }
+          },
+          "official_leaderboard_comparable": false,
+          "production_accepted": false,
+          "cost_usd": null,
+          "attempted_n": 6,
+          "not_attempted_n": 0,
+          "attempted_p95_seconds": 41.63847937500395
+        },
+        "service_circuit_reason": null,
+        "run_status": "completed",
+        "completed_at": "2026-10-21T11:50:32.962230+00:00"
+      }
+    },
+    "comparison": {
+      "strict_comparison": {
+        "benchmark": "bird-mini-dev-sqlite",
+        "n": 6,
+        "baseline_passed": 3,
+        "candidate_passed": 3,
+        "improvements": [
+          "41"
+        ],
+        "regressions": [
+          "116"
+        ],
+        "pass_rate_delta": 0.0,
+        "service_failures": {
+          "baseline": 0,
+          "candidate": 0
+        },
+        "observed_cost_usd": {
+          "baseline": 0.0,
+          "candidate": 0.0
+        },
+        "efficiency": {
+          "baseline": {
+            "reported_tokens": 24937,
+            "token_telemetry_complete": true,
+            "p50_seconds": 9.951668854497257,
+            "p95_seconds": 28.754625750007108,
+            "cost_usd": null
+          },
+          "candidate": {
+            "reported_tokens": 59366,
+            "token_telemetry_complete": true,
+            "p50_seconds": 6.2236847294989275,
+            "p95_seconds": 41.63847937500395,
+            "cost_usd": null
+          }
+        },
+        "failure_transitions": {
+          "passed->passed": 2,
+          "answer_mismatch->answer_mismatch": 2,
+          "passed->token_budget": 1,
+          "answer_mismatch->passed": 1
+        },
+        "attribution_valid": true,
+        "blocked_by": [],
+        "mcnemar_exact_two_sided_p": 1.0,
+        "paired_release_gate": {
+          "passed": false,
+          "regressions": [
+            "116"
+          ],
+          "severe_incidents": [],
+          "production_accepted": false
+        },
+        "production_accepted": false
+      },
+      "baseline_correct_protection": {
+        "n": 3,
+        "retained": [
+          "422",
+          "800"
+        ],
+        "regressed": [
+          "116"
+        ]
+      },
+      "label_reviews": [],
+      "review_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "strict_score_changed": false,
+      "denominator_changed": false,
+      "production_accepted": false,
+      "limits": "development-set comparison; unseen tasks and repeated runs remain required"
+    },
+    "production_accepted": false
+  },
+  "remote_ci_ed795dc": {
+    "run_id": 39594641416,
+    "status": "completed",
+    "conclusion": "success",
+    "python_versions": [
+      "3.11",
+      "3.12",
+      "3.13"
+    ],
+    "url": "https://github.com/GeneralDataAgent/GeneralDataAgent/actions/runs/39594641416"
+  },
+  "package_ed795dc": {
+    "wheel_integrity": "passed",
+    "source_bytes_compared_to_commit": [
+      "contracts/independent_test.py",
+      "tools/independent_test.py",
+      "evaluation/stage_seven.py",
+      "evaluation/stage_six.py"
+    ],
+    "sdist_independent_test_membership": "passed"
   }
 }

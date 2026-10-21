@@ -125,12 +125,19 @@ def execution_hint(exc: Exception) -> str:
             "preserve the requested population and every requested output."
         )
     if "change_real_division_unproven" in text:
-        return (
+        hint = (
             "Promote a numerator or denominator to REAL before each growth-rate division, "
             "e.g. 1.0*(end-start)/NULLIF(start,0). Multiplying by 100.0 or casting the final "
             "result after division cannot restore discarded fractional digits. "
             "Preserve periods, filters, scale and lookup selection."
         )
+        if "change_direction" in text or "change_reference_period" in text:
+            hint += (
+                " Also fix the reported period errors: subtract the starting value from the "
+                "ending value and divide by the starting value. Fix all reported checks "
+                "together in one revised query; aliases alone cannot repair the formula."
+            )
+        return hint
     if "change_direction" in text or "change_reference_period" in text:
         return (
             "For the public change from a starting period to an ending period, subtract "
