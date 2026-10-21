@@ -376,6 +376,31 @@ def check_percentage_result(sql: str, question: str, instructions: str, rows) ->
             node = node.this
         if isinstance(node, exp.Count):
             return True
+        if isinstance(node, exp.Sum):
+            predicate = node.this
+            while isinstance(predicate, exp.Paren):
+                predicate = predicate.this
+            # SQLite predicates evaluate to 0/1/NULL; summing them counts matches.
+            # Bare numeric columns and arithmetic may be weighted and stay excluded.
+            if isinstance(
+                predicate,
+                (
+                    exp.EQ,
+                    exp.NEQ,
+                    exp.GT,
+                    exp.GTE,
+                    exp.LT,
+                    exp.LTE,
+                    exp.Is,
+                    exp.In,
+                    exp.Between,
+                    exp.Like,
+                    exp.And,
+                    exp.Or,
+                    exp.Not,
+                ),
+            ):
+                return True
         if isinstance(node, exp.Sum) and isinstance(node.this, exp.Case):
             branches = [branch.args.get("true") for branch in node.this.args.get("ifs", [])]
             branches.append(node.this.args.get("default"))

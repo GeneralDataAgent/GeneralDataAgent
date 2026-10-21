@@ -294,3 +294,29 @@ def test_sqlite_non_ascii_column_case_is_not_silently_folded(tmp_path):
     assert SQLiteReadOnlyExecutor(path).execute(sql).rows == ((10, 20, 30, 40),)
     with pytest.raises(ColumnScopeError):
         validate_column_scope(path, 'SELECT "ω" FROM data', allowed_relations={"data"})
+
+
+@pytest.mark.parametrize(
+    "predicate",
+    [
+        "name='Winter'",
+        "active IS NOT NULL",
+        "score > 5 AND active=1",
+        "NOT active",
+        "score BETWEEN 1 AND 5",
+        "name IN ('A','B')",
+        "name LIKE 'A%'",
+    ],
+)
+def test_percentage_population_counts_sqlite_boolean_predicates(predicate):
+    from generaldataagent.tools.sql_semantics import check_percentage_result
+
+    sql = f"SELECT 100.0*SUM(eligible)/SUM({predicate}) AS pct FROM records"
+    assert check_percentage_result(sql, "percentage of eligible records?", "", [(None,)]) == [
+        "undefined_percentage_check_population"
+    ]
+    assert check_percentage_result(sql, "percentage of eligible records?", "", [(105,)]) == [
+        "percentage_out_of_range"
+    ]
+    assert not check_percentage_result(sql, "percentage of eligible records?", "", [(50,)])
+    assert not check_percentage_result(sql, "percentage growth of records?", "", [(105,)])
