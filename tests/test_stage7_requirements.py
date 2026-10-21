@@ -388,7 +388,15 @@ def test_public_supplemental_rank_policy_is_checked_with_question():
 
 
 @pytest.mark.parametrize(
-    "formula", ["year(arrival)-year(birthday)", "SUBTRACT(year(`First Date`), year(Birthday))"]
+    "formula",
+    [
+        "year(arrival)-year(birthday)",
+        "SUBTRACT(year(`First Date`), year(Birthday))",
+        "(year(arrival))-(year(birthday))",
+        "SUBTRACT((year(arrival)), year(birthday))",
+        "SUBTRACT(year(`Arrival Date`)), year(Birthday))",
+        "year(`Arrival Day`)-year(`Birth Day`)",
+    ],
 )
 def test_public_explicit_year_formula_does_not_get_implicit_completed_age_policy(formula):
     from generaldataagent.contracts.analysis import AnalysisTaskSpec, AnswerSpec
@@ -410,6 +418,49 @@ def test_public_explicit_year_formula_does_not_get_implicit_completed_age_policy
         }
     )
     assert inspect_semantics(sql, generic) == ["age_requires_birthday_boundary"]
+
+
+@pytest.mark.parametrize(
+    "correction",
+    [
+        "minus one when the arrival month/day precedes the birthday.",
+        "Account for the month and day.",
+        "Use completed years.",
+        "- (strftime('%m-%d',arrival)<strftime('%m-%d',birthday))",
+    ],
+)
+def test_explicit_year_formula_does_not_erase_a_public_calendar_correction(correction):
+    from generaldataagent.tools.semantic_requirements import check_public_rank_and_age
+
+    policy = "Age = year(arrival)-year(birthday) " + correction
+    sql = "SELECT strftime('%Y',arrival)-strftime('%Y',birthday) AS age FROM people"
+    assert check_public_rank_and_age(sql, "Age at arrival?", policy) == [
+        "age_requires_birthday_boundary"
+    ]
+    completed = (
+        "SELECT strftime('%Y',arrival)-strftime('%Y',birthday)-"
+        "(strftime('%m-%d',arrival)<strftime('%m-%d',birthday)) AS age FROM people"
+    )
+    assert not check_public_rank_and_age(completed, "Age at arrival?", policy)
+
+
+def test_unrelated_day_output_does_not_replace_an_explicit_year_difference():
+    from generaldataagent.tools.semantic_requirements import check_public_rank_and_age
+
+    sql = "SELECT strftime('%Y',arrival)-strftime('%Y',birthday) AS age FROM people"
+    policy = "Age = (year(arrival))-(year(birthday)). Also report the day of the lab test."
+    assert not check_public_rank_and_age(sql, "Age at arrival?", policy)
+
+
+@pytest.mark.parametrize("cast_type", ["INTEGER", "REAL"])
+def test_casting_a_year_shortcut_does_not_hide_a_missing_birthday_boundary(cast_type):
+    from generaldataagent.tools.semantic_requirements import check_public_rank_and_age
+
+    sql = f"SELECT CAST(strftime('%Y',arrival)-strftime('%Y',birthday) AS {cast_type}) FROM people"
+    assert check_public_rank_and_age(sql, "Age at arrival?") == ["age_requires_birthday_boundary"]
+    assert not check_public_rank_and_age(
+        sql, "Age at arrival?", "Use year(arrival)-year(birthday)."
+    )
 
 
 def test_negated_public_examples_do_not_authorize_wrong_rank_or_age_policy():

@@ -397,12 +397,33 @@ def check_public_rank_and_age(sql: str, question: str, instructions: str = "") -
                     and _identifier_key(condition.this.this.name) in ordering
                 ):
                     issues.append("unrequested_rank_population_filter")
-    explicit_year_difference = re.search(
-        r"year\s*\([^)]{1,100}\)\s*-\s*year\s*\("
-        r"|subtract\s*\(\s*year\s*\([^)]{1,100}\)\s*,\s*year\s*\(",
-        affirmative_clauses(instructions),
+    year_policy = affirmative_clauses(instructions)
+    # Recognize prose formulas with redundant grouping without executing or certifying
+    # that notation. An explicit calendar correction must still be honored.
+    left_year = r"\byear\s*\([^)]{1,100}\)(?:\s*\))*"
+    right_year = r"(?:\(\s*)*\byear\s*\("
+    year_formula = re.search(
+        left_year
+        + r"\s*-\s*"
+        + right_year
+        + r"|\bsubtract\s*\(\s*(?:\(\s*)*"
+        + left_year
+        + r"\s*,\s*"
+        + right_year,
+        year_policy,
         re.I,
     )
+    outside_year_fields = re.sub(r"\byear\s*\([^)]{1,100}\)", "YEAR_FIELD", year_policy, flags=re.I)
+    calendar_correction = re.search(
+        r"\bcompleted\s+years\b"
+        r"|\b(?:account|adjust|correct)\s+for\s+(?:the\s+)?(?:month|day)\b"
+        r"|\b(?:minus|subtract)\s+(?:one|1)\b[^;\n]{0,120}\b(?:months?|days?|birthday)\b"
+        r"|-\s*\([^)]{0,120}(?:strftime|month|day)\s*\("
+        r"|-\s*case\s+when\b[^;\n]{0,120}\b(?:strftime|month|day)\s*\(",
+        outside_year_fields,
+        re.I,
+    )
+    explicit_year_difference = year_formula and not calendar_correction
     if (
         not explicit_year_difference
         and re.search(r"\bage\b|\bhow old\b", question, re.I)
@@ -410,6 +431,8 @@ def check_public_rank_and_age(sql: str, question: str, instructions: str = "") -
     ):
         for projection in tree.selects:
             expression = projection.this if isinstance(projection, exp.Alias) else projection
+            while isinstance(expression, (exp.Cast, exp.Paren)):
+                expression = expression.this
             code = expression.sql(dialect="sqlite")
             # Recognize the incomplete year-only shortcut; alternative age algorithms remain
             # unclassified instead of being falsely certified.
