@@ -1,5 +1,5 @@
 {
-  "status": "full_v27_running_development_qualification_pending",
+  "status": "full_v32_running_development_qualification_pending",
   "frozen_full_source": "7827fbe4194c508b94e702a33f89e12f3d25329a",
   "frozen_full_v1": {
     "bird": {
@@ -23654,8 +23654,7 @@
     ]
   },
   "pending": [
-    "v27 DABstep pair and all-track qualification",
-    "Fresh full assembly after typed-list/domain/tool-route changes",
+    "v32 fresh full six-report paired assembly and qualification",
     "BIRD >=36/60 plus no fresh or historical regressions",
     "Independent unseen and repeated validation before promotion"
   ],
@@ -45202,10 +45201,10 @@
     "validator_source_commit": "28e0ac5f05ac35e1a729ad5150a69d0df85543eb"
   },
   "latest_local_validation": {
-    "source_commit": "186996b",
-    "passed": 952,
+    "source_commit": "1f6ef5a",
+    "passed": 956,
     "skipped": 1,
-    "coverage_percent": 88.94,
+    "coverage_percent": 88.97,
     "ruff_check": "passed",
     "format_check": "passed",
     "diff_check": "passed",
@@ -90267,7 +90266,7 @@
   },
   "full_v27": {
     "source_commit": "c20470b",
-    "status": "bird_and_infi_complete_dab_running",
+    "status": "completed",
     "planned_attempts": 260,
     "cohorts": {
       "bird": 60,
@@ -109002,6 +109001,1969 @@
           "run_status": "completed",
           "completed_at": "2026-10-21T06:28:22.135720+00:00"
         }
+      },
+      "dabstep": {
+        "baseline": {
+          "benchmark": "dabstep-dev",
+          "started_at": "2026-10-21T06:31:14.891334+00:00",
+          "population_n": 10,
+          "seed": 20261020,
+          "requested_n": 10,
+          "selection": "difficulty x asset round-robin",
+          "cohort_hash": "de21f673a0394855b71f3eb358fec109473fa0771758907ef136410596347c02",
+          "protocol_hash": "5290ed383705740b94fb9eee687b6a6ea8e63bb7f896a31ae42f34664c94cf4e",
+          "protocol": {
+            "version": "stage7-v1",
+            "max_output_tokens_per_call": 3000,
+            "python_runtime": "3.12.13",
+            "sqlite_runtime": "3.50.4",
+            "dependency_lock_hash": "06a88e5cc8bda03d532de75cdf8d6e8e41a055957ac8b76a217ec35cae4cc5b3",
+            "service_circuit": "terminal_401_402_403_404_or_three_consecutive_provider_failures",
+            "scorer": "strict-infi-absolute1e-6-dab-local-1e-6",
+            "scorer_source_hash": "b44189f9848638755411912d4226ab61d435c20a59ffe5b20ac5ad0c284a0f9f",
+            "import_source_hash": "ff44a73a2b7885e8900ecad906a96621086d20fd3f241a1d7b13bacb79c141e8",
+            "execution_source_hash": "d909a815c2cc64ca4530b11f46244aad8178090cc30e8aa724b5645abbf212d0",
+            "steps": 6,
+            "seconds": 120,
+            "hard_case_deadline_seconds": 125,
+            "tokens": 24000,
+            "max_cost_usd_per_case": 0.02,
+            "call_timeout_seconds": 30,
+            "result_row_limit": 200,
+            "final_and_crosscheck_row_limit": 10000,
+            "final_and_crosscheck_cell_limit": 10000,
+            "workers": 1,
+            "permitted_effects": "read-only",
+            "numeric_import": "preserve leading zero/large integer text; other finite numeric REAL",
+            "request_interval_seconds": 3.5,
+            "csv_importer": "identifier-v2"
+          },
+          "system_fingerprint": {
+            "prompt_hash": "30a588182f21e44d954c22248fc4979a7b1e475398dcd2ffa848d027f402483e",
+            "agent_hash": "a4bb773a90f676e5a7e0bab7d763bacc395926d15bae96706c19527102c45164",
+            "analysis_tools_hash": "684604d6eb920257c7d050b2277436271d0acc2bae9461acb78500bf2f812bdd",
+            "precision_tools_hash": "9636255157d5a6477972ff3dadd0d50454710dc3150b09b8c56841f8180d3fa6",
+            "service_control_hash": "37b8d4824307f8b0f66afd2d2a7ddc6722c98dc7da7935f6853ee4fa450dc8a3",
+            "repair_tools_hash": "7c8c84ab49317955eb05bfba2ad0de5f7f6c9d0a1a362b8e1d573a7c424f734e",
+            "model_adapter_hash": "2c5eb7bc603a5e3d610757c89a55d1f89d2b1694fb36adccc1f37f7d29cd1fc6",
+            "worker_hash": "fce9cf2a8d2c655c07d48b1ae901aef97a500f323665f28e5cb38b5f85866102",
+            "dependency_lock_hash": "06a88e5cc8bda03d532de75cdf8d6e8e41a055957ac8b76a217ec35cae4cc5b3",
+            "tool_profile": "sql-repair",
+            "stage7_sources": null,
+            "route_hash": "ddcb6a5429c4f5365aa21351db2a358e378a5beb5c3b07ae80138dd444b8fbd4"
+          },
+          "source_manifest_hash": "7d2bdb7c48f2ac6392872c3823a89af4feebbc23ebad8d8a12e6b77fe801aa3f",
+          "source_revisions": [
+            "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+            "e0265538267d9e56f9d773bb6a8cafa136f8c843",
+            "f65faf4ae3b638c1fa6df1d3370c8d92c8366301"
+          ],
+          "runner_hash": "9176160620b30f018306a6d49ca15b53dcdc4a5821fc8cb42ab4d94c4dcf4b1b",
+          "python": "3.12.13",
+          "git_commit": "c20470b3c9b25b8c3e349dfaa70540fcab8851da",
+          "model": "workbuddy/deepseek-v4.1-flash",
+          "model_route": {
+            "provider_id": "magpie",
+            "app_type": "magpie",
+            "model": "workbuddy/deepseek-v4.1-flash",
+            "transport": "openai-chat",
+            "thinking_mode": "default",
+            "json_mode": false,
+            "max_output_tokens": 3000,
+            "endpoint_hash": "fe8827a6b46979db5015036d380dd4e1f10eda5b76101c62a322240bf51a0573",
+            "wire_api": "chat_completions",
+            "gateway_adapter_hash": "163619e55b3ee9dd7eaeda7e9275a0cdc2a07972b6b67602016151f66632b8e6",
+            "gateway_headers_hash": "0a6dda900b2ea6b80cb4df4282bd2ec368d99d39ee00f707de87660edce6d440",
+            "route_hash": "ddcb6a5429c4f5365aa21351db2a358e378a5beb5c3b07ae80138dd444b8fbd4"
+          },
+          "tool_profile": "sql-repair",
+          "provider_id": "magpie",
+          "results": [
+            {
+              "answers": {
+                "answer": "yes"
+              },
+              "raw_answers": {
+                "answer": "yes"
+              },
+              "answer_evidence": {},
+              "task_contract": null,
+              "final_sql": null,
+              "failure": "answer_mismatch",
+              "trace": [
+                {
+                  "step": 1,
+                  "status": "error",
+                  "error": "JSONDecodeError",
+                  "code": "invalid_action"
+                },
+                {
+                  "step": 2,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "413ca4a5d595524d312bf2102281025ee49d7d706e07097f37e0bc2761acb3fb",
+                  "sql": "SELECT p.merchant, COUNT(*) AS tx, SUM(p.has_fraudulent_dispute='True') AS fraud, ROUND(1.0*SUM(p.has_fraudulent_dispute='True')/COUNT(*),4) AS fraud_rate FROM payments p WHERE p.merchant='Martinis_Fine_Steakhouse' GROUP BY p.merchant",
+                  "row_count": 1,
+                  "elapsed_ms": 22.77370799856726
+                },
+                {
+                  "step": 3,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "d7aa5368f7ddce8dbce14633d9b0df28c26ecacfb79325d8ae6458550d887386",
+                  "sql": "SELECT p.acquirer_country, COUNT(*) AS tx, SUM(p.has_fraudulent_dispute='True') AS fraud FROM payments p WHERE p.merchant='Martinis_Fine_Steakhouse' GROUP BY p.acquirer_country ORDER BY fraud DESC",
+                  "row_count": 1,
+                  "elapsed_ms": 27.963457992882468
+                },
+                {
+                  "step": 4,
+                  "status": "error",
+                  "error": "QueryExecutionError",
+                  "code": "result_limit",
+                  "attempted_sql": "SELECT json_extract(payload,'$.ID') AS id, json_extract(payload,'$.card_scheme') AS scheme, json_extract(payload,'$.account_type') AS acct, json_extract(payload,'$.capture_delay') AS cap, json_extract(payload,'$.monthly_fraud_level') AS fraud_lvl, json_extract(payload,'$.monthly_volume') AS vol FROM fees"
+                },
+                {
+                  "step": 5,
+                  "tool": "document_search",
+                  "status": "ok",
+                  "result_hash": "b28a4dd08668ee2c10e61df5eb1683c8e3dc91977566577820c4bed8b04c8fb6",
+                  "action": {
+                    "search": "high-fraud rate fine threshold fraud level"
+                  }
+                }
+              ],
+              "tokens": 14284,
+              "input_tokens": 14009,
+              "output_tokens": 275,
+              "usage_status": "complete",
+              "elapsed_seconds": 41.57479070800764,
+              "observed_cost_usd": 0.0,
+              "cost_usd": null,
+              "cost_status": "partial_or_unknown",
+              "agent_elapsed_seconds": 40.107425416994374,
+              "attempted": true,
+              "case_id": "70",
+              "difficulty": "easy",
+              "asset": "payments.csv",
+              "database_hash": "2c9ada89e5bd6621f7fd18a4253e44d796a4cd96e1e72ec9d896c9fcace03a7b",
+              "passed": false,
+              "sub_hits": 0,
+              "sub_total": 1,
+              "severe_incident": false
+            },
+            {
+              "answers": {},
+              "raw_answers": null,
+              "answer_evidence": {},
+              "task_contract": null,
+              "final_sql": null,
+              "failure": "execution_or_model_error",
+              "trace": [
+                {
+                  "step": 1,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "7fb2964fcb80116724d1b7b3144e1247ad0b92a600099543bd17b49a7957b714",
+                  "sql": "SELECT json_extract(payload, '$.card_scheme') as scheme, json_extract(payload, '$.account_type') as acct, json_extract(payload, '$.mcc') as mcc, json_extract(payload, '$.fee') as fee FROM fees WHERE json_extract(payload, '$.card_scheme') LIKE '%GlobalCard%' LIMIT 10",
+                  "row_count": 10,
+                  "elapsed_ms": 1.148459006799385
+                },
+                {
+                  "step": 2,
+                  "status": "error",
+                  "error": "JSONDecodeError",
+                  "code": "invalid_action"
+                },
+                {
+                  "step": 3,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "4a2470f40a3ac828714f0a9813aaa1103d3e8733c9cea64409b62e29d4d73d2f",
+                  "sql": "SELECT payload FROM fees WHERE json_extract(payload, '$.card_scheme') = 'GlobalCard' AND json_extract(payload, '$.account_type') LIKE '%H%' LIMIT 3",
+                  "row_count": 3,
+                  "elapsed_ms": 1.1462499969638884
+                },
+                {
+                  "step": 4,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "c1fa451e52cfec01c78f591502e37aaa97732b2e7bbfb0704cb54930dd27cf52",
+                  "sql": "SELECT payload FROM fees WHERE json_extract(payload, '$.card_scheme') = 'GlobalCard' AND json_extract(payload, '$.account_type') LIKE '%\"H\"%' AND payload LIKE '%5812%' LIMIT 10",
+                  "row_count": 3,
+                  "elapsed_ms": 2.1303329995134845
+                },
+                {
+                  "step": 5,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "12203e29f39dd13cdf5d24d80b506b04a491be929f1262503aa4b9ae6085fea2",
+                  "sql": "SELECT json_extract(payload,'$.ID') as id, json_extract(payload,'$.fixed_amount') as fixed, json_extract(payload,'$.rate') as rate, json_extract(payload,'$.intracountry') as intra FROM fees WHERE json_extract(payload,'$.card_scheme')='GlobalCard' AND payload LIKE '%\"H\"%' AND payload LIKE '%5812%'",
+                  "row_count": 3,
+                  "elapsed_ms": 1.3135839981259778
+                },
+                {
+                  "step": 6,
+                  "status": "error",
+                  "error": "JSONDecodeError",
+                  "code": "invalid_action"
+                }
+              ],
+              "tokens": 15788,
+              "input_tokens": 15378,
+              "output_tokens": 410,
+              "usage_status": "complete",
+              "elapsed_seconds": 55.95495104099973,
+              "observed_cost_usd": 0.0,
+              "cost_usd": null,
+              "cost_status": "partial_or_unknown",
+              "agent_elapsed_seconds": 54.610894000012195,
+              "attempted": true,
+              "case_id": "1305",
+              "difficulty": "hard",
+              "asset": "payments.csv",
+              "database_hash": "2c9ada89e5bd6621f7fd18a4253e44d796a4cd96e1e72ec9d896c9fcace03a7b",
+              "passed": false,
+              "sub_hits": 0,
+              "sub_total": 1,
+              "severe_incident": false
+            },
+            {
+              "answers": {
+                "answer": "A. NL"
+              },
+              "raw_answers": {
+                "answer": "A. NL"
+              },
+              "answer_evidence": {},
+              "task_contract": null,
+              "final_sql": null,
+              "failure": "answer_mismatch",
+              "trace": [
+                {
+                  "step": 1,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "fef9a58ea0c65ce594f82400aad0970e2441fe65e75724afd1ccc49927b35956",
+                  "sql": "SELECT ip_country, COUNT(*) AS n FROM payments WHERE has_fraudulent_dispute = 'True' GROUP BY ip_country ORDER BY n DESC LIMIT 10",
+                  "row_count": 8,
+                  "elapsed_ms": 22.58925000205636
+                }
+              ],
+              "tokens": 3880,
+              "input_tokens": 3825,
+              "output_tokens": 55,
+              "usage_status": "complete",
+              "elapsed_seconds": 13.753038750000997,
+              "observed_cost_usd": 0.0,
+              "cost_usd": null,
+              "cost_status": "partial_or_unknown",
+              "agent_elapsed_seconds": 12.384766667004442,
+              "attempted": true,
+              "case_id": "49",
+              "difficulty": "easy",
+              "asset": "payments.csv",
+              "database_hash": "2c9ada89e5bd6621f7fd18a4253e44d796a4cd96e1e72ec9d896c9fcace03a7b",
+              "passed": false,
+              "sub_hits": 0,
+              "sub_total": 1,
+              "severe_incident": false
+            },
+            {
+              "answers": {},
+              "raw_answers": null,
+              "answer_evidence": {},
+              "task_contract": null,
+              "final_sql": null,
+              "failure": "execution_or_model_error",
+              "trace": [
+                {
+                  "step": 1,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "9a3b2828ae812cf41a3681bb77a7c55011a4f9d164d071cab0a68cc714172705",
+                  "sql": "SELECT COUNT(*) AS n FROM payments WHERE merchant='Belles_cookbook_store' AND year=2023 AND day_of_year=10",
+                  "row_count": 1,
+                  "elapsed_ms": 16.6765409958316
+                },
+                {
+                  "step": 2,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "ff078e882c5ae25884fe267f72d0e40fdf17a35723a8e915a9e9dc08a57e0cc4",
+                  "sql": "SELECT json_extract(payload,'$.ID') FROM fees LIMIT 1",
+                  "row_count": 1,
+                  "elapsed_ms": 0.7177499937824905
+                },
+                {
+                  "step": 3,
+                  "status": "error",
+                  "error": "JSONDecodeError",
+                  "code": "invalid_action"
+                },
+                {
+                  "step": 4,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "46ee9e1f2cc0c03e3cad40563184a5ab04b8a2a82520955ccede5b103b64fae9",
+                  "sql": "SELECT payload FROM fees LIMIT 2",
+                  "row_count": 2,
+                  "elapsed_ms": 0.7338750001508743
+                },
+                {
+                  "step": 5,
+                  "status": "error",
+                  "error": "QueryExecutionError",
+                  "code": "result_limit",
+                  "attempted_sql": "SELECT json_extract(payload,'$.ID') AS id, json_extract(payload,'$.card_scheme') AS scheme, json_extract(payload,'$.aci') AS aci, json_extract(payload,'$.account_type') AS acct, json_extract(payload,'$.is_credit') AS is_credit, json_extract(payload,'$.merchant_category_code') AS mcc FROM fees"
+                },
+                {
+                  "step": 6,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "f9ac1024b91e095532bd4122686dc5ab8564f4be99b31d1f063161ee35e45a14",
+                  "sql": "SELECT COUNT(*) AS total, group_concat(json_extract(payload,'$.ID')) AS ids FROM fees",
+                  "row_count": 1,
+                  "elapsed_ms": 3.021207987330854
+                }
+              ],
+              "tokens": 12999,
+              "input_tokens": 12766,
+              "output_tokens": 233,
+              "usage_status": "complete",
+              "elapsed_seconds": 41.92280891700648,
+              "observed_cost_usd": 0.0,
+              "cost_usd": null,
+              "cost_status": "partial_or_unknown",
+              "agent_elapsed_seconds": 40.48411337500147,
+              "attempted": true,
+              "case_id": "1681",
+              "difficulty": "hard",
+              "asset": "payments.csv",
+              "database_hash": "2c9ada89e5bd6621f7fd18a4253e44d796a4cd96e1e72ec9d896c9fcace03a7b",
+              "passed": false,
+              "sub_hits": 0,
+              "sub_total": 1,
+              "severe_incident": false
+            },
+            {
+              "answers": {
+                "answer": "NL"
+              },
+              "raw_answers": {
+                "answer": "NL"
+              },
+              "answer_evidence": {},
+              "task_contract": null,
+              "final_sql": null,
+              "failure": null,
+              "trace": [
+                {
+                  "step": 1,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "e179e656d536b7d98c8dfdf68a592dd21babc57546026dc25cc26e663d654a1c",
+                  "sql": "SELECT issuing_country, COUNT(*) AS c FROM payments GROUP BY issuing_country ORDER BY c DESC LIMIT 5",
+                  "row_count": 5,
+                  "elapsed_ms": 53.27979099820368
+                }
+              ],
+              "tokens": 3762,
+              "input_tokens": 3720,
+              "output_tokens": 42,
+              "usage_status": "complete",
+              "elapsed_seconds": 14.257840999998734,
+              "observed_cost_usd": 0.0,
+              "cost_usd": null,
+              "cost_status": "partial_or_unknown",
+              "agent_elapsed_seconds": 12.910752374998992,
+              "attempted": true,
+              "case_id": "5",
+              "difficulty": "easy",
+              "asset": "payments.csv",
+              "database_hash": "2c9ada89e5bd6621f7fd18a4253e44d796a4cd96e1e72ec9d896c9fcace03a7b",
+              "passed": true,
+              "sub_hits": 1,
+              "sub_total": 1,
+              "severe_incident": false
+            },
+            {
+              "answers": {},
+              "raw_answers": null,
+              "answer_evidence": {},
+              "task_contract": null,
+              "final_sql": null,
+              "failure": "token_budget",
+              "trace": [
+                {
+                  "step": 1,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "c60ab60728f5e802925488ea9b7c900a049697b4c8f04d3641ad79d287fdc438",
+                  "sql": "SELECT payload FROM fees WHERE json_extract(payload,'$.card_scheme')='GlobalCard' LIMIT 5",
+                  "row_count": 5,
+                  "elapsed_ms": 0.5509170005097985
+                },
+                {
+                  "step": 2,
+                  "status": "error",
+                  "error": "SqlGuardError",
+                  "code": "policy_rejection",
+                  "attempted_sql": "SELECT json_extract(payload,'$.is_credit') as is_credit, json_extract(payload,'$.fixed_amount') as fixed_amount, json_extract(payload,'$.rate') as rate, json_extract(payload,'$.intracountry') as intracountry, json_extract(payload,'$.monthly_volume') as mv, json_extract(payload,'$.monthly_fraud_level') as mfl, json_extract(payload,'$.capture_delay') as cd, json_array_length(payload,'$.merchant_category_code') as mcc_len, json_array_length(payload,'$.aci') as aci_len FROM fees WHERE json_extract(payload,'$.card_scheme')='GlobalCard' AND json_extract(payload,'$.is_credit')=1"
+                },
+                {
+                  "step": 3,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "9cb9791381e64814eb00a3a963df08dfd82ca77113a7561597889441b1ba6ee5",
+                  "sql": "SELECT json_extract(payload,'$.is_credit') AS is_credit, json_extract(payload,'$.fixed_amount') AS fixed_amount, json_extract(payload,'$.rate') AS rate, json_extract(payload,'$.intracountry') AS intracountry, json_extract(payload,'$.monthly_volume') AS mv, json_extract(payload,'$.monthly_fraud_level') AS mfl, json_extract(payload,'$.capture_delay') AS cd FROM fees WHERE json_extract(payload,'$.card_scheme')='GlobalCard' AND json_extract(payload,'$.is_credit')=1",
+                  "row_count": 123,
+                  "elapsed_ms": 3.1165000109467655
+                },
+                {
+                  "step": 4,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "4136298ba6d4700a8089a59000554bbfdf624b2ca923c9f9a3542e26dee8b8a3",
+                  "sql": "SELECT json_extract(payload,'$.fixed_amount') AS fixed_amount, json_extract(payload,'$.rate') AS rate FROM fees WHERE json_extract(payload,'$.card_scheme')='GlobalCard' AND json_extract(payload,'$.is_credit')=1",
+                  "row_count": 123,
+                  "elapsed_ms": 3.216582990717143
+                },
+                {
+                  "step": 5,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "c51164ce6e2a9633627e01eeec18f7398c58dbbd39442d3012c0fdcc81f8e73b",
+                  "sql": "SELECT COUNT(*) AS n, AVG(fixed_amount + (rate/100.0)*10.0) AS avg_fee FROM (SELECT json_extract(payload,'$.fixed_amount') AS fixed_amount, json_extract(payload,'$.rate') AS rate FROM fees WHERE json_extract(payload,'$.card_scheme')='GlobalCard' AND json_extract(payload,'$.is_credit')=1) WHERE fixed_amount IS NOT NULL AND rate IS NOT NULL",
+                  "row_count": 1,
+                  "elapsed_ms": 2.4871249916031957
+                }
+              ],
+              "tokens": 27374,
+              "input_tokens": 26842,
+              "output_tokens": 532,
+              "usage_status": "complete",
+              "elapsed_seconds": 42.13427654201223,
+              "observed_cost_usd": 0.0,
+              "cost_usd": null,
+              "cost_status": "partial_or_unknown",
+              "agent_elapsed_seconds": 40.416050583997276,
+              "attempted": true,
+              "case_id": "1273",
+              "difficulty": "hard",
+              "asset": "payments.csv",
+              "database_hash": "2c9ada89e5bd6621f7fd18a4253e44d796a4cd96e1e72ec9d896c9fcace03a7b",
+              "passed": false,
+              "sub_hits": 0,
+              "sub_total": 1,
+              "severe_incident": false
+            },
+            {
+              "answers": {
+                "answer": "14826.5800000000"
+              },
+              "raw_answers": {
+                "answer": "14826.5800000000"
+              },
+              "answer_evidence": {},
+              "task_contract": null,
+              "final_sql": null,
+              "failure": "answer_mismatch",
+              "trace": [
+                {
+                  "step": 1,
+                  "status": "error",
+                  "error": "JSONDecodeError",
+                  "code": "invalid_action"
+                },
+                {
+                  "step": 2,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "5c21943eaff7f8e0939f94773135fd66dc1ffeb5e08774d1eda4f669c10afe5e",
+                  "sql": "SELECT payload FROM fees WHERE json_extract(payload,'$.ID')=384",
+                  "row_count": 1,
+                  "elapsed_ms": 2.7150419919053093
+                },
+                {
+                  "step": 3,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "8b0cd16f5443d427ab6903459294d46b9c2f76c913acaea06bfe9b74a275ea47",
+                  "sql": "SELECT COUNT(*) AS n, SUM(eur_amount) AS total, SUM(rate*eur_amount) AS raw FROM (SELECT p.eur_amount AS eur_amount, (SELECT json_extract(f.payload,'$.rate') FROM fees f WHERE json_extract(f.payload,'$.ID')=384) AS rate FROM payments p WHERE p.merchant='Belles_cookbook_store' AND p.year=2023 AND p.day_of_year<=31)",
+                  "row_count": 1,
+                  "elapsed_ms": 25.92470899980981
+                },
+                {
+                  "step": 4,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "f1ac6e374e9e4b28745a45808e6145eb87def5790d0505e4ea70be9dbc25ed8f",
+                  "sql": "SELECT json_extract(payload,'$.ID') AS id, json_extract(payload,'$.rate') AS rate, json_extract(payload,'$.fixed_amount') AS fixed, json_extract(payload,'$.card_scheme') AS cs, json_extract(payload,'$.is_credit') AS cr, json_extract(payload,'$.intracountry') AS ic, json_extract(payload,'$.aci') AS aci, json_extract(payload,'$.account_type') AS at, json_extract(payload,'$.monthly_volume') AS mv, json_extract(payload,'$.monthly_fraud_level') AS mfl, json_extract(payload,'$.merchant_category_code') AS mcc, json_extract(payload,'$.capture_delay') AS cd FROM fees WHERE json_extract(payload,'$.card_scheme')='NexPay'",
+                  "row_count": 191,
+                  "elapsed_ms": 3.6633340059779584
+                },
+                {
+                  "step": 5,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "713d07fb3844d99691082198a0d04f90b891ebb70b8f7435727d325169f4e703",
+                  "sql": "SELECT COUNT(*) AS n, json_extract((SELECT payload FROM merchant_data WHERE json_extract(payload,'$.merchant')='Belles_cookbook_store' LIMIT 1),'$.merchant') AS m FROM payments WHERE merchant='Belles_cookbook_store' AND year=2023 AND day_of_year<=31",
+                  "row_count": 1,
+                  "elapsed_ms": 16.08029199996963
+                }
+              ],
+              "tokens": 20000,
+              "input_tokens": 19538,
+              "output_tokens": 462,
+              "usage_status": "complete",
+              "elapsed_seconds": 41.903143874995294,
+              "observed_cost_usd": 0.0,
+              "cost_usd": null,
+              "cost_status": "partial_or_unknown",
+              "agent_elapsed_seconds": 40.514809416999924,
+              "attempted": true,
+              "case_id": "1871",
+              "difficulty": "hard",
+              "asset": "payments.csv",
+              "database_hash": "2c9ada89e5bd6621f7fd18a4253e44d796a4cd96e1e72ec9d896c9fcace03a7b",
+              "passed": false,
+              "sub_hits": 0,
+              "sub_total": 1,
+              "severe_incident": false
+            },
+            {
+              "answers": {},
+              "raw_answers": null,
+              "answer_evidence": {},
+              "task_contract": null,
+              "final_sql": null,
+              "failure": "execution_or_model_error",
+              "trace": [
+                {
+                  "step": 1,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "21f2075397d95c6e1fd6d1f01cfe1cd24060fa39158e5c68c9a943c32f568ce1",
+                  "sql": "SELECT payload FROM merchant_data WHERE json_extract(payload,'$.merchant')='Belles_cookbook_store' LIMIT 3",
+                  "row_count": 1,
+                  "elapsed_ms": 0.5684999923687428
+                },
+                {
+                  "step": 2,
+                  "status": "error",
+                  "error": "QueryExecutionError",
+                  "code": "result_limit",
+                  "attempted_sql": "SELECT json_extract(payload,'$.ID') AS id, json_extract(payload,'$.card_scheme') AS cs, json_extract(payload,'$.account_type') AS at, json_extract(payload,'$.capture_delay') AS cd, json_extract(payload,'$.monthly_fraud_level') AS fl, json_extract(payload,'$.monthly_volume') AS mv, json_extract(payload,'$.merchant_category_code') AS mcc FROM fees"
+                },
+                {
+                  "step": 3,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "e85108ee6a5438254b47703a467d5e87e3fa24578f28ec83f89d0911bc7a872f",
+                  "sql": "SELECT json_extract(payload,'$.ID') AS id, json_extract(payload,'$.card_scheme') AS cs, json_extract(payload,'$.account_type') AS at, json_extract(payload,'$.capture_delay') AS cd, json_extract(payload,'$.monthly_fraud_level') AS fl, json_extract(payload,'$.monthly_volume') AS mv, json_extract(payload,'$.merchant_category_code') AS mcc, json_extract(payload,'$.aci') AS aci FROM fees WHERE json_extract(payload,'$.merchant_category_code')=5942 OR json_extract(payload,'$.merchant_category_code') IS NULL LIMIT 60",
+                  "row_count": 0,
+                  "elapsed_ms": 2.442582990624942
+                },
+                {
+                  "step": 4,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "69f84d201c359e6bc3f2a9fd979a5932175463121e8d9b53ccd3d3ef9f158d82",
+                  "sql": "SELECT json_extract(payload,'$.ID') AS id, json_extract(payload,'$.card_scheme') AS cs, json_extract(payload,'$.account_type') AS at, json_extract(payload,'$.capture_delay') AS cd, json_extract(payload,'$.monthly_volume') AS mv, json_extract(payload,'$.merchant_category_code') AS mcc, json_type(payload,'$.merchant_category_code') AS mcc_type FROM fees LIMIT 5",
+                  "row_count": 5,
+                  "elapsed_ms": 0.5047910090070218
+                },
+                {
+                  "step": 5,
+                  "status": "error",
+                  "error": "SqlGuardError",
+                  "code": "policy_rejection",
+                  "attempted_sql": "SELECT json_extract(payload,'$.ID') AS id, json_extract(payload,'$.card_scheme') AS cs FROM fees WHERE EXISTS (SELECT 1 FROM json_each(payload,'$.merchant_category_code') WHERE value=5942)"
+                },
+                {
+                  "step": 6,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "4248f1bb7c80e32a30c9f8e8e2d3763150bb1398df870b39f750fc9c88d745be",
+                  "sql": "SELECT json_extract(payload,'$.ID') AS id, json_extract(payload,'$.card_scheme') AS cs, json_extract(payload,'$.account_type') AS at, json_extract(payload,'$.capture_delay') AS cd, json_extract(payload,'$.monthly_fraud_level') AS fl, json_extract(payload,'$.monthly_volume') AS mv, json_extract(payload,'$.merchant_category_code') AS mcc FROM fees WHERE payload LIKE '%5942%'",
+                  "row_count": 0,
+                  "elapsed_ms": 0.775291002355516
+                }
+              ],
+              "tokens": 14586,
+              "input_tokens": 14004,
+              "output_tokens": 582,
+              "usage_status": "complete",
+              "elapsed_seconds": 42.01575945899822,
+              "observed_cost_usd": 0.0,
+              "cost_usd": null,
+              "cost_status": "partial_or_unknown",
+              "agent_elapsed_seconds": 40.64929437500541,
+              "attempted": true,
+              "case_id": "1753",
+              "difficulty": "hard",
+              "asset": "payments.csv",
+              "database_hash": "2c9ada89e5bd6621f7fd18a4253e44d796a4cd96e1e72ec9d896c9fcace03a7b",
+              "passed": false,
+              "sub_hits": 0,
+              "sub_total": 1,
+              "severe_incident": false
+            },
+            {
+              "answers": {},
+              "raw_answers": null,
+              "answer_evidence": {},
+              "task_contract": null,
+              "final_sql": null,
+              "failure": "token_budget",
+              "trace": [
+                {
+                  "step": 1,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "a353f330fc0344e4993acf00ad545af760ccb567f5bb70dc1c52be4ef722d744",
+                  "sql": "SELECT payload FROM fees WHERE json_extract(payload,'$.account_type') LIKE '%R%' AND json_extract(payload,'$.aci') LIKE '%B%' LIMIT 50",
+                  "row_count": 50,
+                  "elapsed_ms": 1.1880000092787668
+                },
+                {
+                  "step": 2,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "de7635936decface246ccafc739f545e6660c940b899353a1e7453c65577aa9e",
+                  "sql": "SELECT group_concat(json_extract(payload,'$.ID'), ', ') FROM fees WHERE payload LIKE '%\"account_type\":%\"R\"%' AND payload LIKE '%\"aci\":%\"B\"%' AND json_extract(payload,'$.account_type') LIKE '%\"R\"%' AND json_extract(payload,'$.aci') LIKE '%\"B\"%'",
+                  "row_count": 1,
+                  "elapsed_ms": 2.122999998391606
+                },
+                {
+                  "step": 3,
+                  "status": "error",
+                  "error": "JSONDecodeError",
+                  "code": "invalid_action"
+                },
+                {
+                  "step": 4,
+                  "status": "error",
+                  "error": "SqlGuardError",
+                  "code": "policy_rejection",
+                  "attempted_sql": "SELECT group_concat(json_extract(payload,'$.ID'), ', ') FROM fees WHERE EXISTS (SELECT 1 FROM json_each(json_extract(payload,'$.account_type')) WHERE value='R') AND EXISTS (SELECT 1 FROM json_each(json_extract(payload,'$.aci')) WHERE value='B')"
+                },
+                {
+                  "step": 5,
+                  "status": "error",
+                  "error": "SqlGuardError",
+                  "code": "policy_rejection",
+                  "attempted_sql": "SELECT json_extract(payload,'$.ID') AS id, json_extract(payload,'$.account_type') AS at, json_extract(payload,'$.aci') AS aci FROM fees WHERE json_extract(payload,'$.account_type') LIKE '%\"R\"%' AND json_extract(payload,'$.aci') LIKE '%\"B\"%' AND json_array_length(json_extract(payload,'$.account_type'))=1"
+                }
+              ],
+              "tokens": 24974,
+              "input_tokens": 24412,
+              "output_tokens": 562,
+              "usage_status": "complete",
+              "elapsed_seconds": 35.027708167006494,
+              "observed_cost_usd": 0.0,
+              "cost_usd": null,
+              "cost_status": "partial_or_unknown",
+              "agent_elapsed_seconds": 33.68176004198904,
+              "attempted": true,
+              "case_id": "1464",
+              "difficulty": "hard",
+              "asset": "payments.csv",
+              "database_hash": "2c9ada89e5bd6621f7fd18a4253e44d796a4cd96e1e72ec9d896c9fcace03a7b",
+              "passed": false,
+              "sub_hits": 0,
+              "sub_total": 1,
+              "severe_incident": false
+            },
+            {
+              "answers": {},
+              "raw_answers": null,
+              "answer_evidence": {},
+              "task_contract": null,
+              "final_sql": null,
+              "failure": "token_budget",
+              "trace": [
+                {
+                  "step": 1,
+                  "tool": "document_search",
+                  "status": "ok",
+                  "result_hash": "b04dbb0adb7ac8be4516cfb4df6a3f77702d523f1dc311cff5a8e692d1f6ce45",
+                  "action": {
+                    "search": "ACI Authorization Characteristics Indicator fees shopper interaction"
+                  }
+                },
+                {
+                  "step": 2,
+                  "tool": "document_search",
+                  "status": "ok",
+                  "result_hash": "1ef02cacad43fad82d37d470be961877b9db49959ac4fb421435c680a51494a4",
+                  "action": {
+                    "search": "Authorization Characteristics Indicator ACI codes list meanings"
+                  }
+                },
+                {
+                  "step": 3,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "8c4d60cadf15a9de70a4d797dc6a1bf196cf3128c966e39dfc8b3c7ed90b73ad",
+                  "sql": "SELECT json_extract(payload,'$.merchant') m, json_extract(payload,'$.capture_delay') cd, json_extract(payload,'$.monthly_volume') mv, json_extract(payload,'$.monthly_fraud_level') fl, json_extract(payload,'$.merchant_category_code') mcc, json_extract(payload,'$.acquirer') acq FROM merchant_data WHERE payload LIKE '%Belles_cookbook_store%'",
+                  "row_count": 1,
+                  "elapsed_ms": 0.3864169993903488
+                },
+                {
+                  "step": 4,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "c5f39e9f2e10facc099c3ae5258d5f94a0af7ec69c200df682b0ab9c473cd2f6",
+                  "sql": "SELECT aci, shopper_interaction, card_scheme, is_credit, COUNT(*) n, ROUND(AVG(eur_amount),2) avg_amt FROM payments WHERE merchant='Belles_cookbook_store' AND year=2023 AND has_fraudulent_dispute='True' GROUP BY aci, shopper_interaction, card_scheme, is_credit",
+                  "row_count": 4,
+                  "elapsed_ms": 26.468083990039304
+                },
+                {
+                  "step": 5,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "8598a45d742a503fa408bf8f01492a3adadf05f313943d45950bae47de90a203",
+                  "sql": "SELECT json_extract(payload,'$.card_scheme') scheme, json_extract(payload,'$.aci') aci, json_extract(payload,'$.fixed_amount') fixed, json_extract(payload,'$.rate') rate, json_extract(payload,'$.intracountry') intra, json_extract(payload,'$.capture_delay') cd, json_extract(payload,'$.is_credit') cred FROM fees WHERE json_extract(payload,'$.merchant_category_code') LIKE '%5942%'",
+                  "row_count": 0,
+                  "elapsed_ms": 1.3119590003043413
+                }
+              ],
+              "tokens": 25867,
+              "input_tokens": 25387,
+              "output_tokens": 480,
+              "usage_status": "complete",
+              "elapsed_seconds": 21.147288833002676,
+              "observed_cost_usd": 0.0,
+              "cost_usd": null,
+              "cost_status": "partial_or_unknown",
+              "agent_elapsed_seconds": 19.77160224999534,
+              "attempted": true,
+              "case_id": "2697",
+              "difficulty": "hard",
+              "asset": "payments.csv",
+              "database_hash": "2c9ada89e5bd6621f7fd18a4253e44d796a4cd96e1e72ec9d896c9fcace03a7b",
+              "passed": false,
+              "sub_hits": 0,
+              "sub_total": 1,
+              "severe_incident": false
+            }
+          ],
+          "scope": "bounded SQL evaluation baseline; not production Supervisor or Python DS agent",
+          "contamination": "public development data; no training-contamination guarantee",
+          "production_accepted": false,
+          "summary": {
+            "n": 10,
+            "passed": 1,
+            "pass_at_1": 0.1,
+            "wilson_95": [
+              0.017876213095072896,
+              0.4041500267952385
+            ],
+            "subquestion_accuracy": 0.1,
+            "p50_seconds": 41.73896729150147,
+            "p95_seconds": 55.95495104099973,
+            "tokens": 163514,
+            "token_telemetry_complete": true,
+            "failures": {
+              "answer_mismatch": 3,
+              "execution_or_model_error": 3,
+              "token_budget": 3
+            },
+            "difficulty": {
+              "easy": {
+                "n": 3,
+                "passed": 1,
+                "rate": 0.3333333333333333
+              },
+              "hard": {
+                "n": 7,
+                "passed": 0,
+                "rate": 0.0
+              }
+            },
+            "official_leaderboard_comparable": false,
+            "production_accepted": false,
+            "cost_usd": null,
+            "attempted_n": 10,
+            "not_attempted_n": 0,
+            "attempted_p95_seconds": 55.95495104099973
+          },
+          "service_circuit_reason": null,
+          "run_status": "completed",
+          "completed_at": "2026-10-21T06:37:06.966134+00:00"
+        },
+        "candidate": {
+          "benchmark": "dabstep-dev",
+          "started_at": "2026-10-21T06:31:14.893952+00:00",
+          "population_n": 10,
+          "seed": 20261020,
+          "requested_n": 10,
+          "selection": "difficulty x asset round-robin",
+          "cohort_hash": "de21f673a0394855b71f3eb358fec109473fa0771758907ef136410596347c02",
+          "protocol_hash": "5290ed383705740b94fb9eee687b6a6ea8e63bb7f896a31ae42f34664c94cf4e",
+          "protocol": {
+            "version": "stage7-v1",
+            "max_output_tokens_per_call": 3000,
+            "python_runtime": "3.12.13",
+            "sqlite_runtime": "3.50.4",
+            "dependency_lock_hash": "06a88e5cc8bda03d532de75cdf8d6e8e41a055957ac8b76a217ec35cae4cc5b3",
+            "service_circuit": "terminal_401_402_403_404_or_three_consecutive_provider_failures",
+            "scorer": "strict-infi-absolute1e-6-dab-local-1e-6",
+            "scorer_source_hash": "b44189f9848638755411912d4226ab61d435c20a59ffe5b20ac5ad0c284a0f9f",
+            "import_source_hash": "ff44a73a2b7885e8900ecad906a96621086d20fd3f241a1d7b13bacb79c141e8",
+            "execution_source_hash": "d909a815c2cc64ca4530b11f46244aad8178090cc30e8aa724b5645abbf212d0",
+            "steps": 6,
+            "seconds": 120,
+            "hard_case_deadline_seconds": 125,
+            "tokens": 24000,
+            "max_cost_usd_per_case": 0.02,
+            "call_timeout_seconds": 30,
+            "result_row_limit": 200,
+            "final_and_crosscheck_row_limit": 10000,
+            "final_and_crosscheck_cell_limit": 10000,
+            "workers": 1,
+            "permitted_effects": "read-only",
+            "numeric_import": "preserve leading zero/large integer text; other finite numeric REAL",
+            "request_interval_seconds": 3.5,
+            "csv_importer": "identifier-v2"
+          },
+          "system_fingerprint": {
+            "prompt_hash": "30a588182f21e44d954c22248fc4979a7b1e475398dcd2ffa848d027f402483e",
+            "agent_hash": "a4bb773a90f676e5a7e0bab7d763bacc395926d15bae96706c19527102c45164",
+            "analysis_tools_hash": "684604d6eb920257c7d050b2277436271d0acc2bae9461acb78500bf2f812bdd",
+            "precision_tools_hash": "9636255157d5a6477972ff3dadd0d50454710dc3150b09b8c56841f8180d3fa6",
+            "service_control_hash": "37b8d4824307f8b0f66afd2d2a7ddc6722c98dc7da7935f6853ee4fa450dc8a3",
+            "repair_tools_hash": "7c8c84ab49317955eb05bfba2ad0de5f7f6c9d0a1a362b8e1d573a7c424f734e",
+            "model_adapter_hash": "2c5eb7bc603a5e3d610757c89a55d1f89d2b1694fb36adccc1f37f7d29cd1fc6",
+            "worker_hash": "fce9cf2a8d2c655c07d48b1ae901aef97a500f323665f28e5cb38b5f85866102",
+            "dependency_lock_hash": "06a88e5cc8bda03d532de75cdf8d6e8e41a055957ac8b76a217ec35cae4cc5b3",
+            "tool_profile": "sql-semantic",
+            "stage7_sources": {
+              "contracts/analysis.py": "230045f2fd864f6bc02a839e345ace345f0c739190cdba3e55341440ba1002d7",
+              "contracts/answer_fields.py": "11950decab46338559677096e55f1d1a8468bf0a2cbae45e4705883e9f1221cf",
+              "tools/answer_fields.py": "f448df38d7c6a3080f9bf697e254180cc0a58254eb5bdb09f0dd5c516575e906",
+              "contracts/semantic_requirements.py": "bc0683ead82ef284acbe9fe71b5af437ddce357db5b0c46027ae34622dfe867e",
+              "tools/semantic_requirements.py": "00607ec5200689be503d2bce183c146581525d81abd770460def079df135eaa8",
+              "orchestration/analysis_plan.py": "c2f2d9641a711fceae1034295fa93f78f442c6a37b1cb48a1427fb4052e51358",
+              "catalog/semantic_context.py": "993ccc6a99a5f72330080e54927420a925449a0a7f03d2b9d54e01234cb30b62",
+              "catalog/field_evidence.py": "913f463a0b40d0dd92ff473792a05b30a36fd093f9fc7818fccecb722c67e28c",
+              "catalog/join_evidence.py": "cd5ae4218c11eba66a7a3b7166ed226ac37b81ed6229c64978d63be51de7205e",
+              "tools/sql_semantics.py": "e09a07df34f81d620bb0737773ebd75a680618e5815809fd416669edf88a8926",
+              "tools/sql_guard.py": "72ef5c19eb4080f3a75f745588eff76780684a0691c3ab141c79d17c6ca5db59",
+              "tools/sqlite.py": "6cc32bffd2d0822f3a0805d63ab15624c0530d9e0b6e719053f2d0c869784251",
+              "evaluation/stage_six.py": "a4bb773a90f676e5a7e0bab7d763bacc395926d15bae96706c19527102c45164",
+              "evaluation/stage_six_sql_precision.py": "9636255157d5a6477972ff3dadd0d50454710dc3150b09b8c56841f8180d3fa6",
+              "evaluation/stage_six_repair.py": "7c8c84ab49317955eb05bfba2ad0de5f7f6c9d0a1a362b8e1d573a7c424f734e",
+              "evaluation/stage_seven.py": "ae4614aabf7c74e6bd4f0e029b71fb83f8abbb3ec173fabd5cd325d8ac0fcb6f",
+              "contracts/query_plan.py": "855427a1b33a692ac68c49cd1098020f32a3913a0fedb030277af24a729118a1",
+              "tools/semantic_sql.py": "996748c4b48549d4ae41e59055f3f5985045a414762059d07d4422bea30c570c"
+            },
+            "route_hash": "ddcb6a5429c4f5365aa21351db2a358e378a5beb5c3b07ae80138dd444b8fbd4"
+          },
+          "source_manifest_hash": "7d2bdb7c48f2ac6392872c3823a89af4feebbc23ebad8d8a12e6b77fe801aa3f",
+          "source_revisions": [
+            "3d6c4a70198e0a41fadf539f5b43c88b8c1a2d9c",
+            "e0265538267d9e56f9d773bb6a8cafa136f8c843",
+            "f65faf4ae3b638c1fa6df1d3370c8d92c8366301"
+          ],
+          "runner_hash": "9176160620b30f018306a6d49ca15b53dcdc4a5821fc8cb42ab4d94c4dcf4b1b",
+          "python": "3.12.13",
+          "git_commit": "c20470b3c9b25b8c3e349dfaa70540fcab8851da",
+          "model": "workbuddy/deepseek-v4.1-flash",
+          "model_route": {
+            "provider_id": "magpie",
+            "app_type": "magpie",
+            "model": "workbuddy/deepseek-v4.1-flash",
+            "transport": "openai-chat",
+            "thinking_mode": "default",
+            "json_mode": false,
+            "max_output_tokens": 3000,
+            "endpoint_hash": "fe8827a6b46979db5015036d380dd4e1f10eda5b76101c62a322240bf51a0573",
+            "wire_api": "chat_completions",
+            "gateway_adapter_hash": "163619e55b3ee9dd7eaeda7e9275a0cdc2a07972b6b67602016151f66632b8e6",
+            "gateway_headers_hash": "0a6dda900b2ea6b80cb4df4282bd2ec368d99d39ee00f707de87660edce6d440",
+            "route_hash": "ddcb6a5429c4f5365aa21351db2a358e378a5beb5c3b07ae80138dd444b8fbd4"
+          },
+          "tool_profile": "sql-semantic",
+          "provider_id": "magpie",
+          "results": [
+            {
+              "answers": {},
+              "raw_answers": null,
+              "answer_evidence": {},
+              "task_contract": {
+                "question": "Is Martinis_Fine_Steakhouse in danger of getting a high-fraud rate fine?",
+                "public_requirements": "Answer must be just either yes or no. If a question does not have a relevant or applicable answer for the task, please respond with 'Not Applicable'",
+                "entity": null,
+                "grain": [],
+                "filters": [],
+                "time_range": null,
+                "formula": null,
+                "denominator": null,
+                "count_basis": "unspecified",
+                "order_by": null,
+                "order_direction": null,
+                "conflicts": [],
+                "answer": {
+                  "columns": [
+                    "answer"
+                  ],
+                  "shape": "rows",
+                  "unit": null,
+                  "decimals": null,
+                  "ties": "unspecified",
+                  "empty": "allow",
+                  "nullable": true,
+                  "minimum": null,
+                  "maximum": null,
+                  "fields": {}
+                },
+                "requirements": {
+                  "predicates": [],
+                  "dates": [],
+                  "ratios": []
+                }
+              },
+              "final_sql": null,
+              "failure": "token_budget",
+              "trace": [
+                {
+                  "step": 1,
+                  "status": "error",
+                  "error": "ActionSchemaError",
+                  "code": "action_schema",
+                  "response_mode": "native_function",
+                  "schema_errors": [
+                    {
+                      "path": [
+                        "tool_calls"
+                      ],
+                      "type": "one_action"
+                    }
+                  ],
+                  "repair_type": "correct_parameters"
+                },
+                {
+                  "step": 2,
+                  "tool": "document_search",
+                  "status": "ok",
+                  "result_hash": "aee2fe0f911edd660fbdbac82187acd5ca41eb7908a94efd97c4769bf5cde3ef",
+                  "response_mode": "native_function",
+                  "action": {
+                    "search": "high fraud rate fine threshold monthly fraud level"
+                  }
+                },
+                {
+                  "step": 3,
+                  "status": "error",
+                  "error": "QueryExecutionError",
+                  "code": "result_limit",
+                  "response_mode": "native_function",
+                  "action_keys": [
+                    "sql"
+                  ]
+                },
+                {
+                  "step": 4,
+                  "tool": "document_search",
+                  "status": "ok",
+                  "result_hash": "cbfd1193a7a721da71f8e68d44eee6d600a4d7fbe76475197948bb660ed066b6",
+                  "response_mode": "native_function",
+                  "action": {
+                    "search": "high fraud rate fine percentage threshold definition danger fine 1% merchant"
+                  }
+                }
+              ],
+              "tokens": 28298,
+              "input_tokens": 27783,
+              "output_tokens": 515,
+              "usage_status": "complete",
+              "elapsed_seconds": 35.067548125007306,
+              "observed_cost_usd": 0.0,
+              "cost_usd": null,
+              "cost_status": "partial_or_unknown",
+              "agent_elapsed_seconds": 32.674372333000065,
+              "attempted": true,
+              "case_id": "70",
+              "difficulty": "easy",
+              "asset": "payments.csv",
+              "database_hash": "2c9ada89e5bd6621f7fd18a4253e44d796a4cd96e1e72ec9d896c9fcace03a7b",
+              "passed": false,
+              "sub_hits": 0,
+              "sub_total": 1,
+              "severe_incident": false
+            },
+            {
+              "answers": {},
+              "raw_answers": null,
+              "answer_evidence": {},
+              "task_contract": {
+                "question": "For account type H and the MCC description: Eating Places and Restaurants, what would be the average fee that the card scheme GlobalCard would charge for a transaction value of 10 EUR? Provide the answer in EUR and 6 decimals",
+                "public_requirements": "Answer must be just a number expressed in EUR rounded to 6 decimals. If a question does not have a relevant or applicable answer for the task, please respond with 'Not Applicable'",
+                "entity": null,
+                "grain": [],
+                "filters": [],
+                "time_range": null,
+                "formula": null,
+                "denominator": null,
+                "count_basis": "unspecified",
+                "order_by": null,
+                "order_direction": null,
+                "conflicts": [],
+                "answer": {
+                  "columns": [
+                    "answer"
+                  ],
+                  "shape": "rows",
+                  "unit": null,
+                  "decimals": null,
+                  "ties": "unspecified",
+                  "empty": "allow",
+                  "nullable": true,
+                  "minimum": null,
+                  "maximum": null,
+                  "fields": {}
+                },
+                "requirements": {
+                  "predicates": [],
+                  "dates": [],
+                  "ratios": []
+                }
+              },
+              "final_sql": null,
+              "failure": "token_budget",
+              "trace": [
+                {
+                  "step": 1,
+                  "status": "error",
+                  "error": "ActionSchemaError",
+                  "code": "action_schema",
+                  "response_mode": "native_function",
+                  "schema_errors": [
+                    {
+                      "path": [
+                        "tool_calls"
+                      ],
+                      "type": "one_action"
+                    }
+                  ],
+                  "repair_type": "correct_parameters"
+                },
+                {
+                  "step": 2,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "241152b524fa65132d64cc7b64282f701e5f934d811b8c423dbfafd26132aaa7",
+                  "response_mode": "native_function",
+                  "sql": "SELECT payload FROM fees LIMIT 3",
+                  "row_count": 3,
+                  "elapsed_ms": 0.5977500113658607
+                },
+                {
+                  "step": 3,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "994b290c820cb30888fdebb782965af16d16b1f39e64bd9a57f4b884226e7fd0",
+                  "response_mode": "native_function",
+                  "sql": "SELECT mcc, description FROM merchant_category_codes WHERE description LIKE '%Eating Places and Restaurants%'",
+                  "row_count": 1,
+                  "elapsed_ms": 0.23858400527387857
+                },
+                {
+                  "step": 4,
+                  "status": "error",
+                  "error": "SqlGuardError",
+                  "code": "policy_rejection",
+                  "response_mode": "native_function",
+                  "action_keys": [
+                    "sql"
+                  ]
+                }
+              ],
+              "tokens": 24482,
+              "input_tokens": 23801,
+              "output_tokens": 681,
+              "usage_status": "complete",
+              "elapsed_seconds": 51.904894749997766,
+              "observed_cost_usd": 0.0,
+              "cost_usd": null,
+              "cost_status": "partial_or_unknown",
+              "agent_elapsed_seconds": 49.66086695798731,
+              "attempted": true,
+              "case_id": "1305",
+              "difficulty": "hard",
+              "asset": "payments.csv",
+              "database_hash": "2c9ada89e5bd6621f7fd18a4253e44d796a4cd96e1e72ec9d896c9fcace03a7b",
+              "passed": false,
+              "sub_hits": 0,
+              "sub_total": 1,
+              "severe_incident": false
+            },
+            {
+              "answers": {
+                "answer": "A. NL"
+              },
+              "raw_answers": {},
+              "answer_evidence": {
+                "answer": {
+                  "step": 3,
+                  "path": [
+                    "rows",
+                    0,
+                    0
+                  ],
+                  "raw_value": "A. NL",
+                  "submitted_value": "A. NL",
+                  "raw_type": "str",
+                  "submitted_type": "str",
+                  "method_id": "sql",
+                  "declared_public_unit": null,
+                  "result_hash": "d289d431c546b96786d29e14fa2b518ec2a6c50c94e34e98a91725ea3bacc351"
+                }
+              },
+              "task_contract": {
+                "question": "What is the top country (ip_country) for fraud? A. NL, B. BE, C. ES, D. FR",
+                "public_requirements": "Answer must be in the form 'X. Y' where X is the option's letter chosen and Y is the option's country code. If a question does not have a relevant or applicable answer for the task, please respond with 'Not Applicable'",
+                "entity": null,
+                "grain": [],
+                "filters": [],
+                "time_range": null,
+                "formula": null,
+                "denominator": null,
+                "count_basis": "unspecified",
+                "order_by": null,
+                "order_direction": null,
+                "conflicts": [],
+                "answer": {
+                  "columns": [
+                    "answer"
+                  ],
+                  "shape": "rows",
+                  "unit": null,
+                  "decimals": null,
+                  "ties": "unspecified",
+                  "empty": "allow",
+                  "nullable": true,
+                  "minimum": null,
+                  "maximum": null,
+                  "fields": {}
+                },
+                "requirements": {
+                  "predicates": [],
+                  "dates": [],
+                  "ratios": []
+                }
+              },
+              "final_sql": null,
+              "failure": "answer_mismatch",
+              "trace": [
+                {
+                  "step": 1,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "e65657604d9acc5e796f7360d771149d2f33ffd68cdfed4db9e0a416b43a0640",
+                  "response_mode": "native_function",
+                  "sql": "SELECT ip_country, COUNT(*) AS n FROM payments WHERE has_fraudulent_dispute = 'True' GROUP BY ip_country ORDER BY n DESC LIMIT 5",
+                  "row_count": 5,
+                  "elapsed_ms": 23.192749998997897
+                },
+                {
+                  "step": 2,
+                  "status": "error",
+                  "error": "SemanticError",
+                  "code": "semantic_contract",
+                  "response_mode": "native_function",
+                  "action_keys": [
+                    "answer_sql"
+                  ],
+                  "repair_type": "revise_plan_or_query",
+                  "checks": [
+                    "data_dependent_answer_required"
+                  ]
+                },
+                {
+                  "step": 3,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "d289d431c546b96786d29e14fa2b518ec2a6c50c94e34e98a91725ea3bacc351",
+                  "response_mode": "native_function",
+                  "sql": "SELECT 'A. ' || ip_country AS answer FROM (SELECT ip_country FROM payments WHERE has_fraudulent_dispute = 'True' GROUP BY ip_country ORDER BY COUNT(*) DESC LIMIT 1)",
+                  "row_count": 1,
+                  "elapsed_ms": 22.411708006984554,
+                  "auto_bound_public_keys": [
+                    "answer"
+                  ]
+                }
+              ],
+              "tokens": 12961,
+              "input_tokens": 12752,
+              "output_tokens": 209,
+              "usage_status": "complete",
+              "elapsed_seconds": 21.506443249993026,
+              "observed_cost_usd": 0.0,
+              "cost_usd": null,
+              "cost_status": "partial_or_unknown",
+              "agent_elapsed_seconds": 19.315429291993496,
+              "attempted": true,
+              "case_id": "49",
+              "difficulty": "easy",
+              "asset": "payments.csv",
+              "database_hash": "2c9ada89e5bd6621f7fd18a4253e44d796a4cd96e1e72ec9d896c9fcace03a7b",
+              "passed": false,
+              "sub_hits": 0,
+              "sub_total": 1,
+              "severe_incident": false
+            },
+            {
+              "answers": {},
+              "raw_answers": null,
+              "answer_evidence": {},
+              "task_contract": {
+                "question": "For the 10th of the year 2023, what are the Fee IDs applicable to Belles_cookbook_store?",
+                "public_requirements": "Answer must be a list of values in comma separated list, eg: A, B, C. If the answer is an empty list, reply with an empty string. If a question does not have a relevant or applicable answer for the task, please respond with 'Not Applicable'",
+                "entity": null,
+                "grain": [],
+                "filters": [],
+                "time_range": null,
+                "formula": null,
+                "denominator": null,
+                "count_basis": "unspecified",
+                "order_by": null,
+                "order_direction": null,
+                "conflicts": [],
+                "answer": {
+                  "columns": [
+                    "answer"
+                  ],
+                  "shape": "rows",
+                  "unit": null,
+                  "decimals": null,
+                  "ties": "unspecified",
+                  "empty": "allow",
+                  "nullable": true,
+                  "minimum": null,
+                  "maximum": null,
+                  "fields": {}
+                },
+                "requirements": {
+                  "predicates": [],
+                  "dates": [],
+                  "ratios": []
+                }
+              },
+              "final_sql": null,
+              "failure": "token_budget",
+              "trace": [
+                {
+                  "step": 1,
+                  "status": "error",
+                  "error": "ActionSchemaError",
+                  "code": "action_schema",
+                  "response_mode": "native_function",
+                  "schema_errors": [
+                    {
+                      "path": [
+                        "tool_calls"
+                      ],
+                      "type": "one_action"
+                    }
+                  ],
+                  "repair_type": "correct_parameters"
+                },
+                {
+                  "step": 2,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "241152b524fa65132d64cc7b64282f701e5f934d811b8c423dbfafd26132aaa7",
+                  "response_mode": "native_function",
+                  "sql": "SELECT payload FROM fees LIMIT 3",
+                  "row_count": 3,
+                  "elapsed_ms": 0.35345798823982477
+                },
+                {
+                  "step": 3,
+                  "status": "error",
+                  "error": "ActionSchemaError",
+                  "code": "action_schema",
+                  "response_mode": "native_function",
+                  "schema_errors": [
+                    {
+                      "path": [
+                        "tool_calls"
+                      ],
+                      "type": "one_action"
+                    }
+                  ],
+                  "repair_type": "correct_parameters"
+                },
+                {
+                  "step": 4,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "0befdc2fa1f72afb2ba34e88ed389d26e1e2ca91cd8eccd7ed52ee8fc7ac9dbb",
+                  "response_mode": "native_function",
+                  "sql": "SELECT json_extract(payload,'$.capture_delay') cd, json_extract(payload,'$.merchant_category_code') mcc, json_extract(payload,'$.account_type') at, json_extract(payload,'$.acquirer') acq FROM merchant_data WHERE json_extract(payload,'$.merchant')='Belles_cookbook_store'",
+                  "row_count": 1,
+                  "elapsed_ms": 0.43274999188724905
+                }
+              ],
+              "tokens": 24520,
+              "input_tokens": 23926,
+              "output_tokens": 594,
+              "usage_status": "complete",
+              "elapsed_seconds": 35.388885916996514,
+              "observed_cost_usd": 0.0,
+              "cost_usd": null,
+              "cost_status": "partial_or_unknown",
+              "agent_elapsed_seconds": 33.226905042,
+              "attempted": true,
+              "case_id": "1681",
+              "difficulty": "hard",
+              "asset": "payments.csv",
+              "database_hash": "2c9ada89e5bd6621f7fd18a4253e44d796a4cd96e1e72ec9d896c9fcace03a7b",
+              "passed": false,
+              "sub_hits": 0,
+              "sub_total": 1,
+              "severe_incident": false
+            },
+            {
+              "answers": {
+                "answer": "NL"
+              },
+              "raw_answers": {},
+              "answer_evidence": {
+                "answer": {
+                  "step": 1,
+                  "path": [
+                    "rows",
+                    0,
+                    0
+                  ],
+                  "raw_value": "NL",
+                  "submitted_value": "NL",
+                  "raw_type": "str",
+                  "submitted_type": "str",
+                  "method_id": "sql",
+                  "declared_public_unit": null,
+                  "result_hash": "fa84b24a1757b9f9e2b955d01f32ac885ed868d0c9da2f94576effd0c16de53c"
+                }
+              },
+              "task_contract": {
+                "question": "Which issuing country has the highest number of transactions?",
+                "public_requirements": "Answer must be just the country code. If a question does not have a relevant or applicable answer for the task, please respond with 'Not Applicable'",
+                "entity": null,
+                "grain": [],
+                "filters": [],
+                "time_range": null,
+                "formula": null,
+                "denominator": null,
+                "count_basis": "unspecified",
+                "order_by": null,
+                "order_direction": null,
+                "conflicts": [],
+                "answer": {
+                  "columns": [
+                    "answer"
+                  ],
+                  "shape": "rows",
+                  "unit": null,
+                  "decimals": null,
+                  "ties": "unspecified",
+                  "empty": "allow",
+                  "nullable": true,
+                  "minimum": null,
+                  "maximum": null,
+                  "fields": {}
+                },
+                "requirements": {
+                  "predicates": [],
+                  "dates": [],
+                  "ratios": []
+                }
+              },
+              "final_sql": null,
+              "failure": null,
+              "trace": [
+                {
+                  "step": 1,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "fa84b24a1757b9f9e2b955d01f32ac885ed868d0c9da2f94576effd0c16de53c",
+                  "response_mode": "native_function",
+                  "sql": "SELECT issuing_country AS answer FROM payments GROUP BY issuing_country ORDER BY COUNT(*) DESC LIMIT 1",
+                  "row_count": 1,
+                  "elapsed_ms": 52.178291996824555,
+                  "auto_bound_public_keys": [
+                    "answer"
+                  ]
+                }
+              ],
+              "tokens": 4092,
+              "input_tokens": 4031,
+              "output_tokens": 61,
+              "usage_status": "complete",
+              "elapsed_seconds": 5.837096624993137,
+              "observed_cost_usd": 0.0,
+              "cost_usd": null,
+              "cost_status": "partial_or_unknown",
+              "agent_elapsed_seconds": 3.6589132079971023,
+              "attempted": true,
+              "case_id": "5",
+              "difficulty": "easy",
+              "asset": "payments.csv",
+              "database_hash": "2c9ada89e5bd6621f7fd18a4253e44d796a4cd96e1e72ec9d896c9fcace03a7b",
+              "passed": true,
+              "sub_hits": 1,
+              "sub_total": 1,
+              "severe_incident": false
+            },
+            {
+              "answers": {},
+              "raw_answers": null,
+              "answer_evidence": {},
+              "task_contract": {
+                "question": "For credit transactions, what would be the average fee that the card scheme GlobalCard would charge for a transaction value of 10 EUR?",
+                "public_requirements": "Answer must be just a number expressed in EUR rounded to 6 decimals. If a question does not have a relevant or applicable answer for the task, please respond with 'Not Applicable'",
+                "entity": null,
+                "grain": [],
+                "filters": [],
+                "time_range": null,
+                "formula": null,
+                "denominator": null,
+                "count_basis": "unspecified",
+                "order_by": null,
+                "order_direction": null,
+                "conflicts": [],
+                "answer": {
+                  "columns": [
+                    "answer"
+                  ],
+                  "shape": "rows",
+                  "unit": null,
+                  "decimals": null,
+                  "ties": "unspecified",
+                  "empty": "allow",
+                  "nullable": true,
+                  "minimum": null,
+                  "maximum": null,
+                  "fields": {}
+                },
+                "requirements": {
+                  "predicates": [],
+                  "dates": [],
+                  "ratios": []
+                }
+              },
+              "final_sql": null,
+              "failure": "token_budget",
+              "trace": [
+                {
+                  "step": 1,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "4381ad03dfa7490c631fb9c40e92efc00042550acb41379f1b20d4ce30fd9f23",
+                  "response_mode": "native_function",
+                  "sql": "SELECT payload FROM fees WHERE payload LIKE '%GlobalCard%' LIMIT 5",
+                  "row_count": 5,
+                  "elapsed_ms": 0.4113340110052377
+                },
+                {
+                  "step": 2,
+                  "tool": "document_search",
+                  "status": "ok",
+                  "result_hash": "cca5e114195ff24e9a844d46e300da196e82ca87e9d8322389ffae089d2c39e0",
+                  "response_mode": "native_function",
+                  "action": {
+                    "search": "fee calculation rate fixed_amount transaction value percentage"
+                  }
+                },
+                {
+                  "step": 3,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "4394982c8e9ef4cb03ce7cbed0441ee7cd357865f3469e6b33e6db209c52838e",
+                  "response_mode": "native_function",
+                  "sql": "SELECT json_extract(payload,'$.ID') AS id, json_extract(payload,'$.is_credit') AS is_credit, json_extract(payload,'$.fixed_amount') AS fixed_amount, json_extract(payload,'$.rate') AS rate, json_extract(payload,'$.fixed_amount') + json_extract(payload,'$.rate')*10.0/10000 AS fee FROM fees WHERE json_extract(payload,'$.card_scheme')='GlobalCard' AND json_extract(payload,'$.is_credit')=1",
+                  "row_count": 123,
+                  "elapsed_ms": 2.138208001269959
+                }
+              ],
+              "tokens": 24982,
+              "input_tokens": 24465,
+              "output_tokens": 517,
+              "usage_status": "complete",
+              "elapsed_seconds": 28.44650287501281,
+              "observed_cost_usd": 0.0,
+              "cost_usd": null,
+              "cost_status": "partial_or_unknown",
+              "agent_elapsed_seconds": 26.151200709005934,
+              "attempted": true,
+              "case_id": "1273",
+              "difficulty": "hard",
+              "asset": "payments.csv",
+              "database_hash": "2c9ada89e5bd6621f7fd18a4253e44d796a4cd96e1e72ec9d896c9fcace03a7b",
+              "passed": false,
+              "sub_hits": 0,
+              "sub_total": 1,
+              "severe_incident": false
+            },
+            {
+              "answers": {},
+              "raw_answers": null,
+              "answer_evidence": {},
+              "task_contract": {
+                "question": "In January 2023 what delta would Belles_cookbook_store pay if the relative fee of the fee with ID=384 changed to 1?",
+                "public_requirements": "Answer must be just a number rounded to 14 decimals. If a question does not have a relevant or applicable answer for the task, please respond with 'Not Applicable'",
+                "entity": null,
+                "grain": [],
+                "filters": [],
+                "time_range": null,
+                "formula": null,
+                "denominator": null,
+                "count_basis": "unspecified",
+                "order_by": null,
+                "order_direction": null,
+                "conflicts": [],
+                "answer": {
+                  "columns": [
+                    "answer"
+                  ],
+                  "shape": "rows",
+                  "unit": null,
+                  "decimals": null,
+                  "ties": "unspecified",
+                  "empty": "allow",
+                  "nullable": true,
+                  "minimum": null,
+                  "maximum": null,
+                  "fields": {}
+                },
+                "requirements": {
+                  "predicates": [],
+                  "dates": [],
+                  "ratios": []
+                }
+              },
+              "final_sql": null,
+              "failure": "token_budget",
+              "trace": [
+                {
+                  "step": 1,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "ea478680115b3d968c3bf5fce0ac8f5fd9cc4bfaea73b3a1503b335070e99c44",
+                  "response_mode": "native_function",
+                  "sql": "SELECT payload FROM fees WHERE json_extract(payload,'$.ID')=384",
+                  "row_count": 1,
+                  "elapsed_ms": 1.9798330031335354
+                },
+                {
+                  "step": 2,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "e2cb5bc74dcbe80b099add519ed064ca3231b6328082a327911fc4073a367fdd",
+                  "response_mode": "native_function",
+                  "sql": "SELECT json_extract(payload,'$.ID') AS id, json_extract(payload,'$.card_scheme') AS scheme, json_extract(payload,'$.account_type') AS acct, json_extract(payload,'$.is_credit') AS is_credit, json_extract(payload,'$.aci') AS aci, json_extract(payload,'$.rate') AS rate, json_extract(payload,'$.fixed_amount') AS fixed FROM fees WHERE json_extract(payload,'$.card_scheme')='NexPay'",
+                  "row_count": 191,
+                  "elapsed_ms": 2.7450419875094667
+                },
+                {
+                  "step": 3,
+                  "tool": "document_search",
+                  "status": "ok",
+                  "result_hash": "47aec22353913e5dde1c607c05e05626bb0c4f0d3f08d3913a073696feedec4e",
+                  "response_mode": "native_function",
+                  "action": {
+                    "search": "relative fee rate calculation how fees are applied rate percentage fee"
+                  }
+                }
+              ],
+              "tokens": 26359,
+              "input_tokens": 25959,
+              "output_tokens": 400,
+              "usage_status": "complete",
+              "elapsed_seconds": 28.56413645800785,
+              "observed_cost_usd": 0.0,
+              "cost_usd": null,
+              "cost_status": "partial_or_unknown",
+              "agent_elapsed_seconds": 26.343761541007552,
+              "attempted": true,
+              "case_id": "1871",
+              "difficulty": "hard",
+              "asset": "payments.csv",
+              "database_hash": "2c9ada89e5bd6621f7fd18a4253e44d796a4cd96e1e72ec9d896c9fcace03a7b",
+              "passed": false,
+              "sub_hits": 0,
+              "sub_total": 1,
+              "severe_incident": false
+            },
+            {
+              "answers": {},
+              "raw_answers": null,
+              "answer_evidence": {},
+              "task_contract": {
+                "question": "What are the applicable fee IDs for Belles_cookbook_store in March 2023?",
+                "public_requirements": "Answer must be a list of values in comma separated list, eg: A, B, C. If the answer is an empty list, reply with an empty string. If a question does not have a relevant or applicable answer for the task, please respond with 'Not Applicable'",
+                "entity": null,
+                "grain": [],
+                "filters": [],
+                "time_range": null,
+                "formula": null,
+                "denominator": null,
+                "count_basis": "unspecified",
+                "order_by": null,
+                "order_direction": null,
+                "conflicts": [],
+                "answer": {
+                  "columns": [
+                    "answer"
+                  ],
+                  "shape": "rows",
+                  "unit": null,
+                  "decimals": null,
+                  "ties": "unspecified",
+                  "empty": "allow",
+                  "nullable": true,
+                  "minimum": null,
+                  "maximum": null,
+                  "fields": {}
+                },
+                "requirements": {
+                  "predicates": [],
+                  "dates": [],
+                  "ratios": []
+                }
+              },
+              "final_sql": null,
+              "failure": "token_budget",
+              "trace": [
+                {
+                  "step": 1,
+                  "status": "error",
+                  "error": "ActionSchemaError",
+                  "code": "action_schema",
+                  "response_mode": "native_function",
+                  "schema_errors": [
+                    {
+                      "path": [
+                        "tool_calls"
+                      ],
+                      "type": "one_action"
+                    }
+                  ],
+                  "repair_type": "correct_parameters"
+                },
+                {
+                  "step": 2,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "b95a00c1dcd996d6407f633095a323d290ac12f74a6a470300c8a64251c7b247",
+                  "response_mode": "native_function",
+                  "sql": "SELECT payload FROM merchant_data WHERE payload LIKE '%Belles_cookbook_store%'",
+                  "row_count": 1,
+                  "elapsed_ms": 0.5204579938435927
+                },
+                {
+                  "step": 3,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "9bdffc97f2387a9bb3ff8797ed5896c12622784a22dd0709691259bd4dc8e160",
+                  "response_mode": "native_function",
+                  "sql": "SELECT json_extract(payload,'$.ID') id, json_extract(payload,'$.card_scheme') cs, json_extract(payload,'$.account_type') at, json_extract(payload,'$.capture_delay') cd, json_extract(payload,'$.monthly_fraud_level') mfl, json_extract(payload,'$.monthly_volume') mv, json_extract(payload,'$.merchant_category_code') mcc FROM fees LIMIT 5",
+                  "row_count": 5,
+                  "elapsed_ms": 0.4495830071391538
+                },
+                {
+                  "step": 4,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "6dcd24341d7227ae408a24e0aa34374a610d549b6d985d1f720e041b0b72d03f",
+                  "response_mode": "native_function",
+                  "sql": "SELECT DISTINCT json_extract(payload,'$.acquirer') FROM fees LIMIT 3",
+                  "row_count": 1,
+                  "elapsed_ms": 2.432291003060527
+                },
+                {
+                  "step": 5,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "a0a55805713a829f6f27a74b353882e278e10661ee0ca6d8b4eeafd29bf8007f",
+                  "response_mode": "native_function",
+                  "sql": "SELECT payload FROM fees WHERE json_extract(payload,'$.ID')=1",
+                  "row_count": 1,
+                  "elapsed_ms": 1.2421249994076788
+                }
+              ],
+              "tokens": 29723,
+              "input_tokens": 28695,
+              "output_tokens": 1028,
+              "usage_status": "complete",
+              "elapsed_seconds": 42.945302958993125,
+              "observed_cost_usd": 0.0,
+              "cost_usd": null,
+              "cost_status": "partial_or_unknown",
+              "agent_elapsed_seconds": 40.43914124999719,
+              "attempted": true,
+              "case_id": "1753",
+              "difficulty": "hard",
+              "asset": "payments.csv",
+              "database_hash": "2c9ada89e5bd6621f7fd18a4253e44d796a4cd96e1e72ec9d896c9fcace03a7b",
+              "passed": false,
+              "sub_hits": 0,
+              "sub_total": 1,
+              "severe_incident": false
+            },
+            {
+              "answers": {},
+              "raw_answers": null,
+              "answer_evidence": {},
+              "task_contract": {
+                "question": "What is the fee ID or IDs that apply to account_type = R and aci = B?",
+                "public_requirements": "Answer must be a list of values in comma separated list, eg: A, B, C. If the answer is an empty list, reply with an empty string. If a question does not have a relevant or applicable answer for the task, please respond with 'Not Applicable'",
+                "entity": null,
+                "grain": [],
+                "filters": [],
+                "time_range": null,
+                "formula": null,
+                "denominator": null,
+                "count_basis": "unspecified",
+                "order_by": null,
+                "order_direction": null,
+                "conflicts": [],
+                "answer": {
+                  "columns": [
+                    "answer"
+                  ],
+                  "shape": "rows",
+                  "unit": null,
+                  "decimals": null,
+                  "ties": "unspecified",
+                  "empty": "allow",
+                  "nullable": true,
+                  "minimum": null,
+                  "maximum": null,
+                  "fields": {}
+                },
+                "requirements": {
+                  "predicates": [],
+                  "dates": [],
+                  "ratios": []
+                }
+              },
+              "final_sql": null,
+              "failure": "token_budget",
+              "trace": [
+                {
+                  "step": 1,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "241152b524fa65132d64cc7b64282f701e5f934d811b8c423dbfafd26132aaa7",
+                  "response_mode": "native_function",
+                  "sql": "SELECT payload FROM fees LIMIT 3",
+                  "row_count": 3,
+                  "elapsed_ms": 0.23012500605545938
+                },
+                {
+                  "step": 2,
+                  "status": "error",
+                  "error": "QueryExecutionError",
+                  "code": "result_limit",
+                  "response_mode": "native_function",
+                  "action_keys": [
+                    "sql"
+                  ]
+                },
+                {
+                  "step": 3,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "d07322d14788788f122b67befb73dc0b0474dddce24132df9a9addcaad8910a6",
+                  "response_mode": "native_function",
+                  "sql": "SELECT \n SUM(CASE WHEN (json_extract(payload,'$.account_type') LIKE '%\"R\"%' OR json_extract(payload,'$.account_type')='[]') AND (json_extract(payload,'$.aci') LIKE '%\"B\"%' OR json_extract(payload,'$.aci')='[]') THEN 1 ELSE 0 END) as empty_or_match,\n SUM(CASE WHEN json_extract(payload,'$.account_type') LIKE '%\"R\"%' AND json_extract(payload,'$.aci') LIKE '%\"B\"%' THEN 1 ELSE 0 END) as strict\nFROM fees",
+                  "row_count": 1,
+                  "elapsed_ms": 2.4301249941345304
+                },
+                {
+                  "step": 4,
+                  "tool": "document_search",
+                  "status": "ok",
+                  "result_hash": "1a7b46600c74d6a8f626aa5fa1da89d8ae6e8786e34f27b24d52c2e5f57b2f57",
+                  "response_mode": "native_function",
+                  "action": {
+                    "search": "account_type R aci B fee applicability"
+                  }
+                }
+              ],
+              "tokens": 26012,
+              "input_tokens": 25274,
+              "output_tokens": 738,
+              "usage_status": "complete",
+              "elapsed_seconds": 33.66789354100183,
+              "observed_cost_usd": 0.0,
+              "cost_usd": null,
+              "cost_status": "partial_or_unknown",
+              "agent_elapsed_seconds": 31.06991087499773,
+              "attempted": true,
+              "case_id": "1464",
+              "difficulty": "hard",
+              "asset": "payments.csv",
+              "database_hash": "2c9ada89e5bd6621f7fd18a4253e44d796a4cd96e1e72ec9d896c9fcace03a7b",
+              "passed": false,
+              "sub_hits": 0,
+              "sub_total": 1,
+              "severe_incident": false
+            },
+            {
+              "answers": {},
+              "raw_answers": null,
+              "answer_evidence": {},
+              "task_contract": {
+                "question": "For Belles_cookbook_store in January, if we were to move the fraudulent transactions towards a different Authorization Characteristics Indicator (ACI) by incentivizing users to use a different interaction, what would be the preferred choice considering the lowest possible fees?",
+                "public_requirements": "Answer must be just the selected ACI to incentive and the associated cost rounded to 2 decimals in this format: {card_scheme}:{fee}. If a question does not have a relevant or applicable answer for the task, please respond with 'Not Applicable'",
+                "entity": null,
+                "grain": [],
+                "filters": [],
+                "time_range": null,
+                "formula": null,
+                "denominator": null,
+                "count_basis": "unspecified",
+                "order_by": null,
+                "order_direction": null,
+                "conflicts": [],
+                "answer": {
+                  "columns": [
+                    "answer"
+                  ],
+                  "shape": "rows",
+                  "unit": null,
+                  "decimals": null,
+                  "ties": "unspecified",
+                  "empty": "allow",
+                  "nullable": true,
+                  "minimum": null,
+                  "maximum": null,
+                  "fields": {}
+                },
+                "requirements": {
+                  "predicates": [],
+                  "dates": [],
+                  "ratios": []
+                }
+              },
+              "final_sql": null,
+              "failure": "token_budget",
+              "trace": [
+                {
+                  "step": 1,
+                  "status": "error",
+                  "error": "ActionSchemaError",
+                  "code": "action_schema",
+                  "response_mode": "native_function",
+                  "schema_errors": [
+                    {
+                      "path": [
+                        "tool_calls"
+                      ],
+                      "type": "one_action"
+                    }
+                  ],
+                  "repair_type": "correct_parameters"
+                },
+                {
+                  "step": 2,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "85ccb04ac1faffe9510244bd37038148461f5020cf1a90155dc8417a9089f6c4",
+                  "response_mode": "native_function",
+                  "sql": "SELECT payload FROM fees LIMIT 5",
+                  "row_count": 5,
+                  "elapsed_ms": 0.34925001091323793
+                },
+                {
+                  "step": 3,
+                  "tool": "document_search",
+                  "status": "ok",
+                  "result_hash": "11bb18d18a5bc184d80a298a30f383482c470d6dd524b70779a75d26938ca085",
+                  "response_mode": "native_function",
+                  "action": {
+                    "search": "ACI Authorization Characteristics Indicator values interaction fraud cost"
+                  }
+                },
+                {
+                  "step": 4,
+                  "tool": "sql",
+                  "status": "ok",
+                  "result_hash": "b95a00c1dcd996d6407f633095a323d290ac12f74a6a470300c8a64251c7b247",
+                  "response_mode": "native_function",
+                  "sql": "SELECT payload FROM merchant_data WHERE payload LIKE '%Belles_cookbook_store%'",
+                  "row_count": 1,
+                  "elapsed_ms": 0.4108749999431893
+                }
+              ],
+              "tokens": 27299,
+              "input_tokens": 26966,
+              "output_tokens": 333,
+              "usage_status": "complete",
+              "elapsed_seconds": 35.040282540998305,
+              "observed_cost_usd": 0.0,
+              "cost_usd": null,
+              "cost_status": "partial_or_unknown",
+              "agent_elapsed_seconds": 32.57043704199896,
+              "attempted": true,
+              "case_id": "2697",
+              "difficulty": "hard",
+              "asset": "payments.csv",
+              "database_hash": "2c9ada89e5bd6621f7fd18a4253e44d796a4cd96e1e72ec9d896c9fcace03a7b",
+              "passed": false,
+              "sub_hits": 0,
+              "sub_total": 1,
+              "severe_incident": false
+            }
+          ],
+          "scope": "bounded SQL evaluation baseline; not production Supervisor or Python DS agent",
+          "contamination": "public development data; no training-contamination guarantee",
+          "production_accepted": false,
+          "summary": {
+            "n": 10,
+            "passed": 1,
+            "pass_at_1": 0.1,
+            "wilson_95": [
+              0.017876213095072896,
+              0.4041500267952385
+            ],
+            "subquestion_accuracy": 0.1,
+            "p50_seconds": 34.35408804100007,
+            "p95_seconds": 51.904894749997766,
+            "tokens": 228728,
+            "token_telemetry_complete": true,
+            "failures": {
+              "token_budget": 8,
+              "answer_mismatch": 1
+            },
+            "difficulty": {
+              "easy": {
+                "n": 3,
+                "passed": 1,
+                "rate": 0.3333333333333333
+              },
+              "hard": {
+                "n": 7,
+                "passed": 0,
+                "rate": 0.0
+              }
+            },
+            "official_leaderboard_comparable": false,
+            "production_accepted": false,
+            "cost_usd": null,
+            "attempted_n": 10,
+            "not_attempted_n": 0,
+            "attempted_p95_seconds": 51.904894749997766
+          },
+          "service_circuit_reason": null,
+          "run_status": "completed",
+          "completed_at": "2026-10-21T06:36:35.564749+00:00"
+        }
       }
     },
     "bird_comparison": {
@@ -109309,7 +111271,487 @@
         },
         "receipt_errors": []
       }
-    }
+    },
+    "qualification": {
+      "validator_version": "stage7-full-with-branch-lineage-20261021",
+      "stage7_development_qualified": false,
+      "tracks": {
+        "bird-mini-dev-sqlite": {
+          "paired": {
+            "strict_comparison": {
+              "benchmark": "bird-mini-dev-sqlite",
+              "n": 60,
+              "baseline_passed": 26,
+              "candidate_passed": 28,
+              "improvements": [
+                "487",
+                "1195",
+                "791",
+                "861"
+              ],
+              "regressions": [
+                "23",
+                "1525"
+              ],
+              "pass_rate_delta": 0.033333333333333326,
+              "service_failures": {
+                "baseline": 0,
+                "candidate": 0
+              },
+              "observed_cost_usd": {
+                "baseline": 0.0,
+                "candidate": 0.0
+              },
+              "efficiency": {
+                "baseline": {
+                  "reported_tokens": 201465,
+                  "token_telemetry_complete": true,
+                  "p50_seconds": 6.895861187498667,
+                  "p95_seconds": 20.19404991698684,
+                  "cost_usd": null
+                },
+                "candidate": {
+                  "reported_tokens": 256294,
+                  "token_telemetry_complete": true,
+                  "p50_seconds": 7.232993042001908,
+                  "p95_seconds": 17.83741941599874,
+                  "cost_usd": null
+                }
+              },
+              "failure_transitions": {
+                "passed->passed": 24,
+                "answer_mismatch->execution_or_model_error": 1,
+                "answer_mismatch->answer_mismatch": 29,
+                "answer_mismatch->passed": 4,
+                "passed->answer_mismatch": 2
+              },
+              "attribution_valid": true,
+              "blocked_by": [],
+              "mcnemar_exact_two_sided_p": 0.6875,
+              "paired_release_gate": {
+                "passed": false,
+                "regressions": [
+                  "23",
+                  "1525"
+                ],
+                "severe_incidents": [],
+                "production_accepted": false
+              },
+              "production_accepted": false
+            },
+            "baseline_correct_protection": {
+              "n": 26,
+              "retained": [
+                "1084",
+                "1115",
+                "112",
+                "1130",
+                "1231",
+                "1334",
+                "1375",
+                "1401",
+                "1460",
+                "1464",
+                "1476",
+                "1493",
+                "1509",
+                "200",
+                "227",
+                "242",
+                "379",
+                "422",
+                "576",
+                "671",
+                "781",
+                "800",
+                "819",
+                "857"
+              ],
+              "regressed": [
+                "1525",
+                "23"
+              ]
+            },
+            "label_reviews": [],
+            "review_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "strict_score_changed": false,
+            "denominator_changed": false,
+            "production_accepted": false,
+            "limits": "development-set comparison; unseen tasks and repeated runs remain required"
+          },
+          "historical_correct_guard": {
+            "n": 28,
+            "retained": [
+              "1084",
+              "1115",
+              "112",
+              "1130",
+              "1195",
+              "1231",
+              "1334",
+              "1375",
+              "1401",
+              "1460",
+              "1464",
+              "1476",
+              "1493",
+              "1509",
+              "200",
+              "227",
+              "242",
+              "422",
+              "487",
+              "576",
+              "671",
+              "781",
+              "791",
+              "800",
+              "819",
+              "857"
+            ],
+            "regressions": [
+              "83",
+              "931"
+            ],
+            "passed": false,
+            "protocols_equal": false,
+            "causal_attribution": false
+          },
+          "receipt_errors": [],
+          "blocked_by": [
+            "stage7_development_target_not_met",
+            "fresh_baseline_regressions",
+            "historical_correct_regressions"
+          ]
+        },
+        "infiagent-dabench": {
+          "paired": {
+            "strict_comparison": {
+              "benchmark": "infiagent-dabench",
+              "n": 60,
+              "baseline_passed": 28,
+              "candidate_passed": 37,
+              "improvements": [
+                "214",
+                "759",
+                "359",
+                "234",
+                "14",
+                "666",
+                "669",
+                "415",
+                "255",
+                "132"
+              ],
+              "regressions": [
+                "271"
+              ],
+              "pass_rate_delta": 0.15000000000000002,
+              "service_failures": {
+                "baseline": 0,
+                "candidate": 0
+              },
+              "observed_cost_usd": {
+                "baseline": 0.0,
+                "candidate": 0.0
+              },
+              "efficiency": {
+                "baseline": {
+                  "reported_tokens": 300381,
+                  "token_telemetry_complete": true,
+                  "p50_seconds": 20.874554978996457,
+                  "p95_seconds": 42.519833250000374,
+                  "cost_usd": null
+                },
+                "candidate": {
+                  "reported_tokens": 600582,
+                  "token_telemetry_complete": true,
+                  "p50_seconds": 14.714227354001196,
+                  "p95_seconds": 42.470706666994374,
+                  "cost_usd": null
+                }
+              },
+              "failure_transitions": {
+                "passed->passed": 27,
+                "answer_mismatch->passed": 7,
+                "answer_mismatch->token_budget": 3,
+                "answer_mismatch->unsupported_capability": 5,
+                "unsupported_capability->unsupported_capability": 3,
+                "unsupported_capability->passed": 1,
+                "answer_mismatch->execution_or_model_error": 2,
+                "execution_or_model_error->answer_mismatch": 2,
+                "answer_mismatch->answer_mismatch": 5,
+                "execution_or_model_error->execution_or_model_error": 1,
+                "passed->token_budget": 1,
+                "execution_or_model_error->passed": 2,
+                "unsupported_capability->answer_mismatch": 1
+              },
+              "attribution_valid": true,
+              "blocked_by": [],
+              "mcnemar_exact_two_sided_p": 0.01171875,
+              "paired_release_gate": {
+                "passed": false,
+                "regressions": [
+                  "271"
+                ],
+                "severe_incidents": [],
+                "production_accepted": false
+              },
+              "production_accepted": false
+            },
+            "baseline_correct_protection": {
+              "n": 28,
+              "retained": [
+                "114",
+                "118",
+                "207",
+                "209",
+                "218",
+                "277",
+                "278",
+                "372",
+                "426",
+                "446",
+                "447",
+                "468",
+                "490",
+                "5",
+                "517",
+                "526",
+                "527",
+                "543",
+                "586",
+                "589",
+                "590",
+                "618",
+                "64",
+                "643",
+                "659",
+                "71",
+                "739"
+              ],
+              "regressed": [
+                "271"
+              ]
+            },
+            "label_reviews": [],
+            "review_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "strict_score_changed": false,
+            "denominator_changed": false,
+            "production_accepted": false,
+            "limits": "development-set comparison; unseen tasks and repeated runs remain required"
+          },
+          "historical_correct_guard": {
+            "n": 32,
+            "retained": [
+              "114",
+              "132",
+              "207",
+              "209",
+              "214",
+              "218",
+              "277",
+              "278",
+              "372",
+              "415",
+              "426",
+              "446",
+              "447",
+              "490",
+              "517",
+              "526",
+              "527",
+              "543",
+              "586",
+              "589",
+              "590",
+              "618",
+              "64",
+              "643",
+              "666",
+              "669",
+              "71",
+              "739"
+            ],
+            "regressions": [
+              "271",
+              "412",
+              "495",
+              "529"
+            ],
+            "passed": false,
+            "protocols_equal": false,
+            "causal_attribution": false
+          },
+          "receipt_errors": [],
+          "blocked_by": [
+            "fresh_baseline_regressions",
+            "historical_correct_regressions"
+          ]
+        },
+        "dabstep-dev": {
+          "paired": {
+            "strict_comparison": {
+              "benchmark": "dabstep-dev",
+              "n": 10,
+              "baseline_passed": 1,
+              "candidate_passed": 1,
+              "improvements": [],
+              "regressions": [],
+              "pass_rate_delta": 0.0,
+              "service_failures": {
+                "baseline": 0,
+                "candidate": 0
+              },
+              "observed_cost_usd": {
+                "baseline": 0.0,
+                "candidate": 0.0
+              },
+              "efficiency": {
+                "baseline": {
+                  "reported_tokens": 163514,
+                  "token_telemetry_complete": true,
+                  "p50_seconds": 41.73896729150147,
+                  "p95_seconds": 55.95495104099973,
+                  "cost_usd": null
+                },
+                "candidate": {
+                  "reported_tokens": 228728,
+                  "token_telemetry_complete": true,
+                  "p50_seconds": 34.35408804100007,
+                  "p95_seconds": 51.904894749997766,
+                  "cost_usd": null
+                }
+              },
+              "failure_transitions": {
+                "answer_mismatch->token_budget": 2,
+                "execution_or_model_error->token_budget": 3,
+                "answer_mismatch->answer_mismatch": 1,
+                "passed->passed": 1,
+                "token_budget->token_budget": 3
+              },
+              "attribution_valid": true,
+              "blocked_by": [],
+              "mcnemar_exact_two_sided_p": 1.0,
+              "paired_release_gate": {
+                "passed": true,
+                "regressions": [],
+                "severe_incidents": [],
+                "production_accepted": false
+              },
+              "production_accepted": false
+            },
+            "baseline_correct_protection": {
+              "n": 1,
+              "retained": [
+                "5"
+              ],
+              "regressed": []
+            },
+            "label_reviews": [],
+            "review_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "strict_score_changed": false,
+            "denominator_changed": false,
+            "production_accepted": false,
+            "limits": "development-set comparison; unseen tasks and repeated runs remain required"
+          },
+          "historical_correct_guard": {
+            "n": 1,
+            "retained": [
+              "5"
+            ],
+            "regressions": [],
+            "passed": true,
+            "protocols_equal": false,
+            "causal_attribution": false
+          },
+          "receipt_errors": [],
+          "blocked_by": []
+        }
+      },
+      "historical_correct_n": 61,
+      "blocked_by": [
+        "bird-mini-dev-sqlite:stage7_development_target_not_met",
+        "bird-mini-dev-sqlite:fresh_baseline_regressions",
+        "bird-mini-dev-sqlite:historical_correct_regressions",
+        "infiagent-dabench:fresh_baseline_regressions",
+        "infiagent-dabench:historical_correct_regressions"
+      ],
+      "strict_score_changed": false,
+      "production_accepted": false,
+      "remaining_promotion_gates": [
+        "unseen_tasks",
+        "three_paired_repetitions",
+        "independent_review",
+        "production_shadow"
+      ]
+    },
+    "dabstep_comparison": {
+      "strict_comparison": {
+        "benchmark": "dabstep-dev",
+        "n": 10,
+        "baseline_passed": 1,
+        "candidate_passed": 1,
+        "improvements": [],
+        "regressions": [],
+        "pass_rate_delta": 0.0,
+        "service_failures": {
+          "baseline": 0,
+          "candidate": 0
+        },
+        "observed_cost_usd": {
+          "baseline": 0.0,
+          "candidate": 0.0
+        },
+        "efficiency": {
+          "baseline": {
+            "reported_tokens": 163514,
+            "token_telemetry_complete": true,
+            "p50_seconds": 41.73896729150147,
+            "p95_seconds": 55.95495104099973,
+            "cost_usd": null
+          },
+          "candidate": {
+            "reported_tokens": 228728,
+            "token_telemetry_complete": true,
+            "p50_seconds": 34.35408804100007,
+            "p95_seconds": 51.904894749997766,
+            "cost_usd": null
+          }
+        },
+        "failure_transitions": {
+          "answer_mismatch->token_budget": 2,
+          "execution_or_model_error->token_budget": 3,
+          "answer_mismatch->answer_mismatch": 1,
+          "passed->passed": 1,
+          "token_budget->token_budget": 3
+        },
+        "attribution_valid": true,
+        "blocked_by": [],
+        "mcnemar_exact_two_sided_p": 1.0,
+        "paired_release_gate": {
+          "passed": true,
+          "regressions": [],
+          "severe_incidents": [],
+          "production_accepted": false
+        },
+        "production_accepted": false
+      },
+      "baseline_correct_protection": {
+        "n": 1,
+        "retained": [
+          "5"
+        ],
+        "regressed": []
+      },
+      "label_reviews": [],
+      "review_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "strict_score_changed": false,
+      "denominator_changed": false,
+      "production_accepted": false,
+      "limits": "development-set comparison; unseen tasks and repeated runs remain required"
+    },
+    "stage7_qualified": false
   },
   "bird_direction_v28": {
     "selection": "explicit developer failure diagnostic, not the full cohort",
@@ -110114,5 +112556,43 @@
       }
     ],
     "receipt_errors": []
+  },
+  "full_v32": {
+    "source_commit": "1f6ef5a",
+    "status": "running",
+    "planned_attempts": 260,
+    "source_frozen_before_run": true,
+    "profiles": {
+      "bird": {
+        "baseline": "sql-precision",
+        "candidate": "sql-semantic"
+      },
+      "infi": {
+        "baseline": "sql-repair",
+        "candidate": "sql-semantic"
+      },
+      "dabstep": {
+        "baseline": "sql-repair",
+        "candidate": "sql-semantic"
+      }
+    },
+    "cohorts": {
+      "bird": 60,
+      "infi": 60,
+      "dabstep": 10
+    },
+    "model": "workbuddy/deepseek-v4.1-flash",
+    "app_type": "magpie",
+    "transport": "openai-chat",
+    "workers_per_arm": 1,
+    "request_interval_seconds": 3.5,
+    "both_arms_rerun": true,
+    "steps": 6,
+    "token_limit": 24000,
+    "model_seconds": 120,
+    "source_queue_and_protocol_unchanged_within_pair": true,
+    "comparison_to_v27_is_not_single_factor_attribution": true,
+    "per_case_or_track_score_stitching": false,
+    "production_accepted": false
   }
 }
