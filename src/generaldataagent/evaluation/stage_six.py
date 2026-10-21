@@ -1130,11 +1130,14 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                         result.columns
                     ) != set(task_spec.answer.columns):
                         raise SemanticError("answer_sql_requires_public_column_aliases")
-                    task_spec = accept_contract(
-                        task_spec.model_dump(),
-                        question=task.question,
-                        instructions=task.instructions,
-                    )
+                    try:
+                        task_spec = accept_contract(
+                            task_spec.model_dump(),
+                            question=task.question,
+                            instructions=task.instructions,
+                        )
+                    except ValueError as exc:
+                        raise SemanticError(str(exc)) from None
                     ordered_spec = task_spec.model_copy(
                         update={
                             "answer": task_spec.answer.model_copy(

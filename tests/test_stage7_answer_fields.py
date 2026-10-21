@@ -11,6 +11,67 @@ from generaldataagent.tools.answer_fields import (
 )
 
 
+def test_inline_descriptions_bind_each_precision_to_its_own_field():
+    from generaldataagent.orchestration.analysis_plan import accept_contract
+
+    text = (
+        "@n[Number of observations after cleaning], "
+        "@mean[Mean after filling missing values, rounded to two decimal places], "
+        "@first[First transformed value, rounded to three decimal places]."
+    )
+    spec = accept_contract(
+        {
+            "question": "Summarize",
+            "public_requirements": text,
+            "answer": {"columns": ["first", "n", "mean"]},
+        },
+        question="Summarize",
+        instructions=text,
+    )
+    assert spec.answer.decimals is None
+    assert spec.answer.fields["n"].kind == "integer"
+    assert spec.answer.fields["mean"].decimals == 2
+    assert spec.answer.fields["first"].decimals == 3
+    assert spec.answer.fields["mean"].source_excerpt == (
+        "@mean[Mean after filling missing values, rounded to two decimal places]"
+    )
+    for field in spec.answer.fields.values():
+        assert field.source_excerpt in text
+
+
+@pytest.mark.parametrize(
+    "description",
+    [
+        "Value not rounded to two decimal places",
+        "List of values rounded to two decimal places",
+        "String rounded to two decimal places",
+        "Value rounded to two decimal places or three decimal places",
+        "Mean value",
+        "value_in_two_decimals",
+    ],
+)
+def test_inline_rules_do_not_guess_ambiguous_or_non_scalar_types(description):
+    from generaldataagent.tools.answer_fields import infer_public_field_rules
+
+    assert infer_public_field_rules(f"@x[{description}]", ["x"]) == {}
+
+
+def test_inline_rules_do_not_borrow_precision_or_accept_conflicting_placeholders():
+    from generaldataagent.tools.answer_fields import infer_public_field_rules
+
+    assert (
+        infer_public_field_rules("@a[Value rounded to two decimal places], @b[Unknown]", ["a", "b"])
+        == {}
+    )
+    assert (
+        infer_public_field_rules(
+            "@a[Value rounded to two decimal places] @a[Value rounded to three decimal places]",
+            ["a"],
+        )
+        == {}
+    )
+
+
 def test_public_precision_is_explicit_and_can_differ_by_field():
     assert public_precisions(
         "Round mean to two decimal places. Round total to three decimal places."

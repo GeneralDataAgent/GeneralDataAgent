@@ -259,6 +259,28 @@ def infer_public_field_rules(instructions: str, columns: list[str]) -> dict[str,
             return {}
         placeholders[key] = value
     rules = {}
+    # Some public formats define each field inside its own brackets instead of
+    # referring to a later "where" clause. Keep the bracket span as provenance;
+    # never borrow another field's precision or infer a type from its key.
+    for key in columns:
+        description = placeholders.get(key, "")
+        precision = public_precisions(description)
+        if re.search(r"\b(?:not|never|without|string|list|array|set|date)\b", description, re.I):
+            continue
+        count = bool(
+            re.match(
+                r"(?:number|count)\s+of\s+(?:entries|rows|records|items|observations)\b",
+                description,
+                re.I,
+            )
+        )
+        rounded = bool(re.search(r"\brounded?\s+to\b", description, re.I))
+        if (count and not precision) or (rounded and len(precision) == 1):
+            rules[key] = AnswerFieldSpec(
+                kind="integer" if count and not precision else "number",
+                decimals=next(iter(precision)) if precision else None,
+                source_excerpt=f"@{key}[{description}]",
+            )
     no_duplicates = re.search(
         r"\b(?:no|without)\s+duplicates\b|\bnot\s+contain\s+(?:any\s+)?duplicates\b",
         instructions,

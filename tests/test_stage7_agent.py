@@ -735,6 +735,44 @@ def test_sql_answers_compute_bind_and_round_once_with_full_receipts(database):
     assert result["trace"][0]["auto_bound_public_keys"] == ["mean", "n"]
 
 
+def test_inline_mixed_precision_sql_answers_are_assembled_without_contract_retry(database):
+    result = run(
+        database,
+        [
+            {
+                "submit_sql_answers": {
+                    "sql": (
+                        "SELECT COUNT(*) AS n, AVG(id) AS mean, AVG(score)/3.0 AS first FROM people"
+                    )
+                }
+            }
+        ],
+        benchmark="infiagent-dabench",
+        question="Summarize values",
+        instructions=(
+            "@n[Number of entries after cleaning], "
+            "@mean[Mean value, rounded to two decimal places], "
+            "@first[First transformed value, rounded to three decimal places]"
+        ),
+    )
+    assert result["failure"] is None
+    assert result["answers"] == {"n": 2, "mean": "1.50", "first": "3.333"}
+    assert len(result["trace"]) == 1
+    assert result["answer_evidence"]["first"]["raw_value"] == 10 / 3
+
+
+def test_ambiguous_mixed_precision_atomic_contract_error_is_actionable(database):
+    result = run(
+        database,
+        [{"submit_sql_answers": {"sql": "SELECT AVG(id) AS x FROM people"}}],
+        benchmark="infiagent-dabench",
+        question="Summarize values",
+        instructions="@x[Value rounded to two decimal places or three decimal places]",
+    )
+    assert result["trace"][0]["code"] == "semantic_contract"
+    assert result["trace"][0]["repair_type"] == "revise_plan_or_query"
+
+
 @pytest.mark.parametrize(
     "sql,check",
     [
