@@ -45203,7 +45203,7 @@
     "validator_source_commit": "28e0ac5f05ac35e1a729ad5150a69d0df85543eb"
   },
   "latest_local_validation": {
-    "source_commit": "working tree; runtime commit recorded by next diagnostic",
+    "source_commit": "2f30d01",
     "passed": 1009,
     "skipped": 1,
     "coverage_percent": 89.06,
@@ -45212,7 +45212,7 @@
     "diff_check": "passed",
     "full_model_rerun_after_latest_changes": false
   },
-  "all_selected_experiments_completed": true,
+  "all_selected_experiments_completed": false,
   "stage7_qualified": false,
   "literal_population_diagnostics": {
     "v14": {
@@ -137812,6 +137812,251 @@
       "production_accepted": false,
       "limits": "development-set comparison; unseen tasks and repeated runs remain required"
     },
+    "production_accepted": false
+  },
+  "pearson_diagnostic_v40": {
+    "kind": "explicit developer Pearson capability failure diagnostic; not a full or unseen cohort",
+    "source_commit": "2f30d018baebb11baed813d654f1cb8682cb2dc5",
+    "fingerprint": {
+      "contracts/analysis.py": "cb1d467b71c432c76d00b64deac92ec2a7ce5f86450e64f050fd15ac5c04a553",
+      "contracts/answer_fields.py": "debdfb2cb9bf170696e6f88996ddd1f3ff6645e63f01843c63c7e31ca8f74f7f",
+      "contracts/statistical_rules.py": "3f63abe15c76c51965c65b20c92fc9ec25c43b03b19a99c4a176de39017aa6f9",
+      "tools/pearson_test.py": "69eac7adc7d10fcd2e740f372315796903ea5f3dd4598e7f27ba5b2e65275259",
+      "evaluation/stage_six_analysis.py": "dd184b84cf3dd776fa20cbcb1008d8e00a7e72506db945a2822ca1f504717e98",
+      "tools/answer_fields.py": "07e50819be02725db00af261817e18b7b6ce7645133cbc178b49c68063f32fc3",
+      "contracts/semantic_requirements.py": "bc0683ead82ef284acbe9fe71b5af437ddce357db5b0c46027ae34622dfe867e",
+      "tools/semantic_requirements.py": "6a7470aeff4d43b0aff28bc4312af2b332232d6b2d339cf98134670dda26eb76",
+      "orchestration/analysis_plan.py": "cb9704c3b3af020317e5204a56013c83e93a3d1065b6e5ed1e08feff97770687",
+      "catalog/semantic_context.py": "6e0ed304e6355a5ad03dd6d1a1c64436cbb83e4cf673f79cf38dc47e59055630",
+      "catalog/field_evidence.py": "e3fa95a2c4bf71f291ea3134329c5b926f666aad72a511411f9eb95a8fd2e926",
+      "catalog/join_evidence.py": "cd5ae4218c11eba66a7a3b7166ed226ac37b81ed6229c64978d63be51de7205e",
+      "tools/sql_semantics.py": "546d8c69ef13ed411c2cb3581aeaa61deb6619773dc13c520aac4da90f7d8946",
+      "tools/sql_guard.py": "72ef5c19eb4080f3a75f745588eff76780684a0691c3ab141c79d17c6ca5db59",
+      "tools/sqlite.py": "6cc32bffd2d0822f3a0805d63ab15624c0530d9e0b6e719053f2d0c869784251",
+      "evaluation/stage_six.py": "f6c8e1878f248407308f48e6e7076dba168852d1b235e2e98e5ffe537a2b9ce3",
+      "evaluation/stage_six_sql_precision.py": "9636255157d5a6477972ff3dadd0d50454710dc3150b09b8c56841f8180d3fa6",
+      "evaluation/stage_six_repair.py": "5a02c8858b559cb7d2e4c0e05658e132f29f62ed293540744f2a8eaebf84698a",
+      "evaluation/stage_seven.py": "9315c82b96d46f6c612b9656873a373df2cc0d9b709d7abc7b6075929a60d6fd",
+      "contracts/query_plan.py": "31efd7b8bff3f34bb30431cc2ace22b00f206c8c0646472b734886134f51c900",
+      "tools/semantic_sql.py": "8eeb200a38478ac5ac70f2f1c6259abc9ce38960b75bab411cd67a4479bac9b7"
+    },
+    "benchmark": "infiagent-dabench",
+    "model_route": {
+      "provider_id": "magpie",
+      "app_type": "magpie",
+      "model": "workbuddy/deepseek-v4.1-flash",
+      "transport": "openai-chat",
+      "thinking_mode": "default",
+      "json_mode": false,
+      "max_output_tokens": 3000,
+      "endpoint_hash": "fe8827a6b46979db5015036d380dd4e1f10eda5b76101c62a322240bf51a0573",
+      "wire_api": "chat_completions",
+      "gateway_adapter_hash": "163619e55b3ee9dd7eaeda7e9275a0cdc2a07972b6b67602016151f66632b8e6",
+      "gateway_headers_hash": "0a6dda900b2ea6b80cb4df4282bd2ec368d99d39ee00f707de87660edce6d440",
+      "route_hash": "ddcb6a5429c4f5365aa21351db2a358e378a5beb5c3b07ae80138dd444b8fbd4"
+    },
+    "reference_inputs_sent_to_worker": false,
+    "source_csv_hash": "5c78320a80dc159b35c408363be46a5d93f078183d539db75ee42a796d6a4e95",
+    "production_accepted": false,
+    "results": [
+      {
+        "answers": {
+          "correlation_coefficient": "0.31",
+          "p_value": "0.0000",
+          "relationship_type": "nonlinear"
+        },
+        "raw_answers": {},
+        "answer_evidence": {
+          "correlation_coefficient": {
+            "step": 1,
+            "path": [
+              "correlation"
+            ],
+            "raw_value": 0.30689461547589963,
+            "submitted_value": "0.31",
+            "raw_type": "float",
+            "submitted_type": "str",
+            "method_id": "pearson_test",
+            "declared_public_unit": null,
+            "result_hash": "3a59e1e1b40ccc43d19855f7168c5eac8cabd3cfdfcbf7283f26a53109d7c177"
+          },
+          "p_value": {
+            "step": 1,
+            "path": [
+              "p_value"
+            ],
+            "raw_value": 1.4452857339488415e-10,
+            "submitted_value": "0.0000",
+            "raw_type": "float",
+            "submitted_type": "str",
+            "method_id": "pearson_test",
+            "declared_public_unit": null,
+            "result_hash": "3a59e1e1b40ccc43d19855f7168c5eac8cabd3cfdfcbf7283f26a53109d7c177"
+          },
+          "relationship_type": {
+            "step": 1,
+            "path": [
+              "public_rule_label"
+            ],
+            "raw_value": "nonlinear",
+            "submitted_value": "nonlinear",
+            "raw_type": "str",
+            "submitted_type": "str",
+            "method_id": "pearson_test",
+            "declared_public_unit": null,
+            "result_hash": "3a59e1e1b40ccc43d19855f7168c5eac8cabd3cfdfcbf7283f26a53109d7c177"
+          }
+        },
+        "task_contract": {
+          "question": "Can you identify any patterns or relationships between the number of siblings/spouses each passenger had aboard and the number of parents/children they had aboard?",
+          "public_requirements": "Calculate the Pearson correlation coefficient (r) to assess the strength and direction of the linear relationship between the number of siblings/spouses (SibSp) and the number of parents/children (Parch). Assess the significance of the correlation using a two-tailed test with a significance level (alpha) of 0.05. Report the p-value associated with the correlation test. Consider the relationship to be linear if the p-value is less than 0.05 and the absolute value of r is greater than or equal to 0.5. Consider the relationship to be nonlinear if the p-value is less than 0.05 and the absolute value of r is less than 0.5. If the p-value is greater than or equal to 0.05, report that there is no significant correlation.\n@correlation_coefficient[r_value], @p_value[p_value], @relationship_type[relationship_type]. Where \"r_value\" is a float number between -1 and 1, rounded to two decimal places. \"p_value\" is a float number between 0 and 1, rounded to four decimal places. \"relationship_type\" is a string that can either be \"linear\", \"nonlinear\", or \"none\".",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "correlation_coefficient",
+              "p_value",
+              "relationship_type"
+            ],
+            "shape": "rows",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {
+              "correlation_coefficient": {
+                "kind": "number",
+                "item_kind": null,
+                "order": null,
+                "minimum": -1.0,
+                "maximum": 1.0,
+                "choices": null,
+                "nullable": null,
+                "decimals": 2,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "Where \"r_value\" is a float number between -1 and 1, rounded to two decimal places.",
+                "collection_separator": null
+              },
+              "p_value": {
+                "kind": "number",
+                "item_kind": null,
+                "order": null,
+                "minimum": 0.0,
+                "maximum": 1.0,
+                "choices": null,
+                "nullable": null,
+                "decimals": 4,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "\"p_value\" is a float number between 0 and 1, rounded to four decimal places.",
+                "collection_separator": null
+              },
+              "relationship_type": {
+                "kind": "string",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": [
+                  "linear",
+                  "nonlinear",
+                  "none"
+                ],
+                "nullable": null,
+                "decimals": null,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "\"relationship_type\" is a string that can either be \"linear\", \"nonlinear\", or \"none\".",
+                "collection_separator": null
+              }
+            }
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": null,
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "tool": "fixed_analysis",
+            "status": "ok",
+            "result_hash": "3a59e1e1b40ccc43d19855f7168c5eac8cabd3cfdfcbf7283f26a53109d7c177",
+            "response_mode": "native_function",
+            "action": {
+              "analysis": {
+                "table": "data",
+                "columns": [
+                  "SibSp",
+                  "Parch"
+                ],
+                "operation": "pearson_test",
+                "decision_rule": {
+                  "alpha": 0.05,
+                  "abs_r_threshold": 0.5,
+                  "significant_high_label": "linear",
+                  "significant_low_label": "nonlinear",
+                  "nonsignificant_label": "none"
+                }
+              }
+            }
+          }
+        ],
+        "tokens": 7539,
+        "input_tokens": 7277,
+        "output_tokens": 262,
+        "usage_status": "complete",
+        "elapsed_seconds": 6.442743625011644,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 4.972285667012329,
+        "case_id": "529",
+        "passed": true,
+        "database_unchanged": true,
+        "database_hash": "c7df5d7311d4e86c2f349c01b0dfd632a72e2322c06f0b00c4f86f4ff6c7e477",
+        "sub_hits": 3,
+        "sub_total": 3
+      }
+    ],
+    "receipt_errors": []
+  },
+  "full_v41": {
+    "status": "running",
+    "source_commit": "2f30d018baebb11baed813d654f1cb8682cb2dc5",
+    "fresh_baselines": true,
+    "candidate_profiles": {
+      "bird": "sql-semantic-plan",
+      "infi": "sql-semantic",
+      "dabstep": "sql-semantic"
+    },
+    "attempts_planned": 260,
+    "historical_protection_n": 61,
+    "stage7_qualified": false,
+    "production_accepted": false,
+    "artifact_directory": ".artifacts/stage7/20261021-full-v41",
+    "dependency_change": "SciPy added equally to both arms; prior baselines not reused"
+  },
+  "package_validation_2f30d01": {
+    "wheel_integrity": "passed",
+    "statistical_source_byte_equality": "passed",
+    "scipy_requirement": "passed",
+    "sdist_statistical_source_membership": "passed",
     "production_accepted": false
   }
 }

@@ -2,7 +2,7 @@
 
 更新：2026-10-21（Asia/Shanghai）。分支：`feat/stage7-semantic-sql`。
 
-**状态：继续迭代，质量验收未通过。** 最新完整冻结v32（源码 `1f6ef5a`，三轨候选均原生 `sql-semantic`）为 BIRD26/60→29/60、Infi31/60→35/60、DAB1/10→1/10，总计58/130→65/130，历史正确题保留51/61。资格为false，不能推广。后续 `b983886` 已补齐公开计划来源绑定、计数比例编译、成功步骤/公开键候选、混合原子绑定及年龄公式边界，本地997 passed、1 skipped、覆盖率89.04%。自然任务诊断与合成强制传输见证分别记录，不替代完整评分，也不从不同配置挑选最佳题目/轨道拼分。下一步验证新计划并补齐历史保护所需的最小p值计算依赖，再执行新源码完整配对。独立未见、重复验证与生产推广仍未完成。详见[续开发记录](stage7-continuation-2026-10-21.md)与[完整机器证据](stage7-20261021-results.json)；下文为历史开发记录。
+**Status: iteration continues; Stage 7 is not qualified.** Latest completed full v32 (source `1f6ef5a`) is BIRD 26/60 to 29/60, Infi 31/60 to 35/60, DAB 1/10 unchanged: 58/130 to 65/130, retaining 51/61 historical correct tasks. Later source `2f30d01` adds the minimal Pearson p-value dependency, with 1009 tests passed, 1 skipped and 89.06% coverage. Natural diagnostic 529 passes with three valid receipts; p remains nonzero in raw evidence. Repeated development cohort v34 improves 2/6 to 5/6 but consumes more tokens and is not unseen evidence. Fresh full v41 is running on frozen `2f30d01`: BIRD candidate uses sql-semantic-plan, other candidates use sql-semantic; both arms run anew under the changed dependency lock. No mixed best-case scores. Independent unseen, repetition, review and production gates remain incomplete. See [continuation](stage7-continuation-2026-10-21.md) and [raw evidence](stage7-20261021-results.json); records below are historical.
 
 ## 已实现
 
