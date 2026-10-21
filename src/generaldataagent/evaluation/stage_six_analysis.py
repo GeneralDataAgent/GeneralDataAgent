@@ -6,10 +6,10 @@ No generated Python, imports, shell commands, files or database writes are accep
 import hashlib
 import math
 import re
-import sqlite3
 import statistics
 
 from generaldataagent.contracts.analysis import AnalysisArguments
+from generaldataagent.tools.analysis_scope import validate_analysis_columns
 from generaldataagent.tools.sqlite import SQLiteReadOnlyExecutor
 
 
@@ -72,16 +72,13 @@ def fixed_analysis(
     def quote(value):
         return '"' + value.replace('"', '""') + '"'
 
+    # Verify physical column names: SQLite double-quoted-string compatibility must not
+    # turn a misspelled identifier into an apparently valid constant numeric feature.
+    validate_analysis_columns(database, table, columns, allowed_relations=allowed_relations)
     executor = SQLiteReadOnlyExecutor(database, max_rows=200_000, timeout_seconds=5)
     result = executor.execute(
         "SELECT " + ",".join(quote(c) for c in columns) + " FROM " + quote(table)
     )
-    # Verify physical column names: SQLite double-quoted-string compatibility must not
-    # turn a misspelled identifier into an apparently valid constant numeric feature.
-    with sqlite3.connect(database.resolve().as_uri() + "?mode=ro", uri=True) as db:
-        physical = {row[1] for row in db.execute("PRAGMA table_info(" + quote(table) + ")")}
-    if not set(columns).issubset(physical):
-        raise ValueError("unknown analysis column")
     rows = [
         row
         for row in result.rows

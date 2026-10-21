@@ -49,6 +49,7 @@ def stage7_fingerprint(root: Path) -> dict:
         "contracts/statistical_rules.py",
         "contracts/independent_test.py",
         "tools/independent_test.py",
+        "tools/analysis_scope.py",
         "tools/pearson_test.py",
         "evaluation/stage_six_analysis.py",
         "tools/answer_fields.py",

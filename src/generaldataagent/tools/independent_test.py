@@ -3,12 +3,12 @@
 import hashlib
 import math
 import re
-import sqlite3
 import statistics
 import warnings
 from decimal import Decimal
 
 from generaldataagent.catalog.field_evidence import public_quoted_labels
+from generaldataagent.tools.analysis_scope import validate_analysis_columns
 from generaldataagent.tools.sql_guard import SqlGuard
 from generaldataagent.tools.sqlite import SQLiteReadOnlyExecutor
 
@@ -46,10 +46,12 @@ def independent_test(database, arguments, *, allowed_relations: set[str], public
     def quote(value):
         return '"' + value.replace('"', '""') + '"'
 
-    with sqlite3.connect(database.resolve().as_uri() + "?mode=ro", uri=True) as db:
-        physical = {row[1] for row in db.execute("PRAGMA table_info(" + quote(table) + ")")}
-    if not set(arguments.columns + [f.column for f in spec.filters]) <= physical:
-        raise ValueError("unknown analysis column")
+    validate_analysis_columns(
+        database,
+        table,
+        arguments.columns + [f.column for f in spec.filters],
+        allowed_relations=allowed_relations,
+    )
     measure, group = arguments.columns
     predicates = [quote(group) + " IN (?,?)"]
     parameters = list(spec.groups)
