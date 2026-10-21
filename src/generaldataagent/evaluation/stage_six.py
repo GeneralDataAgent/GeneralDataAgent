@@ -1223,6 +1223,34 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     final_sql, failure = sql, None
                     break
                 feedback = bounded_observation(result_data) if repair else result_data
+                if (
+                    semantic
+                    and task.benchmark != "bird-mini-dev-sqlite"
+                    and tool == "sql"
+                    and not requests_independent_test(public_task_text)
+                    and len(result.rows) == 1
+                    and len(set(result.columns)) == len(result.columns)
+                ):
+                    # Offer only exact public aliases with data dependencies. These
+                    # paths are proposals, not a submission or a semantic certificate.
+                    candidates = [
+                        {"name": key, "step": step, "path": ["rows", 0, index]}
+                        for index, key in enumerate(result.columns)
+                        if key in task_spec.answer.columns
+                        and result_data["data_dependent_columns"][index]
+                        and (
+                            key not in task_spec.answer.fields
+                            or task_spec.answer.fields[key].kind not in {"set", "list"}
+                        )
+                    ]
+                    if candidates:
+                        feedback = dict(feedback) | {
+                            "available_public_bindings": candidates,
+                            "binding_scope": (
+                                "exact SQL aliases only; verify requested computation, "
+                                "then submit all public keys through submit_answers"
+                            ),
+                        }
                 messages.append(("human", json.dumps({"step": step, **feedback}, default=str)))
             except Exception as exc:
                 if semantic:

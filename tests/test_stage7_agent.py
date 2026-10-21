@@ -77,6 +77,99 @@ def test_observed_token_countdown_preserves_spend_after_rejected_action(database
     assert result["tokens"] == 34 and result["failure"] is None
 
 
+def test_public_binding_hints_skip_constants_and_preserve_original_evidence(database):
+    count = 0
+
+    class Model:
+        def invoke(self, messages):
+            nonlocal count
+            count += 1
+            if count == 1:
+                action = {"sql": "SELECT AVG(id) AS mean, 999 AS n FROM people"}
+            else:
+                observation = json.loads(messages[-2][1])
+                if count == 2:
+                    assert observation["available_public_bindings"] == [
+                        {"name": "mean", "step": 1, "path": ["rows", 0, 0]}
+                    ]
+                    action = {"sql": "SELECT COUNT(*) AS n FROM people"}
+                else:
+                    assert observation["available_public_bindings"] == [
+                        {"name": "n", "step": 2, "path": ["rows", 0, 0]}
+                    ]
+                    action = {
+                        "submit_answers": {
+                            "fields": [
+                                {"name": "mean", "step": 1, "path": ["rows", 0, 0]},
+                                *observation["available_public_bindings"],
+                            ]
+                        }
+                    }
+            return SimpleNamespace(
+                content=json.dumps(action),
+                usage_metadata={"total_tokens": 10},
+                response_metadata={},
+            )
+
+    result = BoundedSQLAgent(Model(), tool_profile="sql-semantic", max_steps=3).run(
+        Task(
+            "infiagent-dabench",
+            "synthetic",
+            "Mean and count?",
+            "@mean[value] @n[count]",
+            "easy",
+            "data",
+        ),
+        database,
+    )
+    assert result["failure"] is None and result["answers"] == {"mean": 1.5, "n": 2}
+    for key, receipt in result["answer_evidence"].items():
+        expected_step = 1 if key == "mean" else 2
+        assert receipt["result_hash"] == result["trace"][expected_step - 1]["result_hash"]
+
+
+@pytest.mark.parametrize(
+    "sql,question,instructions",
+    [
+        ("SELECT id AS mean FROM people", "Mean?", "@mean[value]"),
+        ("SELECT AVG(id) AS MEAN FROM people", "Mean?", "@mean[value]"),
+        ("SELECT AVG(id) AS mean, AVG(score) AS mean FROM people", "Mean?", "@mean[value]"),
+        ("SELECT AVG(id) AS mean FROM people", "Independent sample t-test?", "@mean[value]"),
+        (
+            "SELECT AVG(id) AS mean FROM people",
+            "Values?",
+            '@mean[v] where "v" is a set of numbers.',
+        ),
+    ],
+)
+def test_binding_hints_do_not_guess_aliases_methods_or_collection_completeness(
+    database, sql, question, instructions
+):
+    count = 0
+
+    class Model:
+        def invoke(self, messages):
+            nonlocal count
+            count += 1
+            if count == 1:
+                action = {"sql": sql}
+            else:
+                observation = json.loads(messages[-2][1])
+                assert "available_public_bindings" not in observation
+                action = {"unsupported": "synthetic stop"}
+            return SimpleNamespace(
+                content=json.dumps(action),
+                usage_metadata={"total_tokens": 10},
+                response_metadata={},
+            )
+
+    result = BoundedSQLAgent(Model(), tool_profile="sql-semantic", max_steps=2).run(
+        Task("infiagent-dabench", "synthetic", question, instructions, "easy", "data"), database
+    )
+    assert result["trace"][0]["status"] == "ok"
+    assert result["failure"] == "unsupported_capability"
+
+
 def test_sql_ties_rejection_then_repair(database):
     result = run(
         database,
