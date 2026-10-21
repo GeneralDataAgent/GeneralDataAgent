@@ -45202,16 +45202,16 @@
     "validator_source_commit": "28e0ac5f05ac35e1a729ad5150a69d0df85543eb"
   },
   "latest_local_validation": {
-    "source_commit": "7f58d9f2c192e9425dc81d58a7bc397a20d3fcf7",
+    "source_commit": "7b033596b9b07fcfd734eddece0c1d79377bd426",
     "stage7_fingerprint": {
-      "contracts/analysis.py": "6765681aa5184f84a7b82d17c63b0df0108f77b2031d91c29aa6d96372c240fc",
+      "contracts/analysis.py": "791ab027c0cad0bf7d7973bc631364b25b9dcc7be6be542c35984682e7ab412d",
       "contracts/answer_fields.py": "e6ecbd59912179bc23d1be8acb4c4a085e20169c53b43e1907175391d949095b",
       "contracts/statistical_rules.py": "3f63abe15c76c51965c65b20c92fc9ec25c43b03b19a99c4a176de39017aa6f9",
       "contracts/independent_test.py": "4d7460f13ab7585d3e32d996183ee0c3100fe5102e26abb68215e5b6f34d3ec9",
       "tools/independent_test.py": "245e7e678912d61213844cdd6e4b4fd0b46c382b66feb915d2bc9c116e17622f",
       "tools/analysis_scope.py": "aa764b78ddb57a419e9adad183a9257d8f987acfa57963490f9cc802c6743e69",
-      "tools/pearson_test.py": "69eac7adc7d10fcd2e740f372315796903ea5f3dd4598e7f27ba5b2e65275259",
-      "evaluation/stage_six_analysis.py": "5ea83b97394c33fd4a3dc390629848da8dc285853c84369dfec530ea34b46e05",
+      "tools/pearson_test.py": "4be557bc5e122bdc1f21b7cbc530e3edef4034e434657c56f7b25aea589ad327",
+      "evaluation/stage_six_analysis.py": "ab52224d4f50b1a23dabdc5f58cbf0bd60f4358b7ccaa7e570ebb921ff29008b",
       "tools/answer_fields.py": "a19b3bd9e3ff085b0155a05b171956631d39f31bfce49173ac8c709d6138f250",
       "contracts/semantic_requirements.py": "bc0683ead82ef284acbe9fe71b5af437ddce357db5b0c46027ae34622dfe867e",
       "tools/semantic_requirements.py": "bf25b5955a61b460375ebef86e3c50c9c55fe516f639fcb10256c67187550d31",
@@ -45223,16 +45223,16 @@
       "tools/sql_semantics.py": "1fd38f1d3a2a28c1b07d3d241104719fef47e6e7c20e5537f3928c071dd84f8e",
       "tools/sql_guard.py": "72ef5c19eb4080f3a75f745588eff76780684a0691c3ab141c79d17c6ca5db59",
       "tools/sqlite.py": "6cc32bffd2d0822f3a0805d63ab15624c0530d9e0b6e719053f2d0c869784251",
-      "evaluation/stage_six.py": "b786848ab691c2936d899196baa52abcd09189029e75b14998ba9681ccab3684",
+      "evaluation/stage_six.py": "38d01024d32d0fcf7ff88f63f5a066c9dbaa8162db36ed07ca3f9cea401e44c6",
       "evaluation/stage_six_sql_precision.py": "9636255157d5a6477972ff3dadd0d50454710dc3150b09b8c56841f8180d3fa6",
       "evaluation/stage_six_repair.py": "2a792c25aa73b998f01dd61d3bbfae1a73c34f3532c80620971016cdd9317daf",
-      "evaluation/stage_seven.py": "a0e4cbc1c1fcb9e3701d11971fd4ff4d4ef7af28a916d1db7578337e3597d78f",
+      "evaluation/stage_seven.py": "4a9ad421c1216d19e22b5b5041606ef7e876768b0a1fb64e943b407071499a2b",
       "contracts/query_plan.py": "4b18902c4ee0a82f35b4776bde17713a18672f2ef87b45e903cae3c958c9ad9e",
       "tools/semantic_sql.py": "ae6c20f44c53eabbdd9a51d8f052b9d3b0f27c8c93c4a0ddd377d8525ba1cd47"
     },
-    "passed": 1107,
+    "passed": 1109,
     "skipped": 1,
-    "coverage_percent": 89.3,
+    "coverage_percent": 89.32,
     "ruff_check": "passed",
     "format_check": "passed",
     "diff_check": "passed",
@@ -193468,5 +193468,237 @@
     ],
     "status": "completed",
     "run_id": 39634448252
+  },
+  "binary_pearson_v58": {
+    "kind": "explicit developer binary public Pearson policy diagnostic; not a full or unseen cohort",
+    "source_commit": "7b033596b9b07fcfd734eddece0c1d79377bd426",
+    "fingerprint": {
+      "contracts/analysis.py": "791ab027c0cad0bf7d7973bc631364b25b9dcc7be6be542c35984682e7ab412d",
+      "contracts/answer_fields.py": "e6ecbd59912179bc23d1be8acb4c4a085e20169c53b43e1907175391d949095b",
+      "contracts/statistical_rules.py": "3f63abe15c76c51965c65b20c92fc9ec25c43b03b19a99c4a176de39017aa6f9",
+      "contracts/independent_test.py": "4d7460f13ab7585d3e32d996183ee0c3100fe5102e26abb68215e5b6f34d3ec9",
+      "tools/independent_test.py": "245e7e678912d61213844cdd6e4b4fd0b46c382b66feb915d2bc9c116e17622f",
+      "tools/analysis_scope.py": "aa764b78ddb57a419e9adad183a9257d8f987acfa57963490f9cc802c6743e69",
+      "tools/pearson_test.py": "4be557bc5e122bdc1f21b7cbc530e3edef4034e434657c56f7b25aea589ad327",
+      "evaluation/stage_six_analysis.py": "ab52224d4f50b1a23dabdc5f58cbf0bd60f4358b7ccaa7e570ebb921ff29008b",
+      "tools/answer_fields.py": "a19b3bd9e3ff085b0155a05b171956631d39f31bfce49173ac8c709d6138f250",
+      "contracts/semantic_requirements.py": "bc0683ead82ef284acbe9fe71b5af437ddce357db5b0c46027ae34622dfe867e",
+      "tools/semantic_requirements.py": "bf25b5955a61b460375ebef86e3c50c9c55fe516f639fcb10256c67187550d31",
+      "tools/public_formulas.py": "9eeab0f4c8a7e48584753a02e42989ca027283082631b9b6f6be710dc7eb4a1a",
+      "orchestration/analysis_plan.py": "cb9704c3b3af020317e5204a56013c83e93a3d1065b6e5ed1e08feff97770687",
+      "catalog/semantic_context.py": "d1e15351e2cbe3ba01fc35f6979f27ad28662e61f025d4a8a5f7f867119809ca",
+      "catalog/field_evidence.py": "e3fa95a2c4bf71f291ea3134329c5b926f666aad72a511411f9eb95a8fd2e926",
+      "catalog/join_evidence.py": "cd5ae4218c11eba66a7a3b7166ed226ac37b81ed6229c64978d63be51de7205e",
+      "tools/sql_semantics.py": "1fd38f1d3a2a28c1b07d3d241104719fef47e6e7c20e5537f3928c071dd84f8e",
+      "tools/sql_guard.py": "72ef5c19eb4080f3a75f745588eff76780684a0691c3ab141c79d17c6ca5db59",
+      "tools/sqlite.py": "6cc32bffd2d0822f3a0805d63ab15624c0530d9e0b6e719053f2d0c869784251",
+      "evaluation/stage_six.py": "38d01024d32d0fcf7ff88f63f5a066c9dbaa8162db36ed07ca3f9cea401e44c6",
+      "evaluation/stage_six_sql_precision.py": "9636255157d5a6477972ff3dadd0d50454710dc3150b09b8c56841f8180d3fa6",
+      "evaluation/stage_six_repair.py": "2a792c25aa73b998f01dd61d3bbfae1a73c34f3532c80620971016cdd9317daf",
+      "evaluation/stage_seven.py": "4a9ad421c1216d19e22b5b5041606ef7e876768b0a1fb64e943b407071499a2b",
+      "contracts/query_plan.py": "4b18902c4ee0a82f35b4776bde17713a18672f2ef87b45e903cae3c958c9ad9e",
+      "tools/semantic_sql.py": "ae6c20f44c53eabbdd9a51d8f052b9d3b0f27c8c93c4a0ddd377d8525ba1cd47"
+    },
+    "benchmark": "infiagent-dabench",
+    "model_route": {
+      "provider_id": "magpie",
+      "app_type": "magpie",
+      "model": "workbuddy/deepseek-v4.1-flash",
+      "transport": "openai-chat",
+      "thinking_mode": "default",
+      "json_mode": false,
+      "max_output_tokens": 3000,
+      "endpoint_hash": "fe8827a6b46979db5015036d380dd4e1f10eda5b76101c62a322240bf51a0573",
+      "wire_api": "chat_completions",
+      "gateway_adapter_hash": "163619e55b3ee9dd7eaeda7e9275a0cdc2a07972b6b67602016151f66632b8e6",
+      "gateway_headers_hash": "0a6dda900b2ea6b80cb4df4282bd2ec368d99d39ee00f707de87660edce6d440",
+      "route_hash": "ddcb6a5429c4f5365aa21351db2a358e378a5beb5c3b07ae80138dd444b8fbd4"
+    },
+    "reference_inputs_sent_to_worker": false,
+    "source_csv_hash": "3e0540386cf89b4f5e1d7f2760f9aa3885ea21119d3b12e9e5c07056caae7367",
+    "production_accepted": false,
+    "results": [
+      {
+        "answers": {
+          "correlation_coefficient": "0.53",
+          "p_value": "0.0000",
+          "correlation": "correlated"
+        },
+        "raw_answers": {},
+        "answer_evidence": {
+          "correlation_coefficient": {
+            "step": 1,
+            "path": [
+              "correlation"
+            ],
+            "raw_value": 0.526162517182707,
+            "submitted_value": "0.53",
+            "raw_type": "float",
+            "submitted_type": "str",
+            "method_id": "pearson_test",
+            "declared_public_unit": null,
+            "result_hash": "4761ae61fc21b5e029150739e74006b12cf7b212e6aee1dc1b50bfa8b2f4a7af"
+          },
+          "p_value": {
+            "step": 1,
+            "path": [
+              "p_value"
+            ],
+            "raw_value": 3.9482590781424425e-189,
+            "submitted_value": "0.0000",
+            "raw_type": "float",
+            "submitted_type": "str",
+            "method_id": "pearson_test",
+            "declared_public_unit": null,
+            "result_hash": "4761ae61fc21b5e029150739e74006b12cf7b212e6aee1dc1b50bfa8b2f4a7af"
+          },
+          "correlation": {
+            "step": 1,
+            "path": [
+              "public_rule_label"
+            ],
+            "raw_value": "correlated",
+            "submitted_value": "correlated",
+            "raw_type": "str",
+            "submitted_type": "str",
+            "method_id": "pearson_test",
+            "declared_public_unit": null,
+            "result_hash": "4761ae61fc21b5e029150739e74006b12cf7b212e6aee1dc1b50bfa8b2f4a7af"
+          }
+        },
+        "task_contract": {
+          "question": "1. Is there a correlation between the \"nsnps\" and \"nsamplecov\" columns? Calculate the Pearson correlation coefficient (r) to assess the strength of the correlation. Assess the significance of the correlation using a two-tailed test with a significance level (alpha) of 0.05. Report the p-value associated with the correlation test. If the p-value is greater than or equal to 0.05, report that there is no significant correlation.",
+          "public_requirements": "Calculate the Pearson correlation coefficient (r) to assess the strength and direction of the linear relationship between \"nsnps\" and \"nsamplecov\". Assess the significance of the correlation using a two-tailed test with a significance level (alpha) of 0.05. Report the p-value associated with the correlation test. Consider the relationship to be correlated if the p-value is less than 0.05. If the p-value is greater than or equal to 0.05, report that there is no significant correlation.\n@correlation_coefficient[r_value]\n@p_value[p_value]\n@correlation[colleration]\nwhere \"r_value\" is a number between -1 and 1, rounded to two decimal places.\nwhere \"p_value\" is a number between 0 and 1, rounded to four decimal places.\nwhere \"colleration\" is a string that can either be \"correlated\" or \"not correlated\" based on the conditions specified in the constraints.",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "correlation",
+              "correlation_coefficient",
+              "p_value"
+            ],
+            "shape": "rows",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {
+              "correlation_coefficient": {
+                "kind": "number",
+                "item_kind": null,
+                "order": null,
+                "minimum": -1.0,
+                "maximum": 1.0,
+                "choices": null,
+                "nullable": null,
+                "decimals": 2,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "where \"r_value\" is a number between -1 and 1, rounded to two decimal places.",
+                "collection_separator": null
+              },
+              "p_value": {
+                "kind": "number",
+                "item_kind": null,
+                "order": null,
+                "minimum": 0.0,
+                "maximum": 1.0,
+                "choices": null,
+                "nullable": null,
+                "decimals": 4,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "where \"p_value\" is a number between 0 and 1, rounded to four decimal places.",
+                "collection_separator": null
+              },
+              "correlation": {
+                "kind": "string",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": [
+                  "correlated",
+                  "not correlated"
+                ],
+                "nullable": null,
+                "decimals": null,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "where \"colleration\" is a string that can either be \"correlated\" or \"not correlated\" based on the conditions specified in the constraints.",
+                "collection_separator": null
+              }
+            }
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": null,
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "tool": "fixed_analysis",
+            "status": "ok",
+            "result_hash": "4761ae61fc21b5e029150739e74006b12cf7b212e6aee1dc1b50bfa8b2f4a7af",
+            "response_mode": "native_function",
+            "action": {
+              "analysis": {
+                "table": "data",
+                "columns": [
+                  "nsnps",
+                  "nsamplecov"
+                ],
+                "operation": "pearson_test",
+                "significance_rule": {
+                  "alpha": 0.05,
+                  "significant_label": "correlated",
+                  "nonsignificant_label": "not correlated"
+                }
+              }
+            }
+          }
+        ],
+        "tokens": 8554,
+        "input_tokens": 8322,
+        "output_tokens": 232,
+        "usage_status": "complete",
+        "elapsed_seconds": 20.994894874980673,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 19.490315041999565,
+        "case_id": "300",
+        "passed": false,
+        "database_unchanged": true,
+        "database_hash": "bb6dc3260d5a51b19e2b71e87aea38d1ef1b4a7fe2f6ff7f02f84e5e381ea277",
+        "sub_hits": 1,
+        "sub_total": 2
+      }
+    ],
+    "receipt_errors": []
+  },
+  "binary_pearson_v58_recomputed": {
+    "source_commit": "7b033596b9b07fcfd734eddece0c1d79377bd426",
+    "method": "pearson_test",
+    "result_hash_recomputed_equal": true,
+    "all_raw_bindings_equal": true,
+    "strict_passed": false,
+    "strict_score_changed": false,
+    "independent_external_adjudication": false
   }
 }
