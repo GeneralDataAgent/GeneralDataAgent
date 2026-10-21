@@ -75,6 +75,7 @@ def test_stage_specific_native_schemas_do_not_offer_unavailable_tools():
     assert submit_schema["required"] == ["sql", "output_columns"]
     assert "$defs" not in submit_schema
     execution = bind_typed_tools(Model(), sql_output=True, planned=True)
+    assert execution["tool_choice"] == "required"
     assert {t["function"]["name"] for t in execution["tools"]} == {
         "execute_sql",
         "submit_sql",

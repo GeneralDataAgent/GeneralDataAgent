@@ -662,6 +662,7 @@ def test_native_query_plan_compiles_to_final_sql_in_one_opt_in_action(database):
             assert {tool["function"]["name"] for tool in kwargs["tools"]} == {
                 "submit_sql",
                 "submit_query_plan",
+                "plan_analysis",
             }
             assert kwargs["tool_choice"] == "required"
             return self
@@ -777,3 +778,53 @@ def test_undefined_population_feedback_reuses_public_scoped_literal_evidence(dat
         "items": 0,
     }
     assert "Do not merely add NULLIF" in feedback["hint"]
+
+
+def test_opt_in_native_staged_contract_crosscheck_and_final_submission(database):
+    from langchain_core.messages import AIMessage, ToolMessage
+
+    class Native:
+        calls = 0
+
+        def bind(self, **kwargs):
+            names = {tool["function"]["name"] for tool in kwargs["tools"]}
+            assert kwargs["tool_choice"] == "required"
+            assert kwargs["parallel_tool_calls"] is False
+            if self.calls == 0:
+                assert "plan_analysis" in names and "crosscheck_sql" not in names
+            else:
+                assert "crosscheck_sql" in names and "plan_analysis" not in names
+            return self
+
+        def invoke(self, messages):
+            self.calls += 1
+            if self.calls == 1:
+                name, args = "plan_analysis", {"answer": {"columns": ["id"], "shape": "rows"}}
+            elif self.calls == 2:
+                assert any(
+                    isinstance(item, ToolMessage) and "accepted" in item.content
+                    for item in messages
+                )
+                name, args = (
+                    "crosscheck_sql",
+                    {"sql": "SELECT DISTINCT id FROM people", "purpose": "entity_grain"},
+                )
+            else:
+                name, args = "submit_sql", {"sql": "SELECT id FROM people"}
+            return AIMessage(
+                content="",
+                tool_calls=[{"name": name, "id": str(self.calls), "args": args}],
+                usage_metadata={"total_tokens": 10, "input_tokens": 8, "output_tokens": 2},
+            )
+
+    before = database.read_bytes()
+    task = Task("bird-mini-dev-sqlite", "synthetic", "list all people ids", "", "easy", "people")
+    result = BoundedSQLAgent(Native(), tool_profile="sql-semantic-plan", max_steps=3).run(
+        task, database
+    )
+    assert result["failure"] is None
+    assert result["trace"][0]["status"] == "planned"
+    assert len(result["trace"]) == 3
+    assert result["final_sql"] == "SELECT id FROM people"
+    assert result["task_contract"]["question"] == task.question
+    assert database.read_bytes() == before
