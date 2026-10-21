@@ -52,7 +52,34 @@ def _scope(tree, name):
         for node in tree.find_all(cls)
         if _identifier_key(node.alias) == _identifier_key(name)
     ]
-    return candidates[0] if len(candidates) == 1 and isinstance(candidates[0], exp.Select) else None
+    if candidates:
+        return (
+            candidates[0]
+            if len(candidates) == 1 and isinstance(candidates[0], exp.Select)
+            else None
+        )
+    if isinstance(tree, exp.Select):
+        from sqlglot.optimizer.scope import traverse_scope
+
+        root_scope = next(
+            (scope for scope in traverse_scope(tree) if scope.expression is tree), None
+        )
+        if root_scope is not None:
+            # A uniquely named physical source of the root SELECT identifies that
+            # SELECT, not the table's nested appearances or another query scope.
+            sources = [
+                source
+                for _, source in root_scope.selected_sources.values()
+                if isinstance(source, exp.Table)
+                and _identifier_key(name)
+                in {
+                    _identifier_key(source.name),
+                    _identifier_key(source.alias_or_name),
+                }
+            ]
+            if len(sources) == 1:
+                return tree
+    return None
 
 
 def _conjuncts(node):

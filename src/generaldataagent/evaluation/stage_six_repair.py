@@ -75,6 +75,12 @@ def bounded_observation(result: dict, *, max_chars: int = 6000) -> dict:
 
 def execution_hint(exc: Exception) -> str:
     text = str(exc)
+    if any(code in text for code in ("predicate_scope", "date_scope", "ratio_scope")):
+        return (
+            "A requirement scope must identify root, a unique CTE/subquery alias, or a unique "
+            "direct physical source of the root SELECT. Nested table names and ambiguous "
+            "self-joins cannot identify a scope. Preserve the accepted requirement."
+        )
     if "data_dependent_sql_required" in text:
         return (
             "Every final SQL output must depend on scoped table data. Use explicit data-derived "

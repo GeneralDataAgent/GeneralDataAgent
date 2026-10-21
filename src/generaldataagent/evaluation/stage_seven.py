@@ -74,8 +74,9 @@ flat tool. Rich contracts remain available through the separate JSON compatibili
 Omit requirements for ordinary direct SQL. A SQL error needs a corrected query, not a new
 optional contract. Declare structural requirements only when intentionally needed and sourced.
 Use submit_sql to finish. One action per turn, six total, including planning and checks.
-requirements optionally declares predicates(expression, clause where/having/join, scope root/CTE
-name), dates(column,start,end,encoding iso_date/compact_text/compact_integer,start_inclusive,
+requirements optionally declares predicates(expression, clause where/having/join, scope root,
+CTE/subquery alias, or unique direct root source), dates(column,start,end,encoding
+iso_date/compact_text/compact_integer,start_inclusive,
 end_inclusive), ratios(output_column,numerator,denominator,multiplier 1 or 100,zero_guard).
 Every requirement needs source_excerpt copied exactly from public text. Checks are structural:
 required conditions must be conjuncts in the declared scope; ratios must use declared operands.

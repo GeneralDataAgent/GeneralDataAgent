@@ -913,3 +913,46 @@ def test_sql_output_cannot_certify_constants_as_database_answers(database, sql, 
     assert result["failure"] is None
     assert result["trace"][0]["checks"] == ["data_dependent_sql_required"]
     assert result["final_sql"] == "SELECT COUNT(*) AS n FROM people"
+
+
+def test_staged_native_style_contract_accepts_unambiguous_root_source_without_mutation(database):
+    from generaldataagent.contracts.semantic_requirements import SemanticRequirements
+
+    question = "Return people tied for the highest score."
+    requirements = {
+        "predicates": [
+            {
+                "expression": "score=(SELECT MAX(score) FROM people)",
+                "scope": "people",
+                "source_excerpt": question,
+            }
+        ]
+    }
+    actions = [
+        {
+            "plan_analysis": {
+                "answer": {"columns": ["id"], "shape": "rows", "ties": "all"},
+                "requirements": requirements,
+            }
+        },
+        {
+            "crosscheck_sql": {
+                "sql": "SELECT id FROM (SELECT id,RANK() OVER(ORDER BY score DESC) AS r "
+                "FROM people) WHERE r=1",
+                "purpose": "ties",
+            }
+        },
+        {
+            "submit_sql": {
+                "sql": "SELECT id FROM people WHERE score=(SELECT MAX(score) FROM people)"
+            }
+        },
+    ]
+    result = run(database, actions, question=question, profile="sql-semantic-plan")
+    assert result["failure"] is None
+    assert (
+        result["task_contract"]["requirements"]
+        == SemanticRequirements.model_validate(requirements).model_dump()
+    )
+    assert len(result["trace"]) == 3
+    assert result["trace"][1]["tool"] == "sql_crosscheck"

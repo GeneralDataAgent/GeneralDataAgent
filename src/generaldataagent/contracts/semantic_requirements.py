@@ -9,7 +9,13 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 class Requirement(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
     source_excerpt: str = Field(min_length=1, max_length=2000)
-    scope: str = Field(default="root", min_length=1, max_length=200)
+    scope: str = Field(
+        default="root",
+        min_length=1,
+        max_length=200,
+        description="root SELECT, named CTE/subquery alias, or unique direct physical root source; "
+        "never a nested table occurrence or an ambiguous self-join source",
+    )
 
 
 class PredicateRequirement(Requirement):

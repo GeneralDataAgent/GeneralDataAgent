@@ -361,3 +361,61 @@ def test_public_all_count_does_not_borrow_other_alias_or_nested_scope_filters():
         question,
         'DIVIDE(SUM("broken), COUNT(all people))',
     )
+
+
+def test_physical_root_scope_keeps_predicates_without_borrowing_nested_sources():
+    req = SemanticRequirements.model_validate(
+        {
+            "predicates": [
+                {
+                    "expression": "score=(SELECT MAX(score) FROM people)",
+                    "scope": "people",
+                    "source_excerpt": "highest score",
+                }
+            ]
+        }
+    )
+    assert not check_requirements(
+        "SELECT id FROM people WHERE score=(SELECT MAX(score) FROM people)", req
+    )
+    assert check_requirements(
+        "SELECT id FROM people WHERE EXISTS(SELECT 1 FROM other "
+        "WHERE score=(SELECT MAX(score) FROM people))",
+        req,
+    ) == ["predicate_placement_or_population"]
+    assert check_requirements(
+        "SELECT id FROM other WHERE EXISTS(SELECT 1 FROM people "
+        "WHERE score=(SELECT MAX(score) FROM people))",
+        req,
+    ) == ["predicate_scope"]
+
+
+def test_root_source_scope_is_not_ambiguous_self_join_or_cte_reference():
+    req = SemanticRequirements.model_validate(
+        {
+            "predicates": [
+                {"expression": "p.score=10", "scope": "people", "source_excerpt": "score 10"}
+            ]
+        }
+    )
+    assert not check_requirements("SELECT p.id FROM people p WHERE p.score=10", req)
+    assert check_requirements(
+        "SELECT p.id FROM people p JOIN people q ON p.id=q.id WHERE p.score=10", req
+    ) == ["predicate_scope"]
+    assert not check_requirements(
+        "SELECT p.id FROM people p JOIN people q ON p.id=q.id WHERE p.score=10",
+        req.model_copy(
+            update={"predicates": [req.predicates[0].model_copy(update={"scope": "p"})]}
+        ),
+    )
+    assert check_requirements(
+        "WITH people AS (SELECT id,score FROM base) SELECT p.id FROM people p WHERE p.score=10", req
+    ) == ["predicate_placement_or_population"]
+
+
+def test_physical_scope_source_retains_sqlite_unicode_identifier_identity():
+    req = SemanticRequirements.model_validate(
+        {"predicates": [{"expression": "kind=1", "scope": "Ä", "source_excerpt": "kind 1"}]}
+    )
+    assert not check_requirements('SELECT id FROM "Ä" WHERE kind=1', req)
+    assert check_requirements('SELECT id FROM "ä" WHERE kind=1', req) == ["predicate_scope"]
