@@ -219,6 +219,11 @@ def semantic_context(
             table = max(fields, key=lambda t: len(json.dumps(t)))
             table["fields"].pop()
             table["omitted_fields"] += 1
+        elif output["tables"]:
+            # Empty previews repeat schema metadata. Retain declared join keys and
+            # scoped public observations before these low-information row counters.
+            output["tables"].popitem()
+            output["omitted_table_previews"] += 1
         elif output["cardinalities"]:
             output["cardinalities"].pop()
             output["omitted_cardinality_checks"] += 1
@@ -235,11 +240,6 @@ def semantic_context(
         elif output["observed_value_candidates"]:
             output["observed_value_candidates"].pop()
             output["omitted_value_candidates"] = output.get("omitted_value_candidates", 0) + 1
-        elif output["tables"]:
-            # Schema is already in database_context. Empty preview metadata is less useful
-            # than exact public mappings and scoped population observations.
-            output["tables"].popitem()
-            output["omitted_table_previews"] += 1
         elif mappings["ambiguous"]:
             mappings["ambiguous"].pop()
             output["omitted_public_mappings"] = output.get("omitted_public_mappings", 0) + 1

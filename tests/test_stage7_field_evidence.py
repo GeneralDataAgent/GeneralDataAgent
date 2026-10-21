@@ -171,3 +171,41 @@ def test_public_field_identifier_case_and_numeric_literal_probes_are_conservativ
     record = result["public_field_mappings"]["ambiguous"][0]
     assert record["literal_kind"] == "number" and result["public_literal_checks"] == 0
     assert "literal_observations" not in record
+
+
+def test_compact_context_preserves_declared_join_before_empty_preview_metadata(tmp_path):
+    import json
+    import sqlite3
+
+    from generaldataagent.catalog.semantic_context import semantic_context
+
+    path = tmp_path / "join.sqlite"
+    extra = {f"aux_{i}" for i in range(10)}
+    with sqlite3.connect(path) as db:
+        db.executescript(
+            "CREATE TABLE groups(id INT PRIMARY KEY, name TEXT); "
+            "CREATE TABLE items(id INT, group_id INT REFERENCES groups(id), name TEXT); "
+            "INSERT INTO groups VALUES(1,'Winter'); INSERT INTO items VALUES(2,1,'Snow');"
+        )
+        for table in sorted(extra):
+            db.execute(f'CREATE TABLE "{table}"(id INT)')
+    before = path.read_bytes()
+    result = semantic_context(
+        path,
+        allowed_relations=extra | {"items", "groups"},
+        max_chars=1500,
+        public_text="item group Winter refers to name = 'Winter'",
+    )
+    assert result["relationships"]["foreign_keys"] == [
+        {
+            "table": "items",
+            "relationship": 0,
+            "sequence": 0,
+            "column": "group_id",
+            "references_table": "groups",
+            "references_column": "id",
+        }
+    ]
+    assert result["public_field_mappings"]["ambiguous"][0]["literal_observations"]
+    assert len(json.dumps(result)) <= 1500
+    assert path.read_bytes() == before
