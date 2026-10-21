@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from generaldataagent.contracts.analysis import AnalysisArguments
+from generaldataagent.contracts.independent_test import SignificanceRule
 from generaldataagent.contracts.statistical_rules import PearsonDecisionRule
 from generaldataagent.evaluation.stage_seven_acceptance import answer_receipt_errors
 from generaldataagent.evaluation.stage_six import BoundedSQLAgent, Task
@@ -24,6 +25,130 @@ RULE = PearsonDecisionRule(
     significant_low_label="weak",
     nonsignificant_label="absent",
 )
+
+
+def test_binary_p_policy_uses_unrounded_p_without_a_strength_threshold():
+    from generaldataagent.tools.pearson_test import public_significance
+
+    rule = SignificanceRule(alpha=0.05, significant_label="sig", nonsignificant_label="none")
+    text = 'At alpha 0.05, labels are "sig" and "none".'
+    assert public_significance(rule, 0.049999, text)["public_rule_label"] == "sig"
+    assert public_significance(rule, 0.05, text)["public_rule_label"] == "none"
+    for rows, label in [([(0, 0), (1, 1), (2, 2)], "sig"), ([(0, 0), (1, 2)], "none")]:
+        result = pearson_test(rows, significance_rule=rule, public_text=text)
+        assert result["public_rule_label"] == label
+        assert result["policy_interpretation_verified"] is False
+        assert result["assumptions_verified"] is False
+        assert "abs_r_threshold" not in result["significance_rule"]
+        assert result["decision_source_sha256"]
+    for text in [
+        "",
+        'alpha 0.01; unrelated value 0.05; labels "sig" and "none"',
+        "alpha 0.05, unquoted sig and none",
+    ]:
+        with pytest.raises(ValueError):
+            pearson_test([(0, 0), (1, 1), (2, 2)], significance_rule=rule, public_text=text)
+    with pytest.raises(ValueError, match="one public"):
+        pearson_test([(0, 0), (1, 1)], rule=RULE, significance_rule=rule)
+    with pytest.raises(ValueError, match="one public"):
+        AnalysisArguments(
+            table="data",
+            columns=["x", "y"],
+            operation="pearson_test",
+            decision_rule=RULE,
+            significance_rule=rule,
+        )
+    with pytest.raises(ValueError, match="requires pearson_test"):
+        AnalysisArguments(
+            table="data", columns=["x", "y"], operation="pearson", significance_rule=rule
+        )
+
+
+def test_binary_policy_has_native_schema_and_end_to_end_evidence_binding(tmp_path):
+    from generaldataagent.evaluation.stage_seven import bind_typed_tools
+
+    class BoundModel:
+        def bind(self, **kwargs):
+            return kwargs
+
+    tools = bind_typed_tools(BoundModel(), sql_output=False)["tools"]
+    schema = next(
+        t["function"]["parameters"] for t in tools if t["function"]["name"] == "fixed_analysis"
+    )
+    assert schema["properties"]["significance_rule"]["required"] == [
+        "alpha",
+        "significant_label",
+        "nonsignificant_label",
+    ]
+    database = tmp_path / "data.sqlite"
+    with sqlite3.connect(database) as db:
+        db.executescript(
+            "CREATE TABLE data(x REAL,y REAL); INSERT INTO data VALUES(0,0),(1,2),(2,1);"
+        )
+    actions = iter(
+        [
+            {
+                "analysis": {
+                    "table": "data",
+                    "columns": ["x", "y"],
+                    "operation": "pearson_test",
+                    "significance_rule": {
+                        "alpha": 0.05,
+                        "significant_label": "sig",
+                        "nonsignificant_label": "none",
+                    },
+                }
+            },
+            {
+                "answers": {},
+                "evidence_steps": [1],
+                "bindings": {
+                    "r": [1, ["correlation"]],
+                    "p": [1, ["p_value"]],
+                    "label": [1, ["public_rule_label"]],
+                },
+            },
+        ]
+    )
+
+    class Model:
+        def invoke(self, messages):
+            return SimpleNamespace(
+                content=json.dumps(next(actions)),
+                usage_metadata={"total_tokens": 10},
+                response_metadata={},
+            )
+
+    text = (
+        'Use alpha 0.05, labels "sig" and "none". @r[r_value] @p[p_value] @label[label_value] '
+        'where "r_value" is a number rounded to two decimal places. '
+        '"p_value" is a number rounded to four decimal places. "label_value" is a string.'
+    )
+    before = database.read_bytes()
+    result = BoundedSQLAgent(Model(), tool_profile="sql-semantic", max_steps=2).run(
+        Task(
+            "infiagent-dabench",
+            "synthetic",
+            "Two-sided Pearson and significance?",
+            text,
+            "easy",
+            "data",
+        ),
+        database,
+    )
+    assert result["failure"] is None
+    assert result["answers"] == {"r": "0.50", "p": "0.6667", "label": "none"}
+    assert {v["method_id"] for v in result["answer_evidence"].values()} == {"pearson_test"}
+    assert (
+        answer_receipt_errors(
+            {
+                "benchmark": "infiagent-dabench",
+                "results": [result | {"case_id": "synthetic", "passed": True}],
+            }
+        )
+        == []
+    )
+    assert database.read_bytes() == before
 
 
 @pytest.mark.parametrize(

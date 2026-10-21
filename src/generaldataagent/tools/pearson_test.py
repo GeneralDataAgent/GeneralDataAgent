@@ -7,6 +7,7 @@ import warnings
 from decimal import Decimal
 
 from generaldataagent.catalog.field_evidence import public_quoted_labels
+from generaldataagent.contracts.independent_test import SignificanceRule
 from generaldataagent.contracts.statistical_rules import PearsonDecisionRule
 
 
@@ -44,11 +45,17 @@ def public_decision(rule: PearsonDecisionRule, r: float, p: float, public_text: 
 
 
 def pearson_test(
-    rows: list, *, rule: PearsonDecisionRule | None = None, public_text: str = ""
+    rows: list,
+    *,
+    rule: PearsonDecisionRule | None = None,
+    significance_rule: SignificanceRule | None = None,
+    public_text: str = "",
 ) -> dict:
     import scipy
     from scipy.stats import ConstantInputWarning, NearConstantInputWarning, pearsonr
 
+    if rule is not None and significance_rule is not None:
+        raise ValueError("choose one public Pearson decision policy")
     if len(rows) < 2:
         raise ValueError("Pearson test requires at least two finite pairs")
     with warnings.catch_warnings():
@@ -78,4 +85,36 @@ def pearson_test(
     }
     if rule is not None:
         output.update(public_decision(rule, r, p, public_text))
+    if significance_rule is not None:
+        output.update(public_significance(significance_rule, p, public_text))
     return output
+
+
+def public_significance(rule: SignificanceRule, p: float, public_text: str) -> dict:
+    """A sourced binary p-value policy; no correlation-strength threshold is invented."""
+    numbers = {
+        Decimal(value) for value in re.findall(r"(?<![\w.])-?\d+(?:\.\d+)?(?!\w|\.\d)", public_text)
+    }
+    if Decimal(str(rule.alpha)) not in numbers:
+        raise ValueError("significance alpha must occur in original public text")
+    named = re.findall(
+        r"\b(?:alpha\)?|significance\s+level)\s*(?:of|=|:)?\s*"
+        r"(\d+(?:\.\d+)?)(?!\w|\.\d)",
+        public_text,
+        re.I,
+    )
+    if named and {Decimal(value) for value in named} != {Decimal(str(rule.alpha))}:
+        raise ValueError("significance rule conflicts with the public named level")
+    if not {rule.significant_label, rule.nonsignificant_label} <= set(
+        public_quoted_labels(public_text)
+    ):
+        raise ValueError("significance labels must be quoted in original public text")
+    return {
+        "public_rule_label": rule.significant_label
+        if p < rule.alpha
+        else rule.nonsignificant_label,
+        "significance_rule": rule.model_dump(),
+        "decision_source_sha256": hashlib.sha256(public_text.encode()).hexdigest(),
+        "policy_interpretation_verified": False,
+        "decision_scope": "public two-sided p-value policy; assumptions remain unverified",
+    }

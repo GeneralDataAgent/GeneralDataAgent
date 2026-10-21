@@ -5,7 +5,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from generaldataagent.contracts.answer_fields import AnswerFieldSpec
-from generaldataagent.contracts.independent_test import IndependentTestSpec
+from generaldataagent.contracts.independent_test import IndependentTestSpec, SignificanceRule
 from generaldataagent.contracts.query_plan import SemanticQueryPlan
 from generaldataagent.contracts.semantic_requirements import SemanticRequirements
 from generaldataagent.contracts.statistical_rules import PearsonDecisionRule
@@ -60,6 +60,7 @@ class AnalysisArguments(Contract):
         "describe", "pearson", "pearson_test", "linear_regression", "independent_t_test"
     ]
     decision_rule: PearsonDecisionRule | None = None
+    significance_rule: SignificanceRule | None = None
     test: IndependentTestSpec | None = None
 
     @model_validator(mode="after")
@@ -68,6 +69,10 @@ class AnalysisArguments(Contract):
             raise ValueError("independent_t_test requires its explicit test specification only")
         if self.decision_rule is not None and self.operation != "pearson_test":
             raise ValueError("decision rule requires pearson_test")
+        if self.significance_rule is not None and self.operation != "pearson_test":
+            raise ValueError("Pearson significance rule requires pearson_test")
+        if self.significance_rule is not None and self.decision_rule is not None:
+            raise ValueError("choose one public Pearson decision policy")
         if self.operation != "describe" and len(self.columns) != 2:
             raise ValueError("paired analysis requires two columns")
         return self

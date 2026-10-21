@@ -128,7 +128,14 @@ def fixed_analysis(
     elif operation == "pearson_test":
         from generaldataagent.tools.pearson_test import pearson_test
 
-        output.update(pearson_test(rows, rule=arguments.decision_rule, public_text=public_text))
+        output.update(
+            pearson_test(
+                rows,
+                rule=arguments.decision_rule,
+                significance_rule=arguments.significance_rule,
+                public_text=public_text,
+            )
+        )
     else:
         fit = statistics.linear_regression([r[0] for r in rows], [r[1] for r in rows])
         output.update(

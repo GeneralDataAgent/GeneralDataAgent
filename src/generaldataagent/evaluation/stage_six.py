@@ -463,6 +463,9 @@ abs_r_threshold, significant_high_label, significant_low_label, nonsignificant_l
 Thresholds and quoted labels must occur in public text. Uses unrounded p<alpha and
 abs(r)>=threshold;
 labels express the declared public policy, not scientifically verified linearity.
+For a binary p-only Pearson policy, instead pass significance_rule with alpha,
+significant_label,nonsignificant_label. Alpha and both quoted labels require public sources;
+p<alpha is tested before rounding. Do not combine it with decision_rule.
 Use the exact visible answer_fields as keys, and round as requested by the task. Never wrap
 @name[value] notation inside the generic answer key. For fee JSON use SQLite json_extract,
 json_array_length, and LIKE on the payload. Use group_concat for long lists instead of fetching

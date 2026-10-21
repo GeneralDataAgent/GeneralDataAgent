@@ -335,6 +335,9 @@ def bind_typed_tools(
             },
             "decision_rule": PearsonDecisionRule.model_json_schema(),
         }
+        from generaldataagent.contracts.independent_test import SignificanceRule
+
+        analysis_properties["significance_rule"] = SignificanceRule.model_json_schema()
         if independent_test_requested:
             from generaldataagent.contracts.independent_test import IndependentTestSpec
 
@@ -451,7 +454,10 @@ For explicit public r/p classification, pearson_test accepts optional decision_r
 abs_r_threshold, significant_high_label, significant_low_label, nonsignificant_label. Thresholds
 and quoted labels must occur in original public text. It applies p<alpha then abs(r)>=threshold
 to unrounded values. Labels express the public decision policy, not scientific proof of linearity.
-Bind ["public_rule_label"] for this policy label, ["p_value"] for p. Regression has no predictor
+For a binary p-only policy, instead use significance_rule={alpha,significant_label,
+nonsignificant_label}; alpha and both quoted labels need public sources. Do not combine rules.
+It applies p<alpha to the unrounded p-value without inventing an r-strength threshold.
+Bind ["public_rule_label"] for either policy label, ["p_value"] for p. Regression has no predictor
 p-values or held-out evaluation.
 If a required method cannot be computed by the available tools, call declare_unsupported with a
 brief reason. Do not consume the budget trying unsupported functions or invent an approximation.
