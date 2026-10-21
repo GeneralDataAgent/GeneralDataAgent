@@ -9,6 +9,7 @@ from generaldataagent.catalog.field_evidence import (
     enum_label_candidates,
     public_field_mappings,
 )
+from generaldataagent.catalog.join_evidence import observed_join_candidates
 from generaldataagent.evaluation.stage_six_sql_precision import schema_relationships
 from generaldataagent.tools.sql_guard import SqlGuard
 from generaldataagent.tools.sqlite import QueryExecutionError, SQLiteReadOnlyExecutor
@@ -134,6 +135,13 @@ def semantic_context(
         )
         mapping["literal_observations"] = observations
         mapping["observation_scope"] = "full-table exact public literal; not business certification"
+    observed_joins = observed_join_candidates(
+        database,
+        schema=full_schema,
+        relationships=relationships,
+        mappings=mappings,
+        public_text=public_text,
+    )
     # Composite FK components must be profiled together, never as independent joins.
     groups = {}
     for fk in relationships["foreign_keys"]:
@@ -206,6 +214,13 @@ def semantic_context(
         "cardinalities": cardinalities,
         "scope": "untrusted observations; aliases and date semantics require public evidence",
     }
+    if observed_joins["candidates"]:
+        output["observed_join_candidates"] = observed_joins["candidates"]
+        output["scope"] += "; observed join candidates are not declared business relationships"
+    if observed_joins["failures"]:
+        output["join_candidate_failures"] = observed_joins["failures"]
+    if observed_joins["omitted"]:
+        output["omitted_observed_join_candidates"] = observed_joins["omitted"]
 
     # Field schemas already appear in database_context: retain only bounded extra observations.
     for table in output["tables"].values():
@@ -271,6 +286,11 @@ def semantic_context(
         elif output["observed_value_candidates"]:
             output["observed_value_candidates"].pop()
             output["omitted_value_candidates"] = output.get("omitted_value_candidates", 0) + 1
+        elif output.get("observed_join_candidates"):
+            output["observed_join_candidates"].pop()
+            output["omitted_observed_join_candidates"] = (
+                output.get("omitted_observed_join_candidates", 0) + 1
+            )
         elif mappings["ambiguous"]:
             mappings["ambiguous"].pop()
             output["omitted_public_mappings"] = output.get("omitted_public_mappings", 0) + 1

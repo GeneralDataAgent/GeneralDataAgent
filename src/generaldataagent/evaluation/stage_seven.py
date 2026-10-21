@@ -51,6 +51,7 @@ def stage7_fingerprint(root: Path) -> dict:
         "orchestration/analysis_plan.py",
         "catalog/semantic_context.py",
         "catalog/field_evidence.py",
+        "catalog/join_evidence.py",
         "tools/sql_semantics.py",
         "evaluation/stage_seven.py",
         "contracts/query_plan.py",
@@ -81,6 +82,8 @@ For changes from a start to an end period, increase is (end-start)/start; verify
 actual period filters before submitting, including any public formula's A/B mapping.
 Check exact entity grain, requested projections, distinct entities versus joined records, explicit
 numerator/denominator population, real division, null handling, actual date encoding and boundaries.
+Observed join candidates use keys=[child,column,parent,declared_key] and full-table match counts.
+They are naming-based observations, not declared foreign keys or certified business relationships.
 For oldest by birthday use ascending date. Honor an explicit public year-difference formula;
 otherwise compute completed years when age at arrival is asked:
 year(arrival)-year(birth) minus one if arrival month/day precedes birthday. Verify date encoding.

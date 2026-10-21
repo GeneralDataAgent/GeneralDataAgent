@@ -505,7 +505,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
             request["semantic_context"] = semantic_context(
                 database,
                 allowed_relations=relations,
-                max_chars=1500 if task.benchmark == "bird-mini-dev-sqlite" else 4000,
+                max_chars=2000 if task.benchmark == "bird-mini-dev-sqlite" else 4000,
                 public_text=task.question + "\n" + task.instructions,
             )
             messages[1] = ("human", json.dumps(request))
