@@ -128,6 +128,55 @@ def test_semantic_context_has_a_global_serialized_budget(tmp_path):
     assert context["tables"]["wide"]["omitted_fields"] > 0
 
 
+def test_public_mentions_prioritize_wide_late_fields_without_inventing_meanings(tmp_path):
+    import json
+
+    path = tmp_path / "wide-target.sqlite"
+    with sqlite3.connect(path) as db:
+        db.execute(
+            "CREATE TABLE wide ("
+            + ",".join(f"c{i} TEXT" for i in range(49))
+            + ', "arrival_date" TEXT)'
+        )
+        db.execute(
+            "INSERT INTO wide VALUES (" + ",".join("?" for _ in range(50)) + ")",
+            ["unrelated " * 30] * 49 + ["2024-03-15"],
+        )
+    before = path.read_bytes()
+    context = semantic_context(
+        path,
+        allowed_relations={"wide"},
+        max_chars=1500,
+        public_text="Compare arrival_date across observations.",
+    )
+    fields = context["tables"]["wide"]["fields"]
+    assert fields[0]["name"] == "arrival_date"
+    assert fields[0]["enum_preview"] == ["2024-03-15"]
+    assert fields[0]["date_encoding"]["candidates"] == ["iso_date"]
+    assert fields[0]["date_encoding"]["verified_business_semantics"] is False
+    assert context["tables"]["wide"]["omitted_fields"] > 0
+    assert len(json.dumps(context)) <= 1500
+    assert path.read_bytes() == before
+
+
+def test_public_mentions_prioritize_late_tables_and_never_expand_relation_scope(tmp_path):
+    path = tmp_path / "many-tables.sqlite"
+    with sqlite3.connect(path) as db:
+        for index in range(14):
+            db.execute(f"CREATE TABLE t{index:02} (value TEXT)")
+    allowed = {f"t{index:02}" for index in range(13)}
+    context = semantic_context(
+        path,
+        allowed_relations=allowed,
+        max_chars=10000,
+        public_text="Inspect t12 and forbidden t13.",
+    )
+    assert next(iter(context["tables"])) == "t12"
+    assert "t13" not in context["tables"]
+    assert len(context["tables"]) == 12
+    assert context["omitted_table_previews"] == 1
+
+
 def test_scope_resolution_rejects_sqlite_double_quoted_string_typos(tmp_path):
     from generaldataagent.tools.sql_semantics import validate_column_scope
 

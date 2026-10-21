@@ -45203,8 +45203,8 @@
     "validator_source_commit": "28e0ac5f05ac35e1a729ad5150a69d0df85543eb"
   },
   "latest_local_validation": {
-    "source_commit": "whole literal parsing and SQLite alias follow-up; full v41 remains frozen 2f30d01",
-    "passed": 1029,
+    "source_commit": "public-priority context working tree; full v41 remains frozen 2f30d01",
+    "passed": 1031,
     "skipped": 1,
     "coverage_percent": 89.1,
     "ruff_check": "passed",
@@ -138050,7 +138050,116 @@
     "stage7_qualified": false,
     "production_accepted": false,
     "artifact_directory": ".artifacts/stage7/20261021-full-v41",
-    "dependency_change": "SciPy added equally to both arms; prior baselines not reused"
+    "dependency_change": "SciPy added equally to both arms; prior baselines not reused",
+    "bird_status": "completed",
+    "bird_comparison": {
+      "strict_comparison": {
+        "benchmark": "bird-mini-dev-sqlite",
+        "n": 60,
+        "baseline_passed": 27,
+        "candidate_passed": 28,
+        "improvements": [
+          "41",
+          "1003",
+          "1195"
+        ],
+        "regressions": [
+          "116",
+          "36"
+        ],
+        "pass_rate_delta": 0.016666666666666663,
+        "service_failures": {
+          "baseline": 0,
+          "candidate": 0
+        },
+        "observed_cost_usd": {
+          "baseline": 0.0,
+          "candidate": 0.0
+        },
+        "efficiency": {
+          "baseline": {
+            "reported_tokens": 204821,
+            "token_telemetry_complete": true,
+            "p50_seconds": 6.9625441869939095,
+            "p95_seconds": 20.71363700000802,
+            "cost_usd": null
+          },
+          "candidate": {
+            "reported_tokens": 680216,
+            "token_telemetry_complete": true,
+            "p50_seconds": 7.365017104508297,
+            "p95_seconds": 27.847104333006428,
+            "cost_usd": null
+          }
+        },
+        "failure_transitions": {
+          "passed->passed": 25,
+          "answer_mismatch->token_budget": 5,
+          "passed->answer_mismatch": 2,
+          "answer_mismatch->answer_mismatch": 23,
+          "answer_mismatch->passed": 3,
+          "execution_or_model_error->token_budget": 1,
+          "unsupported_capability->token_budget": 1
+        },
+        "attribution_valid": true,
+        "blocked_by": [],
+        "mcnemar_exact_two_sided_p": 1.0,
+        "paired_release_gate": {
+          "passed": false,
+          "regressions": [
+            "116",
+            "36"
+          ],
+          "severe_incidents": [],
+          "production_accepted": false
+        },
+        "production_accepted": false
+      },
+      "baseline_correct_protection": {
+        "n": 27,
+        "retained": [
+          "1084",
+          "1115",
+          "112",
+          "1130",
+          "1231",
+          "1334",
+          "1375",
+          "1401",
+          "1460",
+          "1464",
+          "1476",
+          "1493",
+          "1509",
+          "200",
+          "227",
+          "23",
+          "242",
+          "379",
+          "422",
+          "576",
+          "671",
+          "781",
+          "791",
+          "800",
+          "819"
+        ],
+        "regressed": [
+          "116",
+          "36"
+        ]
+      },
+      "label_reviews": [],
+      "review_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "strict_score_changed": false,
+      "denominator_changed": false,
+      "production_accepted": false,
+      "limits": "development-set comparison; unseen tasks and repeated runs remain required"
+    },
+    "remaining_tracks": [
+      "infi",
+      "dabstep"
+    ]
   },
   "package_validation_2f30d01": {
     "wheel_integrity": "passed",

@@ -37,6 +37,9 @@ def semantic_context(
             return {"type": "blob", "byte_count": len(value)}
         return value[:160] if isinstance(value, str) else value
 
+    def explicitly_mentioned(name):
+        return bool(name and re.search(r"(?<!\w)" + re.escape(name) + r"(?!\w)", public_text, re.I))
+
     tables = {}
     full_schema = {}
     value_candidates = []
@@ -44,11 +47,26 @@ def semantic_context(
     enum_failures = 0
     has_public_labels = bool(public_quoted_labels(public_text))
     with sqlite3.connect(database.resolve().as_uri() + "?mode=ro", uri=True) as db:
-        for table in sorted(allowed_relations)[:12]:
+        physical_columns = {
+            table: db.execute("PRAGMA table_info(" + quote(table) + ")").fetchall()
+            for table in sorted(allowed_relations)
+        }
+        full_schema = {table: [col[1] for col in cols] for table, cols in physical_columns.items()}
+        ranked_tables = sorted(
+            allowed_relations,
+            key=lambda table: (
+                not explicitly_mentioned(table),
+                not any(explicitly_mentioned(name) for name in full_schema[table]),
+                table,
+            ),
+        )
+        for table in ranked_tables[:12]:
             fields = []
-            columns = db.execute("PRAGMA table_info(" + quote(table) + ")").fetchall()
-            full_schema[table] = [col[1] for col in columns]
-            for col in columns[:24]:
+            columns = physical_columns[table]
+            # Preserve physical order for ties; public mentions only prioritize
+            # observations, and never certify a field's business interpretation.
+            ranked_columns = sorted(columns, key=lambda col: not explicitly_mentioned(col[1]))
+            for col in ranked_columns[:24]:
                 name, declared_type = col[1], col[2]
                 samples = query(
                     f"SELECT DISTINCT {quote(name)} FROM {quote(table)} "
@@ -104,10 +122,6 @@ def semantic_context(
                 "fields": fields,
                 "omitted_fields": max(0, len(columns) - 24),
             }
-        for table in sorted(allowed_relations - full_schema.keys()):
-            full_schema[table] = [
-                col[1] for col in db.execute("PRAGMA table_info(" + quote(table) + ")")
-            ]
     mappings = public_field_mappings(public_text, full_schema)
     literal_checks = literal_failures = 0
     for mapping in [m for m in mappings["ambiguous"] if m.get("literal_kind") == "string"][:2]:
@@ -254,8 +268,18 @@ def semantic_context(
     while len(json.dumps(output, default=str)) > max_chars:
         fields = [t for t in output["tables"].values() if t["fields"]]
         if fields:
-            table = max(fields, key=lambda t: len(json.dumps(t)))
-            table["fields"].pop()
+            candidates = [
+                (table, index) for table in fields for index in range(len(table["fields"]))
+            ]
+            table, index = max(
+                candidates,
+                key=lambda item: (
+                    not explicitly_mentioned(item[0]["fields"][item[1]]["name"]),
+                    len(json.dumps(item[0])),
+                    item[1],
+                ),
+            )
+            table["fields"].pop(index)
             table["omitted_fields"] += 1
         elif output["tables"]:
             # Empty previews repeat schema metadata. Retain declared join keys and
