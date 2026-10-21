@@ -45203,10 +45203,10 @@
     "validator_source_commit": "28e0ac5f05ac35e1a729ad5150a69d0df85543eb"
   },
   "latest_local_validation": {
-    "source_commit": "2f30d01",
-    "passed": 1009,
+    "source_commit": "numeric literal boundary working tree; frozen full v41 remains 2f30d01",
+    "passed": 1025,
     "skipped": 1,
-    "coverage_percent": 89.06,
+    "coverage_percent": 89.09,
     "ruff_check": "passed",
     "format_check": "passed",
     "diff_check": "passed",
@@ -138058,5 +138058,16 @@
     "scipy_requirement": "passed",
     "sdist_statistical_source_membership": "passed",
     "production_accepted": false
+  },
+  "remote_ci_2f30d01": {
+    "run_id": 39588605116,
+    "status": "completed",
+    "conclusion": "success",
+    "python_versions": [
+      "3.11",
+      "3.12",
+      "3.13"
+    ],
+    "url": "https://github.com/GeneralDataAgent/GeneralDataAgent/actions/runs/39588605116"
   }
 }

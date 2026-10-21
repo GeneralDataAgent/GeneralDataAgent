@@ -7,6 +7,7 @@ interpretation. Only physical fields, fixed operators and public filter literals
 import math
 import re
 from datetime import date
+from decimal import Decimal
 
 from generaldataagent.contracts.analysis import AnalysisTaskSpec, AnswerSpec
 from generaldataagent.contracts.query_plan import SemanticQueryPlan
@@ -69,19 +70,31 @@ def compile_semantic_plan(
         if value is None:
             raise ValueError("null values need explicit is_null/is_not_null operators")
         if type(value) is bool:
-            if str(value).casefold() not in evidence.casefold():
+            if not re.search(r"\b" + str(value) + r"\b", evidence, re.I):
                 raise ValueError("boolean filter value has no public evidence")
             return "1" if value else "0"
         if type(value) in {int, float}:
             if (
                 (type(value) is float and not math.isfinite(value))
                 or len(str(value)) > 100
-                or not re.search(r"(?<!\w)" + re.escape(str(value)) + r"(?!\w)", evidence)
+                or Decimal(str(value))
+                not in {
+                    Decimal(number)
+                    for number in re.findall(
+                        r"(?<![\w.])[+-]?(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?"
+                        r"(?!\w|\.\d)",
+                        evidence,
+                    )
+                }
             ):
                 raise ValueError("numeric filter value has no public evidence")
             return str(value)
         if isinstance(value, str) and len(value) <= 1000:
-            evidenced = value.casefold() in evidence.casefold()
+            evidenced = (
+                value.casefold() in evidence.casefold()
+                if value
+                else bool(re.search(r"''|\"\"", evidence))
+            )
             if not evidenced and re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
                 candidates = re.findall(r"\d{4}[/-]\d{1,2}[/-]\d{1,2}", evidence)
                 for candidate in candidates:

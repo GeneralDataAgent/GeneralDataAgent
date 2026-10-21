@@ -351,6 +351,74 @@ def test_filter_evidence_is_local_and_sql_literals_are_escaped(database):
         )
 
 
+@pytest.mark.parametrize(
+    "public,value",
+    [
+        ("score above 0.5", 5),
+        ("score above -5", 5),
+        ("score above 5.0", 0),
+        ("score above 1e-5", 5),
+        ("score above 15", 5),
+        ("score is untrue", True),
+        ("score is falsehood", False),
+        ("name is unspecified", ""),
+    ],
+)
+def test_plan_literals_cannot_borrow_fragments_of_public_values(public, value):
+    plan = {
+        "operation": "count",
+        "relations": ["people"],
+        "count_basis": "records",
+        "source_excerpt": public,
+        "filters": [
+            {
+                "field": {"relation": "people", "column": "score"},
+                "operator": "gt",
+                "value": value,
+                "source_excerpt": public,
+            }
+        ],
+    }
+    with pytest.raises(ValueError, match="public evidence"):
+        compile_semantic_plan(
+            SemanticQueryPlan.model_validate(plan), schema={"people": ["score"]}, question=public
+        )
+
+
+@pytest.mark.parametrize(
+    "public,value",
+    [
+        ("score above 0.5.", 0.5),
+        ("score above -5.", -5),
+        ("score above 5.0", 5),
+        ("score above 1e-5", 0.00001),
+        ("score above .5", 0.5),
+        ("score above +5", 5),
+        ("score is TRUE", True),
+        ('score is ""', ""),
+    ],
+)
+def test_plan_literals_accept_whole_public_numbers_and_explicit_empty_values(public, value):
+    plan = {
+        "operation": "count",
+        "relations": ["people"],
+        "count_basis": "records",
+        "source_excerpt": public,
+        "filters": [
+            {
+                "field": {"relation": "people", "column": "score"},
+                "operator": "eq",
+                "value": value,
+                "source_excerpt": public,
+            }
+        ],
+    }
+    sql, _ = compile_semantic_plan(
+        SemanticQueryPlan.model_validate(plan), schema={"people": ["score"]}, question=public
+    )
+    assert '"people"."score"=' in sql
+
+
 def test_post_rank_filter_does_not_change_the_ranking_population(database):
     question = "top 1 globally; retain group South"
     base = rank_plan(question) | {
