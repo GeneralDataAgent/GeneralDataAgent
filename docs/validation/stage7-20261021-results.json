@@ -45203,10 +45203,10 @@
     "validator_source_commit": "28e0ac5f05ac35e1a729ad5150a69d0df85543eb"
   },
   "latest_local_validation": {
-    "source_commit": "numeric literal boundary working tree; frozen full v41 remains 2f30d01",
-    "passed": 1025,
+    "source_commit": "whole literal parsing and SQLite alias follow-up; full v41 remains frozen 2f30d01",
+    "passed": 1029,
     "skipped": 1,
-    "coverage_percent": 89.09,
+    "coverage_percent": 89.1,
     "ruff_check": "passed",
     "format_check": "passed",
     "diff_check": "passed",

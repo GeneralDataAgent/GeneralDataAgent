@@ -7,7 +7,7 @@ interpretation. Only physical fields, fixed operators and public filter literals
 import math
 import re
 from datetime import date
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from generaldataagent.contracts.analysis import AnalysisTaskSpec, AnswerSpec
 from generaldataagent.contracts.query_plan import SemanticQueryPlan
@@ -74,18 +74,22 @@ def compile_semantic_plan(
                 raise ValueError("boolean filter value has no public evidence")
             return "1" if value else "0"
         if type(value) in {int, float}:
+            public_numbers = set()
+            for number in re.findall(
+                r"(?<![\w.])[+-]?(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?"
+                r"(?!\w|\.\d)",
+                evidence,
+            ):
+                if len(number) > 100:
+                    continue
+                try:
+                    public_numbers.add(Decimal(number))
+                except InvalidOperation:
+                    continue
             if (
                 (type(value) is float and not math.isfinite(value))
                 or len(str(value)) > 100
-                or Decimal(str(value))
-                not in {
-                    Decimal(number)
-                    for number in re.findall(
-                        r"(?<![\w.])[+-]?(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?"
-                        r"(?!\w|\.\d)",
-                        evidence,
-                    )
-                }
+                or Decimal(str(value)) not in public_numbers
             ):
                 raise ValueError("numeric filter value has no public evidence")
             return str(value)

@@ -95,6 +95,8 @@ class SemanticQueryPlan(PlanNode):
             raise ValueError("single-winner plans require explicit tie ordering")
         if self.ties == "all" and self.tie_break_by:
             raise ValueError("tie ordering cannot discard requested ties")
-        if len({p.name.casefold() for p in self.projections}) != len(self.projections):
+        # This plan compiles to SQLite, whose identifier folding is ASCII-only.
+        ascii_case = str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")
+        if len({p.name.translate(ascii_case) for p in self.projections}) != len(self.projections):
             raise ValueError("duplicate output aliases")
         return self

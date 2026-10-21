@@ -359,6 +359,8 @@ def test_filter_evidence_is_local_and_sql_literals_are_escaped(database):
         ("score above 5.0", 0),
         ("score above 1e-5", 5),
         ("score above 15", 5),
+        ("score above 1e99999999999999999999999999999", 1),
+        ("score above " + "1" * 101, 1),
         ("score is untrue", True),
         ("score is falsehood", False),
         ("name is unspecified", ""),
@@ -394,6 +396,7 @@ def test_plan_literals_cannot_borrow_fragments_of_public_values(public, value):
         ("score above 1e-5", 0.00001),
         ("score above .5", 0.5),
         ("score above +5", 5),
+        ("score above 0.5; ignore malformed number 1e999999999999999999999999999", 0.5),
         ("score is TRUE", True),
         ('score is ""', ""),
     ],
@@ -417,6 +420,27 @@ def test_plan_literals_accept_whole_public_numbers_and_explicit_empty_values(pub
         SemanticQueryPlan.model_validate(plan), schema={"people": ["score"]}, question=public
     )
     assert '"people"."score"=' in sql
+
+
+def test_plan_output_alias_identity_matches_sqlite_ascii_case_rules(database):
+    plan = rank_plan()
+    plan["projections"] = [
+        {"field": {"relation": "people", "column": "name"}, "name": "Straße"},
+        {"field": {"relation": "people", "column": "id"}, "name": "STRASSE"},
+    ]
+    sql, spec = compile_semantic_plan(
+        SemanticQueryPlan.model_validate(plan),
+        schema={"people": ["id", "name", "g", "score"]},
+        question=plan["source_excerpt"],
+    )
+    result = SQLiteReadOnlyExecutor(database).execute(sql)
+    assert result.columns == ("Straße", "STRASSE")
+    assert spec.answer.columns == ["Straße", "STRASSE"]
+    for aliases in [("Name", "name"), ("Straße", "Straße")]:
+        for projection, alias in zip(plan["projections"], aliases, strict=True):
+            projection["name"] = alias
+        with pytest.raises(ValueError, match="duplicate output aliases"):
+            SemanticQueryPlan.model_validate(plan)
 
 
 def test_post_rank_filter_does_not_change_the_ranking_population(database):
