@@ -360,6 +360,13 @@ def check_public_rank_and_age(sql: str, question: str, instructions: str = "") -
         )
 
     policy_text = affirmative_clauses(public)
+    if tree.args.get("limit") and re.search(
+        r"\b(?:preserve|retain|include|return)\s+(?:all\s+)?ties\b"
+        r"|\ball\s+(?:entities|people|rows|records|items)\s+tied\b",
+        policy_text,
+        re.I,
+    ):
+        issues.append("ties_may_be_truncated")
     if (
         re.search(r"\bamong\s+(?:the\s+)?top\s+\d+", question, re.I)
         and not re.search(r"\bexactly\b|\bbreak\s+ties\b", policy_text, re.I)

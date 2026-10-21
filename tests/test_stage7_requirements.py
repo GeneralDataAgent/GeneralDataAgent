@@ -157,6 +157,29 @@ def test_public_rank_and_completed_age_do_not_silently_drop_ties_or_birthdays():
     assert not check_public_rank_and_age(completed, "What age was the person on arrival?")
 
 
+def test_public_tie_policy_cannot_be_omitted_from_an_automatic_contract():
+    from generaldataagent.contracts.analysis import AnalysisTaskSpec
+    from generaldataagent.tools.sql_semantics import inspect_semantics
+
+    query = "SELECT id FROM people ORDER BY score DESC LIMIT 1"
+    for question, instructions in [
+        ("Return all people tied for highest score.", ""),
+        ("Return people with the highest score.", "Preserve all ties."),
+        ("Return people with the highest score.", "Include ties."),
+    ]:
+        spec = AnalysisTaskSpec(question=question, public_requirements=instructions)
+        assert spec.answer.ties == "unspecified"
+        assert inspect_semantics(query, spec) == ["ties_may_be_truncated"]
+        assert not inspect_semantics(
+            "SELECT id FROM people WHERE score=(SELECT MAX(score) FROM people)", spec
+        )
+    for instructions in ["", "Do not preserve all ties; choose one by id."]:
+        assert not inspect_semantics(
+            query,
+            AnalysisTaskSpec(question="Return one champion.", public_requirements=instructions),
+        )
+
+
 @pytest.mark.parametrize(
     "sql,question,expected",
     [
