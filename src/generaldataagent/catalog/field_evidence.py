@@ -91,6 +91,19 @@ def public_field_mappings(text: str, schema: dict[str, list[str]]) -> dict:
     return {"mappings": mappings, "ambiguous": ambiguous}
 
 
+def public_quoted_labels(text: str) -> list[str]:
+    """Read bounded public labels, keeping apostrophes in prose out of the quote grammar."""
+    labels = {
+        left or right for left, right in re.findall(r'"([^"\n]{1,160})"|“([^”\n]{1,160})”', text)
+    }
+    labels.update(
+        match.replace("''", "'")
+        for match in re.findall(r"(?<!\w)'((?:[^'\n]|''){1,160})'(?!\w)", text)
+    )
+    labels.update(re.findall(r"‘([^’\n]{1,160})’", text))
+    return sorted(labels)
+
+
 def enum_label_candidates(text: str, table: str, column: str, values: list, *, complete: bool):
     """Suggest observed spelling variants only for complete, bounded value domains.
 
@@ -99,8 +112,7 @@ def enum_label_candidates(text: str, table: str, column: str, values: list, *, c
     """
     if not complete:
         return []
-    labels = re.findall(r'"([^"\n]{1,160})"|“([^”\n]{1,160})”', text)
-    labels = sorted({left or right for left, right in labels})
+    labels = public_quoted_labels(text)
 
     def normalized(value):
         return re.sub(r"[\s_-]+", "", value.casefold())

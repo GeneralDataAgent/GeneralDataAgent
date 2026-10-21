@@ -44,6 +44,47 @@ def test_observed_enum_spelling_candidates_keep_collisions_and_preview_boundarie
     assert not enum_label_candidates(text, "articles", "source", ["ABC"], complete=True)
 
 
+def test_public_single_quoted_labels_preserve_escaped_apostrophes_and_boundaries():
+    from generaldataagent.catalog.field_evidence import enum_label_candidates, public_quoted_labels
+
+    text = "Customer's source isn't 'ABC News'; author 'O''Brien'; type ‘Day Paper’."
+    assert public_quoted_labels(text) == ["ABC News", "Day Paper", "O'Brien"]
+    assert not public_quoted_labels("Customer's source isn't known; 'unterminated")
+    assert not public_quoted_labels("'" + "x" * 161 + "'")
+    result = enum_label_candidates(text, "articles", "author", ["O'_Brien", "other"], complete=True)
+    assert result[0]["public_label"] == "O'Brien"
+    assert result[0]["observed_values"] == ["O'_Brien"]
+    assert not result[0]["verified_business_semantics"]
+
+
+def test_single_quoted_enum_context_keeps_complete_domain_and_scope_guards(tmp_path):
+    import sqlite3
+
+    from generaldataagent.catalog.semantic_context import semantic_context
+
+    path = tmp_path / "single-quote.sqlite"
+    with sqlite3.connect(path) as db:
+        db.executescript(
+            "CREATE TABLE articles(source TEXT); INSERT INTO articles VALUES('abc-news');"
+            "CREATE TABLE hidden(source TEXT); INSERT INTO hidden VALUES('ABC News');"
+        )
+    before = path.read_bytes()
+    result = semantic_context(path, allowed_relations={"articles"}, public_text="source 'ABC News'")
+    assert result["enum_domain_checks"] == 1
+    record = result["observed_value_candidates"][0]
+    assert record["table"] == "articles" and record["domain_complete"]
+    assert record["observed_values"] == ["abc-news"]
+    assert path.read_bytes() == before
+    with sqlite3.connect(path) as db:
+        db.executemany("INSERT INTO articles VALUES(?)", [(f"value{n}",) for n in range(65)])
+    before = path.read_bytes()
+    result = semantic_context(path, allowed_relations={"articles"}, public_text="source 'ABC News'")
+    assert not result["observed_value_candidates"]
+    with sqlite3.connect(path) as db:
+        assert db.execute("SELECT COUNT(*) FROM articles").fetchone() == (66,)
+    assert before == path.read_bytes()
+
+
 def test_enum_context_is_scoped_complete_and_remains_read_only(tmp_path, monkeypatch):
     import json
     import sqlite3

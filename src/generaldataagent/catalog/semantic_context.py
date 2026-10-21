@@ -8,6 +8,7 @@ from generaldataagent.catalog.field_evidence import (
     date_candidates,
     enum_label_candidates,
     public_field_mappings,
+    public_quoted_labels,
 )
 from generaldataagent.catalog.join_evidence import observed_join_candidates
 from generaldataagent.evaluation.stage_six_sql_precision import schema_relationships
@@ -41,6 +42,7 @@ def semantic_context(
     value_candidates = []
     enum_checks = 0
     enum_failures = 0
+    has_public_labels = bool(public_quoted_labels(public_text))
     with sqlite3.connect(database.resolve().as_uri() + "?mode=ro", uri=True) as db:
         for table in sorted(allowed_relations)[:12]:
             fields = []
@@ -57,7 +59,7 @@ def semantic_context(
                 )
                 if (
                     enum_checks < 3
-                    and any(mark in public_text for mark in ('"', "“"))
+                    and has_public_labels
                     and re.search(r"(?<!\w)" + re.escape(name) + r"(?!\w)", public_text, re.I)
                     and any(isinstance(row[0], str) for row in samples)
                 ):
