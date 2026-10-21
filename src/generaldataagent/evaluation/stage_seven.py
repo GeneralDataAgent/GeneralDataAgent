@@ -107,7 +107,9 @@ and 10000 cells, within five seconds; over-budget results fail rather than trunc
 """
 
 
-def bind_typed_tools(model, *, sql_output: bool, planned: bool = False, plan_enabled=False):
+def bind_typed_tools(
+    model, *, sql_output: bool, planned: bool = False, plan_enabled=False, collection_first=False
+):
     """Small native wire schemas; complete strict contracts remain enforced locally."""
     if not hasattr(model, "bind"):
         return model
@@ -299,6 +301,15 @@ def bind_typed_tools(model, *, sql_output: bool, planned: bool = False, plan_ena
             )
         )
         choice = "required"
+        if collection_first:
+            # A public collection needs this complete artifact before it can be submitted.
+            # Keep the unsupported exit available; defer scalar/answer actions until
+            # successful collection evidence exists. Failed calls still spend a step.
+            tools = [
+                item
+                for item in tools
+                if item["function"]["name"] in {"collect_values", "declare_unsupported"}
+            ]
     return model.bind(tools=tools, tool_choice=choice, parallel_tool_calls=False)
 
 

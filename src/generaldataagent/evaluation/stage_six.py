@@ -574,6 +574,15 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                             sql_output=task.benchmark == "bird-mini-dev-sqlite",
                             planned=task_spec is not None,
                             plan_enabled=plan_mode,
+                            collection_first=(
+                                not evidence
+                                and not documents
+                                and task_spec is not None
+                                and any(
+                                    field.kind in {"set", "list"}
+                                    for field in task_spec.answer.fields.values()
+                                )
+                            ),
                         )
                         if semantic and not semantic_json
                         else self.model

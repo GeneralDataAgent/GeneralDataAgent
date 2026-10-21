@@ -1240,3 +1240,64 @@ def test_list_mode_cannot_bypass_public_set_uniqueness(database):
     )
     assert result["failure"] and not result["answers"]
     assert "duplicate_entities" in result["trace"][-1]["checks"]
+
+
+@pytest.mark.parametrize("unsupported", [False, True])
+@pytest.mark.parametrize("with_documents", [False, True])
+def test_native_collection_phase_defers_scalar_actions_and_keeps_typed_exit(
+    database, unsupported, with_documents
+):
+    from langchain_core.messages import AIMessage
+
+    class Native:
+        calls = 0
+
+        def bind(self, **kwargs):
+            names = {tool["function"]["name"] for tool in kwargs["tools"]}
+            assert kwargs["tool_choice"] == "required" and not kwargs["parallel_tool_calls"]
+            if not self.calls and not with_documents:
+                assert names == {"collect_values", "declare_unsupported"}
+            else:
+                assert {"submit_answers", "compute_sql", "search_documents"} <= names
+            return self
+
+        def invoke(self, messages):
+            self.calls += 1
+            if unsupported:
+                name, args = "declare_unsupported", {"reason": "unavailable computation"}
+            elif self.calls == 1:
+                name, args = (
+                    "collect_values",
+                    {"sql": "SELECT id FROM people ORDER BY id", "collection_kind": "list"},
+                )
+            else:
+                name, args = (
+                    "submit_answers",
+                    {"fields": [{"name": "ids", "step": 1, "path": ["items"]}]},
+                )
+            return AIMessage(
+                content="",
+                tool_calls=[{"name": name, "args": args, "id": str(self.calls)}],
+                usage_metadata={"total_tokens": 10, "input_tokens": 8, "output_tokens": 2},
+            )
+
+    task = Task(
+        "infiagent-dabench",
+        "synthetic",
+        "IDs?",
+        '@ids[values] where "values" is a list of integers in ascending order.',
+        "easy",
+        "people",
+    )
+    before = database.read_bytes()
+    model = Native()
+    result = BoundedSQLAgent(model, tool_profile="sql-semantic", max_steps=2).run(
+        task, database, documents="Public external rule document" if with_documents else ""
+    )
+    if unsupported:
+        assert result["failure"] == "unsupported_capability" and not result["answers"]
+    else:
+        assert result["failure"] is None and result["answers"] == {"ids": [1, 2]}
+        assert model.calls == 2
+        assert result["answer_evidence"]["ids"]["step"] == 1
+    assert database.read_bytes() == before
