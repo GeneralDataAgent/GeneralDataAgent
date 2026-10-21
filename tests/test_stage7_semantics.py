@@ -429,3 +429,35 @@ def test_complete_column_name_collection_is_conditional_and_union_cannot_add_gue
             allowed_relations={"people"},
         )
     assert path.read_bytes() == before
+
+
+def test_complete_missing_column_collection_supports_only_same_field_missing_disjunctions(tmp_path):
+    from generaldataagent.tools.sql_semantics import collect_complete, sql_data_dependencies
+
+    path = tmp_path / "missing.sqlite"
+    with sqlite3.connect(path) as db:
+        db.executescript(
+            "CREATE TABLE data(author TEXT,title TEXT); "
+            "INSERT INTO data VALUES('na','Good'),('Alice','Other');"
+        )
+    sql = (
+        "SELECT DISTINCT 'author' AS name FROM data "
+        "WHERE author IS NULL OR TRIM(author) IN ('NaN','na','null','')"
+    )
+    result = collect_complete(path, sql, allowed_relations={"data"})
+    assert result["items"] == ["author"] and result["complete"]
+    for predicate in [
+        "author IS NULL OR 1=1",
+        "author IS NULL OR title IS NULL",
+        "author IN (title)",
+    ]:
+        assert sql_data_dependencies(
+            "SELECT 'author' AS name FROM data WHERE " + predicate,
+            ["name"],
+            allowed_relations={"data"},
+        ) == [False]
+    assert sql_data_dependencies(
+        "SELECT 'author' AS name FROM data WHERE LOWER(TRIM(author))='na'",
+        ["name"],
+        allowed_relations={"data"},
+    ) == [True]

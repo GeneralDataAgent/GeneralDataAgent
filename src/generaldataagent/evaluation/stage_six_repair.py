@@ -75,6 +75,13 @@ def bounded_observation(result: dict, *, max_chars: int = 6000) -> dict:
 
 def execution_hint(exc: Exception) -> str:
     text = str(exc)
+    if "data_dependent_answer_required" in text:
+        return (
+            "Bind a computed scalar projection, not constants or whole SQL row containers. "
+            "For a complete collection use collect_values with one DISTINCT data-derived "
+            "column, then bind path [items]. Column-name labels must be conditional on data "
+            "for that exact physical field."
+        )
     if "field requires complete set evidence" in text:
         return (
             "Use collect_values with one DISTINCT full-data output column and no LIMIT/OFFSET, "

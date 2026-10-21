@@ -374,15 +374,36 @@ def sql_data_dependencies(
                 return conjuncts(expression.this) + conjuncts(expression.expression)
             return [expression]
 
+        def label_input(expression):
+            while isinstance(expression, (exp.Paren, exp.Trim, exp.Lower, exp.Upper)):
+                expression = expression.this
+            return isinstance(expression, exp.Column) and physical_label_column(expression)
+
+        def label_predicate(expression):
+            if isinstance(expression, exp.Paren):
+                return label_predicate(expression.this)
+            if isinstance(expression, exp.Or):
+                return label_predicate(expression.this) and label_predicate(expression.expression)
+            if isinstance(expression, exp.Is) and isinstance(expression.expression, exp.Null):
+                return label_input(expression.this)
+            if isinstance(expression, exp.EQ):
+                return (
+                    label_input(expression.this)
+                    and isinstance(expression.expression, exp.Literal)
+                    and expression.expression.is_string
+                )
+            if isinstance(expression, exp.In) and expression.expressions:
+                return label_input(expression.this) and all(
+                    isinstance(value, exp.Literal) and value.is_string
+                    for value in expression.expressions
+                )
+            return False
+
         for clause in (source.args.get("where"), source.args.get("having")):
             if clause is None:
                 continue
             for term in conjuncts(clause.this):
-                if (
-                    isinstance(term, exp.Is)
-                    and isinstance(term.expression, exp.Null)
-                    and physical_label_column(term)
-                ):
+                if label_predicate(term):
                     return True
                 if not isinstance(term, (exp.GT, exp.GTE)):
                     continue
