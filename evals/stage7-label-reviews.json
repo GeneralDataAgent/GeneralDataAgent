@@ -34,5 +34,15 @@
       "docs/validation/stage7-continuation-2026-10-21.md"
     ],
     "status": "pending_independent_adjudication"
+  },
+  {
+    "benchmark": "infiagent-dabench",
+    "case_id": "412",
+    "issue": "Public instructions say rounding up to two decimals, then also say rounded to 2 decimal places. Full-data Decimal recomputation for non-survivors is 485/549: ceiling gives 0.89 while half-even gives 0.88, matching the reference. Keep both interpretations and the strict score unchanged pending independent instruction/label adjudication.",
+    "evidence_refs": [
+      "docs/validation/stage7-20261021-results.json",
+      "docs/validation/stage7-continuation-2026-10-21.md"
+    ],
+    "status": "pending_independent_adjudication"
   }
 ]

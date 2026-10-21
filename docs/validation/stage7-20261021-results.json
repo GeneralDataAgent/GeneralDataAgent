@@ -185809,5 +185809,188 @@
     "production_accepted": false,
     "artifact_directory": ".artifacts/stage7/20261022-full-v57",
     "frozen_workspace": "/private/tmp/gda-stage7-v57"
+  },
+  "observed_budget_v56_recomputed_evidence": {
+    "source_commit": "1cdcd8409095251eb73752faac81795abf13e2a3",
+    "kind": "post-worker exact SQL evidence recomputation",
+    "sql_steps": [
+      {
+        "step": 1,
+        "hash_equal": true
+      },
+      {
+        "step": 2,
+        "hash_equal": true
+      }
+    ],
+    "all_answer_paths_raw_equal": true,
+    "database_unchanged": true,
+    "scientific_or_semantic_correctness_certified": false
+  },
+  "label_review_ledger_20261022": {
+    "kind": "offline review ledger validation; no score changes",
+    "reviews": [
+      {
+        "benchmark": "infiagent-dabench",
+        "case_id": "300",
+        "issue": "Independent full-data Pearson differs from the public reference coefficient; do not change the algorithm to match the label.",
+        "evidence_refs": [
+          "docs/validation/stage6-magpie-error-audit.json"
+        ],
+        "status": "pending_independent_adjudication"
+      },
+      {
+        "benchmark": "infiagent-dabench",
+        "case_id": "412",
+        "issue": "Public instructions say rounding up to two decimals, then also say rounded to 2 decimal places. Full-data Decimal recomputation for non-survivors is 485/549: ceiling gives 0.89 while half-even gives 0.88, matching the reference. Keep both interpretations and the strict score unchanged pending independent instruction/label adjudication.",
+        "evidence_refs": [
+          "docs/validation/stage7-20261021-results.json",
+          "docs/validation/stage7-continuation-2026-10-21.md"
+        ],
+        "status": "pending_independent_adjudication"
+      }
+    ],
+    "strict_comparison_unchanged": true,
+    "comparison": {
+      "strict_comparison": {
+        "benchmark": "infiagent-dabench",
+        "n": 60,
+        "baseline_passed": 34,
+        "candidate_passed": 38,
+        "improvements": [
+          "468",
+          "359",
+          "495",
+          "666",
+          "669",
+          "415"
+        ],
+        "regressions": [
+          "271",
+          "14"
+        ],
+        "pass_rate_delta": 0.06666666666666665,
+        "service_failures": {
+          "baseline": 0,
+          "candidate": 0
+        },
+        "observed_cost_usd": {
+          "baseline": 0.0,
+          "candidate": 0.0
+        },
+        "efficiency": {
+          "baseline": {
+            "reported_tokens": 353447,
+            "token_telemetry_complete": true,
+            "p50_seconds": 20.805611500501982,
+            "p95_seconds": 42.46064775000559,
+            "cost_usd": null
+          },
+          "candidate": {
+            "reported_tokens": 743018,
+            "token_telemetry_complete": true,
+            "p50_seconds": 20.374467770496267,
+            "p95_seconds": 43.76308604099904,
+            "cost_usd": null
+          }
+        },
+        "failure_transitions": {
+          "passed->passed": 32,
+          "execution_or_model_error->token_budget": 4,
+          "unsupported_capability->token_budget": 2,
+          "unsupported_capability->unsupported_capability": 4,
+          "execution_or_model_error->answer_mismatch": 2,
+          "unsupported_capability->passed": 1,
+          "execution_or_model_error->passed": 2,
+          "answer_mismatch->unsupported_capability": 1,
+          "answer_mismatch->token_budget": 3,
+          "execution_or_model_error->unsupported_capability": 2,
+          "answer_mismatch->execution_or_model_error": 1,
+          "passed->token_budget": 2,
+          "answer_mismatch->passed": 3,
+          "answer_mismatch->answer_mismatch": 1
+        },
+        "attribution_valid": true,
+        "blocked_by": [],
+        "mcnemar_exact_two_sided_p": 0.2890625,
+        "paired_release_gate": {
+          "passed": false,
+          "regressions": [
+            "271",
+            "14"
+          ],
+          "severe_incidents": [],
+          "production_accepted": false
+        },
+        "production_accepted": false
+      },
+      "baseline_correct_protection": {
+        "n": 34,
+        "retained": [
+          "114",
+          "118",
+          "132",
+          "207",
+          "209",
+          "214",
+          "218",
+          "255",
+          "277",
+          "278",
+          "34",
+          "372",
+          "412",
+          "426",
+          "446",
+          "447",
+          "490",
+          "517",
+          "526",
+          "527",
+          "529",
+          "543",
+          "586",
+          "589",
+          "590",
+          "618",
+          "64",
+          "643",
+          "659",
+          "69",
+          "71",
+          "739"
+        ],
+        "regressed": [
+          "14",
+          "271"
+        ]
+      },
+      "label_reviews": [
+        {
+          "benchmark": "infiagent-dabench",
+          "case_id": "300",
+          "issue": "Independent full-data Pearson differs from the public reference coefficient; do not change the algorithm to match the label.",
+          "evidence_refs": [
+            "docs/validation/stage6-magpie-error-audit.json"
+          ],
+          "status": "pending_independent_adjudication"
+        },
+        {
+          "benchmark": "infiagent-dabench",
+          "case_id": "412",
+          "issue": "Public instructions say rounding up to two decimals, then also say rounded to 2 decimal places. Full-data Decimal recomputation for non-survivors is 485/549: ceiling gives 0.89 while half-even gives 0.88, matching the reference. Keep both interpretations and the strict score unchanged pending independent instruction/label adjudication.",
+          "evidence_refs": [
+            "docs/validation/stage7-20261021-results.json",
+            "docs/validation/stage7-continuation-2026-10-21.md"
+          ],
+          "status": "pending_independent_adjudication"
+        }
+      ],
+      "review_digest": "6697d48aff30e60aa2010891de5a1bdb06fde3b9306f2d19180990945ec4c843",
+      "strict_score_changed": false,
+      "denominator_changed": false,
+      "production_accepted": false,
+      "limits": "development-set comparison; unseen tasks and repeated runs remain required"
+    }
   }
 }
