@@ -75,6 +75,12 @@ def bounded_observation(result: dict, *, max_chars: int = 6000) -> dict:
 
 def execution_hint(exc: Exception) -> str:
     text = str(exc)
+    if "percentage_requires_ratio_not_counts" in text:
+        return (
+            "The question asks for a percentage; raw population counts are only intermediate "
+            "evidence. Submit the requested ratio using the public numerator and denominator "
+            "populations, real division, and the requested scale."
+        )
     if "undefined_percentage_check_population" in text:
         return (
             "The percentage is undefined for this population. Check the table/field and actual "

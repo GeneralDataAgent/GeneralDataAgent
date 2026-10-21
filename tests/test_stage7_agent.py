@@ -828,3 +828,28 @@ def test_opt_in_native_staged_contract_crosscheck_and_final_submission(database)
     assert result["final_sql"] == "SELECT id FROM people"
     assert result["task_contract"]["question"] == task.question
     assert database.read_bytes() == before
+
+
+def test_percentage_final_cannot_replace_ratio_with_intermediate_counts(database):
+    actions = [
+        {
+            "submit_sql": {
+                "sql": "SELECT COUNT(*) AS n, "
+                "SUM(CASE WHEN score=10 THEN 1 ELSE 0 END) AS matches FROM people",
+                "output_columns": ["n", "matches"],
+            }
+        },
+        {
+            "submit_sql": {
+                "sql": "SELECT 100.0*SUM(CASE WHEN score=10 THEN 1 ELSE 0 END)"
+                "/COUNT(*) AS pct FROM people",
+                "output_columns": ["pct"],
+                "shape": "scalar",
+            }
+        },
+    ]
+    result = run(database, actions, question="What is the percentage of people with score 10?")
+    assert result["failure"] is None
+    assert result["trace"][0]["checks"] == ["percentage_requires_ratio_not_counts"]
+    assert result["task_contract"]["answer"]["columns"] == ["pct"]
+    assert len(result["trace"]) == 2

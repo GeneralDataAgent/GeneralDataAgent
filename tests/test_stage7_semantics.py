@@ -320,3 +320,18 @@ def test_percentage_population_counts_sqlite_boolean_predicates(predicate):
     ]
     assert not check_percentage_result(sql, "percentage of eligible records?", "", [(50,)])
     assert not check_percentage_result(sql, "percentage growth of records?", "", [(105,)])
+
+
+def test_percentage_projection_check_leaves_precomputed_or_averaged_rates_unclassified():
+    from generaldataagent.tools.sql_semantics import check_percentage_result
+
+    question = "What is the percentage of eligible records?"
+    for sql in [
+        "SELECT pct FROM stored_rates",
+        "SELECT AVG(eligible)*100 AS pct FROM records",
+        "SELECT SUM(weighted_rate) AS pct FROM records",
+    ]:
+        assert not check_percentage_result(sql, question, "", [(50,)])
+    assert not check_percentage_result(
+        "SELECT COUNT(*) FROM records", "How many records?", "", [(5,)]
+    )

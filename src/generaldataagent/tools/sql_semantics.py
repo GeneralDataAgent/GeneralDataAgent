@@ -414,6 +414,11 @@ def check_percentage_result(sql: str, question: str, instructions: str, rows) ->
             )
         return False
 
+    if projections and all(
+        population_count(item.this if isinstance(item, exp.Alias) else item) for item in projections
+    ):
+        return ["percentage_requires_ratio_not_counts"]
+
     indices = [
         index
         for index, item in enumerate(projections)
