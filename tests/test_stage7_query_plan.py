@@ -44,6 +44,177 @@ def test_rank_compiler_preserves_ties_per_group(database):
     assert spec.answer.ties == "all" and "LIMIT" not in sql
 
 
+def population_ratio_plan(question, **updates):
+    return {
+        "operation": "population_ratio",
+        "relations": ["people", "events"],
+        "joins": [
+            {
+                "left": {"relation": "people", "column": "id"},
+                "right": {"relation": "events", "column": "person_id"},
+            }
+        ],
+        "entity_keys": [{"relation": "people", "column": "id"}],
+        "numerator_filters": [
+            {
+                "field": {"relation": "people", "column": "id"},
+                "operator": "eq",
+                "value": 1,
+                "source_excerpt": question,
+            }
+        ],
+        "source_excerpt": question,
+        "ratio_name": "share",
+    } | updates
+
+
+def test_population_ratios_keep_declared_entity_or_record_grains_and_public_scale(database):
+    from generaldataagent.tools.sql_semantics import sql_data_dependencies, validate_column_scope
+
+    question = "What percentage of people with events have id 1? Round to two decimal places."
+    schema = {"people": ["id", "name", "g", "score"], "events": ["person_id"]}
+    before = database.read_bytes()
+    for basis, expected in [("entities", 50.0), ("records", 66.67)]:
+        sql, spec = compile_semantic_plan(
+            SemanticQueryPlan.model_validate(population_ratio_plan(question, count_basis=basis)),
+            schema=schema,
+            question=question,
+        )
+        assert SQLiteReadOnlyExecutor(database).execute(sql).rows == ((expected,),)
+        validate_column_scope(database, sql, allowed_relations=set(schema))
+        assert sql_data_dependencies(sql, ["share"], allowed_relations=set(schema)) == [True]
+        assert spec.answer.minimum == 0 and spec.answer.maximum == 100
+        assert "NULLIF" in sql and "ROUND" in sql
+    assert database.read_bytes() == before
+    question = "What fraction of people with events have id 1?"
+    sql, _ = compile_semantic_plan(
+        SemanticQueryPlan.model_validate(population_ratio_plan(question, multiplier=1)),
+        schema=schema,
+        question=question,
+    )
+    assert SQLiteReadOnlyExecutor(database).execute(sql).rows == ((0.5,),)
+
+
+def test_population_ratio_keeps_the_denominator_population_and_leaves_empty_undefined(database):
+    from generaldataagent.tools.semantic_sql import execute_semantic_plan
+
+    question = "What percentage of people have id 1? Only include g North."
+    plan = population_ratio_plan(
+        question,
+        filters=[
+            {
+                "field": {"relation": "people", "column": "g"},
+                "operator": "eq",
+                "value": "North",
+                "source_excerpt": question,
+            }
+        ],
+    )
+    result = execute_semantic_plan(
+        database,
+        SemanticQueryPlan.model_validate(plan),
+        allowed_relations={"people", "events"},
+        question=question,
+    )
+    assert result["rows"] == [[50.0]]
+    assert result["business_semantics_verified"] is False
+    empty_question = question.replace("North", "East")
+    empty = population_ratio_plan(
+        empty_question,
+        filters=[
+            {
+                "field": {"relation": "people", "column": "g"},
+                "operator": "eq",
+                "value": "East",
+                "source_excerpt": empty_question,
+            }
+        ],
+    )
+    from generaldataagent.tools.sql_semantics import SemanticError
+
+    with pytest.raises(SemanticError, match="undefined_percentage"):
+        execute_semantic_plan(
+            database,
+            SemanticQueryPlan.model_validate(empty),
+            allowed_relations={"people", "events"},
+            question=empty_question,
+        )
+    result = execute_semantic_plan(
+        database,
+        SemanticQueryPlan.model_validate(empty),
+        allowed_relations={"people", "events"},
+        question=empty_question,
+        instructions="Return NULL if the denominator population is empty.",
+    )
+    assert result["rows"][0][0] is None
+
+
+def test_population_ratio_rejects_unsupported_grains_scales_and_unsourced_subset_filters(database):
+    question = "What percentage of people with events have id 1?"
+    schema = {"people": ["id", "name", "g", "score"], "events": ["person_id"]}
+    for update in [
+        {"numerator_filters": []},
+        {"multiplier": 1},
+        {"entity_keys": []},
+        {"aggregation": "sum"},
+        {"partition_by": [{"relation": "people", "column": "g"}]},
+        {
+            "numerator_filters": [
+                {
+                    "field": {"relation": "people", "column": "id"},
+                    "operator": "eq",
+                    "value": 2,
+                    "source_excerpt": question,
+                }
+            ]
+        },
+    ]:
+        with pytest.raises(ValueError):
+            compile_semantic_plan(
+                SemanticQueryPlan.model_validate(population_ratio_plan(question, **update)),
+                schema=schema,
+                question=question,
+            )
+    count_question = "Count people with id 1."
+    with pytest.raises(ValueError, match="fraction-of-population"):
+        compile_semantic_plan(
+            SemanticQueryPlan.model_validate(population_ratio_plan(count_question)),
+            schema=schema,
+            question=count_question,
+        )
+    with pytest.raises(ValueError, match="measure-based"):
+        compile_semantic_plan(
+            SemanticQueryPlan.model_validate(population_ratio_plan(question)),
+            schema=schema,
+            question=question,
+            instructions="Use SUM(score)/COUNT(id).",
+        )
+
+
+def test_standalone_plan_execution_cannot_bypass_complete_result_cell_budget(database):
+    from generaldataagent.tools.semantic_sql import execute_semantic_plan
+    from generaldataagent.tools.sqlite import QueryExecutionError
+
+    with sqlite3.connect(database) as db:
+        db.executemany("INSERT INTO people VALUES(?,'D','North',10)", [(i,) for i in range(4, 502)])
+    question = "top 1 per group"
+    plan = rank_plan(question)
+    plan["projections"] = [
+        {"field": {"relation": "people", "column": "id"}, "name": f"id_{index}"}
+        for index in range(20)
+    ]
+    before = database.read_bytes()
+    with pytest.raises(QueryExecutionError, match="cell limit"):
+        execute_semantic_plan(
+            database,
+            SemanticQueryPlan.model_validate(plan),
+            allowed_relations={"people"},
+            question=question,
+            max_rows=10000,
+        )
+    assert database.read_bytes() == before
+
+
 def test_entity_and_record_counts_have_distinct_declared_grains(database):
     question = "count people with events"
     plan = {

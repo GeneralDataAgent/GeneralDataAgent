@@ -225,7 +225,7 @@ def bind_typed_tools(
                     "type": "function",
                     "function": {
                         "name": "submit_query_plan",
-                        "description": "Compile entity counts or tie-preserving ranks",
+                        "description": "Compile scoped counts, population fractions or ranks",
                         "parameters": SemanticQueryPlan.model_json_schema(),
                     },
                 }
@@ -421,6 +421,14 @@ undefined percentage. Keep the same six actions, 24000-token and 120-second mode
 
 
 STAGE7_PLAN_PROMPT = """
+For a count-based fraction of a population, submit_query_plan operation=population_ratio uses
+filters for the denominator population and extra numerator_filters for its subset. Both use
+publicly sourced fixed predicates. Specify count_basis entities with entity_keys, or records;
+the compiler prevents join duplication in entity counts. multiplier is 100 for percentages
+and 1 for a fraction/proportion. Set ratio_name to the public output label. Zero denominators
+produce NULL, never guessed zero; public formatting and final result checks still apply.
+Growth/change, weighted ratios, distinct numerator/denominator grains and arbitrary expressions
+must use the general SQL path. This compiler guarantees the declared plan, not its interpretation.
 In this opt-in profile, execute_sql can inspect necessary categories or encodings before any
 contract. It spends one of the same six actions; no answer is certified by exploration.
 Then submit_sql with its public output contract, or plan_analysis before a crosscheck.

@@ -1348,6 +1348,54 @@ def test_native_plan_profile_can_observe_before_contract_with_same_read_only_bud
     assert database.read_bytes() == before
 
 
+@pytest.mark.parametrize("empty_denominator", [False, True])
+def test_population_plan_uses_full_final_guards_and_never_invents_zero(database, empty_denominator):
+    question = (
+        "What percentage of people with score greater than 99 have id 1?"
+        if empty_denominator
+        else "What percentage of people have id 1?"
+    )
+    plan = {
+        "operation": "population_ratio",
+        "relations": ["people"],
+        "entity_keys": [{"relation": "people", "column": "id"}],
+        "numerator_filters": [
+            {
+                "field": {"relation": "people", "column": "id"},
+                "operator": "eq",
+                "value": 1,
+                "source_excerpt": question,
+            }
+        ],
+        "source_excerpt": question,
+        "ratio_name": "share",
+    }
+    if empty_denominator:
+        plan["filters"] = [
+            {
+                "field": {"relation": "people", "column": "score"},
+                "operator": "gt",
+                "value": 99,
+                "source_excerpt": question,
+            }
+        ]
+    before = database.read_bytes()
+    result = run(
+        database, [{"submit_query_plan": plan}], profile="sql-semantic-plan", question=question
+    )
+    if empty_denominator:
+        assert result["failure"] and result["final_sql"] is None
+        assert result["trace"][0]["checks"] == ["undefined_percentage_check_population"]
+    else:
+        from generaldataagent.tools.sqlite import SQLiteReadOnlyExecutor
+
+        assert result["failure"] is None
+        assert SQLiteReadOnlyExecutor(database).execute(result["final_sql"]).rows == ((50.0,),)
+        assert result["trace"][0]["compiled_query_plan"]["operation"] == "population_ratio"
+        assert result["trace"][0]["result_hash"]
+    assert database.read_bytes() == before
+
+
 @pytest.mark.parametrize("with_contract", [False, True])
 def test_native_plan_profile_has_a_typed_unsupported_exit_before_and_after_contract(
     database, with_contract

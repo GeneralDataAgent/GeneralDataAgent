@@ -503,8 +503,12 @@ def check_percentage_result(sql: str, question: str, instructions: str, rows) ->
         return []
 
     def population_count(node):
-        while isinstance(node, (exp.Paren, exp.Cast, exp.Nullif)):
+        while isinstance(node, (exp.Paren, exp.Cast, exp.Nullif, exp.Alias)):
             node = node.this
+        if isinstance(node, exp.Subquery) and isinstance(node.this, exp.Select):
+            select = node.this
+            if len(select.selects) == 1 and not select.args.get("group"):
+                return population_count(select.selects[0])
         if isinstance(node, exp.Count):
             return True
         if isinstance(node, exp.Sum):

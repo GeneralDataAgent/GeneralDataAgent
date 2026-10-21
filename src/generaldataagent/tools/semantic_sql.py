@@ -75,13 +75,15 @@ def compile_semantic_plan(
             return "'" + value.replace("'", "''") + "'"
         raise ValueError("unsupported plan literal")
 
-    conditions, after_conditions, after_fields = [], [], []
+    conditions, numerator_conditions, after_conditions, after_fields = [], [], [], []
     operators = {"eq": "=", "ne": "<>", "lt": "<", "lte": "<=", "gt": ">", "gte": ">="}
-    for predicate in plan.filters:
+    predicates = [(predicate, False) for predicate in plan.filters]
+    predicates += [(predicate, True) for predicate in plan.numerator_filters]
+    for predicate, numerator_only in predicates:
         if predicate.source_excerpt not in public:
             raise ValueError("filter needs an exact public source excerpt")
         column = field(predicate.field)
-        target = conditions
+        target = numerator_conditions if numerator_only else conditions
         if predicate.phase == "after_rank":
             if plan.operation != "rank":
                 raise ValueError("after-rank filters require a rank operation")
@@ -119,6 +121,57 @@ def compile_semantic_plan(
             expression = "SELECT DISTINCT " + ",".join(keys) + " FROM " + source + where
         sql = "SELECT COUNT(*) AS " + quote(plan.count_name) + " FROM (" + expression + ")"
         answer = AnswerSpec(columns=[plan.count_name], shape="scalar", nullable=False)
+    elif plan.operation == "population_ratio":
+        if not re.search(
+            r"\b(?:percentage|proportion|fraction)\s+of\b|\bwhat\s+percent\b", public, re.I
+        ):
+            raise ValueError(
+                "population ratios require an explicit public fraction-of-population request"
+            )
+        if re.search(
+            r"\b(?:growth|change|increase|decrease)\s+rate\b|\b(?:percentage|percent)\s+(?:change|increase|decrease)\b",
+            question,
+            re.I,
+        ):
+            raise ValueError("change ratios require the general SQL path")
+        if re.search(r"\b(?:SUM|AVG|AVERAGE)\s*\(|\bweighted\b", public, re.I):
+            raise ValueError("weighted or measure-based ratios require the general SQL path")
+        percent = bool(re.search(r"\bpercent(?:age)?\b", public, re.I))
+        if plan.multiplier != (100 if percent else 1):
+            raise ValueError("ratio scale differs from the explicit public request")
+
+        def count_population(extra):
+            population_where = conditions + extra
+            population = (
+                "SELECT "
+                + ("DISTINCT " + ",".join(keys) if plan.count_basis == "entities" else "*")
+                + " FROM "
+                + source
+            )
+            if population_where:
+                population += " WHERE " + " AND ".join(population_where)
+            return "(SELECT COUNT(*) FROM (" + population + "))"
+
+        numerator, denominator = count_population(numerator_conditions), count_population([])
+        expression = f"{plan.multiplier}.0*{numerator}/NULLIF({denominator},0)"
+        from generaldataagent.tools.answer_fields import public_precisions
+
+        precision = public_precisions(public)
+        if len(precision) > 1:
+            raise ValueError("a scalar ratio cannot resolve multiple public rounding requirements")
+        if precision:
+            digits = next(iter(precision))
+            if not 0 <= digits <= 15:
+                raise ValueError("public rounding exceeds the bounded precision contract")
+            expression = f"ROUND({expression},{digits})"
+        sql = "SELECT " + expression + " AS " + quote(plan.ratio_name)
+        answer = AnswerSpec(
+            columns=[plan.ratio_name],
+            shape="scalar",
+            minimum=0,
+            maximum=plan.multiplier,
+            nullable=True,
+        )
     else:
         explicit = re.search(r"\btop\s+(\d+)\b", public, re.I)
         if explicit and int(explicit.group(1)) != plan.top_k:
@@ -212,7 +265,9 @@ def compile_semantic_plan(
         public_requirements=instructions,
         grain=[key.relation + "." + key.column for key in plan.entity_keys],
         filters=conditions + after_conditions,
-        count_basis=plan.count_basis if plan.operation == "count" else "unspecified",
+        count_basis=plan.count_basis
+        if plan.operation in {"count", "population_ratio"}
+        else "unspecified",
         answer=answer,
     )
     return sql, spec
@@ -242,6 +297,7 @@ def execute_semantic_plan(
     """
     from generaldataagent.tools.sql_semantics import (
         SemanticError,
+        check_percentage_result,
         inspect_semantics,
         validate_column_scope,
         validate_rows,
@@ -260,8 +316,11 @@ def execute_semantic_plan(
     checks = inspect_semantics(sql, spec)
     if checks:
         raise SemanticError(",".join(checks))
-    result = SQLiteReadOnlyExecutor(database, max_rows=max_rows, timeout_seconds=5).execute(sql)
+    result = SQLiteReadOnlyExecutor(
+        database, max_rows=max_rows, max_cells=10000, timeout_seconds=5
+    ).execute(sql)
     checks = validate_rows(result.columns, result.rows, spec.answer)
+    checks.extend(check_percentage_result(sql, question, instructions, result.rows))
     if checks:
         raise SemanticError(",".join(checks))
     return {

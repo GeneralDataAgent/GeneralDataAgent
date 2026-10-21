@@ -40,10 +40,13 @@ class TieBreak(PlanNode):
 
 
 class SemanticQueryPlan(PlanNode):
-    operation: Literal["rank", "count"]
+    operation: Literal["rank", "count", "population_ratio"]
     relations: list[str] = Field(min_length=1, max_length=4)
     joins: list[PlanJoin] = Field(default_factory=list, max_length=3)
     filters: list[PlanFilter] = Field(default_factory=list, max_length=20)
+    numerator_filters: list[PlanFilter] = Field(default_factory=list, max_length=20)
+    multiplier: Literal[1, 100] = 100
+    ratio_name: str = Field(default="ratio", min_length=1, max_length=200)
     entity_keys: list[FieldRef] = Field(default_factory=list, max_length=5)
     projections: list[Projection] = Field(default_factory=list, max_length=20)
     partition_by: list[FieldRef] = Field(default_factory=list, max_length=5)
@@ -65,8 +68,25 @@ class SemanticQueryPlan(PlanNode):
             raise ValueError("rank plans require explicit output and entity keys")
         if self.operation == "rank" and self.aggregation != "count" and self.metric is None:
             raise ValueError("rank metric is required")
-        if self.operation == "count" and self.count_basis == "entities" and not self.entity_keys:
+        if (
+            self.operation in {"count", "population_ratio"}
+            and self.count_basis == "entities"
+            and not self.entity_keys
+        ):
             raise ValueError("entity counts need explicit entity keys")
+        if self.operation != "population_ratio" and self.numerator_filters:
+            raise ValueError("numerator filters require a population ratio")
+        if self.operation == "population_ratio" and (
+            not self.numerator_filters
+            or self.projections
+            or self.metric
+            or self.partition_by
+            or self.aggregation not in {"none", "count"}
+            or self.tie_break_by
+            or self.top_k != 1
+            or any(p.phase != "before" for p in self.filters + self.numerator_filters)
+        ):
+            raise ValueError("population ratios only support two filtered count populations")
         if self.ties == "single" and not self.tie_break_by:
             raise ValueError("single-winner plans require explicit tie ordering")
         if self.ties == "all" and self.tie_break_by:
