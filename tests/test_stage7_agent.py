@@ -1147,3 +1147,32 @@ def test_sql_output_json_compatibility_cannot_submit_bound_answers(database):
     )
     assert result["failure"] and result["final_sql"] is None and not result["answers"]
     assert result["trace"][-1]["checks"] == ["sql_output_requires_sql_action"]
+
+
+def test_public_age_direction_repair_uses_same_bounded_sql_loop(database):
+    before = database.read_bytes()
+    result = run(
+        database,
+        [
+            {"final_sql": "SELECT id FROM people ORDER BY birthday DESC LIMIT 1"},
+            {
+                "final_sql": "SELECT id FROM people "
+                "WHERE birthday=(SELECT MIN(birthday) FROM people)"
+            },
+        ],
+        question="List IDs of the oldest people.",
+        instructions="The larger the birthday value, the younger the person is.",
+        profile="sql-semantic-json",
+    )
+    assert result["failure"] is None
+    assert result["trace"][0]["checks"] == ["public_age_order_direction"]
+    assert result["trace"][1]["status"] == "ok"
+    assert "MIN(birthday)" in result["final_sql"]
+    assert database.read_bytes() == before
+
+
+def test_public_age_direction_hint_describes_public_semantics_without_input_values():
+    from generaldataagent.evaluation.stage_six_repair import execution_hint
+
+    hint = execution_hint(ValueError("public_age_order_direction"))
+    assert "public instructions" in hint and "oldest/youngest" in hint

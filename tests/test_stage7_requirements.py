@@ -157,6 +157,112 @@ def test_public_rank_and_completed_age_do_not_silently_drop_ties_or_birthdays():
     assert not check_public_rank_and_age(completed, "What age was the person on arrival?")
 
 
+@pytest.mark.parametrize(
+    "sql,question,expected",
+    [
+        ("SELECT id FROM people ORDER BY birthday DESC LIMIT 1", "oldest person", True),
+        ("SELECT id FROM people ORDER BY birthday ASC LIMIT 1", "oldest person", False),
+        ("SELECT id FROM people ORDER BY birthday DESC LIMIT 1", "youngest person", False),
+        ("SELECT id FROM people ORDER BY birthday ASC LIMIT 1", "youngest person", True),
+        (
+            "SELECT id FROM people p WHERE p.birthday=(SELECT MAX(q.birthday) FROM people q)",
+            "oldest people",
+            True,
+        ),
+        (
+            "SELECT id FROM people p WHERE p.birthday=(SELECT MIN(q.birthday) FROM people q)",
+            "oldest people",
+            False,
+        ),
+        (
+            "SELECT id FROM people WHERE (SELECT MIN(birthday) FROM people)=birthday",
+            "youngest people",
+            True,
+        ),
+    ],
+)
+def test_explicit_public_age_encoding_checks_scoped_extrema(sql, question, expected):
+    from generaldataagent.tools.semantic_requirements import check_public_age_direction
+
+    instructions = "The larger the birthday value, the younger the person is, and vice versa."
+    assert check_public_age_direction(sql, question, instructions) == (
+        ["public_age_order_direction"] if expected else []
+    )
+
+
+def test_public_age_direction_does_not_infer_encoding_or_borrow_nested_fields():
+    from generaldataagent.tools.semantic_requirements import check_public_age_direction
+
+    policy = "The larger the birthday value, the younger the person is."
+    for sql, question, instructions in [
+        ("SELECT id FROM people ORDER BY birthday DESC LIMIT 1", "oldest person", ""),
+        ("SELECT id FROM people ORDER BY birthday DESC LIMIT 1", "oldest and youngest", policy),
+        ("SELECT id FROM people ORDER BY birthday DESC", "oldest person", policy),
+        ("SELECT id FROM people ORDER BY -birthday DESC LIMIT 1", "oldest person", policy),
+        (
+            "SELECT id FROM (SELECT score AS birthday,id FROM people) d "
+            "ORDER BY birthday DESC LIMIT 1",
+            "oldest person",
+            policy,
+        ),
+        (
+            "SELECT p.id FROM people p JOIN other q ON p.id=q.id ORDER BY birthday DESC LIMIT 1",
+            "oldest person",
+            policy,
+        ),
+        (
+            "SELECT id FROM people WHERE birthday=(SELECT MAX(birthday) FROM other)",
+            "oldest person",
+            policy,
+        ),
+        (
+            "SELECT id FROM people WHERE id=1 OR birthday=(SELECT MAX(birthday) FROM people)",
+            "oldest person",
+            policy,
+        ),
+        (
+            "SELECT id FROM people ORDER BY birthday DESC LIMIT 1",
+            "oldest person",
+            "Do not assume: " + policy,
+        ),
+        (
+            "SELECT id FROM people ORDER BY birthday DESC LIMIT 1",
+            "oldest person",
+            policy + "\nThe larger the birthday value, the older the person is.",
+        ),
+    ]:
+        assert not check_public_age_direction(sql, question, instructions)
+    assert not check_public_age_direction(
+        "SELECT id FROM people ORDER BY birthday DESC LIMIT 1",
+        "oldest person",
+        "The larger the birthday value, the older the person is.",
+    )
+
+
+def test_public_age_direction_rejects_later_birthdays_and_preserves_equal_oldest_dates():
+    import sqlite3
+
+    from generaldataagent.contracts.analysis import AnalysisTaskSpec
+    from generaldataagent.tools.sql_semantics import inspect_semantics
+
+    db = sqlite3.connect(":memory:")
+    db.executescript(
+        "CREATE TABLE people(id INTEGER,birthday TEXT);"
+        "INSERT INTO people VALUES(1,'1970-01-01'),(2,'1970-01-01'),(3,'2001-12-31');"
+    )
+    spec = AnalysisTaskSpec(
+        question="List IDs of all oldest people.",
+        public_requirements="The larger the birthday value, the younger the person is.",
+    )
+    correct = "SELECT id FROM people WHERE birthday=(SELECT MIN(birthday) FROM people)"
+    wrong = correct.replace("MIN", "MAX")
+    assert db.execute(correct).fetchall() == [(1,), (2,)]
+    assert db.execute(wrong).fetchall() == [(3,)]
+    assert not inspect_semantics(correct, spec)
+    assert inspect_semantics(wrong, spec) == ["public_age_order_direction"]
+    db.close()
+
+
 def test_period_equalities_in_inner_join_are_resolved_without_losing_population():
     from generaldataagent.tools.semantic_requirements import (
         check_public_change_direction,
@@ -209,6 +315,35 @@ def test_change_direction_resolves_direct_table_aliases_in_their_own_scope():
     ]:
         assert not check_public_change_direction(
             "SELECT (old.balance-new.balance)*100.0/new.balance" + ambiguous_source, question
+        )
+
+
+def test_change_direction_resolves_scalar_lookups_behind_derived_output_names():
+    from generaldataagent.tools.semantic_requirements import check_public_change_direction
+
+    source = (
+        " FROM (SELECT "
+        "(SELECT v.balance FROM ledger v WHERE v.owner_id=o.id AND v.day='2020-01-01' "
+        "ORDER BY v.id LIMIT 1) AS x, "
+        "(SELECT v.balance FROM ledger v WHERE v.owner_id=o.id AND v.day='2021-01-01' "
+        "ORDER BY v.id LIMIT 1) AS y FROM owners o) amounts"
+    )
+    question = "What is the growth rate from 2020/1/1 to 2021/1/1?"
+    assert not check_public_change_direction(
+        "SELECT (amounts.y-amounts.x)*100.0/NULLIF(amounts.x,0)" + source, question
+    )
+    assert check_public_change_direction(
+        "SELECT (amounts.x-amounts.y)*100.0/amounts.y" + source, question
+    ) == ["change_direction", "change_reference_period"]
+    for ambiguous in [
+        source.replace("FROM ledger v", "FROM ledger v JOIN other w ON v.id=w.id"),
+        source.replace("v.day='2020-01-01'", "(v.day='2020-01-01' OR v.day='2021-01-01')"),
+        source.replace("v.balance", "-v.balance"),
+    ]:
+        # An independently known denominator may still contradict the reference period,
+        # but an unknown numerator cannot establish the subtraction direction.
+        assert "change_direction" not in check_public_change_direction(
+            "SELECT (amounts.x-amounts.y)*100.0/amounts.y" + ambiguous, question
         )
 
 

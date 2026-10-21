@@ -259,6 +259,30 @@ def check_public_change_direction(sql: str, question: str) -> list[str]:
                 return None
             projection = projections[0]
             source = projection.this if isinstance(projection, exp.Alias) else projection
+            if isinstance(source, exp.Subquery) and isinstance(source.this, exp.Select):
+                # A derived output may itself be a scalar lookup. Resolve its own date
+                # equality, rather than losing the period behind the output alias.
+                select = source.this
+                if len(select.selects) != 1 or select.args.get("group"):
+                    return None
+                source = select.selects[0]
+                source = source.this if isinstance(source, exp.Alias) else source
+                tables = [
+                    table
+                    for table in select.find_all(exp.Table)
+                    if table.find_ancestor(exp.Select) is select
+                ]
+                if (
+                    len(tables) != 1
+                    or select.args.get("joins")
+                    or not isinstance(source, exp.Column)
+                    or (
+                        source.table
+                        and _identifier_key(source.table)
+                        != _identifier_key(tables[0].alias_or_name)
+                    )
+                ):
+                    return None
             if not isinstance(source, exp.Column):
                 return None
         else:
@@ -449,4 +473,97 @@ def check_public_all_count_population(sql: str, question: str, instructions: str
                     and _normalized(numerator.this) in excluded
                 ):
                     return ["unrequested_all_count_null_filter"]
+    return []
+
+
+def check_public_age_direction(sql: str, question: str, instructions: str) -> list[str]:
+    """Check direct extrema only when public text explicitly orders an age encoding.
+
+    Field names alone do not establish date encoding. Derived/ambiguous sources,
+    transformed values and unrelated nested scopes remain unclassified.
+    """
+    import re
+
+    from sqlglot.optimizer.scope import traverse_scope
+
+    oldest = bool(re.search(r"\boldest\b", question, re.I))
+    youngest = bool(re.search(r"\byoungest\b", question, re.I))
+    if oldest == youngest:
+        return []
+    public = "\n".join(
+        clause
+        for clause in re.split(r"[;\n]", instructions)
+        if not re.search(r"\b(?:do not|don't|never|must not|not to)\b", clause, re.I)
+    )
+    policies = re.findall(
+        r"\b(?:larger|higher|greater)\s+(?:the\s+)?"
+        r"(?:value\s+of\s+)?([A-Za-z_]\w*)\s*(?:value)?\s*,\s*"
+        r"(?:the\s+)?(younger|older)\b",
+        public,
+        re.I,
+    )
+    if len(set((_identifier_key(field), direction.lower()) for field, direction in policies)) != 1:
+        return []
+    field, meaning = policies[0]
+    # If larger means younger, oldest is a minimum; if larger means older, invert.
+    want_max = youngest == (meaning.lower() == "younger")
+    tree = parse_one(sql, read="sqlite")
+    if not isinstance(tree, exp.Select):
+        return []
+    scopes = {id(scope.expression): scope for scope in traverse_scope(tree)}
+
+    def physical_column(column, select):
+        if not isinstance(column, exp.Column) or _identifier_key(column.name) != _identifier_key(
+            field
+        ):
+            return None
+        scope = scopes.get(id(select))
+        if scope is None:
+            return None
+        sources = scope.selected_sources
+        if column.table:
+            matches = [
+                source
+                for alias, (_, source) in sources.items()
+                if _identifier_key(alias) == _identifier_key(column.table)
+            ]
+        else:
+            matches = [source for _, source in sources.values()] if len(sources) == 1 else []
+        if len(matches) != 1 or not isinstance(matches[0], exp.Table):
+            return None
+        table = matches[0]
+        return tuple(_identifier_key(value) for value in (table.catalog, table.db, table.name))
+
+    order = tree.args.get("order")
+    if tree.args.get("limit") and order and order.expressions:
+        first = order.expressions[0]
+        if (
+            physical_column(first.this, tree) is not None
+            and bool(first.args.get("desc")) != want_max
+        ):
+            return ["public_age_order_direction"]
+    where = tree.args.get("where")
+    for term in _conjuncts(where.this) if where else []:
+        if not isinstance(term, exp.EQ):
+            continue
+        for column, query in ((term.this, term.expression), (term.expression, term.this)):
+            outer_source = physical_column(column, tree)
+            if outer_source is None or not isinstance(query, exp.Subquery):
+                continue
+            select = query.this
+            if (
+                not isinstance(select, exp.Select)
+                or select.args.get("group")
+                or len(select.selects) != 1
+            ):
+                continue
+            aggregate = _unparen(select.selects[0])
+            if isinstance(aggregate, exp.Alias):
+                aggregate = _unparen(aggregate.this)
+            if (
+                isinstance(aggregate, (exp.Max, exp.Min))
+                and physical_column(aggregate.this, select) == outer_source
+                and isinstance(aggregate, exp.Max) != want_max
+            ):
+                return ["public_age_order_direction"]
     return []

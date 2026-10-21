@@ -75,6 +75,18 @@ def bounded_observation(result: dict, *, max_chars: int = 6000) -> dict:
 
 def execution_hint(exc: Exception) -> str:
     text = str(exc)
+    if "public_age_order_direction" in text:
+        return (
+            "The public instructions explicitly relate this field's value to age. "
+            "Choose the minimum or maximum in the direction required for oldest/youngest; "
+            "preserve the requested population and every requested output."
+        )
+    if "change_direction" in text or "change_reference_period" in text:
+        return (
+            "For the public change from a starting period to an ending period, subtract "
+            "start from end and divide by the starting value. Preserve the public scale, "
+            "filters and lookup selection; changing output aliases cannot repair the formula."
+        )
     if "cell limit" in text:
         return (
             "The complete final/check result exceeds the bounded verification cell budget. "

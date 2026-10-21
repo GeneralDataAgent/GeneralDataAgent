@@ -60,6 +60,7 @@ def inspect_semantics(sql: str, spec: AnalysisTaskSpec) -> list[str]:
         elif any(not d.expression.find(exp.Nullif) for d in divisions):
             issues.append("zero_denominator_unprotected")
     from generaldataagent.tools.semantic_requirements import (
+        check_public_age_direction,
         check_public_all_count_population,
         check_public_change_direction,
         check_public_rank_and_age,
@@ -70,6 +71,7 @@ def inspect_semantics(sql: str, spec: AnalysisTaskSpec) -> list[str]:
         issues.extend(check_requirements(sql, spec.requirements))
         issues.extend(check_public_change_direction(sql, spec.question))
         issues.extend(check_public_rank_and_age(sql, spec.question, spec.public_requirements))
+        issues.extend(check_public_age_direction(sql, spec.question, spec.public_requirements))
         issues.extend(
             check_public_all_count_population(sql, spec.question, spec.public_requirements)
         )
