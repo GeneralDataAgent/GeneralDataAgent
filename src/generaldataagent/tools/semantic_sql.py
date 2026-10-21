@@ -351,7 +351,7 @@ def execute_semantic_plan(
         plan, schema=schema, question=question, instructions=instructions
     )
     validate_column_scope(database, sql, allowed_relations=set(allowed_relations))
-    checks = inspect_semantics(sql, spec)
+    checks = inspect_semantics(sql, spec, schema=schema)
     if checks:
         raise SemanticError(",".join(checks))
     result = SQLiteReadOnlyExecutor(

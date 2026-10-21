@@ -21,7 +21,7 @@ class ColumnScopeError(SemanticError):
         super().__init__("unresolved or ambiguous scoped SQL column; check schema")
 
 
-def inspect_semantics(sql: str, spec: AnalysisTaskSpec) -> list[str]:
+def inspect_semantics(sql: str, spec: AnalysisTaskSpec, *, schema: dict | None = None) -> list[str]:
     tree = parse_one(sql, read="sqlite")
     issues = []
     output = [item.alias_or_name for item in tree.selects]
@@ -76,6 +76,12 @@ def inspect_semantics(sql: str, spec: AnalysisTaskSpec) -> list[str]:
         issues.extend(check_change_real_division(sql, spec.question))
         issues.extend(check_public_rank_and_age(sql, spec.question, spec.public_requirements))
         issues.extend(check_public_age_direction(sql, spec.question, spec.public_requirements))
+        if schema is not None:
+            from generaldataagent.tools.public_formulas import check_public_year_fields
+
+            issues.extend(
+                check_public_year_fields(sql, spec.question, spec.public_requirements, schema)
+            )
         issues.extend(
             check_public_all_count_population(sql, spec.question, spec.public_requirements)
         )

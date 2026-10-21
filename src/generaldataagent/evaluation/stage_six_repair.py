@@ -75,6 +75,12 @@ def bounded_observation(result: dict, *, max_chars: int = 6000) -> dict:
 
 def execution_hint(exc: Exception) -> str:
     text = str(exc)
+    if "public_year_formula_fields" in text:
+        return (
+            "Use the physical source fields in the explicit public year-difference formula, "
+            "in its stated order. Another event date cannot replace a declared source date. "
+            "Preserve the requested outputs and verify actual date encoding."
+        )
     if "independent_test_requires_method_bindings" in text:
         return (
             "This public task explicitly requests an independent sample t-test. Use fixed_analysis "

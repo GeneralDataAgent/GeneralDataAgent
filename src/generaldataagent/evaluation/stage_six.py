@@ -362,6 +362,10 @@ class BoundedSQLAgent:
         )
 
         context, relations = database_context(database.resolve())
+        physical_schema = {
+            item["table"]: [column[0] for column in item["columns"]]
+            for item in (json.loads(line) for line in context.splitlines())
+        }
         from generaldataagent.catalog.semantic_context import semantic_context
         from generaldataagent.evaluation.stage_seven import (
             STAGE7_ANALYSIS_PROMPT,
@@ -1010,7 +1014,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     if semantic:
                         validate_column_scope(database, sql, allowed_relations=relations)
                     if semantic and "final_sql" in action:
-                        issues = inspect_semantics(sql, task_spec)
+                        issues = inspect_semantics(sql, task_spec, schema=physical_schema)
                         if issues:
                             raise SemanticError(",".join(issues))
                     result = (
@@ -1099,7 +1103,9 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                         }
                     )
                     issues = inspect_semantics(
-                        sql, task_spec.model_copy(update={"answer": scalar_answer})
+                        sql,
+                        task_spec.model_copy(update={"answer": scalar_answer}),
+                        schema=physical_schema,
                     )
                     if crosscheck_rows is not None and Counter(result.rows) != Counter(
                         crosscheck_rows
@@ -1136,7 +1142,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                             )
                         }
                     )
-                    issues = inspect_semantics(sql, ordered_spec)
+                    issues = inspect_semantics(sql, ordered_spec, schema=physical_schema)
                     if crosscheck_rows is not None and Counter(result.rows) != Counter(
                         crosscheck_rows
                     ):
