@@ -75,6 +75,13 @@ def bounded_observation(result: dict, *, max_chars: int = 6000) -> dict:
 
 def execution_hint(exc: Exception) -> str:
     text = str(exc)
+    if "independent_test_requires_method_bindings" in text:
+        return (
+            "This public task explicitly requests an independent sample t-test. Use fixed_analysis "
+            "operation independent_t_test, then bind every requested field to that result's "
+            "groups, p_value or public_rule_label. A SQL CASE with 1.96, an unfiltered Pearson "
+            "test or data-dependent descriptive SQL is not a receipt for the requested test."
+        )
     if (
         "mixed_sql_requires_remaining_scalar_aliases" in text
         or "mixed_sql_requires_one_scalar_row" in text

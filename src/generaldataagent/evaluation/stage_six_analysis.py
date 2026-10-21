@@ -47,6 +47,12 @@ def fixed_analysis(
     database, specification: dict, *, allowed_relations: set[str], public_text: str = ""
 ) -> dict:
     arguments = AnalysisArguments.model_validate(specification)
+    if arguments.operation == "independent_t_test":
+        from generaldataagent.tools.independent_test import independent_test
+
+        return independent_test(
+            database, arguments, allowed_relations=allowed_relations, public_text=public_text
+        )
     table = specification["table"]
     columns = specification["columns"]
     operation = specification["operation"]

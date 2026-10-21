@@ -23,6 +23,7 @@ class AnswerFieldSpec(BaseModel):
             "describe.sample_std",
             "pearson",
             "pearson_test",
+            "independent_t_test",
             "linear_regression",
             "complete_collection",
         ]

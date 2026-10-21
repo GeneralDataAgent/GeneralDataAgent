@@ -5,6 +5,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from generaldataagent.contracts.answer_fields import AnswerFieldSpec
+from generaldataagent.contracts.independent_test import IndependentTestSpec
 from generaldataagent.contracts.query_plan import SemanticQueryPlan
 from generaldataagent.contracts.semantic_requirements import SemanticRequirements
 from generaldataagent.contracts.statistical_rules import PearsonDecisionRule
@@ -55,11 +56,16 @@ class AnalysisTaskSpec(Contract):
 class AnalysisArguments(Contract):
     table: str = Field(min_length=1, max_length=200)
     columns: list[str] = Field(min_length=1, max_length=2)
-    operation: Literal["describe", "pearson", "pearson_test", "linear_regression"]
+    operation: Literal[
+        "describe", "pearson", "pearson_test", "linear_regression", "independent_t_test"
+    ]
     decision_rule: PearsonDecisionRule | None = None
+    test: IndependentTestSpec | None = None
 
     @model_validator(mode="after")
     def paired(self):
+        if (self.operation == "independent_t_test") != (self.test is not None):
+            raise ValueError("independent_t_test requires its explicit test specification only")
         if self.decision_rule is not None and self.operation != "pearson_test":
             raise ValueError("decision rule requires pearson_test")
         if self.operation != "describe" and len(self.columns) != 2:

@@ -388,6 +388,10 @@ class BoundedSQLAgent:
             normalize_protocol_action,
             validate_action,
         )
+        from generaldataagent.tools.independent_test import (
+            independent_method_bindings,
+            requests_independent_test,
+        )
         from generaldataagent.tools.sql_semantics import (
             ColumnScopeError,
             SemanticError,
@@ -398,6 +402,12 @@ class BoundedSQLAgent:
             validate_column_scope,
             validate_rows,
         )
+
+        public_task_text = task.question + "\n" + task.instructions
+
+        def require_test_method(bindings, bound_evidence):
+            if not independent_method_bindings(bindings, bound_evidence, public_task_text):
+                raise SemanticError("independent_test_requires_method_bindings")
 
         plan_mode = self.tool_profile == "sql-semantic-plan"
         semantic_json = self.tool_profile == "sql-semantic-json"
@@ -437,6 +447,12 @@ Available operations: describe (one or two numeric columns), pearson (two numeri
 pearson_test (two columns, two-sided exact beta null p_value and correlation;
 assumptions unverified),
 linear_regression (x then y; descriptive slope/intercept only, not predictive validation).
+independent_t_test: columns=[numeric measure,group column], test={groups:[first,second],
+variance:"student" or "welch",filters:[{column,value,source_excerpt}],
+significance_rule:{alpha,significant_label,nonsignificant_label}}. Filters are textual equalities
+with exact public source/value. Output groups[0/1] has mean/sample_std/population_std/count,
+plus statistic/p_value/degrees_of_freedom/public_rule_label. It uses the finite-sample t
+distribution, never a fixed 1.96 threshold. Assumptions and group meanings are unverified.
 For explicit public r/p classification, pearson_test accepts decision_rule with alpha,
 abs_r_threshold, significant_high_label, significant_low_label, nonsignificant_label.
 Thresholds and quoted labels must occur in public text. Uses unrounded p<alpha and
@@ -583,6 +599,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                             planned=task_spec is not None,
                             plan_enabled=plan_mode,
                             exploration_enabled=True,
+                            independent_test_requested=requests_independent_test(public_task_text),
                             answer_contract=task_spec.answer if task_spec is not None else None,
                             evidence_steps=sorted(evidence),
                             collection_steps=sorted(
@@ -912,6 +929,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                             raise SemanticError("bind every public answer field")
                         if any(v[0] not in citations for v in action.get("bindings", {}).values()):
                             raise SemanticError("binding steps must also be cited")
+                        require_test_method(action.get("bindings", {}), evidence)
                         answers = assemble_answers(
                             action.get("bindings", {}), evidence, task_spec.answer
                         )
@@ -1080,6 +1098,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     if issues:
                         raise SemanticError(",".join(issues))
                     combined = evidence | {step: result_data}
+                    require_test_method(atomic_bindings, combined)
                     answers = assemble_answers(atomic_bindings, combined, task_spec.answer)
                     from generaldataagent.tools.answer_fields import binding_receipts
 
@@ -1117,6 +1136,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     atomic_bindings = {
                         key: (step, ["rows", 0, index]) for index, key in enumerate(result.columns)
                     }
+                    require_test_method(atomic_bindings, {step: result_data})
                     answers = assemble_answers(
                         atomic_bindings, {step: result_data}, task_spec.answer
                     )

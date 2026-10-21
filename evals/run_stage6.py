@@ -181,6 +181,14 @@ def main():
             ROOT / "src/generaldataagent/evaluation/stage_six_analysis.py"
         ),
         "pearson_test_hash": digest(ROOT / "src/generaldataagent/tools/pearson_test.py"),
+        "independent_test_hash": digest(ROOT / "src/generaldataagent/tools/independent_test.py"),
+        "independent_test_contract_hash": digest(
+            ROOT / "src/generaldataagent/contracts/independent_test.py"
+        ),
+        "analysis_contract_hash": digest(ROOT / "src/generaldataagent/contracts/analysis.py"),
+        "statistical_public_fields_hash": digest(
+            ROOT / "src/generaldataagent/catalog/field_evidence.py"
+        ),
         "statistical_rules_hash": digest(
             ROOT / "src/generaldataagent/contracts/statistical_rules.py"
         ),

@@ -47,6 +47,8 @@ def stage7_fingerprint(root: Path) -> dict:
         "contracts/analysis.py",
         "contracts/answer_fields.py",
         "contracts/statistical_rules.py",
+        "contracts/independent_test.py",
+        "tools/independent_test.py",
         "tools/pearson_test.py",
         "evaluation/stage_six_analysis.py",
         "tools/answer_fields.py",
@@ -112,6 +114,26 @@ and 10000 cells, within five seconds; over-budget results fail rather than trunc
 """
 
 
+def _wire_contract_schema(model):
+    schema = model.model_json_schema()
+    definitions = schema.get("$defs", {})
+
+    def inline(node):
+        if isinstance(node, list):
+            return [inline(value) for value in node]
+        if not isinstance(node, dict):
+            return node
+        if "$ref" in node:
+            return inline(definitions[node["$ref"].split("/")[-1]])
+        return {
+            key: inline(value)
+            for key, value in node.items()
+            if key not in {"$defs", "title", "default"}
+        }
+
+    return inline(schema)
+
+
 def bind_typed_tools(
     model,
     *,
@@ -119,6 +141,7 @@ def bind_typed_tools(
     planned: bool = False,
     plan_enabled=False,
     exploration_enabled=False,
+    independent_test_requested=False,
     collection_first=False,
     collection_task=False,
     answer_contract=None,
@@ -304,6 +327,20 @@ def bind_typed_tools(
                 field["properties"].pop("rule")
         if evidence_steps:
             field["properties"]["step"]["enum"] = list(evidence_steps)
+        analysis_properties = {
+            "table": string,
+            "columns": {"type": "array", "items": string, "minItems": 1, "maxItems": 2},
+            "operation": {
+                "type": "string",
+                "enum": ["describe", "pearson", "pearson_test", "linear_regression"],
+            },
+            "decision_rule": PearsonDecisionRule.model_json_schema(),
+        }
+        if independent_test_requested:
+            from generaldataagent.contracts.independent_test import IndependentTestSpec
+
+            analysis_properties["operation"]["enum"].append("independent_t_test")
+            analysis_properties["test"] = _wire_contract_schema(IndependentTestSpec)
         tools = [
             tool(
                 "submit_sql_answers",
@@ -320,15 +357,7 @@ def bind_typed_tools(
             tool(
                 "fixed_analysis",
                 "Full-data stats; sample_std ddof=1; pearson_test gives r and two-sided p_value",
-                {
-                    "table": string,
-                    "columns": {"type": "array", "items": string, "minItems": 1, "maxItems": 2},
-                    "operation": {
-                        "type": "string",
-                        "enum": ["describe", "pearson", "pearson_test", "linear_regression"],
-                    },
-                    "decision_rule": PearsonDecisionRule.model_json_schema(),
-                },
+                analysis_properties,
                 ["table", "columns", "operation"],
             ),
             tool(
@@ -397,6 +426,8 @@ def bind_typed_tools(
                         ["sql", "collections"],
                     )
                 )
+        if independent_test_requested:
+            tools = [item for item in tools if item["function"]["name"] != "submit_sql_answers"]
         if collection_task:
             tools = [item for item in tools if item["function"]["name"] != "submit_sql_answers"]
         if collection_first:
@@ -423,6 +454,15 @@ and quoted labels must occur in original public text. It applies p<alpha then ab
 to unrounded values. Labels express the public decision policy, not scientific proof of linearity.
 Bind ["public_rule_label"] for this policy label, ["p_value"] for p. Regression has no predictor
 p-values or held-out evaluation.
+When an independent sample t-test is explicitly requested, use fixed_analysis operation
+independent_t_test with columns=[numeric measure,group column], test={groups:[first,second],
+variance:"student" or "welch", filters:[{column,value,source_excerpt}],
+significance_rule:{alpha,significant_label,nonsignificant_label}}. Text equality filters require
+an exact public excerpt containing their value. Choose the variance model explicitly; assumptions
+are unverified. Bind every public field to this test's full-data evidence: ["groups",0,"mean"],
+["groups",0,"sample_std"], corresponding group 1, ["p_value"] or ["public_rule_label"].
+Do not use unfiltered Pearson as an independent group test or replace a finite-sample t
+distribution by a fixed 1.96 threshold. SQL-only answers cannot certify the requested test.
 If a required method cannot be computed by the available tools, call declare_unsupported with a
 brief reason. Do not consume the budget trying unsupported functions or invent an approximation.
 When every public field is scalar, prefer submit_sql_answers: SELECT exactly one
