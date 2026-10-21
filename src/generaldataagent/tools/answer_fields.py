@@ -155,6 +155,20 @@ def infer_public_field_rules(instructions: str, columns: list[str]) -> dict[str,
             return {}
         placeholders[key] = value
     rules = {}
+    no_duplicates = re.search(
+        r"\b(?:no|without)\s+duplicates\b|\bnot\s+contain\s+(?:any\s+)?duplicates\b",
+        instructions,
+        re.I,
+    )
+    if no_duplicates and len(instructions.strip()) <= 2000:
+        for key in columns:
+            placeholder = placeholders.get(key, "")
+            if "," in placeholder and re.search(r"…|\.{3}", placeholder):
+                rules[key] = AnswerFieldSpec(
+                    kind="set",
+                    nullable=False,
+                    source_excerpt=instructions.strip(),
+                )
     # A public format may use "where" once, followed by several quoted definitions.
     # Keep spans in the original text so every rule retains exact provenance.
     quoted = r"[\"'][^\"'\n]{1,200}[\"']"
@@ -176,7 +190,15 @@ def infer_public_field_rules(instructions: str, columns: list[str]) -> dict[str,
         if not defined and re.fullmatch(r"\w+", names.strip()):
             defined = {names.strip()}
         kind = (
-            "string"
+            "set"
+            if re.search(r"^(?:(?:a|the)\s+)?set\b", description.strip(), re.I)
+            or no_duplicates
+            and re.search(
+                r"^(?:(?:a|the)\s+)?(?:list|collection)\b",
+                description.strip(),
+                re.I,
+            )
+            else "string"
             if re.search(r"\bstring\b", description, re.I)
             else "integer"
             if re.search(r"\binteger\b", description, re.I)
@@ -195,7 +217,8 @@ def infer_public_field_rules(instructions: str, columns: list[str]) -> dict[str,
             if placeholders.get(key) in defined:
                 candidate = AnswerFieldSpec(
                     kind=kind,
-                    decimals=next(iter(precision)) if precision else None,
+                    nullable=False if kind == "set" else None,
+                    decimals=next(iter(precision)) if precision and kind != "set" else None,
                     source_excerpt=excerpt,
                 )
                 if key in rules and rules[key] != candidate:

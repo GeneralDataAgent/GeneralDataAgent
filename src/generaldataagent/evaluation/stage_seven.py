@@ -310,8 +310,8 @@ binds all fields atomically, with the public precision and full-data receipts. N
 For necessary exploration use compute_sql, read-only SQLite with exact listed columns and relations.
 Use only requested filters; keep missing-value and date conventions explicit. Do not estimate
 statistics from previews. Use sample_std for sample standard deviation. Preserve requested ties.
-Search documents when needed with search_documents. For complete ID sets use collect_values with
-one DISTINCT output column and no LIMIT/OFFSET, bounded to 10000 values with completeness checks.
+Search documents when needed with search_documents. For complete ID or column-name sets use
+collect_values with one DISTINCT output column and no LIMIT/OFFSET, bounded to 10000 values.
 Then submit_answers with fields [{"name":"public_key","step":1,"path":["rows",0,0]}].
 For Pearson bind path ["correlation"]; for sample std ["statistics","column","sample_std"].
 For complete collections bind ["items"] and rule {"kind":"set","method":"complete_collection"}.

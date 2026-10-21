@@ -75,6 +75,12 @@ def bounded_observation(result: dict, *, max_chars: int = 6000) -> dict:
 
 def execution_hint(exc: Exception) -> str:
     text = str(exc)
+    if "field requires complete set evidence" in text:
+        return (
+            "Use collect_values with one DISTINCT full-data output column and no LIMIT/OFFSET, "
+            "then submit_answers binding path [items]. A JSON or comma-joined string is not "
+            "a verified complete collection. Preserve any public sorting requirement."
+        )
     if any(code in text for code in ("predicate_scope", "date_scope", "ratio_scope")):
         return (
             "A requirement scope must identify root, a unique CTE/subquery alias, or a unique "

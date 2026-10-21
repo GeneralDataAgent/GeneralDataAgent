@@ -154,3 +154,27 @@ def test_public_placeholder_can_contain_percent_symbols_without_losing_its_type(
     assert rules["rate"].kind == "number" and rules["rate"].decimals == 2
     assert rules["rate"].source_excerpt in text
     assert not infer_public_field_rules(text + " @rate[other]", ["rate"])
+
+
+def test_public_unique_ellipsis_format_requires_a_complete_collection_not_a_string():
+    from generaldataagent.tools.answer_fields import infer_public_field_rules
+
+    text = (
+        "@names[column1, column2,…] whereby the entries are string column names. "
+        "The answer should not contain any duplicates and should be sorted alphabetically."
+    )
+    rule = infer_public_field_rules(text, ["names"])["names"]
+    assert rule.kind == "set" and rule.nullable is False
+    assert rule.source_excerpt == text
+    assert not infer_public_field_rules("@range[low, high] without duplicates", ["range"])
+    assert not infer_public_field_rules("@names[a,b,...] Preserve duplicates.", ["names"])
+    assert not infer_public_field_rules(text + " @other[undefined]", ["names", "other"])
+
+
+def test_explicit_set_definition_does_not_reinterpret_a_string_description():
+    from generaldataagent.tools.answer_fields import infer_public_field_rules
+
+    text = "@names[columns] where 'columns' is a set of string names."
+    assert infer_public_field_rules(text, ["names"])["names"].kind == "set"
+    text = "@description[text] where 'text' is a string describing a set of columns."
+    assert infer_public_field_rules(text, ["description"])["description"].kind == "string"

@@ -956,3 +956,24 @@ def test_staged_native_style_contract_accepts_unambiguous_root_source_without_mu
     )
     assert len(result["trace"]) == 3
     assert result["trace"][1]["tool"] == "sql_crosscheck"
+
+
+def test_public_collection_auto_contract_requires_complete_values_and_bindings(database):
+    instructions = "@ids[id1, id2,...] The answer should not contain any duplicates."
+    actions = [
+        {"submit_sql_answers": {"sql": "SELECT group_concat(id) AS ids FROM people"}},
+        {"collect_values": {"sql": "SELECT DISTINCT id FROM people ORDER BY id"}},
+        {"submit_answers": {"fields": [{"name": "ids", "step": 2, "path": ["items"]}]}},
+    ]
+    result = run(
+        database,
+        actions,
+        benchmark="infiagent-dabench",
+        question="List all people ids.",
+        instructions=instructions,
+    )
+    assert result["failure"] is None and result["answers"] == {"ids": [1, 2]}
+    assert result["task_contract"]["answer"]["fields"]["ids"]["kind"] == "set"
+    assert result["answer_evidence"]["ids"]["method_id"] == "complete_collection"
+    assert result["answer_evidence"]["ids"]["step"] == 2
+    assert result["trace"][0]["status"] == "error"
