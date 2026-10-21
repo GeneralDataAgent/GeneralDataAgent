@@ -6,9 +6,10 @@ No generated Python, imports, shell commands, files or database writes are accep
 import hashlib
 import math
 import re
-import sqlite3
 import statistics
 
+from generaldataagent.contracts.analysis import AnalysisArguments
+from generaldataagent.tools.analysis_scope import validate_analysis_columns
 from generaldataagent.tools.sqlite import SQLiteReadOnlyExecutor
 
 
@@ -42,9 +43,16 @@ def document_outline(documents: str) -> str:
     return "\n".join(line for line in documents.splitlines() if line.startswith("#"))[:3000]
 
 
-def fixed_analysis(database, specification: dict, *, allowed_relations: set[str]) -> dict:
-    if set(specification) - {"table", "columns", "operation"}:
-        raise ValueError("unknown analysis parameters")
+def fixed_analysis(
+    database, specification: dict, *, allowed_relations: set[str], public_text: str = ""
+) -> dict:
+    arguments = AnalysisArguments.model_validate(specification)
+    if arguments.operation == "independent_t_test":
+        from generaldataagent.tools.independent_test import independent_test
+
+        return independent_test(
+            database, arguments, allowed_relations=allowed_relations, public_text=public_text
+        )
     table = specification["table"]
     columns = specification["columns"]
     operation = specification["operation"]
@@ -56,7 +64,7 @@ def fixed_analysis(database, specification: dict, *, allowed_relations: set[str]
         or not all(isinstance(c, str) and len(c) <= 200 for c in columns)
     ):
         raise ValueError("one or two explicit columns required")
-    if operation not in {"describe", "pearson", "linear_regression"}:
+    if operation not in {"describe", "pearson", "pearson_test", "linear_regression"}:
         raise ValueError("unsupported fixed analysis")
     if operation != "describe" and len(columns) != 2:
         raise ValueError("paired analysis requires two columns")
@@ -64,16 +72,13 @@ def fixed_analysis(database, specification: dict, *, allowed_relations: set[str]
     def quote(value):
         return '"' + value.replace('"', '""') + '"'
 
+    # Verify physical column names: SQLite double-quoted-string compatibility must not
+    # turn a misspelled identifier into an apparently valid constant numeric feature.
+    validate_analysis_columns(database, table, columns, allowed_relations=allowed_relations)
     executor = SQLiteReadOnlyExecutor(database, max_rows=200_000, timeout_seconds=5)
     result = executor.execute(
         "SELECT " + ",".join(quote(c) for c in columns) + " FROM " + quote(table)
     )
-    # Verify physical column names: SQLite double-quoted-string compatibility must not
-    # turn a misspelled identifier into an apparently valid constant numeric feature.
-    with sqlite3.connect(database.resolve().as_uri() + "?mode=ro", uri=True) as db:
-        physical = {row[1] for row in db.execute("PRAGMA table_info(" + quote(table) + ")")}
-    if not set(columns).issubset(physical):
-        raise ValueError("unknown analysis column")
     rows = [
         row
         for row in result.rows
@@ -120,6 +125,17 @@ def fixed_analysis(database, specification: dict, *, allowed_relations: set[str]
         if not rows:
             raise ValueError("no finite observations")
         output["correlation"] = statistics.correlation([r[0] for r in rows], [r[1] for r in rows])
+    elif operation == "pearson_test":
+        from generaldataagent.tools.pearson_test import pearson_test
+
+        output.update(
+            pearson_test(
+                rows,
+                rule=arguments.decision_rule,
+                significance_rule=arguments.significance_rule,
+                public_text=public_text,
+            )
+        )
     else:
         fit = statistics.linear_regression([r[0] for r in rows], [r[1] for r in rows])
         output.update(

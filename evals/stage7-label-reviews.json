@@ -1,0 +1,48 @@
+[
+  {
+    "benchmark": "bird-mini-dev-sqlite",
+    "case_id": "219",
+    "issue": "Public evidence and reference query appear to use different condition populations; preserve strict score pending independent adjudication.",
+    "evidence_refs": [
+      "docs/validation/stage6-magpie-error-audit.json"
+    ],
+    "status": "pending_independent_adjudication"
+  },
+  {
+    "benchmark": "bird-mini-dev-sqlite",
+    "case_id": "672",
+    "issue": "Distinct entity count versus joined record count is ambiguous; preserve strict score pending independent adjudication.",
+    "evidence_refs": [
+      "docs/validation/stage6-magpie-error-audit.json"
+    ],
+    "status": "pending_independent_adjudication"
+  },
+  {
+    "benchmark": "infiagent-dabench",
+    "case_id": "300",
+    "issue": "Independent full-data Pearson differs from the public reference coefficient; do not change the algorithm to match the label.",
+    "evidence_refs": [
+      "docs/validation/stage6-magpie-error-audit.json"
+    ],
+    "status": "pending_independent_adjudication"
+  },
+  {
+    "benchmark": "bird-mini-dev-sqlite",
+    "case_id": "931",
+    "issue": "Frozen full candidate returns numeric 202.484 while historical passing SQL returns text 202.484 from a TEXT speed field. Preserve strict mismatch and historical regression pending independent adjudication; do not change numeric logic to imitate label type.",
+    "evidence_refs": [
+      "docs/validation/stage7-continuation-2026-10-21.md"
+    ],
+    "status": "pending_independent_adjudication"
+  },
+  {
+    "benchmark": "infiagent-dabench",
+    "case_id": "412",
+    "issue": "Public instructions say rounding up to two decimals, then also say rounded to 2 decimal places. Full-data Decimal recomputation for non-survivors is 485/549: ceiling gives 0.89 while half-even gives 0.88, matching the reference. Keep both interpretations and the strict score unchanged pending independent instruction/label adjudication.",
+    "evidence_refs": [
+      "docs/validation/stage7-20261021-results.json",
+      "docs/validation/stage7-continuation-2026-10-21.md"
+    ],
+    "status": "pending_independent_adjudication"
+  }
+]

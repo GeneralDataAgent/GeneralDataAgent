@@ -23,7 +23,9 @@ Before the final query, check these semantic requirements:
 7. Use exact schema names. Quote identifier parts separately; use single quotes for string values.
    Distinguish NULL from zero/empty text and do not invent zero for an undefined ratio.
 
-Queries are bounded to 200 rows and five seconds. Use small exploratory projections/aggregates.
+Exploration is bounded to 200 rows. Final SQL is verified completely within 10000 rows and
+10000 cells, with a five-second query timeout. Over-budget results fail; never truncate a
+requested full result to fit. Use small exploratory projections/aggregates.
 Do not repeat an unchanged query. After sufficient evidence, return final_sql rather than narrate
 or continue exploring. An empty result does not prove the query logic is right.
 """
@@ -42,14 +44,15 @@ def schema_relationships(database, *, allowed_relations: set[str]) -> dict:
         }
         if not allowed_relations <= physical:
             raise ValueError("unknown schema relation")
-        canonical = {name.casefold(): name for name in allowed_relations}
+        ascii_case = str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")
+        canonical = {name.translate(ascii_case): name for name in allowed_relations}
         for name in sorted(allowed_relations):
             columns = db.execute("PRAGMA table_info(" + quote(name) + ")").fetchall()
             keys = sorted((row[5], row[1]) for row in columns if row[5])
             if keys:
                 primary_keys[name] = [column for _, column in keys]
             for row in db.execute("PRAGMA foreign_key_list(" + quote(name) + ")"):
-                target = canonical.get(row[2].casefold())
+                target = canonical.get(row[2].translate(ascii_case))
                 if target is not None:
                     foreign_keys.append(
                         {

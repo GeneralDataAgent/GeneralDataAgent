@@ -42,3 +42,17 @@ def test_quoted_relation_is_safe_and_schema_access_is_read_only(database):
     result = schema_relationships(database, allowed_relations={'odd"name'})
     assert result["primary_keys"] == {'odd"name': ["id"]}
     assert result["foreign_keys"] == [] and digest(database) == before
+
+
+def test_foreign_key_targets_do_not_merge_distinct_unicode_relations(tmp_path):
+    database = tmp_path / "unicode.sqlite"
+    with sqlite3.connect(database) as db:
+        db.executescript(
+            'CREATE TABLE "Ä"(id INT PRIMARY KEY); CREATE TABLE "ä"(id INT PRIMARY KEY); '
+            'CREATE TABLE child(parent INT REFERENCES "Ä"(id));'
+        )
+    before = digest(database)
+    result = schema_relationships(database, allowed_relations={"child", "Ä", "ä"})
+    assert [row["references_table"] for row in result["foreign_keys"]] == ["Ä"]
+    assert not schema_relationships(database, allowed_relations={"child", "ä"})["foreign_keys"]
+    assert digest(database) == before

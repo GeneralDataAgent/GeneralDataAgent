@@ -41,3 +41,26 @@ def test_rejects_unauthorized_relation() -> None:
             "SELECT * FROM restricted.payroll",
             allowed_relations={"analytics.orders"},
         )
+
+
+@pytest.mark.parametrize(("allowed", "other"), [("Ä", "ä"), ("K", "K"), ("İ", "i̇")])
+def test_sqlite_authorization_does_not_merge_unicode_lowercase_relations(allowed, other):
+    guard = SqlGuard(dialect="sqlite")
+    assert guard.inspect(f'SELECT COUNT(*) FROM "{allowed}"', allowed_relations={allowed})
+    with pytest.raises(SqlGuardError, match="unauthorized"):
+        guard.inspect(f'SELECT COUNT(*) FROM "{other}"', allowed_relations={allowed})
+
+
+def test_sqlite_unicode_cte_does_not_whitelist_another_physical_table():
+    guard = SqlGuard(dialect="sqlite")
+    with pytest.raises(SqlGuardError, match="unauthorized"):
+        guard.inspect('WITH "Ä" AS (SELECT 1) SELECT COUNT(*) FROM "ä"', allowed_relations=set())
+    assert (
+        guard.inspect(
+            'WITH "Ä" AS (SELECT 1) SELECT COUNT(*) FROM "Ä"', allowed_relations=set()
+        ).relations
+        == frozenset()
+    )
+    assert guard.inspect("SELECT COUNT(*) FROM PEOPLE", allowed_relations={"people"}).relations == {
+        "PEOPLE"
+    }

@@ -140,6 +140,12 @@ class PacedModel:
 
         self.model, self.pacer, self.deadline = model, pacer, time.monotonic() + 115
 
+    def bind(self, **kwargs):
+        """Forward tool binding without bypassing pacing or extending the task deadline."""
+        bound = PacedModel(self.model.bind(**kwargs), self.pacer)
+        bound.deadline = self.deadline
+        return bound
+
     def invoke(self, messages):
         import time
 
