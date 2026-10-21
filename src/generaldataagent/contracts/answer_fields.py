@@ -10,6 +10,9 @@ class AnswerFieldSpec(BaseModel):
     kind: Literal["number", "integer", "string", "boolean", "set", "list"]
     item_kind: Literal["number", "integer", "string", "boolean"] | None = None
     order: Literal["asc", "desc"] | None = None
+    minimum: float | None = Field(default=None, allow_inf_nan=False)
+    maximum: float | None = Field(default=None, allow_inf_nan=False)
+    choices: list[str] | None = Field(default=None, min_length=1, max_length=32)
     nullable: bool | None = None
     decimals: int | None = Field(default=None, ge=0, le=15)
     unit: str | None = Field(default=None, max_length=50)
@@ -29,6 +32,19 @@ class AnswerFieldSpec(BaseModel):
 
     @model_validator(mode="after")
     def collection_presentation(self):
+        if self.minimum is not None or self.maximum is not None:
+            if self.kind not in {"number", "integer"}:
+                raise ValueError("numeric bounds belong to numeric fields only")
+            if (
+                self.minimum is not None
+                and self.maximum is not None
+                and self.minimum > self.maximum
+            ):
+                raise ValueError("inverted field bounds")
+        if self.choices is not None and (
+            self.kind != "string" or len(set(self.choices)) != len(self.choices)
+        ):
+            raise ValueError("distinct choices belong to string fields only")
         if self.collection_separator is not None and self.kind not in {"set", "list"}:
             raise ValueError("collection separator belongs to set fields only")
         if (self.item_kind is not None or self.order is not None) and self.kind not in {

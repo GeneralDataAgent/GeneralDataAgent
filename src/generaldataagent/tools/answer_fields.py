@@ -66,6 +66,31 @@ def public_collection_separator(text: str, key: str) -> str | None:
     return next(iter(separators)) if len(separators) == 1 else None
 
 
+def public_scalar_domain(text: str) -> dict:
+    """Only explicit inclusive ranges and quoted closed string alternatives are recognized."""
+    domain = {}
+    bounds = re.findall(r"\bbetween\s+(-?\d+(?:\.\d+)?)\s+and\s+(-?\d+(?:\.\d+)?)\b", text, re.I)
+    if len(bounds) == 1:
+        low, high = map(float, bounds[0])
+        if math.isfinite(low) and math.isfinite(high) and low <= high:
+            domain.update(minimum=low, maximum=high)
+    literal = r"""(?:"[^"\n]{1,160}"|'[^'\n]{1,160}')"""
+    match = re.search(
+        r"\b(?:can(?:\s+either)?\s+be|(?:must|should)\s+be\s+one\s+of)\s+("
+        + literal
+        + r"(?:\s*(?:,\s*(?:or\s+)?|or\s+)"
+        + literal
+        + r"){1,31})",
+        text,
+        re.I,
+    )
+    if match and not re.match(r"\s*(?:,|\bor\b|\betc\b|\.{3}|…)", text[match.end() :], re.I):
+        choices = re.findall(r"""["']([^"'\n]{1,160})["']""", match[1])
+        if len(set(choices)) == len(choices):
+            domain["choices"] = choices
+    return domain
+
+
 def validate_field_sources(fields: dict[str, AnswerFieldSpec], columns, question, instructions):
     public = question + "\n" + instructions
     if fields and set(fields) != set(columns):
@@ -73,6 +98,11 @@ def validate_field_sources(fields: dict[str, AnswerFieldSpec], columns, question
     for key, field in fields.items():
         if field.source_excerpt and field.source_excerpt not in public:
             raise ValueError("field rule needs an exact public source excerpt")
+        domain = public_scalar_domain(field.source_excerpt)
+        for attribute in ("minimum", "maximum", "choices"):
+            proposed = getattr(field, attribute)
+            if proposed is not None and proposed != domain.get(attribute):
+                raise ValueError("field value domain requires its explicit public definition")
         if (
             field.collection_separator is not None
             and public_collection_separator(field.source_excerpt, key) != field.collection_separator
@@ -126,6 +156,8 @@ def validate_field_value(raw, field: AnswerFieldSpec, result: dict, path: list):
     elif field.kind == "string":
         if not isinstance(raw, str):
             raise ValueError("field requires a string; cast explicitly in the computation")
+        if field.choices is not None and raw not in field.choices:
+            raise ValueError("field violates the public closed string choices")
     elif field.kind == "boolean":
         if type(raw) is int and raw in (0, 1):
             raw = bool(raw)  # SQLite boolean predicates are 0/1; the field contract is explicit.
@@ -138,6 +170,10 @@ def validate_field_value(raw, field: AnswerFieldSpec, result: dict, path: list):
             if int(raw) != raw:
                 raise ValueError("nonintegral result cannot be presented as an integer")
             raw = int(raw)
+        if field.minimum is not None and raw < field.minimum:
+            raise ValueError("field is below the public minimum")
+        if field.maximum is not None and raw > field.maximum:
+            raise ValueError("field is above the public maximum")
     return raw
 
 
@@ -300,6 +336,12 @@ def infer_public_field_rules(instructions: str, columns: list[str]) -> dict[str,
                     if precision and kind not in {"set", "list"}
                     else None,
                     source_excerpt=excerpt,
+                    **{
+                        name: value
+                        for name, value in public_scalar_domain(description).items()
+                        if (name == "choices" and kind == "string")
+                        or (name != "choices" and kind in {"integer", "number"})
+                    },
                 )
                 if key in rules and rules[key] != candidate:
                     return {}  # Conflicting public definitions need explicit clarification.

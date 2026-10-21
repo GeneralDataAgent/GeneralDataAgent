@@ -50,6 +50,58 @@ def test_types_and_sample_std_methods_are_not_guessed():
         validate_field_value(2, AnswerFieldSpec(kind="string"), {}, [])
 
 
+def test_public_per_field_domains_are_sourced_and_immutable():
+    from generaldataagent.orchestration.analysis_plan import accept_contract
+    from generaldataagent.tools.answer_fields import infer_public_field_rules, public_scalar_domain
+
+    text = (
+        "@r[r_value], @p[p_value], @label[label_value]\n"
+        'where "r_value" is a number between -1 and 1, rounded to two decimal places.\n'
+        'where "p_value" is a number between 0 and 1, rounded to four decimal places.\n'
+        'where "label_value" is a string that can either be "linear", "nonlinear", or "none".'
+    )
+    fields = infer_public_field_rules(text, ["r", "p", "label"])
+    assert (fields["r"].minimum, fields["r"].maximum) == (-1, 1)
+    assert (fields["p"].minimum, fields["p"].maximum) == (0, 1)
+    assert fields["label"].choices == ["linear", "nonlinear", "none"]
+    for raw, field, message in [
+        (-1.1, fields["r"], "minimum"),
+        (1.00001, fields["p"], "maximum"),
+        ("Linear", fields["label"], "closed string"),
+    ]:
+        with pytest.raises(ValueError, match=message):
+            validate_field_value(raw, field, {}, [])
+    assert validate_field_value(-1, fields["r"], {}, []) == -1
+    assert validate_field_value(1, fields["p"], {}, []) == 1
+    proposal = {
+        "question": "r and p?",
+        "public_requirements": text,
+        "answer": {
+            "columns": ["r", "p", "label"],
+            "fields": {key: {"kind": field.kind} for key, field in fields.items()},
+        },
+    }
+    accepted = accept_contract(proposal, question="r and p?", instructions=text)
+    assert accepted.answer.fields["p"].maximum == 1
+    assert accepted.answer.fields["label"].choices == fields["label"].choices
+    for key, override in [("p", {"maximum": 2}), ("label", {"choices": ["any"]})]:
+        changed = {k: dict(v) for k, v in proposal["answer"]["fields"].items()}
+        changed[key].update(override)
+        with pytest.raises(ValueError, match="domain contradicts"):
+            accept_contract(
+                proposal | {"answer": proposal["answer"] | {"fields": changed}},
+                question="r and p?",
+                instructions=text,
+            )
+    assert public_scalar_domain('can be "a" or "b", or another label') == {}
+    assert public_scalar_domain('can be "a" or "b" etc.') == {}
+    assert public_scalar_domain('examples are "a" and "b"') == {}
+    with pytest.raises(ValueError, match="explicit public definition"):
+        validate_field_sources(
+            {"label": AnswerFieldSpec(kind="string", choices=["a", "b"])}, ["label"], "label?", ""
+        )
+
+
 def test_public_integer_list_is_not_mistaken_for_a_scalar_and_order_is_authoritative():
     from generaldataagent.orchestration.analysis_plan import accept_contract
     from generaldataagent.tools.answer_fields import infer_public_field_rules

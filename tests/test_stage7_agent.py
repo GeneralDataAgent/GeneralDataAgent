@@ -1242,6 +1242,32 @@ def test_list_mode_cannot_bypass_public_set_uniqueness(database):
     assert "duplicate_entities" in result["trace"][-1]["checks"]
 
 
+def test_data_dependent_sql_answers_still_obey_public_closed_string_domain(database):
+    result = run(
+        database,
+        [
+            {
+                "submit_sql_answers": {
+                    "sql": "SELECT CASE WHEN COUNT(*)>0 THEN 'PASS' ELSE 'FAIL' END AS status "
+                    "FROM people"
+                }
+            },
+            {
+                "submit_sql_answers": {
+                    "sql": "SELECT CASE WHEN COUNT(*)>0 THEN 'pass' ELSE 'fail' END AS status "
+                    "FROM people"
+                }
+            },
+        ],
+        benchmark="infiagent-dabench",
+        instructions='@status[label] where "label" is a string '
+        'that can either be "pass" or "fail".',
+    )
+    assert result["failure"] is None and result["answers"] == {"status": "pass"}
+    assert result["trace"][0]["status"] == "error"
+    assert result["answer_evidence"]["status"]["step"] == 2
+
+
 @pytest.mark.parametrize("unsupported", [False, True])
 @pytest.mark.parametrize("with_documents", [False, True])
 def test_native_collection_phase_defers_scalar_actions_and_keeps_typed_exit(

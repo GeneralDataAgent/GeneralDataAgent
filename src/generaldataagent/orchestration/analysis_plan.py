@@ -55,6 +55,15 @@ def accept_contract(proposal: dict, *, question: str, instructions: str) -> Anal
             if field.kind != expected.kind:
                 raise ValueError("field type contradicts the explicit public format")
             updates = {}
+            for attribute in ("minimum", "maximum", "choices"):
+                known = getattr(expected, attribute)
+                if known is not None:
+                    if getattr(field, attribute) not in (None, known):
+                        raise ValueError(
+                            "field value domain contradicts the explicit public format"
+                        )
+                    updates[attribute] = known
+                    updates["source_excerpt"] = expected.source_excerpt
             for attribute in ("item_kind", "order"):
                 known = getattr(expected, attribute)
                 if known is not None:
