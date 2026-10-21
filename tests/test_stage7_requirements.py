@@ -276,3 +276,35 @@ def test_negated_public_examples_do_not_authorize_wrong_rank_or_age_policy():
     assert check_public_rank_and_age(
         age, "What age was the person on arrival?", "Do not use year(arrival)-year(birthday)."
     ) == ["age_requires_birthday_boundary"]
+
+
+@pytest.mark.parametrize(
+    ("required", "actual"), [('"Ä"=1', '"ä"=1'), ('"a.b"=1', "a.b=1"), ('"ß"=1', "ss=1")]
+)
+def test_semantic_predicates_preserve_sqlite_literal_identifier_identity(required, actual):
+    req = SemanticRequirements.model_validate(
+        {"predicates": [{"expression": required, "source_excerpt": "public field"}]}
+    )
+    assert check_requirements("SELECT 1 FROM t WHERE " + actual, req) == [
+        "predicate_placement_or_population"
+    ]
+    assert not check_requirements("SELECT 1 FROM t WHERE " + required, req)
+
+
+def test_semantic_predicates_fold_ascii_and_ignore_identifier_quote_style():
+    req = SemanticRequirements.model_validate(
+        {"predicates": [{"expression": '"VALUE"=1', "source_excerpt": "public field"}]}
+    )
+    assert not check_requirements("SELECT id FROM t WHERE value=1", req)
+
+
+def test_semantic_cte_scopes_do_not_merge_unicode_case_variants():
+    req = SemanticRequirements.model_validate(
+        {"predicates": [{"expression": "kind=1", "scope": "Ä", "source_excerpt": "public field"}]}
+    )
+    assert check_requirements(
+        'WITH "ä" AS (SELECT id FROM t WHERE kind=1) SELECT * FROM "ä"', req
+    ) == ["predicate_scope"]
+    assert not check_requirements(
+        'WITH "Ä" AS (SELECT id FROM t WHERE kind=1) SELECT * FROM "Ä"', req
+    )

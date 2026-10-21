@@ -11,6 +11,12 @@ from sqlglot import exp, parse, parse_one
 from generaldataagent.contracts.semantic_requirements import SemanticRequirements
 
 
+def _identifier_key(value):
+    return value.translate(
+        str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")
+    )
+
+
 def _unparen(node):
     while isinstance(node, exp.Paren):
         node = node.this
@@ -22,7 +28,7 @@ def _normalized(node):
         if isinstance(part, exp.Paren):
             return part.this
         if isinstance(part, exp.Identifier):
-            return exp.to_identifier(part.name.casefold(), quoted=False)
+            return exp.to_identifier(_identifier_key(part.name), quoted=True)
         if isinstance(part, exp.Literal) and not part.is_string:
             return exp.Literal.number(format(Decimal(part.this).normalize(), "f"))
         return part
@@ -44,7 +50,7 @@ def _scope(tree, name):
         node.this
         for cls in (exp.CTE, exp.Subquery)
         for node in tree.find_all(cls)
-        if node.alias.casefold() == name.casefold()
+        if _identifier_key(node.alias) == _identifier_key(name)
     ]
     return candidates[0] if len(candidates) == 1 and isinstance(candidates[0], exp.Select) else None
 
@@ -135,7 +141,9 @@ def check_requirements(sql: str, requirements: SemanticRequirements) -> list[str
             issues.append("ratio_scope")
             continue
         outputs = [
-            p for p in select.selects if p.alias_or_name.casefold() == item.output_column.casefold()
+            p
+            for p in select.selects
+            if _identifier_key(p.alias_or_name) == _identifier_key(item.output_column)
         ]
         shape = (
             _ratio(outputs[0].this if isinstance(outputs[0], exp.Alias) else outputs[0])
@@ -204,19 +212,21 @@ def check_public_change_direction(sql: str, question: str) -> list[str]:
     sources = {}
     for cls in (exp.CTE, exp.Subquery):
         for node in tree.find_all(cls):
-            sources.setdefault(node.alias.casefold(), []).append(node.this)
+            sources.setdefault(_identifier_key(node.alias), []).append(node.this)
 
     def period(column):
         column = _unparen(column)
         if not isinstance(column, exp.Column):
             return None
-        candidates = sources.get(column.table.casefold(), [])
+        candidates = sources.get(_identifier_key(column.table), [])
         if candidates:
             if len(candidates) != 1 or not isinstance(candidates[0], exp.Select):
                 return None
             select = candidates[0]
             projections = [
-                p for p in select.selects if p.alias_or_name.casefold() == column.name.casefold()
+                p
+                for p in select.selects
+                if _identifier_key(p.alias_or_name) == _identifier_key(column.name)
             ]
             if len(projections) != 1:
                 return None
@@ -234,7 +244,7 @@ def check_public_change_direction(sql: str, question: str) -> list[str]:
                 table
                 for table in select.find_all(exp.Table)
                 if table.find_ancestor(exp.Select) is select
-                and table.alias_or_name.casefold() == column.table.casefold()
+                and _identifier_key(table.alias_or_name) == _identifier_key(column.table)
             ]
             if len(local) != 1:
                 return None
@@ -254,7 +264,7 @@ def check_public_change_direction(sql: str, question: str) -> list[str]:
             ):
                 if (
                     isinstance(field, exp.Column)
-                    and field.table.casefold() == source.table.casefold()
+                    and _identifier_key(field.table) == _identifier_key(source.table)
                     and re.search(r"date|day|time", field.name, re.I)
                     and isinstance(literal, exp.Literal)
                     and literal.is_string
@@ -313,7 +323,7 @@ def check_public_rank_and_age(sql: str, question: str, instructions: str = "") -
     ):
         for select in tree.find_all(exp.Select):
             ordering = {
-                column.name.casefold()
+                _identifier_key(column.name)
                 for window in select.find_all(exp.Window)
                 for order in [window.args.get("order")]
                 if order is not None
@@ -326,7 +336,7 @@ def check_public_rank_and_age(sql: str, question: str, instructions: str = "") -
                     and isinstance(condition.this, exp.Is)
                     and isinstance(condition.this.expression, exp.Null)
                     and isinstance(condition.this.this, exp.Column)
-                    and condition.this.this.name.casefold() in ordering
+                    and _identifier_key(condition.this.this.name) in ordering
                 ):
                     issues.append("unrequested_rank_population_filter")
     explicit_year_difference = re.search(
