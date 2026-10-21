@@ -81,7 +81,8 @@ For changes from a start to an end period, increase is (end-start)/start; verify
 actual period filters before submitting, including any public formula's A/B mapping.
 Check exact entity grain, requested projections, distinct entities versus joined records, explicit
 numerator/denominator population, real division, null handling, actual date encoding and boundaries.
-For oldest by birthday use ascending date; compute completed years when age at arrival is asked:
+For oldest by birthday use ascending date. Honor an explicit public year-difference formula;
+otherwise compute completed years when age at arrival is asked:
 year(arrival)-year(birth) minus one if arrival month/day precedes birthday. Verify date encoding.
 For "among the top N" preserve ties with RANK, not ROW_NUMBER, unless exactly N or tie-breaking is
 explicitly requested. Preserve the input population for ranking: do not silently add IS NOT NULL

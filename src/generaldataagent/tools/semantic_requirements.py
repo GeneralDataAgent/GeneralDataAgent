@@ -282,20 +282,34 @@ def check_public_change_direction(sql: str, question: str) -> list[str]:
     return sorted(set(issues))
 
 
-def check_public_rank_and_age(sql: str, question: str) -> list[str]:
+def check_public_rank_and_age(sql: str, question: str, instructions: str = "") -> list[str]:
     """Enforce narrow, explicit public ranking and completed-age conventions."""
     import re
 
     tree = parse_one(sql, read="sqlite")
     issues = []
+    public = question + "\n" + instructions
+
+    def affirmative_clauses(text):
+        # A negated example is not an instruction to apply that example's policy.
+        return "\n".join(
+            clause
+            for clause in re.split(r"[;\n]", text)
+            if not re.search(r"\b(?:do not|don't|never|must not|not to)\b", clause, re.I)
+        )
+
+    policy_text = affirmative_clauses(public)
     if (
         re.search(r"\bamong\s+(?:the\s+)?top\s+\d+", question, re.I)
-        and not re.search(r"\bexactly\b|\bbreak\s+ties\b", question, re.I)
+        and not re.search(r"\bexactly\b|\bbreak\s+ties\b", policy_text, re.I)
         and any(isinstance(w.this, exp.RowNumber) for w in tree.find_all(exp.Window))
     ):
         issues.append("rank_ties_require_rank")
     if re.search(r"\bamong\s+(?:the\s+)?top\s+\d+", question, re.I) and not re.search(
-        r"non.?null|exclude|missing|null|known scores|valid scores", question, re.I
+        r"\bnon[- ]?null\b|\b(?:exclude|ignore|omit)\s+(?:rows?\s+with\s+)?(?:missing|null)\b"
+        r"|\b(?:known|valid)\s+scores\b",
+        policy_text,
+        re.I,
     ):
         for select in tree.find_all(exp.Select):
             ordering = {
@@ -315,8 +329,16 @@ def check_public_rank_and_age(sql: str, question: str) -> list[str]:
                     and condition.this.this.name.casefold() in ordering
                 ):
                     issues.append("unrequested_rank_population_filter")
-    if re.search(r"\bage\b|\bhow old\b", question, re.I) and re.search(
-        r"arriv|admi", question, re.I
+    explicit_year_difference = re.search(
+        r"year\s*\([^)]{1,100}\)\s*-\s*year\s*\("
+        r"|subtract\s*\(\s*year\s*\([^)]{1,100}\)\s*,\s*year\s*\(",
+        affirmative_clauses(instructions),
+        re.I,
+    )
+    if (
+        not explicit_year_difference
+        and re.search(r"\bage\b|\bhow old\b", question, re.I)
+        and re.search(r"arriv|admi", question, re.I)
     ):
         for projection in tree.selects:
             expression = projection.this if isinstance(projection, exp.Alias) else projection

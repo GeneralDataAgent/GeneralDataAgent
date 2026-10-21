@@ -210,3 +210,69 @@ def test_change_direction_resolves_direct_table_aliases_in_their_own_scope():
         assert not check_public_change_direction(
             "SELECT (old.balance-new.balance)*100.0/new.balance" + ambiguous_source, question
         )
+
+
+def test_public_supplemental_rank_policy_is_checked_with_question():
+    from generaldataagent.tools.semantic_requirements import check_public_rank_and_age
+
+    sql = (
+        "SELECT ROW_NUMBER() OVER (ORDER BY score DESC, id) AS rn "
+        "FROM records WHERE score IS NOT NULL"
+    )
+    question = "Who is among the top 5 by score?"
+    assert set(check_public_rank_and_age(sql, question)) == {
+        "rank_ties_require_rank",
+        "unrequested_rank_population_filter",
+    }
+    assert not check_public_rank_and_age(
+        sql, question, "Return exactly five. Exclude missing scores."
+    )
+
+
+@pytest.mark.parametrize(
+    "formula", ["year(arrival)-year(birthday)", "SUBTRACT(year(`First Date`), year(Birthday))"]
+)
+def test_public_explicit_year_formula_does_not_get_implicit_completed_age_policy(formula):
+    from generaldataagent.contracts.analysis import AnalysisTaskSpec, AnswerSpec
+    from generaldataagent.tools.sql_semantics import inspect_semantics
+
+    sql = (
+        "SELECT CAST(strftime('%Y',arrival) AS INT)-"
+        "CAST(strftime('%Y',birthday) AS INT) AS age FROM people"
+    )
+    spec = AnalysisTaskSpec(
+        question="What age was the person on arrival?",
+        public_requirements="Age is defined as " + formula,
+        answer=AnswerSpec(columns=["age"]),
+    )
+    assert not inspect_semantics(sql, spec)
+    generic = spec.model_copy(
+        update={
+            "public_requirements": "Use the birthday and arrival year; account for month and day."
+        }
+    )
+    assert inspect_semantics(sql, generic) == ["age_requires_birthday_boundary"]
+
+
+def test_negated_public_examples_do_not_authorize_wrong_rank_or_age_policy():
+    from generaldataagent.tools.semantic_requirements import check_public_rank_and_age
+
+    sql = (
+        "SELECT ROW_NUMBER() OVER (ORDER BY score DESC) AS rn FROM records WHERE score IS NOT NULL"
+    )
+    question = "Who is among the top 5 by score?"
+    for instructions in [
+        "Do not break ties; do not exclude missing scores.",
+        "Include missing scores in ranking.",
+    ]:
+        assert set(check_public_rank_and_age(sql, question, instructions)) == {
+            "rank_ties_require_rank",
+            "unrequested_rank_population_filter",
+        }
+    age = (
+        "SELECT CAST(strftime('%Y',arrival) AS INT)-"
+        "CAST(strftime('%Y',birthday) AS INT) AS age FROM people"
+    )
+    assert check_public_rank_and_age(
+        age, "What age was the person on arrival?", "Do not use year(arrival)-year(birthday)."
+    ) == ["age_requires_birthday_boundary"]
