@@ -574,6 +574,13 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                             sql_output=task.benchmark == "bird-mini-dev-sqlite",
                             planned=task_spec is not None,
                             plan_enabled=plan_mode,
+                            collection_task=(
+                                task_spec is not None
+                                and any(
+                                    field.kind in {"set", "list"}
+                                    for field in task_spec.answer.fields.values()
+                                )
+                            ),
                             collection_first=(
                                 not evidence
                                 and not documents
@@ -928,6 +935,15 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     tool = "fixed_analysis"
                 else:
                     sql = action.get("final_sql", action.get("answer_sql", action.get("sql", "")))
+                    if (
+                        semantic
+                        and "answer_sql" in action
+                        and any(
+                            field.kind in {"set", "list"}
+                            for field in task_spec.answer.fields.values()
+                        )
+                    ):
+                        raise SemanticError("answer_sql_requires_scalar_public_fields")
                     guard.inspect(sql, allowed_relations=relations)
                     if semantic:
                         validate_column_scope(database, sql, allowed_relations=relations)

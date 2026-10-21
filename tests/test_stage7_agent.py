@@ -1268,6 +1268,36 @@ def test_data_dependent_sql_answers_still_obey_public_closed_string_domain(datab
     assert result["answer_evidence"]["status"]["step"] == 2
 
 
+def test_mixed_collection_scalar_task_reuses_collection_after_atomic_shortcut_rejection(database):
+    result = run(
+        database,
+        [
+            {
+                "collect_values": {
+                    "sql": "SELECT id FROM people ORDER BY id",
+                    "collection_kind": "list",
+                }
+            },
+            {"submit_sql_answers": {"sql": "SELECT COUNT(*) AS ids,COUNT(*) AS n FROM people"}},
+            {"compute_sql": {"sql": "SELECT COUNT(*) AS n FROM people"}},
+            {
+                "submit_answers": {
+                    "fields": [
+                        {"name": "ids", "step": 1, "path": ["items"]},
+                        {"name": "n", "step": 3, "path": ["rows", 0, 0]},
+                    ]
+                }
+            },
+        ],
+        benchmark="infiagent-dabench",
+        instructions='@ids[values], @n[count_value]\nwhere "values" is a list of integers '
+        'in ascending order.\nwhere "count_value" is an integer.',
+    )
+    assert result["failure"] is None and result["answers"] == {"ids": [1, 2], "n": 2}
+    assert result["trace"][1]["checks"] == ["answer_sql_requires_scalar_public_fields"]
+    assert result["answer_evidence"]["ids"]["step"] == 1
+
+
 @pytest.mark.parametrize("unsupported", [False, True])
 @pytest.mark.parametrize("with_documents", [False, True])
 def test_native_collection_phase_defers_scalar_actions_and_keeps_typed_exit(
@@ -1281,6 +1311,7 @@ def test_native_collection_phase_defers_scalar_actions_and_keeps_typed_exit(
         def bind(self, **kwargs):
             names = {tool["function"]["name"] for tool in kwargs["tools"]}
             assert kwargs["tool_choice"] == "required" and not kwargs["parallel_tool_calls"]
+            assert "submit_sql_answers" not in names
             if not self.calls and not with_documents:
                 assert names == {"collect_values", "declare_unsupported"}
             else:

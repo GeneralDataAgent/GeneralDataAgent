@@ -75,6 +75,12 @@ def bounded_observation(result: dict, *, max_chars: int = 6000) -> dict:
 
 def execution_hint(exc: Exception) -> str:
     text = str(exc)
+    if "answer_sql_requires_scalar_public_fields" in text:
+        return (
+            "This public task contains a collection. Use collect_values for its full items, "
+            "compute_sql or fixed_analysis for the remaining scalar fields, then submit_answers "
+            "binding every key to those successful steps. submit_sql_answers is scalar-only."
+        )
     if "public_age_order_direction" in text:
         return (
             "The public instructions explicitly relate this field's value to age. "
