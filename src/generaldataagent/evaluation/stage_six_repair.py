@@ -75,6 +75,22 @@ def bounded_observation(result: dict, *, max_chars: int = 6000) -> dict:
 
 def execution_hint(exc: Exception) -> str:
     text = str(exc)
+    if "plan_public_source" in text or "plan_filter_source" in text:
+        return (
+            "Omit top-level plan source_excerpt: runtime binds the original public question. "
+            "Each filter source_excerpt must be copied exactly from question or instructions, "
+            "without Question prefixes, schema facts, explanations or paraphrases. "
+            "Its literal must occur in that public excerpt; do not invent a new value."
+        )
+    if "plan_requires_general_sql" in text:
+        return "This plan cannot express the formula; use submit_sql with scoped read-only SQL."
+    if "plan_join_graph" in text:
+        return (
+            "Every listed relation must occur in one connected join graph. Each join introduces "
+            "one new listed relation; use physical scoped fields, not invented aliases."
+        )
+    if "plan_ratio_scale" in text:
+        return "Use multiplier 100 for the public percentage, or 1 for a fraction/proportion."
     if "answer_sql_requires_scalar_public_fields" in text:
         return (
             "This public task contains a collection. Use collect_values for its full items, "

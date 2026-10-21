@@ -1396,6 +1396,61 @@ def test_population_plan_uses_full_final_guards_and_never_invents_zero(database,
     assert database.read_bytes() == before
 
 
+def test_plan_root_source_is_bound_but_fabricated_source_is_not_overwritten(database):
+    question = "How many people?"
+    plan = {
+        "operation": "count",
+        "relations": ["people"],
+        "count_name": "n",
+        "entity_keys": [{"relation": "people", "column": "id"}],
+    }
+    result = run(
+        database,
+        [
+            {"submit_query_plan": plan | {"source_excerpt": "Question: " + question}},
+            {"submit_query_plan": plan},
+        ],
+        profile="sql-semantic-plan",
+        question=question,
+    )
+    assert result["failure"] is None
+    assert result["trace"][0]["checks"] == ["plan_public_source"]
+    assert result["trace"][1]["compiled_query_plan"]["source_excerpt"] == question
+    assert result["task_contract"]["question"] == question
+
+
+@pytest.mark.parametrize(
+    "source,value,code",
+    [
+        ("private fabricated schema explanation", 1, "plan_public_source"),
+        ("What percentage of people have id 1?", 9, "plan_filter_source"),
+    ],
+)
+def test_plan_filter_source_and_literal_remain_strict_after_root_binding(
+    database, source, value, code
+):
+    question = "What percentage of people have id 1?"
+    plan = {
+        "operation": "population_ratio",
+        "relations": ["people"],
+        "entity_keys": [{"relation": "people", "column": "id"}],
+        "numerator_filters": [
+            {
+                "field": {"relation": "people", "column": "id"},
+                "operator": "eq",
+                "value": value,
+                "source_excerpt": source,
+            }
+        ],
+    }
+    result = run(
+        database, [{"submit_query_plan": plan}], profile="sql-semantic-plan", question=question
+    )
+    assert result["failure"] and result["final_sql"] is None
+    assert result["trace"][0]["checks"] == [code]
+    assert "private fabricated" not in json.dumps(result["trace"])
+
+
 @pytest.mark.parametrize("with_contract", [False, True])
 def test_native_plan_profile_has_a_typed_unsupported_exit_before_and_after_contract(
     database, with_contract

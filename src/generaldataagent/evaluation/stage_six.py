@@ -683,6 +683,8 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     if correction:
                         trace.append({"step": step, "status": "repaired", "code": correction})
                 if semantic:
+                    if isinstance(action.get("query_plan"), dict):
+                        action["query_plan"].setdefault("source_excerpt", task.question)
                     if (
                         semantic_json
                         and task_spec is None
@@ -706,19 +708,23 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                         from generaldataagent.tools.semantic_sql import (
                             compile_semantic_plan,
                             physical_plan_schema,
+                            semantic_plan_error_code,
                         )
 
                         compiled_plan = SemanticQueryPlan.model_validate(action["query_plan"])
-                        sql, compiled_spec = compile_semantic_plan(
-                            compiled_plan,
-                            schema=physical_plan_schema(
-                                database,
-                                relations=compiled_plan.relations,
-                                allowed_relations=relations,
-                            ),
-                            question=task.question,
-                            instructions=task.instructions,
-                        )
+                        try:
+                            sql, compiled_spec = compile_semantic_plan(
+                                compiled_plan,
+                                schema=physical_plan_schema(
+                                    database,
+                                    relations=compiled_plan.relations,
+                                    allowed_relations=relations,
+                                ),
+                                question=task.question,
+                                instructions=task.instructions,
+                            )
+                        except ValueError as exc:
+                            raise SemanticError(semantic_plan_error_code(exc)) from None
                         action = {"final_sql": sql, "task_spec": compiled_spec.model_dump()}
                     if "task_spec" in action:
                         if task_spec is not None:

@@ -13,6 +13,27 @@ from generaldataagent.contracts.query_plan import SemanticQueryPlan
 from generaldataagent.tools.sql_guard import SqlGuard
 
 
+def semantic_plan_error_code(error: ValueError) -> str:
+    """Classify fixed compiler diagnostics without echoing proposal values or SQL."""
+    text = str(error)
+    for marker, code in (
+        ("exact public source excerpt", "plan_public_source"),
+        ("no public evidence", "plan_filter_source"),
+        ("null filtering must be publicly requested", "plan_filter_source"),
+        ("join graph", "plan_join_graph"),
+        ("unjoined relations", "plan_join_graph"),
+        ("outside authorized scope", "plan_field_scope"),
+        ("out-of-scope plan field", "plan_field_scope"),
+        ("general SQL path", "plan_requires_general_sql"),
+        ("ratio scale", "plan_ratio_scale"),
+        ("top-k", "plan_top_k"),
+        ("tie ordering", "plan_tie_order"),
+    ):
+        if marker in text:
+            return code
+    return "invalid_semantic_plan"
+
+
 def compile_semantic_plan(
     plan: SemanticQueryPlan, *, schema: dict[str, list[str]], question: str, instructions: str = ""
 ) -> tuple[str, AnalysisTaskSpec]:

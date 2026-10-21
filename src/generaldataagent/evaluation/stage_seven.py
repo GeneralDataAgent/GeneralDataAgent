@@ -212,6 +212,9 @@ def bind_typed_tools(
         if plan_enabled and not planned:
             from generaldataagent.contracts.query_plan import SemanticQueryPlan
 
+            plan_schema = SemanticQueryPlan.model_json_schema()
+            plan_schema["properties"].pop("source_excerpt")
+            plan_schema["required"].remove("source_excerpt")
             tools.append(
                 tool(
                     "execute_sql",
@@ -226,7 +229,7 @@ def bind_typed_tools(
                     "function": {
                         "name": "submit_query_plan",
                         "description": "Compile scoped counts, population fractions or ranks",
-                        "parameters": SemanticQueryPlan.model_json_schema(),
+                        "parameters": plan_schema,
                     },
                 }
             )
@@ -422,6 +425,10 @@ undefined percentage. Keep the same six actions, 24000-token and 120-second mode
 
 STAGE7_PLAN_PROMPT = """
 For a count-based fraction of a population, submit_query_plan operation=population_ratio uses
+the runtime-bound public question as its top-level source. Omit that top-level source_excerpt.
+Per-filter source_excerpt must remain an exact substring of public question/instructions;
+never prepend a Question label, schema facts, a denominator explanation or paraphrased text.
+The ratio plan uses
 filters for the denominator population and extra numerator_filters for its subset. Both use
 publicly sourced fixed predicates. Specify count_basis entities with entity_keys, or records;
 the compiler prevents join duplication in entity counts. multiplier is 100 for percentages

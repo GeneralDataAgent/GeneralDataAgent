@@ -30,7 +30,11 @@ class PlanFilter(PlanNode):
     operator: Literal["eq", "ne", "lt", "lte", "gt", "gte", "in", "is_null", "is_not_null"]
     value: Any = None
     phase: Literal["before", "after_rank"] = "before"
-    source_excerpt: str = Field(min_length=1, max_length=2000)
+    source_excerpt: str = Field(
+        min_length=1,
+        max_length=2000,
+        description="Exact public question/instructions substring; no schema or interpretation",
+    )
 
 
 class TieBreak(PlanNode):

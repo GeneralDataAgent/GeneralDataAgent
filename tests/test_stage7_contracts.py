@@ -84,6 +84,15 @@ def test_stage_specific_native_schemas_do_not_offer_unavailable_tools():
     }
     for tool in execution["tools"][:2]:
         assert tool["function"]["parameters"]["required"] == ["sql"]
+    optional = bind_typed_tools(Model(), sql_output=True, plan_enabled=True)
+    schema = next(
+        t["function"]["parameters"]
+        for t in optional["tools"]
+        if t["function"]["name"] == "submit_query_plan"
+    )
+    assert "source_excerpt" not in schema["properties"]
+    assert "source_excerpt" not in schema["required"]
+    assert "source_excerpt" in schema["$defs"]["PlanFilter"]["required"]
 
 
 def test_null_unused_native_fields_do_not_turn_into_multiple_actions():
