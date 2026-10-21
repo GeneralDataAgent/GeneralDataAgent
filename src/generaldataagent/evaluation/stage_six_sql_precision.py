@@ -42,14 +42,15 @@ def schema_relationships(database, *, allowed_relations: set[str]) -> dict:
         }
         if not allowed_relations <= physical:
             raise ValueError("unknown schema relation")
-        canonical = {name.casefold(): name for name in allowed_relations}
+        ascii_case = str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")
+        canonical = {name.translate(ascii_case): name for name in allowed_relations}
         for name in sorted(allowed_relations):
             columns = db.execute("PRAGMA table_info(" + quote(name) + ")").fetchall()
             keys = sorted((row[5], row[1]) for row in columns if row[5])
             if keys:
                 primary_keys[name] = [column for _, column in keys]
             for row in db.execute("PRAGMA foreign_key_list(" + quote(name) + ")"):
-                target = canonical.get(row[2].casefold())
+                target = canonical.get(row[2].translate(ascii_case))
                 if target is not None:
                     foreign_keys.append(
                         {
