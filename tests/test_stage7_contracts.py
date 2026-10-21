@@ -80,6 +80,7 @@ def test_stage_specific_native_schemas_do_not_offer_unavailable_tools():
         "execute_sql",
         "submit_sql",
         "crosscheck_sql",
+        "declare_unsupported",
     }
     for tool in execution["tools"][:2]:
         assert tool["function"]["parameters"]["required"] == ["sql"]

@@ -200,9 +200,26 @@ def bind_typed_tools(
                 ),
             ]
         choice = "required" if planned else {"type": "function", "function": {"name": "submit_sql"}}
+        if planned or plan_enabled:
+            tools.append(
+                tool(
+                    "declare_unsupported",
+                    "Stop when the requested result cannot be certified",
+                    {"reason": {"type": "string", "minLength": 1, "maxLength": 1000}},
+                    ["reason"],
+                )
+            )
         if plan_enabled and not planned:
             from generaldataagent.contracts.query_plan import SemanticQueryPlan
 
+            tools.append(
+                tool(
+                    "execute_sql",
+                    "One necessary read-only observation before the final contract",
+                    {"sql": string},
+                    ["sql"],
+                )
+            )
             tools.append(
                 {
                     "type": "function",
@@ -404,6 +421,10 @@ undefined percentage. Keep the same six actions, 24000-token and 120-second mode
 
 
 STAGE7_PLAN_PROMPT = """
+In this opt-in profile, execute_sql can inspect necessary categories or encodings before any
+contract. It spends one of the same six actions; no answer is certified by exploration.
+Then submit_sql with its public output contract, or plan_analysis before a crosscheck.
+Use declare_unsupported when the requested full result cannot be certified within the bounds.
 For a task needing exploration or an independent check, plan_analysis accepts answer
 {columns:[output_name],shape:scalar/rows/set,ties:all/single/unspecified} plus optional sourced
 requirements. Public texts are bound by runtime. This costs one action, then execute_sql and

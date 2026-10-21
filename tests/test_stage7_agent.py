@@ -663,6 +663,8 @@ def test_native_query_plan_compiles_to_final_sql_in_one_opt_in_action(database):
                 "submit_sql",
                 "submit_query_plan",
                 "plan_analysis",
+                "execute_sql",
+                "declare_unsupported",
             }
             assert kwargs["tool_choice"] == "required"
             return self
@@ -1296,6 +1298,102 @@ def test_mixed_collection_scalar_task_reuses_collection_after_atomic_shortcut_re
     assert result["failure"] is None and result["answers"] == {"ids": [1, 2], "n": 2}
     assert result["trace"][1]["checks"] == ["answer_sql_requires_scalar_public_fields"]
     assert result["answer_evidence"]["ids"]["step"] == 1
+
+
+@pytest.mark.parametrize("first_sql", ["SELECT DISTINCT score FROM people", "DELETE FROM people"])
+def test_native_plan_profile_can_observe_before_contract_with_same_read_only_budget(
+    database, first_sql
+):
+    from langchain_core.messages import AIMessage, ToolMessage
+
+    class Native:
+        calls = 0
+
+        def bind(self, **kwargs):
+            names = {tool["function"]["name"] for tool in kwargs["tools"]}
+            assert "execute_sql" in names and "declare_unsupported" in names
+            assert "crosscheck_sql" not in names
+            assert kwargs["tool_choice"] == "required" and not kwargs["parallel_tool_calls"]
+            return self
+
+        def invoke(self, messages):
+            self.calls += 1
+            if self.calls == 1:
+                name, args = "execute_sql", {"sql": first_sql}
+            else:
+                assert any(isinstance(message, ToolMessage) for message in messages)
+                name, args = (
+                    "submit_sql",
+                    {
+                        "sql": "SELECT COUNT(*) AS n FROM people",
+                        "output_columns": ["n"],
+                        "shape": "scalar",
+                    },
+                )
+            return AIMessage(
+                content="",
+                tool_calls=[{"name": name, "args": args, "id": str(self.calls)}],
+                usage_metadata={"total_tokens": 10, "input_tokens": 8, "output_tokens": 2},
+            )
+
+    before = database.read_bytes()
+    task = Task("bird-mini-dev-sqlite", "synthetic", "How many people?", "", "easy", "people")
+    result = BoundedSQLAgent(Native(), tool_profile="sql-semantic-plan", max_steps=2).run(
+        task, database
+    )
+    assert result["failure"] is None and "COUNT(*)" in result["final_sql"]
+    assert len(result["trace"]) == 2 and result["tokens"] == 20
+    assert result["trace"][0]["status"] == ("error" if first_sql.startswith("DELETE") else "ok")
+    assert result["task_contract"]["answer"]["columns"] == ["n"]
+    assert database.read_bytes() == before
+
+
+@pytest.mark.parametrize("with_contract", [False, True])
+def test_native_plan_profile_has_a_typed_unsupported_exit_before_and_after_contract(
+    database, with_contract
+):
+    from langchain_core.messages import AIMessage
+
+    class Native:
+        calls = 0
+
+        def bind(self, **kwargs):
+            assert "declare_unsupported" in {tool["function"]["name"] for tool in kwargs["tools"]}
+            return self
+
+        def invoke(self, messages):
+            self.calls += 1
+            if with_contract and self.calls == 1:
+                return AIMessage(
+                    content="",
+                    tool_calls=[
+                        {
+                            "name": "plan_analysis",
+                            "args": {"answer": {"columns": ["n"]}},
+                            "id": "plan",
+                        }
+                    ],
+                    usage_metadata={"total_tokens": 10, "input_tokens": 8, "output_tokens": 2},
+                )
+            return AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "declare_unsupported",
+                        "args": {"reason": "not certifiable"},
+                        "id": "one",
+                    }
+                ],
+                usage_metadata={"total_tokens": 10, "input_tokens": 8, "output_tokens": 2},
+            )
+
+    task = Task("bird-mini-dev-sqlite", "synthetic", "Unsupported SQL?", "", "hard", "people")
+    result = BoundedSQLAgent(Native(), tool_profile="sql-semantic-plan", max_steps=2).run(
+        task, database
+    )
+    assert result["failure"] == "unsupported_capability" and result["final_sql"] is None
+    assert (result["task_contract"] is not None) == with_contract
+    assert not result["answers"]
 
 
 @pytest.mark.parametrize("unsupported", [False, True])
