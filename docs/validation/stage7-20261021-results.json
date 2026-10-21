@@ -45202,7 +45202,7 @@
     "validator_source_commit": "28e0ac5f05ac35e1a729ad5150a69d0df85543eb"
   },
   "latest_local_validation": {
-    "source_commit": "afe3b0e",
+    "source_commit": "5f72d5f",
     "stage7_fingerprint": {
       "contracts/analysis.py": "6765681aa5184f84a7b82d17c63b0df0108f77b2031d91c29aa6d96372c240fc",
       "contracts/answer_fields.py": "e6ecbd59912179bc23d1be8acb4c4a085e20169c53b43e1907175391d949095b",
@@ -45214,23 +45214,24 @@
       "tools/answer_fields.py": "07e50819be02725db00af261817e18b7b6ce7645133cbc178b49c68063f32fc3",
       "contracts/semantic_requirements.py": "bc0683ead82ef284acbe9fe71b5af437ddce357db5b0c46027ae34622dfe867e",
       "tools/semantic_requirements.py": "bf25b5955a61b460375ebef86e3c50c9c55fe516f639fcb10256c67187550d31",
+      "tools/public_formulas.py": "9eeab0f4c8a7e48584753a02e42989ca027283082631b9b6f6be710dc7eb4a1a",
       "orchestration/analysis_plan.py": "cb9704c3b3af020317e5204a56013c83e93a3d1065b6e5ed1e08feff97770687",
       "catalog/semantic_context.py": "d1e15351e2cbe3ba01fc35f6979f27ad28662e61f025d4a8a5f7f867119809ca",
       "catalog/field_evidence.py": "e3fa95a2c4bf71f291ea3134329c5b926f666aad72a511411f9eb95a8fd2e926",
       "catalog/join_evidence.py": "cd5ae4218c11eba66a7a3b7166ed226ac37b81ed6229c64978d63be51de7205e",
-      "tools/sql_semantics.py": "11b3ea4af471737a846e20a4e25556c279e8698d8a40893d6d54212912bd748f",
+      "tools/sql_semantics.py": "1fd38f1d3a2a28c1b07d3d241104719fef47e6e7c20e5537f3928c071dd84f8e",
       "tools/sql_guard.py": "72ef5c19eb4080f3a75f745588eff76780684a0691c3ab141c79d17c6ca5db59",
       "tools/sqlite.py": "6cc32bffd2d0822f3a0805d63ab15624c0530d9e0b6e719053f2d0c869784251",
-      "evaluation/stage_six.py": "ae3f3005760e8b9ac6e5400a00ed288b1a8523a50adbe2a431552ce85a3840a1",
+      "evaluation/stage_six.py": "d45670a5dab85ff82ad2a623dd73a66446abb159bdca9239fc06f1e6cad16b42",
       "evaluation/stage_six_sql_precision.py": "9636255157d5a6477972ff3dadd0d50454710dc3150b09b8c56841f8180d3fa6",
-      "evaluation/stage_six_repair.py": "f09b135700c38b4993c6761da1ca9fae60becb2ac9f2526c6b10d27c56a40679",
-      "evaluation/stage_seven.py": "64388c6478b83fac64eff7684cce8ccc7a6779a07930fab70defde2427b1420e",
+      "evaluation/stage_six_repair.py": "2a792c25aa73b998f01dd61d3bbfae1a73c34f3532c80620971016cdd9317daf",
+      "evaluation/stage_seven.py": "ca9994c2b6425751d94940b2722181379de05fcbd91a96cb15f811781c879b6f",
       "contracts/query_plan.py": "4b18902c4ee0a82f35b4776bde17713a18672f2ef87b45e903cae3c958c9ad9e",
-      "tools/semantic_sql.py": "5c8d17f177d3cd53ce08f9352c83a9a7e364d86089158f89481e6491603b461f"
+      "tools/semantic_sql.py": "ae6c20f44c53eabbdd9a51d8f052b9d3b0f27c8c93c4a0ddd377d8525ba1cd47"
     },
-    "passed": 1068,
+    "passed": 1075,
     "skipped": 1,
-    "coverage_percent": 89.27,
+    "coverage_percent": 89.26,
     "ruff_check": "passed",
     "format_check": "passed",
     "diff_check": "passed",
@@ -163284,6 +163285,131 @@
     "stage7_qualified": false,
     "production_accepted": false,
     "artifact_directory": ".artifacts/stage7/20261021-full-v53",
-    "frozen_workspace": "/private/tmp/gda-stage7-v52"
+    "frozen_workspace": "/private/tmp/gda-stage7-v52",
+    "bird_status": "completed",
+    "bird_comparison": {
+      "strict_comparison": {
+        "benchmark": "bird-mini-dev-sqlite",
+        "n": 60,
+        "baseline_passed": 28,
+        "candidate_passed": 30,
+        "improvements": [
+          "769",
+          "487",
+          "962",
+          "861"
+        ],
+        "regressions": [
+          "1003",
+          "23"
+        ],
+        "pass_rate_delta": 0.033333333333333326,
+        "service_failures": {
+          "baseline": 0,
+          "candidate": 0
+        },
+        "observed_cost_usd": {
+          "baseline": 0.0,
+          "candidate": 0.0
+        },
+        "efficiency": {
+          "baseline": {
+            "reported_tokens": 220427,
+            "token_telemetry_complete": true,
+            "p50_seconds": 7.100610749992484,
+            "p95_seconds": 20.563647500006482,
+            "cost_usd": null
+          },
+          "candidate": {
+            "reported_tokens": 411263,
+            "token_telemetry_complete": true,
+            "p50_seconds": 7.2275332499993965,
+            "p95_seconds": 28.13161129101354,
+            "cost_usd": null
+          }
+        },
+        "failure_transitions": {
+          "passed->passed": 26,
+          "answer_mismatch->answer_mismatch": 27,
+          "passed->answer_mismatch": 2,
+          "answer_mismatch->passed": 4,
+          "execution_or_model_error->execution_or_model_error": 1
+        },
+        "attribution_valid": true,
+        "blocked_by": [],
+        "mcnemar_exact_two_sided_p": 0.6875,
+        "paired_release_gate": {
+          "passed": false,
+          "regressions": [
+            "1003",
+            "23"
+          ],
+          "severe_incidents": [],
+          "production_accepted": false
+        },
+        "production_accepted": false
+      },
+      "baseline_correct_protection": {
+        "n": 28,
+        "retained": [
+          "1084",
+          "1115",
+          "112",
+          "1130",
+          "116",
+          "1195",
+          "1231",
+          "1334",
+          "1375",
+          "1401",
+          "1460",
+          "1464",
+          "1476",
+          "1493",
+          "1509",
+          "200",
+          "227",
+          "242",
+          "379",
+          "422",
+          "576",
+          "671",
+          "781",
+          "791",
+          "800",
+          "819"
+        ],
+        "regressed": [
+          "1003",
+          "23"
+        ]
+      },
+      "label_reviews": [],
+      "review_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "strict_score_changed": false,
+      "denominator_changed": false,
+      "production_accepted": false,
+      "limits": "development-set comparison; unseen tasks and repeated runs remain required"
+    }
+  },
+  "package_afe3b0e": {
+    "wheel_integrity": "passed",
+    "all_python_source_bytes_match_commit": true,
+    "python_modules_checked": 162,
+    "source_commit": "afe3b0e"
+  },
+  "public_year_replay_v54": {
+    "kind": "offline replay of unchanged candidate SQL and original public formulas; no new model calls; no score changes",
+    "records": [],
+    "flagged_original_passes": []
+  },
+  "public_year_historical_replay_v54b": {
+    "kind": "offline replay of preserved earlier negative query; no new model calls or score changes",
+    "source_report": ".artifacts/stage7/20261021-light-small-v47/bird-candidate/report.json",
+    "case_id": "1168",
+    "original_passed": false,
+    "checks": [
+      "public_year_formula_fields"
+    ]
   }
 }
