@@ -175,7 +175,7 @@ def qualify_stage7(baselines: list[dict], candidates: list[dict], historical: li
         }
         blockers.extend(name + ":" + reason for reason in reasons)
     return {
-        "validator_version": "stage7-full-with-sql-output-lineage-20261021",
+        "validator_version": "stage7-full-with-branch-lineage-20261021",
         "stage7_development_qualified": not blockers,
         "tracks": tracks,
         "historical_correct_n": sum(t["historical_correct_guard"]["n"] for t in tracks.values()),

@@ -353,3 +353,79 @@ def test_sql_data_dependency_preserves_unicode_physical_relation_identity(sql):
     assert sql_data_dependencies('SELECT id FROM "a.b"', ["id"], allowed_relations={"a.b"}) == [
         True
     ]
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "SELECT 999 AS x UNION ALL SELECT id AS x FROM people",
+        "WITH c AS (SELECT 999 AS x UNION ALL SELECT id AS x FROM people) SELECT x FROM c",
+        "SELECT x FROM (SELECT 999 AS x UNION ALL SELECT id AS x FROM people) q",
+        "SELECT 'author' AS x UNION ALL SELECT name AS x FROM people",
+    ],
+)
+def test_union_data_branch_cannot_certify_another_branch_constants(sql):
+    from generaldataagent.tools.sql_semantics import sql_data_dependencies
+
+    assert sql_data_dependencies(sql, ["x"], allowed_relations={"people"}) == [False]
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "SELECT id AS x FROM people UNION ALL SELECT id AS x FROM people",
+        "SELECT id+(SELECT 1) AS x FROM people",
+        "WITH c AS(SELECT 1 AS n) SELECT id+n AS x FROM people CROSS JOIN c",
+        "SELECT DISTINCT 'author' AS x FROM people WHERE author IS NULL",
+        "SELECT 'author' AS x WHERE (SELECT COUNT(*) FROM people WHERE author IS NULL)>0",
+    ],
+)
+def test_union_guard_preserves_computed_values_and_data_conditional_schema_labels(sql):
+    from generaldataagent.tools.sql_semantics import sql_data_dependencies
+
+    assert sql_data_dependencies(sql, ["x"], allowed_relations={"people"}) == [True]
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "SELECT 'author' AS x FROM people",
+        "SELECT 'author' AS x FROM people WHERE title IS NULL",
+        "SELECT 'invented' AS x WHERE (SELECT COUNT(*) FROM people WHERE author IS NULL)>0",
+        "SELECT 'author' AS x WHERE (SELECT COUNT(*) FROM people WHERE author IS NULL)>=0",
+        "SELECT 'author' AS x WHERE (SELECT COUNT(*) FROM people WHERE author IS NULL)>0 OR 1=1",
+        "WITH c AS (SELECT NULL AS author FROM people) "
+        "SELECT 'author' AS x FROM c WHERE author IS NULL",
+    ],
+)
+def test_conditional_label_exception_requires_actual_gated_physical_field(sql):
+    from generaldataagent.tools.sql_semantics import sql_data_dependencies
+
+    assert sql_data_dependencies(sql, ["x"], allowed_relations={"people"}) == [False]
+
+
+def test_complete_column_name_collection_is_conditional_and_union_cannot_add_guessed_ids(tmp_path):
+    from generaldataagent.tools.sql_semantics import collect_complete
+
+    path = tmp_path / "collection.sqlite"
+    with sqlite3.connect(path) as db:
+        db.executescript(
+            "CREATE TABLE people(id INT,author TEXT,title TEXT); "
+            "INSERT INTO people VALUES(1,NULL,'Hello'),(2,'A','World');"
+        )
+    before = path.read_bytes()
+    sql = (
+        "SELECT DISTINCT name FROM ("
+        "SELECT 'author' AS name WHERE (SELECT COUNT(*) FROM people WHERE author IS NULL)>0 "
+        "UNION ALL SELECT 'title' WHERE (SELECT COUNT(*) FROM people WHERE title IS NULL)>0) q "
+        "ORDER BY name"
+    )
+    result = collect_complete(path, sql, allowed_relations={"people"})
+    assert result == {"items": ["author"], "total_count": 1, "complete": True}
+    with pytest.raises(SemanticError, match="data_dependent_answer_required"):
+        collect_complete(
+            path,
+            "SELECT DISTINCT id FROM (SELECT 999 AS id UNION ALL SELECT id FROM people) q",
+            allowed_relations={"people"},
+        )
+    assert path.read_bytes() == before

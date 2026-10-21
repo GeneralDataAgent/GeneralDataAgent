@@ -338,31 +338,107 @@ def sql_data_dependencies(
     names = ["_evidence_" + str(index) for index in range(len(columns))]
     for projection, alias in zip(list(tree.selects), names, strict=True):
         projection.replace(exp.alias_(projection.unalias().copy(), alias, quoted=True))
+
+    def count_dependency(count):
+        if not isinstance(count.this, (exp.Star, exp.Literal)):
+            return False
+        select = count.find_ancestor(exp.Select)
+        scope = next(
+            (scope for scope in traverse_scope(count.root()) if scope.expression is select), None
+        )
+        return row_dependency(scope, set())
+
+    def conditional_schema_label(item):
+        value = item.expression.unalias()
+        if not isinstance(value, exp.Literal) or not value.is_string:
+            return False
+        source = item.source
+        if not isinstance(source, exp.Select):
+            return False
+        scopes = {id(scope.expression): scope for scope in traverse_scope(source.root())}
+
+        def physical_label_column(expression):
+            for column in expression.find_all(exp.Column):
+                if column.name != identifier_key(value.this):
+                    continue
+                scope = scopes.get(id(column.find_ancestor(exp.Select)))
+                physical = scope.sources.get(column.table) if scope is not None else None
+                if isinstance(physical, exp.Table) and SqlGuard._relation_name(physical) in allowed:
+                    return True
+            return False
+
+        def conjuncts(expression):
+            if isinstance(expression, exp.Paren):
+                return conjuncts(expression.this)
+            if isinstance(expression, exp.And):
+                return conjuncts(expression.this) + conjuncts(expression.expression)
+            return [expression]
+
+        for clause in (source.args.get("where"), source.args.get("having")):
+            if clause is None:
+                continue
+            for term in conjuncts(clause.this):
+                if (
+                    isinstance(term, exp.Is)
+                    and isinstance(term.expression, exp.Null)
+                    and physical_label_column(term)
+                ):
+                    return True
+                if not isinstance(term, (exp.GT, exp.GTE)):
+                    continue
+                right = term.expression
+                if not isinstance(right, exp.Literal) or right.is_string:
+                    continue
+                threshold = float(right.this)
+                if not (
+                    (isinstance(term, exp.GT) and threshold == 0)
+                    or (isinstance(term, exp.GTE) and threshold == 1)
+                ):
+                    continue
+                left = term.this
+                while isinstance(left, (exp.Paren, exp.Subquery)):
+                    left = left.this
+                if isinstance(left, exp.Select) and len(left.selects) == 1:
+                    left = left.selects[0].unalias()
+                if (
+                    isinstance(left, exp.Count)
+                    and count_dependency(left)
+                    and physical_label_column(term)
+                ):
+                    return True
+        return False
+
+    def has_data(item):
+        for child in item.walk():
+            if (
+                isinstance(child.expression, exp.Table)
+                and SqlGuard._relation_name(child.expression) in allowed
+            ):
+                return True
+            if conditional_schema_label(child):
+                return True
+            if any(count_dependency(count) for count in child.expression.find_all(exp.Count)):
+                return True
+        return False
+
     output = []
     for name in names:
         try:
             node = lineage(name, tree, dialect="sqlite", trim_selects=False)
-            dependent = False
+            dependent = has_data(node)
             for item in node.walk():
-                if isinstance(item.expression, exp.Table):
-                    dependent |= SqlGuard._relation_name(item.expression) in allowed
-                for count in item.expression.find_all(exp.Count):
-                    argument = count.this
-                    row_count = isinstance(argument, (exp.Star, exp.Literal))
-                    if not row_count:
-                        continue
-                    select = count.find_ancestor(exp.Select)
-                    # Preserve lexical CTE visibility, but never borrow row sources from an
-                    # enclosing SELECT for a constant-only scalar subquery's COUNT.
-                    count_scope = next(
-                        (
-                            scope
-                            for scope in traverse_scope(count.root())
-                            if scope.expression is select
-                        ),
-                        None,
-                    )
-                    dependent |= row_dependency(count_scope, set())
+                groups = {}
+                if isinstance(item.source, exp.SetOperation):
+                    groups["root_set"] = item.downstream
+                else:
+                    for child in item.downstream:
+                        if child.reference_node_name:
+                            groups.setdefault(child.reference_node_name, []).append(child)
+                for group in groups.values():
+                    # Union branches have different source SELECTs for the same reference.
+                    # One real-data branch cannot certify another branch's guessed values.
+                    if len({child.source.sql(dialect="sqlite") for child in group}) > 1:
+                        dependent &= all(has_data(child) for child in group)
             output.append(dependent)
         except (SqlglotError, ValueError, TypeError):
             output.append(False)
