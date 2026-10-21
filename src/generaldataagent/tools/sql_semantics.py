@@ -158,7 +158,14 @@ def assemble_answers(bindings: dict, evidence: dict[int, dict], answer: AnswerSp
             )
             if checks:
                 raise SemanticError(",".join(checks))
-            output[key] = value
+            from generaldataagent.tools.answer_fields import present_collection
+
+            try:
+                output[key] = present_collection(
+                    value, field.collection_separator if field else None
+                )
+            except ValueError as exc:
+                raise SemanticError(str(exc)) from None
             continue
         if isinstance(value, (dict, list, tuple)):
             raise SemanticError("bind individual scalar fields, not previews or containers")

@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class AnswerFieldSpec(BaseModel):
@@ -23,3 +23,10 @@ class AnswerFieldSpec(BaseModel):
         | None
     ) = None
     source_excerpt: str = Field(default="", max_length=2000)
+    collection_separator: Literal[",", ", "] | None = None
+
+    @model_validator(mode="after")
+    def collection_presentation(self):
+        if self.collection_separator is not None and self.kind != "set":
+            raise ValueError("collection separator belongs to set fields only")
+        return self

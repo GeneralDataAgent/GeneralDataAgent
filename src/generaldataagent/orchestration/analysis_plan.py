@@ -67,6 +67,13 @@ def accept_contract(proposal: dict, *, question: str, instructions: str) -> Anal
                 updates["decimals"] = expected.decimals
                 if public_precisions(field.source_excerpt) != {expected.decimals}:
                     updates["source_excerpt"] = expected.source_excerpt
+            if expected.collection_separator is not None:
+                if field.collection_separator not in (None, expected.collection_separator):
+                    raise ValueError(
+                        "collection presentation contradicts the explicit public format"
+                    )
+                updates["collection_separator"] = expected.collection_separator
+                updates["source_excerpt"] = expected.source_excerpt
             fields[key] = field.model_copy(update=updates)
         spec = spec.model_copy(update={"answer": spec.answer.model_copy(update={"fields": fields})})
     validate_field_sources(spec.answer.fields, spec.answer.columns, question, instructions)

@@ -310,7 +310,8 @@ When every public field is scalar, prefer submit_sql_answers: SELECT exactly one
 row and alias every output column to its exact public answer key. Runtime computes, checks and
 binds all fields atomically, with the public precision and full-data receipts. No guessed constants.
 If any public field has kind=set, use collect_values for that field and bind [items]. Use
-compute_sql for other scalar fields, then bind all fields together; never serialize sets as strings.
+compute_sql for other scalar fields, then bind all fields together. Runtime applies any public
+collection_separator after binding and retains the full raw collection; do not serialize it in SQL.
 For necessary exploration use compute_sql, read-only SQLite with exact listed columns and relations.
 Use only requested filters; keep missing-value and date conventions explicit. Do not estimate
 statistics from previews. Use sample_std for sample standard deviation. Preserve requested ties.

@@ -51,13 +51,33 @@ def public_precisions(text: str) -> set[int]:
     return digits
 
 
+def public_collection_separator(text: str, key: str) -> str | None:
+    if re.search(r"\b(?:JSON\s+array|Python\s+list|native\s+list)\b", text, re.I):
+        return None
+    values = re.findall(r"@" + re.escape(key) + r"\[([^]\n]{1,200})\]", text)
+    separators = set()
+    for value in values:
+        if "," not in value or not re.search(r"…|\.{3}", value):
+            continue
+        tail = value[value.index(",") + 1 :]
+        if tail.startswith("\t"):
+            continue
+        separators.add(", " if tail.startswith(" ") else ",")
+    return next(iter(separators)) if len(separators) == 1 else None
+
+
 def validate_field_sources(fields: dict[str, AnswerFieldSpec], columns, question, instructions):
     public = question + "\n" + instructions
     if fields and set(fields) != set(columns):
         raise ValueError("per-field rules must cover exactly the declared answer columns")
-    for field in fields.values():
+    for key, field in fields.items():
         if field.source_excerpt and field.source_excerpt not in public:
             raise ValueError("field rule needs an exact public source excerpt")
+        if (
+            field.collection_separator is not None
+            and public_collection_separator(field.source_excerpt, key) != field.collection_separator
+        ):
+            raise ValueError("collection presentation requires its explicit public format")
         if field.decimals is not None and public_precisions(field.source_excerpt) != {
             field.decimals
         }:
@@ -109,6 +129,19 @@ def validate_field_value(raw, field: AnswerFieldSpec, result: dict, path: list):
                 raise ValueError("nonintegral result cannot be presented as an integer")
             raw = int(raw)
     return raw
+
+
+def present_collection(items: list, separator: str | None):
+    if separator is None:
+        return items
+    if any(
+        item is None
+        or not isinstance(item, (str, int, float, bool))
+        or any(mark in str(item) for mark in (",", "\n", "\r"))
+        for item in items
+    ):
+        raise ValueError("collection items need an unambiguous public delimited presentation")
+    return separator.join(str(item) for item in items)
 
 
 def format_decimal(value: int | float, decimals: int) -> str:
@@ -168,6 +201,7 @@ def infer_public_field_rules(instructions: str, columns: list[str]) -> dict[str,
                     kind="set",
                     nullable=False,
                     source_excerpt=instructions.strip(),
+                    collection_separator=public_collection_separator(instructions, key),
                 )
     # A public format may use "where" once, followed by several quoted definitions.
     # Keep spans in the original text so every rule retains exact provenance.

@@ -972,7 +972,7 @@ def test_public_collection_auto_contract_requires_complete_values_and_bindings(d
         question="List all people ids.",
         instructions=instructions,
     )
-    assert result["failure"] is None and result["answers"] == {"ids": [1, 2]}
+    assert result["failure"] is None and result["answers"] == {"ids": "1, 2"}
     assert result["task_contract"]["answer"]["fields"]["ids"]["kind"] == "set"
     assert result["answer_evidence"]["ids"]["method_id"] == "complete_collection"
     assert result["answer_evidence"]["ids"]["step"] == 2
@@ -1057,3 +1057,23 @@ def test_crosscheck_large_collection_stays_complete_with_one_check_budget(databa
     assert result["trace"][2]["row_count"] == 302
     exploratory = run(database, [{"sql": "SELECT id FROM people"}], profile="sql-precision")
     assert exploratory["trace"][0]["code"] == "result_limit"
+
+
+def test_collection_presentation_keeps_full_raw_value_and_bound_receipt(database):
+    instructions = "@ids[id1, id2,…] No duplicates."
+    actions = [
+        {"collect_values": {"sql": "SELECT DISTINCT id FROM people ORDER BY id"}},
+        {"submit_answers": {"fields": [{"name": "ids", "step": 1, "path": ["items"]}]}},
+    ]
+    result = run(
+        database,
+        actions,
+        benchmark="infiagent-dabench",
+        question="List ids.",
+        instructions=instructions,
+    )
+    assert result["failure"] is None and result["answers"] == {"ids": "1, 2"}
+    receipt = result["answer_evidence"]["ids"]
+    assert receipt["raw_value"] == [1, 2] and receipt["raw_type"] == "list"
+    assert receipt["submitted_value"] == "1, 2" and receipt["submitted_type"] == "str"
+    assert receipt["method_id"] == "complete_collection"

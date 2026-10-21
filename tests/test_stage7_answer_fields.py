@@ -178,3 +178,29 @@ def test_explicit_set_definition_does_not_reinterpret_a_string_description():
     assert infer_public_field_rules(text, ["names"])["names"].kind == "set"
     text = "@description[text] where 'text' is a string describing a set of columns."
     assert infer_public_field_rules(text, ["description"])["description"].kind == "string"
+
+
+def test_public_collection_presentation_is_sourced_and_does_not_change_raw_items():
+    from generaldataagent.tools.answer_fields import (
+        infer_public_field_rules,
+        present_collection,
+        validate_field_sources,
+    )
+
+    text = "@names[item1, item2,…] No duplicates."
+    rule = infer_public_field_rules(text, ["names"])["names"]
+    assert rule.collection_separator == ", "
+    validate_field_sources({"names": rule}, ["names"], "", text)
+    assert present_collection(["author", "image"], rule.collection_separator) == "author, image"
+    assert present_collection([], rule.collection_separator) == ""
+    assert present_collection(["author"], None) == ["author"]
+    json_rule = infer_public_field_rules(text + " Use a JSON array.", ["names"])["names"]
+    assert json_rule.collection_separator is None
+    with pytest.raises(ValueError, match="explicit public format"):
+        validate_field_sources(
+            {"names": rule.model_copy(update={"collection_separator": ","})}, ["names"], "", text
+        )
+    with pytest.raises(ValueError, match="unambiguous"):
+        present_collection(["field,with,commas"], ", ")
+    with pytest.raises(ValueError, match="unambiguous"):
+        present_collection([None], ",")
