@@ -339,6 +339,7 @@ class BoundedSQLAgent:
                 "sql-precision",
                 "sql-semantic",
                 "sql-semantic-plan",
+                "sql-semantic-json",
             }
             or not math.isfinite(max_cost_usd)
             or max_cost_usd <= 0
@@ -364,6 +365,7 @@ class BoundedSQLAgent:
         from generaldataagent.catalog.semantic_context import semantic_context
         from generaldataagent.evaluation.stage_seven import (
             STAGE7_ANALYSIS_PROMPT,
+            STAGE7_JSON_SQL_PROMPT,
             STAGE7_PLAN_PROMPT,
             STAGE7_PROMPT,
             STAGE7_SQL_PROMPT,
@@ -397,7 +399,10 @@ class BoundedSQLAgent:
         )
 
         plan_mode = self.tool_profile == "sql-semantic-plan"
-        semantic = self.tool_profile in {"sql-semantic", "sql-semantic-plan"}
+        semantic_json = self.tool_profile == "sql-semantic-json"
+        semantic = self.tool_profile in {"sql-semantic", "sql-semantic-plan", "sql-semantic-json"}
+        if semantic_json and task.benchmark != "bird-mini-dev-sqlite":
+            raise ValueError("JSON SQL mode requires SQL-output tasks")
         if plan_mode and task.benchmark != "bird-mini-dev-sqlite":
             raise ValueError("structured query plans require SQL-output tasks")
         task_spec = None
@@ -413,12 +418,14 @@ class BoundedSQLAgent:
             "sql-precision",
             "sql-semantic",
             "sql-semantic-plan",
+            "sql-semantic-json",
         }
         enhanced = self.tool_profile in {
             "sql-analysis",
             "sql-repair",
             "sql-semantic",
             "sql-semantic-plan",
+            "sql-semantic-json",
         }
         extra = (
             """
@@ -485,8 +492,13 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
             precision = False  # Preserve the independent SQL-output profile flag.
             messages[0] = ("system", STAGE7_ANALYSIS_PROMPT)
         if semantic and task.benchmark == "bird-mini-dev-sqlite":
-            messages[0] = ("system", STAGE7_SQL_PROMPT + (STAGE7_PLAN_PROMPT if plan_mode else ""))
-        if precision:
+            messages[0] = (
+                "system",
+                SQL_PRECISION_PROMPT + STAGE7_JSON_SQL_PROMPT
+                if semantic_json
+                else STAGE7_SQL_PROMPT + (STAGE7_PLAN_PROMPT if plan_mode else ""),
+            )
+        if precision or semantic_json:
             request = json.loads(messages[1][1])
             request.pop("answer_fields", None)
             request["relationships"] = schema_relationships(database, allowed_relations=relations)
@@ -508,6 +520,9 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                 max_chars=2000 if task.benchmark == "bird-mini-dev-sqlite" else 4000,
                 public_text=task.question + "\n" + task.instructions,
             )
+            if semantic_json:
+                # Declared keys already appear in the complete precision schema context.
+                request["semantic_context"].pop("relationships", None)
             messages[1] = ("human", json.dumps(request))
         if semantic:
             messages = ToolConversation(messages)
@@ -530,6 +545,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                 failure = "cost_budget"
                 break
             compiled_plan = None
+            automatic_sql_contract = False
             previous_task_spec = task_spec
             previous_automatic_spec = automatic_spec
             action = None
@@ -559,7 +575,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                             planned=task_spec is not None,
                             plan_enabled=plan_mode,
                         )
-                        if semantic
+                        if semantic and not semantic_json
                         else self.model
                     )
                     response = active_model.invoke(messages)
@@ -651,6 +667,17 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     if correction:
                         trace.append({"step": step, "status": "repaired", "code": correction})
                 if semantic:
+                    if (
+                        semantic_json
+                        and task_spec is None
+                        and "final_sql" in action
+                        and "task_spec" not in action
+                    ):
+                        action["task_spec"] = {
+                            "question": task.question,
+                            "public_requirements": task.instructions,
+                        }
+                        automatic_sql_contract = True
                     for field in ("contract", "task_spec"):
                         if isinstance(action.get(field), dict):
                             action[field].setdefault("question", task.question)
@@ -713,6 +740,10 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                         and not (task.benchmark == "bird-mini-dev-sqlite" and "sql" in action)
                     ):
                         raise SemanticError("public task contract required first")
+                    if task.benchmark == "bird-mini-dev-sqlite" and any(
+                        key in action for key in ("answers", "analysis", "search", "collect")
+                    ):
+                        raise SemanticError("sql_output_requires_sql_action")
                     if "answer_sql" in action and task.benchmark == "bird-mini-dev-sqlite":
                         raise SemanticError("answer_sql_requires_non_sql_task")
                     if "final_sql" in action and task.benchmark != "bird-mini-dev-sqlite":
@@ -929,6 +960,18 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                         )
                         if issues:
                             raise SemanticError(",".join(issues))
+                        if automatic_sql_contract:
+                            # Observe exact cursor labels after every guard passes. This is
+                            # projection bookkeeping, never a claimed business interpretation.
+                            task_spec = type(task_spec).model_validate(
+                                task_spec.model_dump()
+                                | {
+                                    "answer": task_spec.answer.model_dump()
+                                    | {
+                                        "columns": list(result.columns),
+                                    },
+                                }
+                            )
                     result_data = {"columns": result.columns, "rows": result.rows}
                     tool = "sql"
                 if semantic:

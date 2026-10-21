@@ -1077,3 +1077,73 @@ def test_collection_presentation_keeps_full_raw_value_and_bound_receipt(database
     assert receipt["raw_value"] == [1, 2] and receipt["raw_type"] == "list"
     assert receipt["submitted_value"] == "1, 2" and receipt["submitted_type"] == "str"
     assert receipt["method_id"] == "complete_collection"
+
+
+def test_opt_in_json_sql_infers_only_observed_projections_and_preserves_public_texts(database):
+    class JsonOnly:
+        def bind(self, **kwargs):
+            raise AssertionError("JSON profile must not bind native tools")
+
+        def invoke(self, messages):
+            request = json.loads(messages[1][1])
+            assert "relationships" in request
+            assert "relationships" not in request["semantic_context"]
+            return SimpleNamespace(
+                content=json.dumps({"final_sql": "SELECT COUNT(*) AS n FROM people"}),
+                usage_metadata={"total_tokens": 10},
+                response_metadata={},
+            )
+
+    before = database.read_bytes()
+    task = Task(
+        "bird-mini-dev-sqlite",
+        "synthetic",
+        "How many people?",
+        "Use the whole table.",
+        "easy",
+        "people",
+    )
+    result = BoundedSQLAgent(JsonOnly(), tool_profile="sql-semantic-json", max_steps=1).run(
+        task, database
+    )
+    assert result["failure"] is None and result["trace"][0]["response_mode"] == "json"
+    assert result["task_contract"]["question"] == task.question
+    assert result["task_contract"]["public_requirements"] == task.instructions
+    assert result["task_contract"]["answer"]["columns"] == ["n"]
+    assert database.read_bytes() == before
+
+
+def test_json_sql_mode_keeps_column_and_data_dependency_guards(database):
+    result = run(
+        database,
+        [
+            {"final_sql": "SELECT absent FROM people"},
+            {"final_sql": "SELECT 2 AS n"},
+            {"final_sql": "SELECT COUNT(*) AS n FROM people"},
+        ],
+        profile="sql-semantic-json",
+    )
+    assert result["failure"] is None
+    assert result["trace"][0]["code"] == "unknown_column"
+    assert result["trace"][1]["checks"] == ["data_dependent_sql_required"]
+    assert result["task_contract"]["answer"]["columns"] == ["n"]
+    with pytest.raises(ValueError, match="SQL-output"):
+        run(
+            database,
+            [{"unsupported": "x"}],
+            benchmark="infiagent-dabench",
+            profile="sql-semantic-json",
+        )
+
+
+def test_sql_output_json_compatibility_cannot_submit_bound_answers(database):
+    result = run(
+        database,
+        [
+            contract(columns=["n"]),
+            {"sql": "SELECT COUNT(*) AS n FROM people"},
+            {"answers": {}, "evidence_steps": [2], "bindings": {"n": [2, ["rows", 0, 0]]}},
+        ],
+    )
+    assert result["failure"] and result["final_sql"] is None and not result["answers"]
+    assert result["trace"][-1]["checks"] == ["sql_output_requires_sql_action"]

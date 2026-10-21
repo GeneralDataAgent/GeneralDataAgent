@@ -54,6 +54,10 @@ def stage7_fingerprint(root: Path) -> dict:
         "catalog/join_evidence.py",
         "tools/sql_semantics.py",
         "tools/sql_guard.py",
+        "tools/sqlite.py",
+        "evaluation/stage_six.py",
+        "evaluation/stage_six_sql_precision.py",
+        "evaluation/stage_six_repair.py",
         "evaluation/stage_seven.py",
         "contracts/query_plan.py",
         "tools/semantic_sql.py",
@@ -359,6 +363,20 @@ class ToolConversation(list):
             self.pending = []
         else:
             super().append(message)
+
+
+STAGE7_JSON_SQL_PROMPT = """
+The runtime binds the public question and instructions automatically. A normal final_sql JSON
+action needs no repeated task_spec. Its exact output labels are recorded after execution.
+Read-only authorization, column scopes, public semantic checks and full-data dependencies still
+apply. Explicit rich contracts remain available through the JSON contract/task_spec path.
+For "among the top N" use RANK and retain the ranking population unless exclusion is requested.
+Honor an explicit public year-difference formula; otherwise age at arrival uses completed years.
+When related records only establish existence, use EXISTS at the requested entity grain rather
+than multiply an entity's attributes or measurements by the number of matching history rows.
+Return the requested percentage, not just its intermediate counts. Do not invent zero for an
+undefined percentage. Keep the same six actions, 24000-token and 120-second model budget.
+"""
 
 
 STAGE7_PLAN_PROMPT = """
