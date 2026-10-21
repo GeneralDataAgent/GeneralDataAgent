@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from generaldataagent.contracts.answer_fields import AnswerFieldSpec
 from generaldataagent.contracts.query_plan import SemanticQueryPlan
 from generaldataagent.contracts.semantic_requirements import SemanticRequirements
+from generaldataagent.contracts.statistical_rules import PearsonDecisionRule
 
 
 class Contract(BaseModel):
@@ -54,10 +55,13 @@ class AnalysisTaskSpec(Contract):
 class AnalysisArguments(Contract):
     table: str = Field(min_length=1, max_length=200)
     columns: list[str] = Field(min_length=1, max_length=2)
-    operation: Literal["describe", "pearson", "linear_regression"]
+    operation: Literal["describe", "pearson", "pearson_test", "linear_regression"]
+    decision_rule: PearsonDecisionRule | None = None
 
     @model_validator(mode="after")
     def paired(self):
+        if self.decision_rule is not None and self.operation != "pearson_test":
+            raise ValueError("decision rule requires pearson_test")
         if self.operation != "describe" and len(self.columns) != 2:
             raise ValueError("paired analysis requires two columns")
         return self

@@ -22,6 +22,7 @@ class AnswerFieldSpec(BaseModel):
             "describe",
             "describe.sample_std",
             "pearson",
+            "pearson_test",
             "linear_regression",
             "complete_collection",
         ]

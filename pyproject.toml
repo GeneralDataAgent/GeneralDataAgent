@@ -27,6 +27,7 @@ dependencies = [
   "langgraph-checkpoint-sqlite>=3,<4",
   "langsmith>=0.14,<0.15",
   "psycopg[binary]>=3.2,<4",
+  "scipy>=1.15,<2",
 ]
 
 [dependency-groups]

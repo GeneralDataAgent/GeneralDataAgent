@@ -180,6 +180,10 @@ def main():
         "analysis_tools_hash": digest(
             ROOT / "src/generaldataagent/evaluation/stage_six_analysis.py"
         ),
+        "pearson_test_hash": digest(ROOT / "src/generaldataagent/tools/pearson_test.py"),
+        "statistical_rules_hash": digest(
+            ROOT / "src/generaldataagent/contracts/statistical_rules.py"
+        ),
         "precision_tools_hash": digest(
             ROOT / "src/generaldataagent/evaluation/stage_six_sql_precision.py"
         ),

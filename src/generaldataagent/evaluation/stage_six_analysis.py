@@ -9,6 +9,7 @@ import re
 import sqlite3
 import statistics
 
+from generaldataagent.contracts.analysis import AnalysisArguments
 from generaldataagent.tools.sqlite import SQLiteReadOnlyExecutor
 
 
@@ -42,9 +43,10 @@ def document_outline(documents: str) -> str:
     return "\n".join(line for line in documents.splitlines() if line.startswith("#"))[:3000]
 
 
-def fixed_analysis(database, specification: dict, *, allowed_relations: set[str]) -> dict:
-    if set(specification) - {"table", "columns", "operation"}:
-        raise ValueError("unknown analysis parameters")
+def fixed_analysis(
+    database, specification: dict, *, allowed_relations: set[str], public_text: str = ""
+) -> dict:
+    arguments = AnalysisArguments.model_validate(specification)
     table = specification["table"]
     columns = specification["columns"]
     operation = specification["operation"]
@@ -56,7 +58,7 @@ def fixed_analysis(database, specification: dict, *, allowed_relations: set[str]
         or not all(isinstance(c, str) and len(c) <= 200 for c in columns)
     ):
         raise ValueError("one or two explicit columns required")
-    if operation not in {"describe", "pearson", "linear_regression"}:
+    if operation not in {"describe", "pearson", "pearson_test", "linear_regression"}:
         raise ValueError("unsupported fixed analysis")
     if operation != "describe" and len(columns) != 2:
         raise ValueError("paired analysis requires two columns")
@@ -120,6 +122,10 @@ def fixed_analysis(database, specification: dict, *, allowed_relations: set[str]
         if not rows:
             raise ValueError("no finite observations")
         output["correlation"] = statistics.correlation([r[0] for r in rows], [r[1] for r in rows])
+    elif operation == "pearson_test":
+        from generaldataagent.tools.pearson_test import pearson_test
+
+        output.update(pearson_test(rows, rule=arguments.decision_rule, public_text=public_text))
     else:
         fit = statistics.linear_regression([r[0] for r in rows], [r[1] for r in rows])
         output.update(
