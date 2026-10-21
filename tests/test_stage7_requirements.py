@@ -427,6 +427,46 @@ def test_scalar_growth_lookup_can_prove_qualified_periods_through_inner_joins():
         assert check_public_change_direction(ambiguous, question) == []
 
 
+@pytest.mark.parametrize(
+    "expression",
+    [
+        "((finish-start)/start)*100.0",
+        "CAST((finish-start)/start AS REAL)*100",
+        "(finish-start)/NULLIF(start,0.0)*100",
+        "(finish-start)/CAST(start AS INTEGER)*100.0",
+    ],
+)
+def test_growth_division_requires_real_promotion_before_not_after_division(expression):
+    from generaldataagent.tools.semantic_requirements import check_change_real_division
+
+    sql = "SELECT " + expression + " FROM amounts"
+    assert check_change_real_division(sql, "What is the growth rate?") == [
+        "change_real_division_unproven"
+    ]
+    assert check_change_real_division(sql, "Compute the integer quotient") == []
+
+
+@pytest.mark.parametrize(
+    "expression",
+    [
+        "(finish-start)*100.0/start",
+        "CAST(finish-start AS REAL)/start*100",
+        "(finish-start)/CAST(start AS REAL)*100",
+        "1e0*(finish-start)/NULLIF(start,0)*100",
+    ],
+)
+def test_growth_real_division_matches_actual_sqlite_arithmetic(expression):
+    import sqlite3
+
+    from generaldataagent.tools.semantic_requirements import check_change_real_division
+
+    sql = "SELECT " + expression + " FROM (SELECT 10 AS start,21 AS finish) amounts"
+    assert check_change_real_division(sql, "What is the growth rate?") == []
+    with sqlite3.connect(":memory:") as db:
+        assert db.execute(sql).fetchone()[0] == pytest.approx(110)
+        assert db.execute("SELECT ((21-10)/10)*100.0").fetchone()[0] == 100
+
+
 def test_public_supplemental_rank_policy_is_checked_with_question():
     from generaldataagent.tools.semantic_requirements import check_public_rank_and_age
 

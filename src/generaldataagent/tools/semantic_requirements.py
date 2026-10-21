@@ -368,6 +368,42 @@ def check_public_change_direction(sql: str, question: str) -> list[str]:
     return sorted(set(issues))
 
 
+def check_change_real_division(sql: str, question: str) -> list[str]:
+    """Require explicit REAL arithmetic for root growth-rate divisions.
+
+    This is a conservative portability requirement, not inference of physical column
+    types. Unknown column types must be explicitly promoted by the proposed query.
+    An outer cast or a decimal multiplier applied after division cannot certify it.
+    """
+    import re
+
+    if not re.search(
+        r"\b(?:increase rate|growth rate|percentage change|percent change)\b", question, re.I
+    ):
+        return []
+    tree = parse_one(sql, read="sqlite")
+
+    def real_operand(node):
+        node = _unparen(node)
+        if isinstance(node, exp.Cast):
+            return node.to.sql(dialect="sqlite").upper() in {"REAL", "FLOAT", "DOUBLE"}
+        if isinstance(node, exp.Literal) and not node.is_string:
+            return bool(re.search(r"[.eE]", node.this))
+        if isinstance(node, (exp.Neg, exp.Abs, exp.Nullif)):
+            return real_operand(node.this)
+        if isinstance(node, (exp.Add, exp.Sub, exp.Mul, exp.Div)):
+            return real_operand(node.this) or real_operand(node.expression)
+        return False
+
+    for projection in tree.selects:
+        for division in projection.find_all(exp.Div):
+            if division.find_ancestor(exp.Select) is tree and not (
+                real_operand(division.this) or real_operand(division.expression)
+            ):
+                return ["change_real_division_unproven"]
+    return []
+
+
 def check_public_rank_and_age(sql: str, question: str, instructions: str = "") -> list[str]:
     """Enforce narrow, explicit public ranking and completed-age conventions."""
     import re
