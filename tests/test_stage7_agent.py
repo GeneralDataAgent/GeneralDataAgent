@@ -1311,6 +1311,216 @@ def test_mixed_collection_scalar_task_reuses_collection_after_atomic_shortcut_re
     assert result["answer_evidence"]["ids"]["step"] == 1
 
 
+@pytest.mark.parametrize("large_collection", [False, True])
+def test_mixed_atomic_sql_binds_complete_collection_and_new_scalars_in_two_actions(
+    database, large_collection
+):
+    from generaldataagent.evaluation.stage_seven_acceptance import answer_receipt_errors
+
+    if large_collection:
+        with sqlite3.connect(database) as db:
+            db.executemany(
+                "INSERT INTO people VALUES(?,'1980-01-01',10)", [(i,) for i in range(3, 303)]
+            )
+    expected_n = 302 if large_collection else 2
+    before = database.read_bytes()
+    result = run(
+        database,
+        [
+            {
+                "collect_values": {
+                    "sql": "SELECT id FROM people ORDER BY id",
+                    "collection_kind": "list",
+                }
+            },
+            {
+                "submit_mixed_sql_answers": {
+                    "sql": "SELECT COUNT(*) AS n FROM people",
+                    "collections": [{"name": "ids", "step": 1}],
+                }
+            },
+        ],
+        benchmark="infiagent-dabench",
+        instructions=(
+            "@ids[values], @n[count_value]\n"
+            'where "values" is a list of integers in ascending order.\n'
+            'where "count_value" is an integer.'
+        ),
+    )
+    assert result["failure"] is None and result["answers"] == {
+        "ids": list(range(1, expected_n + 1)),
+        "n": expected_n,
+    }
+    assert result["answer_evidence"]["ids"]["step"] == 1
+    assert result["answer_evidence"]["n"]["step"] == 2
+    assert len(result["trace"]) == 2 and result["trace"][1]["auto_bound_public_keys"] == [
+        "ids",
+        "n",
+    ]
+    report = {
+        "benchmark": "infiagent-dabench",
+        "results": [result | {"case_id": "synthetic", "passed": True}],
+    }
+    assert answer_receipt_errors(report) == []
+    assert database.read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    "sql,bindings,first_sql",
+    [
+        (
+            "SELECT 0 AS n FROM people LIMIT 1",
+            [{"name": "ids", "step": 1}],
+            "SELECT id FROM people",
+        ),
+        ("SELECT id AS n FROM people", [{"name": "ids", "step": 1}], "SELECT id FROM people"),
+        (
+            "SELECT id AS n FROM people WHERE id<0",
+            [{"name": "ids", "step": 1}],
+            "SELECT id FROM people",
+        ),
+        (
+            "SELECT COUNT(*) AS wrong FROM people",
+            [{"name": "ids", "step": 1}],
+            "SELECT id FROM people",
+        ),
+        (
+            "SELECT COUNT(*) AS n FROM people",
+            [{"name": "unknown", "step": 1}],
+            "SELECT id FROM people",
+        ),
+        ("SELECT COUNT(*) AS n FROM people", [{"name": "ids", "step": 2}], "SELECT id FROM people"),
+        (
+            "SELECT COUNT(*) AS n FROM people",
+            [{"name": "ids", "step": 99}],
+            "SELECT id FROM people",
+        ),
+        (
+            "SELECT COUNT(*) AS n FROM people",
+            [{"name": "ids", "step": 1}, {"name": "ids", "step": 1}],
+            "SELECT id FROM people",
+        ),
+        ("DELETE FROM people", [{"name": "ids", "step": 1}], "SELECT id FROM people"),
+        (
+            "SELECT COUNT(*) AS n FROM people",
+            [{"name": "ids", "step": 1, "path": ["items", 0]}],
+            "SELECT id FROM people",
+        ),
+        (
+            "SELECT COUNT(*) AS n FROM people",
+            [{"name": "ids", "step": 1}],
+            "SELECT id FROM people ORDER BY id DESC",
+        ),
+    ],
+)
+def test_mixed_atomic_sql_rejects_forged_or_incomplete_inputs(database, sql, bindings, first_sql):
+    before = database.read_bytes()
+    result = run(
+        database,
+        [
+            {"collect_values": {"sql": first_sql, "collection_kind": "list"}},
+            {"submit_mixed_sql_answers": {"sql": sql, "collections": bindings}},
+        ],
+        benchmark="infiagent-dabench",
+        instructions=(
+            "@ids[values], @n[count_value]\n"
+            'where "values" is a list of integers in ascending order.\n'
+            'where "count_value" is an integer.'
+        ),
+    )
+    assert result["failure"] and not result["answers"] and not result["answer_evidence"]
+    assert result["trace"][-1]["status"] == "error"
+    assert database.read_bytes() == before
+
+
+def test_mixed_atomic_sql_cannot_treat_an_exploratory_row_container_as_a_complete_list(database):
+    result = run(
+        database,
+        [
+            {"compute_sql": {"sql": "SELECT id FROM people"}},
+            {
+                "submit_mixed_sql_answers": {
+                    "sql": "SELECT COUNT(*) AS n FROM people",
+                    "collections": [{"name": "ids", "step": 1}],
+                }
+            },
+        ],
+        benchmark="infiagent-dabench",
+        instructions=(
+            '@ids[values], @n[count_value]\nwhere "values" is a list of integers.\n'
+            'where "count_value" is an integer.'
+        ),
+    )
+    assert result["failure"] and not result["answers"]
+    assert result["trace"][-1]["checks"] == ["mixed_sql_requires_prior_complete_collection"]
+
+
+@pytest.mark.parametrize("empty_collection", [False, True])
+def test_native_mixed_atomic_tool_only_uses_available_collection_steps(database, empty_collection):
+    from langchain_core.messages import AIMessage
+
+    class Native:
+        calls = 0
+
+        def bind(self, **kwargs):
+            tools = {item["function"]["name"]: item["function"] for item in kwargs["tools"]}
+            assert "submit_sql_answers" not in tools
+            if not self.calls:
+                assert "submit_mixed_sql_answers" not in tools
+            else:
+                schema = tools["submit_mixed_sql_answers"]["parameters"]
+                item = schema["properties"]["collections"]["items"]
+                assert item["properties"]["name"]["enum"] == ["ids"]
+                assert item["properties"]["step"]["enum"] == [1]
+                assert "path" not in item["properties"]
+            return self
+
+        def invoke(self, messages):
+            self.calls += 1
+            if self.calls == 1:
+                name, args = (
+                    "collect_values",
+                    {
+                        "sql": "SELECT id FROM people"
+                        + (" WHERE id<0" if empty_collection else "")
+                        + " ORDER BY id",
+                        "collection_kind": "list",
+                    },
+                )
+            else:
+                name, args = (
+                    "submit_mixed_sql_answers",
+                    {
+                        "sql": "SELECT COUNT(*) AS n FROM people",
+                        "collections": [{"name": "ids", "step": 1}],
+                    },
+                )
+            return AIMessage(
+                content="",
+                tool_calls=[{"name": name, "args": args, "id": str(self.calls)}],
+                usage_metadata={"total_tokens": 10, "input_tokens": 8, "output_tokens": 2},
+            )
+
+    instructions = (
+        "@ids[values], @n[count_value]\n"
+        'where "values" is a list of integers in ascending order.\n'
+        'where "count_value" is an integer.'
+    )
+    question = (
+        "List IDs less than zero and count all people."
+        if empty_collection
+        else "List IDs and count all people."
+    )
+    task = Task("infiagent-dabench", "synthetic", question, instructions, "easy", "people")
+    before = database.read_bytes()
+    model = Native()
+    result = BoundedSQLAgent(model, tool_profile="sql-semantic", max_steps=2).run(task, database)
+    assert result["failure"] is None and model.calls == 2
+    assert result["answers"] == {"ids": [] if empty_collection else [1, 2], "n": 2}
+    assert result["answer_evidence"]["ids"]["raw_value"] == result["answers"]["ids"]
+    assert database.read_bytes() == before
+
+
 @pytest.mark.parametrize("first_sql", ["SELECT DISTINCT score FROM people", "DELETE FROM people"])
 def test_native_plan_profile_can_observe_before_contract_with_same_read_only_budget(
     database, first_sql

@@ -75,6 +75,20 @@ def bounded_observation(result: dict, *, max_chars: int = 6000) -> dict:
 
 def execution_hint(exc: Exception) -> str:
     text = str(exc)
+    if (
+        "mixed_sql_requires_remaining_scalar_aliases" in text
+        or "mixed_sql_requires_one_scalar_row" in text
+    ):
+        return (
+            "Mixed final SQL must return exactly one row, aliased only to the remaining scalar "
+            "public keys. Bind every collection separately through collections name/step; "
+            "do not serialize arrays or include collection columns in this SQL."
+        )
+    if "mixed_sql_requires_prior_complete_collection" in text:
+        return (
+            "Select a prior successful collect_values step. SQL exploration rows and previews "
+            "are not complete collection evidence, and current/future steps cannot be bound."
+        )
     if "plan_public_source" in text or "plan_filter_source" in text:
         return (
             "Omit top-level plan source_excerpt: runtime binds the original public question. "

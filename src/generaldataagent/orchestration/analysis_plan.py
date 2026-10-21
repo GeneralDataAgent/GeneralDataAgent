@@ -119,6 +119,7 @@ def accept_contract(proposal: dict, *, question: str, instructions: str) -> Anal
 def normalize_protocol_action(action):
     """Normalize unambiguous function envelopes only; never choose between two actions."""
     names = {
+        "submit_mixed_sql_answers": "mixed_sql",
         "plan_analysis": "contract",
         "execute_sql": "sql",
         "submit_sql": "final_sql",
@@ -186,6 +187,8 @@ def normalize_protocol_action(action):
         return {names[name]: arguments if name == "collect_values" else arguments["sql"]}
     if name == "fixed_analysis":
         return {"analysis": arguments}
+    if name == "submit_mixed_sql_answers":
+        return {"mixed_sql": arguments}
     if name == "submit_sql" and isinstance(arguments, dict) and "output_columns" in arguments:
         if set(arguments) - {"sql", "output_columns", "shape", "ties", "requirements"}:
             return action

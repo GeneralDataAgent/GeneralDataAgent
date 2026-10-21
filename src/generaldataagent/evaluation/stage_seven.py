@@ -117,6 +117,7 @@ def bind_typed_tools(
     collection_task=False,
     answer_contract=None,
     evidence_steps=None,
+    collection_steps=None,
 ):
     """Small native wire schemas; complete strict contracts remain enforced locally."""
     if not hasattr(model, "bind"):
@@ -339,6 +340,42 @@ def bind_typed_tools(
         choice = "required"
         if evidence_steps is not None and not evidence_steps:
             tools = [item for item in tools if item["function"]["name"] != "submit_answers"]
+        if collection_task and collection_steps and answer_contract and answer_contract.fields:
+            collection_keys = [
+                key
+                for key in answer_contract.columns
+                if answer_contract.fields[key].kind in {"set", "list"}
+            ]
+            scalar_keys = [key for key in answer_contract.columns if key not in collection_keys]
+            if scalar_keys:
+                tools.append(
+                    tool(
+                        "submit_mixed_sql_answers",
+                        "Compute remaining scalars and finish with prior complete collections",
+                        {
+                            "sql": {
+                                "type": "string",
+                                "description": "Exactly one scalar row, columns: "
+                                + ", ".join(scalar_keys),
+                            },
+                            "collections": {
+                                "type": "array",
+                                "minItems": 1,
+                                "maxItems": 50,
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "name": {"type": "string", "enum": collection_keys},
+                                        "step": {"type": "integer", "enum": list(collection_steps)},
+                                    },
+                                    "required": ["name", "step"],
+                                    "additionalProperties": False,
+                                },
+                            },
+                        },
+                        ["sql", "collections"],
+                    )
+                )
         if collection_task:
             tools = [item for item in tools if item["function"]["name"] != "submit_sql_answers"]
         if collection_first:
@@ -365,6 +402,12 @@ When every public field is scalar, prefer submit_sql_answers: SELECT exactly one
 row and alias every output column to its exact public answer key. Runtime computes, checks and
 binds all fields atomically, with the public precision and full-data receipts. No guessed constants.
 If any public field has kind=set or list, use collect_values for that field and bind [items]. Use
+submit_mixed_sql_answers when advertised to finish in one call after collections exist: SQL
+returns exactly one row with only remaining scalar public aliases, collections selects every
+public collection key and its successful prior step. The runtime binds full stored items plus
+the newly computed scalar values, preserving all types, precision and receipts. Do not put
+serialized arrays or constants in the scalar SQL. Manual compute_sql + submit_answers remains
+available when necessary. Use
 compute_sql for other scalar fields, then bind all fields together. Runtime applies any public
 collection_separator after binding and retains the full raw collection; do not serialize it in SQL.
 For necessary exploration use compute_sql, read-only SQLite with exact listed columns and relations.
@@ -377,7 +420,7 @@ For lists pass collection_kind=list to preserve duplicates, and use the requeste
 Sets default to collection_kind=set and reject duplicates. Lists and sets retain element types
 and public ordering requirements; do not replace a list by a scalar or silently sort in prose.
 For Pearson bind path ["correlation"]; for sample std ["statistics","column","sample_std"].
-For complete collections bind ["items"] and rule {"kind":"set","method":"complete_collection"}.
+For collections bind ["items"] and preserve the public list/set kind; do not repeat known rules.
 SQL answer evidence must use explicit projections with data dependencies. A SELECT of model-
 supplied constants, including constants wrapped in a CTE, cannot certify an answer. Calculate
 from scoped data or use fixed_analysis; unsupported statistical methods must not be approximated

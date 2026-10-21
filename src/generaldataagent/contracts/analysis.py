@@ -73,7 +73,24 @@ class CrosscheckArguments(Contract):
     purpose: Literal["ties", "entity_grain", "denominator", "date_boundary", "output_range"]
 
 
+class CollectionBinding(Contract):
+    name: str = Field(min_length=1, max_length=200)
+    step: int = Field(ge=1)
+
+
+class MixedSQLArguments(Contract):
+    sql: str = Field(min_length=1, max_length=30000)
+    collections: list[CollectionBinding] = Field(min_length=1, max_length=50)
+
+    @model_validator(mode="after")
+    def unique_names(self):
+        if len({item.name for item in self.collections}) != len(self.collections):
+            raise ValueError("duplicate collection bindings")
+        return self
+
+
 class ToolAction(Contract):
+    mixed_sql: MixedSQLArguments | None = None
     sql: str | None = Field(default=None, min_length=1, max_length=30000)
     query_plan: SemanticQueryPlan | None = None
     answer_sql: str | None = Field(default=None, min_length=1, max_length=30000)
@@ -94,6 +111,7 @@ class ToolAction(Contract):
     @model_validator(mode="after")
     def one_action(self):
         names = (
+            "mixed_sql",
             "sql",
             "final_sql",
             "answer_sql",

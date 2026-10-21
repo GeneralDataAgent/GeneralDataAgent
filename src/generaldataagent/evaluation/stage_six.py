@@ -394,6 +394,7 @@ class BoundedSQLAgent:
             assemble_answers,
             collect_complete,
             inspect_semantics,
+            mixed_sql_bindings,
             validate_column_scope,
             validate_rows,
         )
@@ -576,6 +577,11 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                             plan_enabled=plan_mode,
                             answer_contract=task_spec.answer if task_spec is not None else None,
                             evidence_steps=sorted(evidence),
+                            collection_steps=sorted(
+                                key
+                                for key, value in evidence.items()
+                                if value.get("method_id") == "complete_collection"
+                            ),
                             collection_task=(
                                 task_spec is not None
                                 and any(
@@ -651,6 +657,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                         raise ActionSchemaError([{"path": ["tool_calls"], "type": "one_action"}])
                     name, arguments = calls[0].get("name"), calls[0].get("args")
                     keys = {
+                        "submit_mixed_sql_answers": "mixed_sql",
                         "plan_analysis": "contract",
                         "execute_sql": "sql",
                         "submit_sql": "final_sql",
@@ -770,6 +777,8 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                         raise SemanticError("sql_output_requires_sql_action")
                     if "answer_sql" in action and task.benchmark == "bird-mini-dev-sqlite":
                         raise SemanticError("answer_sql_requires_non_sql_task")
+                    if "mixed_sql" in action and task.benchmark == "bird-mini-dev-sqlite":
+                        raise SemanticError("mixed_sql_requires_non_sql_task")
                     if "final_sql" in action and task.benchmark != "bird-mini-dev-sqlite":
                         raise SemanticError("this task requires evidence-bound answers")
                 allowed_actions = (
@@ -778,7 +787,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     else {"sql", "final_sql", "answers", "unsupported"}
                 )
                 if semantic:
-                    allowed_actions.update({"collect", "crosscheck", "answer_sql"})
+                    allowed_actions.update({"collect", "crosscheck", "answer_sql", "mixed_sql"})
                 if enhanced:
                     allowed_actions.update({"search", "analysis"})
                 if len(allowed_actions.intersection(action)) != 1:
@@ -942,7 +951,13 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     )
                     tool = "fixed_analysis"
                 else:
-                    sql = action.get("final_sql", action.get("answer_sql", action.get("sql", "")))
+                    sql = (
+                        action["mixed_sql"]["sql"]
+                        if "mixed_sql" in action
+                        else action.get(
+                            "final_sql", action.get("answer_sql", action.get("sql", ""))
+                        )
+                    )
                     if (
                         semantic
                         and "answer_sql" in action
@@ -1029,6 +1044,38 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                         if tool in {"sql", "sql_crosscheck"}
                         else "document_search"
                     )
+                if semantic and "mixed_sql" in action:
+                    atomic_bindings = mixed_sql_bindings(
+                        action["mixed_sql"]["collections"],
+                        result.columns,
+                        result.rows,
+                        step,
+                        evidence,
+                        task_spec.answer,
+                    )
+                    scalar_answer = task_spec.answer.model_copy(
+                        update={
+                            "columns": list(result.columns),
+                            "fields": {key: task_spec.answer.fields[key] for key in result.columns},
+                        }
+                    )
+                    issues = inspect_semantics(
+                        sql, task_spec.model_copy(update={"answer": scalar_answer})
+                    )
+                    if crosscheck_rows is not None and Counter(result.rows) != Counter(
+                        crosscheck_rows
+                    ):
+                        issues.append("mixed_sql_crosscheck_disagrees")
+                    if issues:
+                        raise SemanticError(",".join(issues))
+                    combined = evidence | {step: result_data}
+                    answers = assemble_answers(atomic_bindings, combined, task_spec.answer)
+                    from generaldataagent.tools.answer_fields import binding_receipts
+
+                    answer_evidence = binding_receipts(
+                        atomic_bindings, combined, answers, task_spec.answer.fields
+                    )
+                    raw_answers = {}
                 if semantic and "answer_sql" in action:
                     # This is an explicit final action, not automatic submission of exploration.
                     if len(result.rows) != 1:
@@ -1099,7 +1146,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     result_data["warning"] = (
                         "Identical action repeated with no new evidence; revise your plan."
                     )
-                if semantic and "answer_sql" in action:
+                if semantic and any(key in action for key in ("answer_sql", "mixed_sql")):
                     event["auto_bound_public_keys"] = sorted(answers)
                     failure = None
                     break
@@ -1173,6 +1220,21 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                         ][:2]
                 if repair:
                     feedback["hint"] = execution_hint(exc)
+                    if (
+                        semantic
+                        and isinstance(exc, ActionSchemaError)
+                        and any(issue.get("type") == "one_action" for issue in exc.paths)
+                    ):
+                        feedback["hint"] = (
+                            "Return exactly one advertised tool call in this response. "
+                            + (
+                                "Choose one SQL observation or one final submission, not both."
+                                if task.benchmark == "bird-mini-dev-sqlite"
+                                else "Do not combine collection, compute and answer calls. "
+                                "When advertised, a mixed final action computes scalars and binds "
+                                "prior collections in that one call."
+                            )
+                        )
                     if precision:
                         feedback["hint"] = (
                             feedback["hint"]

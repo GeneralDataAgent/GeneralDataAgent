@@ -202,6 +202,34 @@ def assemble_answers(bindings: dict, evidence: dict[int, dict], answer: AnswerSp
     return output
 
 
+def mixed_sql_bindings(collections, columns, rows, step, evidence, answer: AnswerSpec):
+    """Bind one current scalar row and explicitly selected prior complete collections."""
+    if not answer.fields or set(answer.fields) != set(answer.columns):
+        raise SemanticError("mixed_sql_requires_complete_public_field_types")
+    collection_keys = {key for key, field in answer.fields.items() if field.kind in {"set", "list"}}
+    scalar_keys = set(answer.columns) - collection_keys
+    if not collection_keys or not scalar_keys:
+        raise SemanticError("mixed_sql_requires_collection_and_scalar_fields")
+    if len(rows) != 1:
+        raise SemanticError("mixed_sql_requires_one_scalar_row")
+    if len(set(columns)) != len(columns) or set(columns) != scalar_keys:
+        raise SemanticError("mixed_sql_requires_remaining_scalar_aliases")
+    if (
+        len({item["name"] for item in collections}) != len(collections)
+        or {item["name"] for item in collections} != collection_keys
+    ):
+        raise SemanticError("mixed_sql_requires_every_public_collection_binding")
+    bindings = {}
+    for item in collections:
+        source_step = item["step"]
+        result = evidence.get(source_step, {})
+        if source_step >= step or result.get("method_id") != "complete_collection":
+            raise SemanticError("mixed_sql_requires_prior_complete_collection")
+        bindings[item["name"]] = (source_step, ["items"])
+    bindings.update({key: (step, ["rows", 0, index]) for index, key in enumerate(columns)})
+    return bindings
+
+
 def collect_complete(
     database, sql: str, *, allowed_relations: set[str], collection_kind: str = "set"
 ) -> dict:
