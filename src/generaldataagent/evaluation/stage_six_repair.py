@@ -75,6 +75,14 @@ def bounded_observation(result: dict, *, max_chars: int = 6000) -> dict:
 
 def execution_hint(exc: Exception) -> str:
     text = str(exc)
+    if "no finite observations" in text:
+        return (
+            "The selected physical fields and filters contain no finite numeric observations. "
+            "Check the field meaning, type and actual public-label occurrences before retrying. "
+            "An empty subgroup is not an outlier count of zero. For describe, eq needs an exact "
+            "label; contains is a literal case-sensitive substring only when that interpretation "
+            "is supported by the public request and observations. Do not invent a new category."
+        )
     if "public_time_like_pattern" in text:
         return (
             "The public text explicitly maps zero-hour 0:0M:SS to an M:SS% LIKE pattern. "

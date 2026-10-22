@@ -2372,3 +2372,87 @@ def test_explicit_public_time_pattern_repair_preserves_other_filters(tmp_path):
 
     assert SQLiteReadOnlyExecutor(database).execute(result["final_sql"]).rows == ((1,),)
     assert database.read_bytes() == before
+
+
+def test_empty_analysis_population_feedback_reuses_scoped_literal_observations(tmp_path):
+    database = tmp_path / "literal-repair.sqlite"
+    with sqlite3.connect(database) as db:
+        db.execute("CREATE TABLE events(value REAL, category TEXT, detail TEXT)")
+        db.executemany(
+            "INSERT INTO events VALUES(?,?,?)",
+            [(x, "General", "A Topic Z") for x in [0, 0, 0, 2, 2, 2, 6]],
+        )
+    before = database.read_bytes()
+    question = "Count IQR outliers for 'Topic Z' category."
+    actions = iter(
+        [
+            {
+                "analysis": {
+                    "table": "events",
+                    "columns": ["value"],
+                    "operation": "describe",
+                    "filters": [
+                        {"column": "category", "value": "Topic Z", "source_excerpt": question}
+                    ],
+                }
+            },
+            {
+                "analysis": {
+                    "table": "events",
+                    "columns": ["value"],
+                    "operation": "describe",
+                    "filters": [
+                        {
+                            "column": "detail",
+                            "value": "Topic Z",
+                            "operator": "contains",
+                            "source_excerpt": question,
+                        }
+                    ],
+                }
+            },
+            {
+                "submit_answers": {
+                    "fields": [
+                        {
+                            "name": "n",
+                            "step": 2,
+                            "path": ["iqr_statistics", "value", "outlier_count"],
+                        }
+                    ]
+                }
+            },
+        ]
+    )
+    turn = 0
+
+    class Model:
+        def invoke(self, messages):
+            nonlocal turn
+            if turn == 1:
+                feedback = json.loads(messages[-2][1])
+                assert feedback["code"] == "empty_analysis_population"
+                assert "not an outlier count of zero" in feedback["hint"]
+                profile = feedback["literal_occurrence_observations"][0]
+                assert profile["column"] == "detail" and profile["literal_contains_rows"] == 7
+                assert not profile["verified_business_semantics"]
+            turn += 1
+            return SimpleNamespace(
+                content=json.dumps(next(actions)),
+                usage_metadata={"total_tokens": 10},
+                response_metadata={},
+            )
+
+    task = Task(
+        "infiagent-dabench",
+        "synthetic",
+        question,
+        'Use linear quartiles and 1.5-IQR fences. @n[number] where "number" is an integer.',
+        "easy",
+        "events.csv",
+    )
+    result = BoundedSQLAgent(Model(), tool_profile="sql-semantic", max_steps=3).run(task, database)
+    assert result["failure"] is None and result["answers"] == {"n": 1}
+    assert result["trace"][0]["code"] == "empty_analysis_population"
+    assert result["answer_evidence"]["n"]["method_id"] == "describe"
+    assert result["tokens"] == 30 and database.read_bytes() == before

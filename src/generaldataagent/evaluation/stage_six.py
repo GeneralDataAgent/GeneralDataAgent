@@ -1277,6 +1277,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                             ("no such table", "unknown_table"),
                             ("no such function", "unsupported_function"),
                             ("wrong number of arguments to function", "function_arguments"),
+                            ("no finite observations", "empty_analysis_population"),
                             ("ambiguous", "ambiguous_column"),
                             ("syntax", "sql_syntax"),
                             ("interrupted", "query_timeout"),
@@ -1293,7 +1294,11 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     event["response_mode"] = "native_function" if calls else "json"
                     if isinstance(action, dict):
                         event["action_keys"] = sorted(action)[:12]
-                    if code in {"unsupported_function", "function_arguments"}:
+                    if code in {
+                        "unsupported_function",
+                        "function_arguments",
+                        "empty_analysis_population",
+                    }:
                         event["repair_type"] = "revise_plan_or_query"
                 if semantic and isinstance(exc, ActionSchemaError):
                     event.update(
@@ -1316,6 +1321,10 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                 feedback = {"step": step, "error": kind, "code": event["code"]}
                 if semantic and "repair_type" in event:
                     feedback["repair_type"] = event["repair_type"]
+                if semantic and event["code"] == "empty_analysis_population":
+                    feedback["literal_occurrence_observations"] = request.get(
+                        "semantic_context", {}
+                    ).get("public_literal_profiles", [])[:3]
                 if semantic and isinstance(exc, ColumnScopeError):
                     feedback["field_candidates"] = exc.candidates
                 if semantic and isinstance(exc, ActionSchemaError):
