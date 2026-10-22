@@ -60,6 +60,11 @@ jobs:
           GDA_TEST_POSTGRES_PASSWORD: stage4_ci_synthetic_only
         run: uv run --frozen pytest --cov=generaldataagent --cov-fail-under=85
 
+      - name: Stage 0 baseline resilience
+        run: >-
+          uv run --frozen python evals/run_stage0_acceptance.py
+          --output "$RUNNER_TEMP/stage0-baseline"
+
       - name: Stage 4 security baseline
         run: uv run --frozen python evals/run_stage4_acceptance.py > "$RUNNER_TEMP/stage4-acceptance.json"
 
