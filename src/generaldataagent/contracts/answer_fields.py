@@ -25,6 +25,11 @@ class AnswerFieldSpec(BaseModel):
             "pearson_test",
             "independent_t_test",
             "linear_regression",
+            "regression_evaluation",
+            "sklearn_linear_regression",
+            "summary",
+            "outliers",
+            "normality",
             "complete_collection",
         ]
         | None

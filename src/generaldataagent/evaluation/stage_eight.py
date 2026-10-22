@@ -47,6 +47,9 @@ Pearson may use direction_rule:{alpha:0.05,r_threshold:0.5,positive_label:"posit
 negative_label:"negative",nonsignificant_label:"none"}; all numbers and quoted labels require
 public sources. A significant weak correlation requires an explicit public weak_label;
 the tool refuses to invent it when absent.
+For submit_answers, rule is optional: omit it when public fields already have types/rounding.
+If present it requires kind; method must match the executed method_id (regression_evaluation,
+sklearn_linear_regression, summary, normality, etc.). Do not invent library/function method names.
 """
 
 
@@ -112,6 +115,8 @@ def science_repair_hint(exc):
 
 def stage8_fingerprint(root: Path) -> dict:
     files = [
+        "contracts/answer_fields.py",
+        "tools/answer_fields.py",
         "contracts/statistics.py",
         "contracts/data_science.py",
         "contracts/analysis.py",

@@ -96,7 +96,11 @@ class ExperimentSpec(ContractModel):
     primary_metric: Literal["accuracy", "precision", "recall", "f1", "mae", "rmse", "r2"]
     split: SplitSpec = Field(default_factory=SplitSpec)
     random_seed: int = Field(default=42, ge=0, le=2**32 - 1)
-    quota: SandboxQuota = Field(default_factory=SandboxQuota)
+    quota: SandboxQuota = Field(
+        default_factory=lambda data: SandboxQuota(
+            memory_mb=512 if data.get("estimator") == "sklearn_linear_regression" else 256
+        )
+    )
 
     @model_validator(mode="after")
     def validate_experiment(self) -> "ExperimentSpec":

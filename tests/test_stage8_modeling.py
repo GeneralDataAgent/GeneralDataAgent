@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 
 from generaldataagent.artifacts import LocalArtifactStore
-from generaldataagent.contracts import ExperimentSpec, SnapshotColumn, SplitSpec
+from generaldataagent.contracts import ExperimentSpec, SandboxQuota, SnapshotColumn, SplitSpec
 from generaldataagent.data_science.checks import split_indices, validate_experiment_data
 from generaldataagent.data_science.notebook import export_replayed_notebook
 from generaldataagent.data_science.sandbox import FixedTemplateSandbox, SandboxError
@@ -171,7 +171,13 @@ def test_sklearn_template_uses_exact_library_split_and_predictions(experiment):
     from sklearn.model_selection import train_test_split
 
     rows, store, snapshot, spec = experiment
-    spec = spec.model_copy(update={"estimator": "sklearn_linear_regression", "standardize": False})
+    spec = spec.model_copy(
+        update={
+            "estimator": "sklearn_linear_regression",
+            "standardize": False,
+            "quota": SandboxQuota(memory_mb=512),
+        }
+    )
     train, test = split_indices(rows, spec)
     expected_train, expected_test = train_test_split(
         list(range(len(rows))), test_size=0.2, random_state=42
@@ -185,6 +191,17 @@ def test_sklearn_template_uses_exact_library_split_and_predictions(experiment):
     )
     assert result["template_version"] == "2.1"
     assert result["model"]["algorithm"] == "sklearn.linear_model.LinearRegression"
+    from generaldataagent.contracts.answer_fields import AnswerFieldSpec
+    from generaldataagent.tools.answer_fields import validate_field_value
+
+    result["method_id"] = "regression_evaluation"
+    field = AnswerFieldSpec(kind="number", method="sklearn_linear_regression")
+    assert (
+        validate_field_value(result["metrics"]["rmse"], field, result, ["metrics", "rmse"])
+        == result["metrics"]["rmse"]
+    )
+    with pytest.raises(ValueError, match="executed sklearn"):
+        validate_field_value(1.0, field, {"method_id": "linear_regression"}, ["rmse"])
     assert result["error_analysis"]["predictions"] == pytest.approx(
         expected.predict([[rows[i]["x"], rows[i]["z"]] for i in test])
     )

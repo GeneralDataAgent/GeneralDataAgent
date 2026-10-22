@@ -28,6 +28,15 @@ def test_science_schema_is_opt_in():
     assert "statistics" in science["properties"]
     assert "experiment" in science["properties"]
     assert "$ref" not in json.dumps(science)
+    wire = bind_typed_tools(Model(), sql_output=False, science_enabled=True)
+    submit = next(
+        t["function"]["parameters"]
+        for t in wire["tools"]
+        if t["function"]["name"] == "submit_answers"
+    )
+    rule = submit["properties"]["fields"]["items"]["properties"]["rule"]
+    assert "kind" in rule["required"]
+    assert "regression_evaluation" in json.dumps(rule)
 
 
 @pytest.mark.parametrize("operation", ["statistics", "regression_evaluation"])

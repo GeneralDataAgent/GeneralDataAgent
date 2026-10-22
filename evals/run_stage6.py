@@ -222,7 +222,8 @@ def main():
         "dependency_lock_hash": digest(ROOT / "uv.lock"),
         "tool_profile": args.tool_profile,
         "stage7_sources": stage7_fingerprint(ROOT)
-        if args.tool_profile in {"sql-semantic", "sql-semantic-plan", "sql-semantic-json"}
+        if args.tool_profile
+        in {"sql-semantic", "sql-semantic-plan", "sql-semantic-json", "sql-science"}
         else None,
         "route_hash": route["route_hash"],
     }

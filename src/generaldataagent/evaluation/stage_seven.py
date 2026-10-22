@@ -343,6 +343,10 @@ def bind_typed_tools(
             "required": ["name", "step", "path"],
             "additionalProperties": False,
         }
+        if science_enabled:
+            from generaldataagent.contracts.answer_fields import AnswerFieldSpec
+
+            field["properties"]["rule"] = _wire_contract_schema(AnswerFieldSpec)
         if answer_contract is not None:
             if answer_contract.columns:
                 field["properties"]["name"] = string | {"enum": list(answer_contract.columns)}
