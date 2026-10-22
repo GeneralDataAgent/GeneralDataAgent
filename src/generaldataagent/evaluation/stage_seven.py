@@ -347,6 +347,14 @@ def bind_typed_tools(
         from generaldataagent.contracts.independent_test import SignificanceRule
 
         analysis_properties["significance_rule"] = SignificanceRule.model_json_schema()
+        from generaldataagent.contracts.independent_test import PublicTextFilter
+
+        analysis_properties["filters"] = {
+            "type": "array",
+            "maxItems": 8,
+            "description": "describe only: public text-equality subgroup filters",
+            "items": _wire_contract_schema(PublicTextFilter),
+        }
         if independent_test_requested:
             from generaldataagent.contracts.independent_test import IndependentTestSpec
 
@@ -495,9 +503,12 @@ and public ordering requirements; do not replace a list by a scalar or silently 
 For Pearson bind path ["correlation"]; for sample std ["statistics","column","sample_std"].
 describe also returns ["iqr_statistics","column","outlier_count"], q1/q3 and fences using
 linear inclusive quantiles h=(n-1)*p, strict values outside q1-1.5*IQR and q3+1.5*IQR.
-It ignores nonfinite/non-numeric values columnwise and preserves duplicates. This describes the
-whole physical table, not a filtered subgroup. Check the public quantile convention; if another
-method or a subgroup is required, do not bind an incompatible whole-table result.
+It ignores nonfinite/non-numeric values columnwise and preserves duplicates. describe defaults to
+the whole physical table; a requested subgroup needs filters [{"column":"physical field",
+"value":"public label","source_excerpt":"exact original public excerpt"}]. Only text equality
+is supported, up to eight filters combined with AND. Verify the field meaning and actual values;
+literal provenance does not certify business interpretation. Check the public quantile convention;
+do not bind an incompatible method or whole-table result to a subgroup question.
 For collections bind ["items"] and preserve the public list/set kind; do not repeat known rules.
 SQL answer evidence must use explicit projections with data dependencies. A SELECT of model-
 supplied constants, including constants wrapped in a CTE, cannot certify an answer. Calculate

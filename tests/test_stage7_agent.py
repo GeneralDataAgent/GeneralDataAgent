@@ -2240,3 +2240,44 @@ def test_full_data_describe_iqr_binds_outlier_count_receipt(tmp_path):
     assert result["answer_evidence"]["n"]["raw_value"] == 1
     assert result["answer_evidence"]["n"]["result_hash"] == result["trace"][0]["result_hash"]
     assert database.read_bytes() == before
+
+
+def test_filtered_describe_iqr_uses_public_subgroup_evidence(tmp_path):
+    database = tmp_path / "subgroup.sqlite"
+    with sqlite3.connect(database) as db:
+        db.execute("CREATE TABLE observations(value REAL, category TEXT)")
+        db.executemany(
+            "INSERT INTO observations VALUES(?,?)",
+            [(x, "A") for x in [0, 0, 0, 0, 0, 20]] + [(100, "B")] * 6,
+        )
+    source = "Only category A."
+    result = run(
+        database,
+        [
+            {
+                "analysis": {
+                    "table": "observations",
+                    "columns": ["value"],
+                    "operation": "describe",
+                    "filters": [{"column": "category", "value": "A", "source_excerpt": source}],
+                }
+            },
+            {
+                "submit_answers": {
+                    "fields": [
+                        {
+                            "name": "n",
+                            "step": 1,
+                            "path": ["iqr_statistics", "value", "outlier_count"],
+                        }
+                    ]
+                }
+            },
+        ],
+        benchmark="infiagent-dabench",
+        question="Count IQR outliers.",
+        instructions=source + ' @n[number] where "number" is an integer.',
+    )
+    assert result["failure"] is None and result["answers"] == {"n": 1}
+    assert result["answer_evidence"]["n"]["method_id"] == "describe"
+    assert result["trace"][0]["action"]["analysis"]["filters"][0]["value"] == "A"

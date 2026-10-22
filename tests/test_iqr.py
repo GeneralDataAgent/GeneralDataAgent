@@ -99,3 +99,85 @@ def test_incompatible_public_convention_cannot_bind_describe_iqr(public):
     assert assemble_answers(
         {"n": (1, ["statistics", "x", "count"])}, evidence, AnswerSpec(columns=["n"])
     ) == {"n": 7}
+
+
+def test_describe_filters_change_population_and_bind_values_as_parameters(tmp_path):
+    database = tmp_path / "groups.sqlite"
+    label = "O'Brien"
+    with sqlite3.connect(database) as db:
+        db.execute("CREATE TABLE observations(value REAL, category TEXT)")
+        db.executemany(
+            "INSERT INTO observations VALUES(?,?)",
+            [(x, label) for x in [0, 0, 0, 0, 0, 20]] + [(100, "Other")] * 6,
+        )
+    before = database.read_bytes()
+    args = {"table": "observations", "columns": ["value"], "operation": "describe"}
+    all_rows = fixed_analysis(database, args, allowed_relations={"observations"})
+    source = "Only category O'Brien."
+    filtered = fixed_analysis(
+        database,
+        args | {"filters": [{"column": "category", "value": label, "source_excerpt": source}]},
+        allowed_relations={"observations"},
+        public_text=source,
+    )
+    assert all_rows["iqr_statistics"]["value"]["outlier_count"] == 0
+    assert filtered["iqr_statistics"]["value"]["outlier_count"] == 1
+    assert filtered["statistics"]["value"]["count"] == 6
+    assert filtered["population_filters"] == [{"column": "category", "value": label}]
+    assert "unverified" in filtered["population_scope"]
+    assert database.read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    "column,value,excerpt",
+    [
+        ("absent", "A", "Only A."),
+        ("category", "invented", "Only A."),
+        ("category", "A", "Forged A."),
+    ],
+)
+def test_describe_rejects_bad_filter_before_scan(tmp_path, monkeypatch, column, value, excerpt):
+    from generaldataagent.tools.sqlite import SQLiteReadOnlyExecutor
+
+    database = tmp_path / "scope.sqlite"
+    with sqlite3.connect(database) as db:
+        db.execute("CREATE TABLE observations(value REAL, category TEXT)")
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("unverified filter must not scan")
+
+    monkeypatch.setattr(SQLiteReadOnlyExecutor, "execute", forbidden)
+    with pytest.raises(ValueError):
+        fixed_analysis(
+            database,
+            {
+                "table": "observations",
+                "columns": ["value"],
+                "operation": "describe",
+                "filters": [{"column": column, "value": value, "source_excerpt": excerpt}],
+            },
+            allowed_relations={"observations"},
+            public_text="Only A.",
+        )
+
+
+def test_describe_filter_literal_cannot_escape_parameter_binding(tmp_path):
+    database = tmp_path / "parameters.sqlite"
+    value = "x' OR 1=1 --"
+    with sqlite3.connect(database) as db:
+        db.execute("CREATE TABLE observations(value REAL, category TEXT)")
+        db.executemany("INSERT INTO observations VALUES(?,?)", [(1, value), (999, "Other")])
+    source = "Only label " + value + "."
+    result = fixed_analysis(
+        database,
+        {
+            "table": "observations",
+            "columns": ["value"],
+            "operation": "describe",
+            "filters": [{"column": "category", "value": value, "source_excerpt": source}],
+        },
+        allowed_relations={"observations"},
+        public_text=source,
+    )
+    assert result["statistics"]["value"]["count"] == 1
+    assert result["statistics"]["value"]["mean"] == 1

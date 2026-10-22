@@ -74,11 +74,29 @@ def fixed_analysis(
 
     # Verify physical column names: SQLite double-quoted-string compatibility must not
     # turn a misspelled identifier into an apparently valid constant numeric feature.
-    validate_analysis_columns(database, table, columns, allowed_relations=allowed_relations)
-    executor = SQLiteReadOnlyExecutor(database, max_rows=200_000, timeout_seconds=5)
-    result = executor.execute(
-        "SELECT " + ",".join(quote(c) for c in columns) + " FROM " + quote(table)
+    validate_analysis_columns(
+        database,
+        table,
+        columns + [f.column for f in arguments.filters],
+        allowed_relations=allowed_relations,
     )
+    predicates, parameters = [], []
+    for item in arguments.filters:
+        if item.source_excerpt not in public_text or not re.search(
+            r"(?<!\w)" + re.escape(item.value) + r"(?!\w)", item.source_excerpt, re.I
+        ):
+            raise ValueError("describe filter requires exact public source and value")
+        predicates.append(quote(item.column) + "=?")
+        parameters.append(item.value)
+    executor = SQLiteReadOnlyExecutor(database, max_rows=200_000, timeout_seconds=5)
+    sql = (
+        "SELECT "
+        + ",".join(quote(c) for c in columns)
+        + " FROM "
+        + quote(table)
+        + (" WHERE " + " AND ".join(predicates) if predicates else "")
+    )
+    result = executor.execute(sql, tuple(parameters))
     rows = [
         row
         for row in result.rows
@@ -130,6 +148,12 @@ def fixed_analysis(
                 "same columnwise finite population; quantile convention not publicly verified"
             ),
             iqr_public_conflicts=public_iqr_conflicts(public_text),
+            population_filters=[{"column": f.column, "value": f.value} for f in arguments.filters],
+            population_scope=(
+                "public text-equality filters; business interpretation unverified"
+                if arguments.filters
+                else "full physical table"
+            ),
         )
     elif operation == "pearson":
         if not rows:

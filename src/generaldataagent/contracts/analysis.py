@@ -5,7 +5,11 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from generaldataagent.contracts.answer_fields import AnswerFieldSpec
-from generaldataagent.contracts.independent_test import IndependentTestSpec, SignificanceRule
+from generaldataagent.contracts.independent_test import (
+    IndependentTestSpec,
+    PublicTextFilter,
+    SignificanceRule,
+)
 from generaldataagent.contracts.query_plan import SemanticQueryPlan
 from generaldataagent.contracts.semantic_requirements import SemanticRequirements
 from generaldataagent.contracts.statistical_rules import PearsonDecisionRule
@@ -62,9 +66,14 @@ class AnalysisArguments(Contract):
     decision_rule: PearsonDecisionRule | None = None
     significance_rule: SignificanceRule | None = None
     test: IndependentTestSpec | None = None
+    filters: list[PublicTextFilter] = Field(default_factory=list, max_length=8)
 
     @model_validator(mode="after")
     def paired(self):
+        if self.filters and self.operation != "describe":
+            raise ValueError("top-level public filters are supported only for describe")
+        if len({item.column for item in self.filters}) != len(self.filters):
+            raise ValueError("duplicate describe filter columns")
         if (self.operation == "independent_t_test") != (self.test is not None):
             raise ValueError("independent_t_test requires its explicit test specification only")
         if self.decision_rule is not None and self.operation != "pearson_test":
