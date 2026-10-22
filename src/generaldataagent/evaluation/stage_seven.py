@@ -90,6 +90,14 @@ For changes from a start to an end period, increase is (end-start)/start; verify
 actual period filters before submitting, including any public formula's A/B mapping.
 Check exact entity grain, requested projections, distinct entities versus joined records, explicit
 numerator/denominator population, real division, null handling, actual date encoding and boundaries.
+For "for each" outputs return the requested grouping keys with each group's result; a total
+across groups does not answer a per-group request. Distinguish entity duplicates from repeated
+events before choosing DISTINCT; do not remove duplicates when records are the requested grain.
+Preserve a selected source value's native type unless the public contract requests conversion.
+Numeric ordering and returned representation are separate decisions: ordering by a numeric cast
+need not cast the selected value. Do not cast MIN/MAX outputs merely for convenience.
+When public mappings list ambiguous fields, inspect their scoped evidence and join multiplicity
+before choosing a source. Matching a literal alone does not certify the field's business meaning.
 For change, promote before division: 1.0*(end-start)/NULLIF(start,0), with the requested scale.
 A decimal multiplier or REAL cast applied after division cannot restore lost fractional digits.
 Observed join candidates use keys=[child,column,parent,declared_key] and full-table match counts.
