@@ -166,6 +166,7 @@ def bind_typed_tools(
     python_statistics_requested=False,
     collection_first=False,
     collection_task=False,
+    science_enabled=False,
     answer_contract=None,
     evidence_steps=None,
     collection_steps=None,
@@ -381,6 +382,13 @@ def bind_typed_tools(
             analysis_properties.pop("decision_rule", None)
             analysis_properties.pop("significance_rule", None)
             analysis_properties.pop("magnitude_rule", None)
+        if science_enabled and not python_statistics_requested:
+            from generaldataagent.contracts.statistics import RegressionRequest, StatisticsRequest
+
+            analysis_properties["columns"]["maxItems"] = 21
+            analysis_properties["operation"]["enum"].extend(["statistics", "regression_evaluation"])
+            analysis_properties["statistics"] = _wire_contract_schema(StatisticsRequest)
+            analysis_properties["experiment"] = _wire_contract_schema(RegressionRequest)
         tools = [
             tool(
                 "submit_sql_answers",

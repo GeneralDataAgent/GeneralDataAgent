@@ -13,6 +13,7 @@ from generaldataagent.contracts.independent_test import (
 from generaldataagent.contracts.query_plan import SemanticQueryPlan
 from generaldataagent.contracts.semantic_requirements import SemanticRequirements
 from generaldataagent.contracts.statistical_rules import PearsonDecisionRule, PearsonMagnitudeRule
+from generaldataagent.contracts.statistics import RegressionRequest, StatisticsRequest
 
 
 class Contract(BaseModel):
@@ -63,10 +64,18 @@ class DescribeTextFilter(PublicTextFilter):
 
 class AnalysisArguments(Contract):
     table: str = Field(min_length=1, max_length=200)
-    columns: list[str] = Field(min_length=1, max_length=2)
+    columns: list[str] = Field(min_length=1, max_length=21)
     operation: Literal[
-        "describe", "pearson", "pearson_test", "linear_regression", "independent_t_test"
+        "describe",
+        "pearson",
+        "pearson_test",
+        "linear_regression",
+        "independent_t_test",
+        "statistics",
+        "regression_evaluation",
     ]
+    statistics: StatisticsRequest | None = None
+    experiment: RegressionRequest | None = None
     decision_rule: PearsonDecisionRule | None = None
     significance_rule: SignificanceRule | None = None
     magnitude_rule: PearsonMagnitudeRule | None = None
@@ -75,6 +84,17 @@ class AnalysisArguments(Contract):
 
     @model_validator(mode="after")
     def paired(self):
+        if (self.operation == "regression_evaluation") != (self.experiment is not None):
+            raise ValueError("regression_evaluation requires its explicit experiment only")
+        if self.experiment and self.columns != self.experiment.features + [self.experiment.target]:
+            raise ValueError("regression columns must be ordered features followed by target")
+        if (self.operation == "statistics") != (self.statistics is not None):
+            raise ValueError("statistics operation requires its explicit method specification only")
+        if self.operation == "statistics":
+            if self.columns != self.statistics.columns:
+                raise ValueError("statistics columns must match outer analysis columns")
+        elif self.operation != "regression_evaluation" and len(self.columns) > 2:
+            raise ValueError("legacy analysis accepts at most two columns")
         if self.filters and self.operation != "describe":
             raise ValueError("top-level public filters are supported only for describe")
         if len({item.column for item in self.filters}) != len(self.filters):
@@ -95,7 +115,10 @@ class AnalysisArguments(Contract):
             > 1
         ):
             raise ValueError("choose one public Pearson decision policy")
-        if self.operation != "describe" and len(self.columns) != 2:
+        if (
+            self.operation not in {"describe", "statistics", "regression_evaluation"}
+            and len(self.columns) != 2
+        ):
             raise ValueError("paired analysis requires two columns")
         return self
 

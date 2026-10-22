@@ -348,6 +348,7 @@ class BoundedSQLAgent:
                 "sql-semantic",
                 "sql-semantic-plan",
                 "sql-semantic-json",
+                "sql-science",
             }
             or not math.isfinite(max_cost_usd)
             or max_cost_usd <= 0
@@ -371,7 +372,9 @@ class BoundedSQLAgent:
 
         context, relations = database_context(
             database.resolve(),
-            public_text=task.question if self.tool_profile.startswith("sql-semantic") else "",
+            public_text=task.question
+            if self.tool_profile.startswith("sql-semantic") or self.tool_profile == "sql-science"
+            else "",
         )
         physical_schema = {
             item["table"]: [column[0] for column in item["columns"]]
@@ -436,7 +439,12 @@ class BoundedSQLAgent:
 
         plan_mode = self.tool_profile == "sql-semantic-plan"
         semantic_json = self.tool_profile == "sql-semantic-json"
-        semantic = self.tool_profile in {"sql-semantic", "sql-semantic-plan", "sql-semantic-json"}
+        science = self.tool_profile == "sql-science"
+        semantic = science or self.tool_profile in {
+            "sql-semantic",
+            "sql-semantic-plan",
+            "sql-semantic-json",
+        }
         if semantic_json and task.benchmark != "bird-mini-dev-sqlite":
             raise ValueError("JSON SQL mode requires SQL-output tasks")
         if plan_mode and task.benchmark != "bird-mini-dev-sqlite":
@@ -455,6 +463,7 @@ class BoundedSQLAgent:
             "sql-semantic",
             "sql-semantic-plan",
             "sql-semantic-json",
+            "sql-science",
         }
         enhanced = self.tool_profile in {
             "sql-analysis",
@@ -462,6 +471,7 @@ class BoundedSQLAgent:
             "sql-semantic",
             "sql-semantic-plan",
             "sql-semantic-json",
+            "sql-science",
         }
         extra = (
             """
@@ -559,6 +569,10 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                 if semantic_json
                 else STAGE7_SQL_PROMPT + (STAGE7_PLAN_PROMPT if plan_mode else ""),
             )
+        if science and task.benchmark != "bird-mini-dev-sqlite":
+            from generaldataagent.evaluation.stage_eight import STAGE8_PROMPT
+
+            messages[0] = ("system", messages[0][1] + STAGE8_PROMPT)
         if precision or semantic_json:
             request = json.loads(messages[1][1])
             request.pop("answer_fields", None)
@@ -667,6 +681,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     active_model = (
                         bind_typed_tools(
                             self.model,
+                            science_enabled=science,
                             sql_output=task.benchmark == "bird-mini-dev-sqlite",
                             planned=task_spec is not None,
                             plan_enabled=plan_mode,
@@ -1056,6 +1071,12 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     result_data = retrieve_documents(documents, action["search"])
                     tool = "document_search"
                 elif enhanced and "analysis" in action:
+                    if (
+                        action["analysis"].get("operation")
+                        in {"statistics", "regression_evaluation"}
+                        and not science
+                    ):
+                        raise ValueError("Stage 8 analysis requires sql-science profile")
                     result_data = fixed_analysis(
                         database,
                         action["analysis"],

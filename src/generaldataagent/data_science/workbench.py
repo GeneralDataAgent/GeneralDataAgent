@@ -100,7 +100,7 @@ class DataScienceWorkbench:
             arguments={
                 "experiment_id": str(spec.experiment_id),
                 "snapshot_hash": snapshot.content_hash,
-                "template_version": "1.0",
+                "template_version": spec.template_version,
             },
             data_domains=(data_domain,),
             requested_risk=RiskLevel.R1,

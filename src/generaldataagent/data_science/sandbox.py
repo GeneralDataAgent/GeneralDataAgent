@@ -36,8 +36,9 @@ class FixedTemplateSandbox:
         spec: ExperimentSpec,
         train_indices: list[int],
         test_indices: list[int],
+        notebook: dict | None = None,
     ) -> dict[str, Any]:
-        payload = _serialize_payload(rows, spec, train_indices, test_indices)
+        payload = _serialize_payload(rows, spec, train_indices, test_indices, notebook=notebook)
         if len(payload) > spec.quota.max_input_bytes:
             raise SandboxError("experiment input exceeds sandbox byte quota")
         command = [sys.executable, "-I", "-S", str(_WORKER)]
@@ -84,8 +85,9 @@ class OCIContainerSandbox:
         spec: ExperimentSpec,
         train_indices: list[int],
         test_indices: list[int],
+        notebook: dict | None = None,
     ) -> dict[str, Any]:
-        payload = _serialize_payload(rows, spec, train_indices, test_indices)
+        payload = _serialize_payload(rows, spec, train_indices, test_indices, notebook=notebook)
         if len(payload) > spec.quota.max_input_bytes:
             raise SandboxError("experiment input exceeds sandbox byte quota")
         command = self.build_command(spec.quota)
@@ -141,7 +143,24 @@ def _serialize_payload(
     spec: ExperimentSpec,
     train_indices: list[int],
     test_indices: list[int],
+    *,
+    notebook: dict | None = None,
 ) -> bytes:
+    from generaldataagent.data_science.checks import validate_experiment_data
+
+    checks = validate_experiment_data(rows, spec, train_indices, test_indices)
+    if any(not c.passed and c.severity == "error" for c in checks):
+        raise SandboxError("experiment input failed science checks")
+    if notebook is not None:
+        expected = {
+            "rows": rows,
+            "spec": spec.model_dump(mode="json", exclude={"quota"}),
+            "train_indices": train_indices,
+            "test_indices": test_indices,
+        }
+        if notebook.get("metadata", {}).get("generaldataagent", {}).get("payload") != expected:
+            raise SandboxError("notebook payload does not match requested experiment")
+        return json.dumps({"notebook": notebook}, allow_nan=False, separators=(",", ":")).encode()
     return json.dumps(
         {
             "rows": rows,
@@ -175,7 +194,7 @@ def _validate_template_result(
     }
     if set(result) != required:
         raise SandboxError("experiment template result fields do not match the fixed contract")
-    if result["template_version"] != "1.0":
+    if result["template_version"] != spec.template_version:
         raise SandboxError("experiment template version does not match the fixed contract")
     if result["train_rows"] != expected_train_rows or result["test_rows"] != expected_test_rows:
         raise SandboxError("experiment template split counts do not match the request")
