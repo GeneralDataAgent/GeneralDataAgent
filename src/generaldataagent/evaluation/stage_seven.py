@@ -494,6 +494,10 @@ collection_separator after binding and retains the full raw collection; do not s
 For necessary exploration use compute_sql, read-only SQLite with exact listed columns and relations.
 Use only requested filters; keep missing-value and date conventions explicit. Do not estimate
 statistics from previews. Use sample_std for sample standard deviation. Preserve requested ties.
+These evaluation CSV imports map empty or whitespace-only fields to SQL NULL. String equality,
+TRIM and IN ('NaN','na','null','') do not match SQL NULL. When the public missing-value definition
+includes empty imported fields, also check IS NULL; preserve any separately requested literal
+markers. Do not add null exclusions to a population unless the public task requests them.
 Search documents when needed with search_documents. For complete ID or column-name sets use
 collect_values with one DISTINCT output column and no LIMIT/OFFSET, bounded to 10000 values.
 Then submit_answers with fields [{"name":"public_key","step":1,"path":["rows",0,0]}].
