@@ -57,6 +57,10 @@ class AnalysisTaskSpec(Contract):
     requirements: SemanticRequirements = Field(default_factory=SemanticRequirements)
 
 
+class DescribeTextFilter(PublicTextFilter):
+    operator: Literal["eq", "contains"] = "eq"
+
+
 class AnalysisArguments(Contract):
     table: str = Field(min_length=1, max_length=200)
     columns: list[str] = Field(min_length=1, max_length=2)
@@ -66,7 +70,7 @@ class AnalysisArguments(Contract):
     decision_rule: PearsonDecisionRule | None = None
     significance_rule: SignificanceRule | None = None
     test: IndependentTestSpec | None = None
-    filters: list[PublicTextFilter] = Field(default_factory=list, max_length=8)
+    filters: list[DescribeTextFilter] = Field(default_factory=list, max_length=8)
 
     @model_validator(mode="after")
     def paired(self):

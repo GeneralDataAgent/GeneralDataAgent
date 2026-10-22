@@ -123,7 +123,9 @@ def test_describe_filters_change_population_and_bind_values_as_parameters(tmp_pa
     assert all_rows["iqr_statistics"]["value"]["outlier_count"] == 0
     assert filtered["iqr_statistics"]["value"]["outlier_count"] == 1
     assert filtered["statistics"]["value"]["count"] == 6
-    assert filtered["population_filters"] == [{"column": "category", "value": label}]
+    assert filtered["population_filters"] == [
+        {"column": "category", "value": label, "operator": "eq"}
+    ]
     assert "unverified" in filtered["population_scope"]
     assert database.read_bytes() == before
 
@@ -181,3 +183,53 @@ def test_describe_filter_literal_cannot_escape_parameter_binding(tmp_path):
     )
     assert result["statistics"]["value"]["count"] == 1
     assert result["statistics"]["value"]["mean"] == 1
+
+
+def test_describe_contains_is_literal_case_sensitive_and_parameterized(tmp_path):
+    database = tmp_path / "contains.sqlite"
+    with sqlite3.connect(database) as db:
+        db.execute("CREATE TABLE observations(value REAL, label TEXT)")
+        db.executemany(
+            "INSERT INTO observations VALUES(?,?)",
+            [(1, "20% share"), (2, "20 percent"), (3, "20% share more"), (4, "20% Share")],
+        )
+    source = "Use labels containing 20% share."
+    args = {
+        "table": "observations",
+        "columns": ["value"],
+        "operation": "describe",
+        "filters": [
+            {
+                "column": "label",
+                "value": "20% share",
+                "source_excerpt": source,
+                "operator": "contains",
+            }
+        ],
+    }
+    before = database.read_bytes()
+    result = fixed_analysis(database, args, allowed_relations={"observations"}, public_text=source)
+    assert result["statistics"]["value"]["count"] == 2
+    assert result["statistics"]["value"]["mean"] == 2
+    assert result["population_filters"][0]["operator"] == "contains"
+    assert database.read_bytes() == before
+
+
+def test_describe_contains_does_not_expand_independent_test_filter_policy():
+    from generaldataagent.contracts.independent_test import IndependentTestSpec
+
+    with pytest.raises(ValueError):
+        IndependentTestSpec.model_validate(
+            {
+                "groups": ["A", "B"],
+                "variance": "welch",
+                "filters": [
+                    {
+                        "column": "label",
+                        "value": "A",
+                        "source_excerpt": "Only A",
+                        "operator": "contains",
+                    }
+                ],
+            }
+        )

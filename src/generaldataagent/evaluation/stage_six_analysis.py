@@ -86,7 +86,11 @@ def fixed_analysis(
             r"(?<!\w)" + re.escape(item.value) + r"(?!\w)", item.source_excerpt, re.I
         ):
             raise ValueError("describe filter requires exact public source and value")
-        predicates.append(quote(item.column) + "=?")
+        predicates.append(
+            quote(item.column) + "=?"
+            if item.operator == "eq"
+            else "instr(" + quote(item.column) + ",?)>0"
+        )
         parameters.append(item.value)
     executor = SQLiteReadOnlyExecutor(database, max_rows=200_000, timeout_seconds=5)
     sql = (
@@ -148,9 +152,13 @@ def fixed_analysis(
                 "same columnwise finite population; quantile convention not publicly verified"
             ),
             iqr_public_conflicts=public_iqr_conflicts(public_text),
-            population_filters=[{"column": f.column, "value": f.value} for f in arguments.filters],
+            population_filters=[
+                {"column": f.column, "value": f.value, "operator": f.operator}
+                for f in arguments.filters
+            ],
             population_scope=(
-                "public text-equality filters; business interpretation unverified"
+                "public text filters; eq or literal case-sensitive contains; "
+                "business interpretation unverified"
                 if arguments.filters
                 else "full physical table"
             ),
