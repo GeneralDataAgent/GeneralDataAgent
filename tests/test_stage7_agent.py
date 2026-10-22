@@ -2563,3 +2563,103 @@ def test_atomic_sql_dependency_feedback_identifies_only_invalid_output_positions
     assert "999" not in json.dumps(result["trace"][0])
     assert result["answer_evidence"]["n"]["step"] == 2
     assert result["tokens"] == 20 and database.read_bytes() == before
+
+
+def test_public_signed_difference_repairs_negative_distance_false_positive(tmp_path):
+    database = tmp_path / "signed.sqlite"
+    with sqlite3.connect(database) as db:
+        db.executescript(
+            "CREATE TABLE data(label TEXT,a REAL,b REAL);"
+            "INSERT INTO data VALUES('positive',50,0),('negative',0,50);"
+        )
+    before = database.read_bytes()
+    result = run(
+        database,
+        [
+            {
+                "submit_sql": {
+                    "sql": "SELECT label FROM data WHERE ABS(a-b)>30",
+                    "output_columns": ["label"],
+                }
+            },
+            {
+                "submit_sql": {
+                    "sql": "SELECT label FROM data WHERE a-b>30",
+                    "output_columns": ["label"],
+                }
+            },
+        ],
+        question="List labels with difference over 30.",
+        instructions="Difference=a-b",
+    )
+    assert result["failure"] is None
+    assert result["trace"][0]["checks"] == ["public_signed_difference_changed_to_absolute"]
+    from generaldataagent.tools.sqlite import SQLiteReadOnlyExecutor
+
+    assert SQLiteReadOnlyExecutor(database).execute(result["final_sql"]).rows == (("positive",),)
+    assert database.read_bytes() == before
+
+
+def test_unique_parent_values_repair_keeps_record_grain_available(tmp_path):
+    database = tmp_path / "existence.sqlite"
+    with sqlite3.connect(database) as db:
+        db.executescript(
+            "CREATE TABLE places(id INT,point TEXT);CREATE TABLE events(place INT);"
+            "INSERT INTO places VALUES(1,'A'),(2,'B');INSERT INTO events VALUES(1),(1),(2);"
+        )
+    query = "SELECT p.point FROM places p JOIN events e ON e.place=p.id"
+    result = run(
+        database,
+        [
+            {"submit_sql": {"sql": query, "output_columns": ["point"], "shape": "set"}},
+            {
+                "submit_sql": {
+                    "sql": query.replace("SELECT p.point", "SELECT DISTINCT p.point"),
+                    "output_columns": ["point"],
+                    "shape": "set",
+                }
+            },
+        ],
+        question="List unique point values with matching events.",
+    )
+    assert result["failure"] is None and result["trace"][0]["checks"] == ["duplicate_entities"]
+    records = run(
+        database,
+        [{"submit_sql": {"sql": query, "output_columns": ["point"], "shape": "rows"}}],
+        question="For each event, list point.",
+    )
+    assert records["failure"] is None and records["trace"][0]["row_count"] == 3
+
+
+def test_single_change_rate_repair_does_not_return_intermediate_difference(tmp_path):
+    database = tmp_path / "rate.sqlite"
+    with sqlite3.connect(database) as db:
+        db.executescript(
+            "CREATE TABLE balances(start_value REAL,end_value REAL);"
+            "INSERT INTO balances VALUES(100,125);"
+        )
+    rate = "100.0*(end_value-start_value)/NULLIF(start_value,0)"
+    result = run(
+        database,
+        [
+            {
+                "submit_sql": {
+                    "sql": f"SELECT end_value-start_value AS delta,{rate} AS rate FROM balances",
+                    "output_columns": ["delta", "rate"],
+                }
+            },
+            {
+                "submit_sql": {
+                    "sql": f"SELECT {rate} AS rate FROM balances",
+                    "output_columns": ["rate"],
+                }
+            },
+        ],
+        question="What is the increase rate from 2020 to 2021?",
+        instructions="Increase rate = (end_value-start_value)/start_value*100%",
+    )
+    assert result["failure"] is None
+    assert result["trace"][0]["checks"] == ["unrequested_change_intermediate_outputs"]
+    from generaldataagent.tools.sqlite import SQLiteReadOnlyExecutor
+
+    assert SQLiteReadOnlyExecutor(database).execute(result["final_sql"]).rows == ((25.0,),)

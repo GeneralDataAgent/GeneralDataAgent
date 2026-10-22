@@ -9,6 +9,97 @@ from sqlglot.optimizer.scope import traverse_scope
 from generaldataagent.tools.semantic_requirements import _expression, _identifier_key, _unparen
 
 
+def check_public_rate_projection(sql: str, question: str, instructions: str) -> list[str]:
+    """A narrow singular-rate request does not request intermediate output columns."""
+    if not re.search(
+        r"\bwhat is (?:the )?(?:increase|decrease|growth|change) rate\b", question, re.I
+    ):
+        return []
+    public = question + "\n" + instructions
+    if "@" in instructions or re.search(
+        r"\b(?:and|both|also|each|per|separately|along with|as well)\b", public, re.I
+    ):
+        return []
+    tree = parse_one(sql, read="sqlite")
+    return ["unrequested_change_intermediate_outputs"] if len(tree.selects) > 1 else []
+
+
+def check_public_signed_difference(
+    sql: str, question: str, instructions: str, schema: dict
+) -> list[str]:
+    """Reject ABS(A-B) only for one explicit signed physical-field definition."""
+    public = question + "\n" + instructions
+    if not re.search(r"\bdifference\b", question, re.I) or re.search(
+        r"\babsolute\b|\babs\s*\(", public, re.I
+    ):
+        return []
+    definitions = []
+    for clause in re.split(r"[;\n]", instructions):
+        if re.search(r"\b(?:not|never)\b", clause, re.I):
+            continue
+        match = re.fullmatch(r"\s*[^=<>!]{1,200}=\s*(.{1,500})\s*", clause)
+        if not match:
+            continue
+        try:
+            node = _expression(match.group(1).rstrip(". "))
+        except (ValueError, TypeError, SqlglotError):
+            continue
+        if isinstance(node, exp.Sub) and all(
+            isinstance(part, exp.Column) for part in (node.this, node.expression)
+        ):
+            definitions.append(node)
+    if len(definitions) != 1:
+        return []
+
+    def public_field(column):
+        if column.db or column.catalog:
+            return None
+        found = [
+            (_identifier_key(table), _identifier_key(name))
+            for table, names in schema.items()
+            for name in names
+            if _identifier_key(name) == _identifier_key(column.name)
+            and (not column.table or _identifier_key(table) == _identifier_key(column.table))
+        ]
+        return found[0] if len(found) == 1 else None
+
+    expected = [public_field(definitions[0].this), public_field(definitions[0].expression)]
+    if any(field is None for field in expected) or expected[0] == expected[1]:
+        return []
+    tree = parse_one(sql, read="sqlite")
+    scopes = {id(scope.expression): scope for scope in traverse_scope(tree)}
+
+    def actual_field(column):
+        if not isinstance(column, exp.Column) or column.db or column.catalog:
+            return None
+        scope = scopes.get(id(column.find_ancestor(exp.Select)))
+        if scope is None:
+            return None
+        found = []
+        for alias, (_, source) in scope.selected_sources.items():
+            if column.table and _identifier_key(column.table) != _identifier_key(alias):
+                continue
+            if not isinstance(source, exp.Table) or source.db or source.catalog:
+                return None
+            found.extend(
+                (_identifier_key(table), _identifier_key(name))
+                for table, names in schema.items()
+                for name in names
+                if _identifier_key(source.name) == _identifier_key(table)
+                and _identifier_key(column.name) == _identifier_key(name)
+            )
+        return found[0] if len(found) == 1 else None
+
+    for absolute in tree.find_all(exp.Abs):
+        difference = _unparen(absolute.this)
+        if not isinstance(difference, exp.Sub):
+            continue
+        actual = [actual_field(difference.this), actual_field(difference.expression)]
+        if all(field is not None for field in actual) and set(actual) == set(expected):
+            return ["public_signed_difference_changed_to_absolute"]
+    return []
+
+
 def check_public_time_pattern(
     sql: str, question: str, instructions: str, schema: dict
 ) -> list[str]:

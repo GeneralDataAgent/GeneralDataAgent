@@ -716,3 +716,93 @@ def test_public_time_pattern_does_not_invent_mapping_or_resolve_ambiguous_source
     from generaldataagent.tools.public_formulas import check_public_time_pattern
 
     assert not check_public_time_pattern(sql, question, instructions, schema)
+
+
+@pytest.mark.parametrize(
+    "question,instructions,expected",
+    [
+        (
+            "What is the increase rate from A to B?",
+            "rate=(B-A)/A*100",
+            ["unrequested_change_intermediate_outputs"],
+        ),
+        ("What is the increase rate and raw difference?", "Report both.", []),
+        ("What is the growth rate for each group?", "", []),
+        ("What is the change rate?", "@rate[value] @difference[value]", []),
+    ],
+)
+def test_single_rate_projection_does_not_include_unrequested_intermediates(
+    question, instructions, expected
+):
+    from generaldataagent.tools.public_formulas import check_public_rate_projection
+
+    assert (
+        check_public_rate_projection(
+            "SELECT a-b AS delta, 100.0*(a-b)/b AS rate FROM data", question, instructions
+        )
+        == expected
+    )
+    assert not check_public_rate_projection(
+        "SELECT 100.0*(a-b)/b AS rate FROM data", question, instructions
+    )
+
+
+@pytest.mark.parametrize("expression", ["ABS(a-b)", "ABS(b-a)"])
+def test_public_signed_difference_is_not_changed_to_distance(expression):
+    from generaldataagent.tools.public_formulas import check_public_signed_difference
+
+    assert check_public_signed_difference(
+        f"SELECT label FROM data WHERE {expression}>30",
+        "List labels with difference over 30.",
+        "Difference = a-b",
+        {"data": ["label", "a", "b"]},
+    ) == ["public_signed_difference_changed_to_absolute"]
+
+
+@pytest.mark.parametrize(
+    "sql,question,instructions,schema",
+    [
+        (
+            "SELECT a FROM data WHERE ABS(a-b)>30",
+            "List absolute differences.",
+            "Difference=a-b",
+            {"data": ["a", "b"]},
+        ),
+        (
+            "SELECT a FROM data WHERE ABS(a-b)>30",
+            "List differences.",
+            "Difference=a-b",
+            {"data": ["a", "b"], "other": ["a"]},
+        ),
+        (
+            "WITH d AS(SELECT a,b FROM data) SELECT a FROM d WHERE ABS(a-b)>30",
+            "List differences.",
+            "Difference=a-b",
+            {"data": ["a", "b"]},
+        ),
+        (
+            "SELECT a FROM data WHERE ABS(a-b)>30",
+            "List differences.",
+            "Difference=a-b; other=c-d",
+            {"data": ["a", "b", "c", "d"]},
+        ),
+        (
+            "SELECT a FROM data WHERE ABS(c-d)>30",
+            "List differences.",
+            "Difference=a-b",
+            {"data": ["a", "b", "c", "d"]},
+        ),
+        (
+            "SELECT a FROM data WHERE a-b>30",
+            "List differences.",
+            "Difference=a-b",
+            {"data": ["a", "b"]},
+        ),
+    ],
+)
+def test_signed_difference_guard_abstains_on_unrelated_or_ambiguous_expression(
+    sql, question, instructions, schema
+):
+    from generaldataagent.tools.public_formulas import check_public_signed_difference
+
+    assert not check_public_signed_difference(sql, question, instructions, schema)

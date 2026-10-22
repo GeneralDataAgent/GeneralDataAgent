@@ -75,6 +75,18 @@ def bounded_observation(result: dict, *, max_chars: int = 6000) -> dict:
 
 def execution_hint(exc: Exception) -> str:
     text = str(exc)
+    if "public_signed_difference_changed_to_absolute" in text:
+        return (
+            "The public definition is a signed subtraction of the named physical fields. "
+            "ABS changes which rows satisfy its threshold. Preserve the stated subtraction "
+            "and direction; do not turn a signed difference into an absolute distance."
+        )
+    if "unrequested_change_intermediate_outputs" in text:
+        return (
+            "This public question requests only the change rate. Return that rate as the "
+            "final projection; raw differences and balances may be internal calculations, "
+            "but are not additional requested answer columns. Keep the original periods and scope."
+        )
     if "no finite observations" in text:
         return (
             "The selected physical fields and filters contain no finite numeric observations. "

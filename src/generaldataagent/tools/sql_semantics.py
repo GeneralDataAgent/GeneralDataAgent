@@ -76,9 +76,13 @@ def inspect_semantics(sql: str, spec: AnalysisTaskSpec, *, schema: dict | None =
         issues.extend(check_change_real_division(sql, spec.question))
         issues.extend(check_public_rank_and_age(sql, spec.question, spec.public_requirements))
         issues.extend(check_public_age_direction(sql, spec.question, spec.public_requirements))
+        from generaldataagent.tools.public_formulas import check_public_rate_projection
+
+        issues.extend(check_public_rate_projection(sql, spec.question, spec.public_requirements))
         if schema is not None:
             from generaldataagent.tools.public_formulas import (
                 check_public_extremum_representation,
+                check_public_signed_difference,
                 check_public_time_pattern,
                 check_public_year_fields,
             )
@@ -93,6 +97,9 @@ def inspect_semantics(sql: str, spec: AnalysisTaskSpec, *, schema: dict | None =
             )
             issues.extend(
                 check_public_time_pattern(sql, spec.question, spec.public_requirements, schema)
+            )
+            issues.extend(
+                check_public_signed_difference(sql, spec.question, spec.public_requirements, schema)
             )
         issues.extend(
             check_public_all_count_population(sql, spec.question, spec.public_requirements)
