@@ -158,6 +158,8 @@ def assemble_answers(bindings: dict, evidence: dict[int, dict], answer: AnswerSp
         ):
             raise SemanticError("data_dependent_answer_required")
         field = answer.fields.get(key)
+        if path[0] == "iqr_statistics" and evidence[step].get("iqr_public_conflicts"):
+            raise SemanticError("iqr_public_method_conflict")
         if field is not None:
             try:
                 value = validate_field_value(value, field, evidence[step], path)

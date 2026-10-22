@@ -75,6 +75,12 @@ def bounded_observation(result: dict, *, max_chars: int = 6000) -> dict:
 
 def execution_hint(exc: Exception) -> str:
     text = str(exc)
+    if "iqr_public_method_conflict" in text:
+        return (
+            "describe uses linear inclusive quartiles and strict 1.5-IQR fences. The public "
+            "text explicitly requests another recognized convention. Compute that exact method "
+            "with supported scoped SQL, or declare unsupported; do not bind these IQR values."
+        )
     if "public_extremum_representation" in text:
         return (
             "The public text explicitly specifies native MIN/MAX of a physical field. "
@@ -179,7 +185,11 @@ def execution_hint(exc: Exception) -> str:
             "Bind a computed scalar projection, not constants or whole SQL row containers. "
             "For a complete collection use collect_values with one DISTINCT data-derived "
             "column, then bind path [items]. Column-name labels must be conditional on data "
-            "for that exact physical field."
+            "for that exact physical field. For missing-column names, a supported form is "
+            "SELECT DISTINCT 'field_name' AS name FROM scoped_table WHERE field_name IS NULL. "
+            "Replace both field_name occurrences with the same actual physical column. "
+            "Add only publicly requested missing markers and column-type restrictions; "
+            "combine eligible branches with UNION and order the full collection as requested."
         )
     if "field requires complete collection evidence" in text:
         return (

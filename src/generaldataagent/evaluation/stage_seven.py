@@ -51,6 +51,7 @@ def stage7_fingerprint(root: Path) -> dict:
         "tools/independent_test.py",
         "tools/analysis_scope.py",
         "tools/pearson_test.py",
+        "tools/iqr.py",
         "evaluation/stage_six_analysis.py",
         "tools/answer_fields.py",
         "contracts/semantic_requirements.py",
@@ -366,7 +367,8 @@ def bind_typed_tools(
             ),
             tool(
                 "fixed_analysis",
-                "Full-data stats; sample_std ddof=1; pearson_test gives r and two-sided p_value",
+                "Full-data stats; describe includes sample_std and iqr_statistics; "
+                "pearson_test gives r and two-sided p_value",
                 analysis_properties,
                 ["table", "columns", "operation"],
             ),
@@ -491,6 +493,11 @@ For lists pass collection_kind=list to preserve duplicates, and use the requeste
 Sets default to collection_kind=set and reject duplicates. Lists and sets retain element types
 and public ordering requirements; do not replace a list by a scalar or silently sort in prose.
 For Pearson bind path ["correlation"]; for sample std ["statistics","column","sample_std"].
+describe also returns ["iqr_statistics","column","outlier_count"], q1/q3 and fences using
+linear inclusive quantiles h=(n-1)*p, strict values outside q1-1.5*IQR and q3+1.5*IQR.
+It ignores nonfinite/non-numeric values columnwise and preserves duplicates. This describes the
+whole physical table, not a filtered subgroup. Check the public quantile convention; if another
+method or a subgroup is required, do not bind an incompatible whole-table result.
 For collections bind ["items"] and preserve the public list/set kind; do not repeat known rules.
 SQL answer evidence must use explicit projections with data dependencies. A SELECT of model-
 supplied constants, including constants wrapped in a CTE, cannot certify an answer. Calculate

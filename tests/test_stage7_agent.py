@@ -2204,3 +2204,39 @@ def test_explicit_native_extremum_rejects_cast_then_retains_text_source(tmp_path
 
     assert SQLiteReadOnlyExecutor(database).execute(result["final_sql"]).rows == (("130.250",),)
     assert database.read_bytes() == before
+
+
+def test_full_data_describe_iqr_binds_outlier_count_receipt(tmp_path):
+    database = tmp_path / "outliers.sqlite"
+    with sqlite3.connect(database) as db:
+        db.execute("CREATE TABLE observations(value REAL)")
+        db.executemany("INSERT INTO observations VALUES(?)", [(x,) for x in [0, 0, 0, 2, 2, 2, 6]])
+    before = database.read_bytes()
+    result = run(
+        database,
+        [
+            {"analysis": {"table": "observations", "columns": ["value"], "operation": "describe"}},
+            {
+                "submit_answers": {
+                    "fields": [
+                        {
+                            "name": "n",
+                            "step": 1,
+                            "path": ["iqr_statistics", "value", "outlier_count"],
+                        }
+                    ]
+                }
+            },
+        ],
+        benchmark="infiagent-dabench",
+        question="How many IQR outliers?",
+        instructions=(
+            "Use linear quartiles and strict 1.5-IQR fences. "
+            '@n[number] where "number" is an integer.'
+        ),
+    )
+    assert result["failure"] is None and result["answers"] == {"n": 1}
+    assert result["answer_evidence"]["n"]["method_id"] == "describe"
+    assert result["answer_evidence"]["n"]["raw_value"] == 1
+    assert result["answer_evidence"]["n"]["result_hash"] == result["trace"][0]["result_hash"]
+    assert database.read_bytes() == before

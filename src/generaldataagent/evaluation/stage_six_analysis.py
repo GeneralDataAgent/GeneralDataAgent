@@ -95,7 +95,10 @@ def fixed_analysis(
         "method": "pairwise finite values",
     }
     if operation == "describe":
+        from generaldataagent.tools.iqr import iqr_summary, public_iqr_conflicts
+
         summaries = {}
+        iqr_statistics = {}
         for index, column in enumerate(columns):
             values = [
                 row[index]
@@ -113,6 +116,7 @@ def fixed_analysis(
                 "min": min(values) if values else None,
                 "max": max(values) if values else None,
             }
+            iqr_statistics[column] = iqr_summary(values)
         if not any(summary["count"] for summary in summaries.values()):
             raise ValueError("no finite observations")
         output.update(
@@ -120,6 +124,12 @@ def fixed_analysis(
             method="columnwise finite values",
             observations=len(result.rows),
             dropped_rows=None,
+            iqr_statistics=iqr_statistics,
+            iqr_method="linear inclusive quantiles h=(n-1)*p; strict 1.5-IQR fences",
+            iqr_scope=(
+                "same columnwise finite population; quantile convention not publicly verified"
+            ),
+            iqr_public_conflicts=public_iqr_conflicts(public_text),
         )
     elif operation == "pearson":
         if not rows:
