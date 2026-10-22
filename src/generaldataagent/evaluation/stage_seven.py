@@ -497,6 +497,12 @@ available when necessary. Use
 compute_sql for other scalar fields, then bind all fields together. Runtime applies any public
 collection_separator after binding and retains the full raw collection; do not serialize it in SQL.
 For necessary exploration use compute_sql, read-only SQLite with exact listed columns and relations.
+For preprocessing summaries, prefer one query over full-row SELECT DISTINCT data, with each scalar
+aliased to its exact public answer key. Keep all original fields when removing duplicate rows;
+DISTINCT on a few selected fields changes which entries are duplicates. A CTE does not inherit
+the source table's rowid unless projected. Adding rowid to DISTINCT prevents full-row deduplication.
+Preserve explicit source ordering when a first entry is requested. Once all requested values have
+successful evidence, bind them and submit instead of repeating exploratory counts.
 Use only requested filters; keep missing-value and date conventions explicit. Do not estimate
 statistics from previews. Use sample_std for sample standard deviation. Preserve requested ties.
 These evaluation CSV imports map empty or whitespace-only fields to SQL NULL. String equality,

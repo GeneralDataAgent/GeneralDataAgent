@@ -15,6 +15,12 @@ def public_name_mentioned(name: str, text: str) -> bool:
         return False
     forms = [name]
     if re.fullmatch(r"[A-Za-z]{2,100}", name):
+        if re.search(r"ies$", name, re.I):
+            forms.append(name[:-3] + "y")
+        elif re.search(r"(?:sses|xes|zes|ches|shes)$", name, re.I):
+            forms.append(name[:-2])
+        elif name.lower().endswith("s") and not re.search(r"(?:ss|us|is)$", name, re.I):
+            forms.append(name[:-1])
         if re.search(r"[^aeiou]y$", name, re.I):
             forms.append(name[:-1] + "ies")
         elif re.search(r"(?:s|x|z|ch|sh)$", name, re.I):

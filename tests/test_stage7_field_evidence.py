@@ -334,3 +334,19 @@ def test_plural_table_context_priority_preserves_authorized_schema_and_ambiguity
     assert next(iter(context["tables"])) == "Patient"
     assert len(context["public_field_mappings"]["ambiguous"][0]["candidates"]) == 2
     assert path.read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    "name,text,expected",
+    [
+        ("Drivers", "the driver", True),
+        ("Cities", "each city", True),
+        ("Boxes", "a box", True),
+        ("Status", "the statu", False),
+        ("Analysis", "the analysi", False),
+    ],
+)
+def test_singular_public_name_priority_does_not_truncate_nonplural_suffixes(name, text, expected):
+    from generaldataagent.catalog.field_evidence import public_name_mentioned
+
+    assert public_name_mentioned(name, text) is expected

@@ -243,6 +243,13 @@ def execution_hint(exc: Exception) -> str:
     if "ratio_zero_guard" in text:
         return "Use NULLIF(denominator,0) without changing the declared population or formula."
     # Only known local SQL diagnostics; never echo arbitrary model/SDK exceptions.
+    if re.search(r"no such column:\s*(?:[\w]+\.)?(?:rowid|_rowid_|oid)\b", text, re.I):
+        return (
+            "A CTE or derived table does not inherit its source rowid unless explicitly "
+            "projected. Use a real available ordering key for a first-entry request. Do not "
+            "add rowid to full-row DISTINCT, which would prevent duplicate removal; preserve "
+            "the requested cleaning and calculation populations."
+        )
     if "wrong number of arguments to function" in text:
         return (
             "The SQL function has the wrong argument count. Check its SQLite signature "
