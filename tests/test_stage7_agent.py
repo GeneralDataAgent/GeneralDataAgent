@@ -2281,3 +2281,53 @@ def test_filtered_describe_iqr_uses_public_subgroup_evidence(tmp_path):
     assert result["failure"] is None and result["answers"] == {"n": 1}
     assert result["answer_evidence"]["n"]["method_id"] == "describe"
     assert result["trace"][0]["action"]["analysis"]["filters"][0]["value"] == "A"
+
+
+def test_out_of_range_percentage_feedback_repairs_population_without_clipping(database):
+    before = database.read_bytes()
+    actions = iter(
+        [
+            {
+                "submit_sql": {
+                    "sql": "SELECT 100.0*(SELECT COUNT(*) FROM people)/(SELECT COUNT(*) FROM people WHERE birthday='1960-01-01') AS pct",
+                    "output_columns": ["pct"],
+                }
+            },
+            {
+                "submit_sql": {
+                    "sql": "SELECT 100.0*SUM(CASE WHEN score=10 THEN 1 ELSE 0 END)/NULLIF(COUNT(*),0) AS pct FROM people WHERE birthday='1960-01-01'",
+                    "output_columns": ["pct"],
+                }
+            },
+        ]
+    )
+    turn = 0
+
+    class Model:
+        def invoke(self, messages):
+            nonlocal turn
+            if turn:
+                feedback = json.loads(messages[-2][1])
+                assert feedback["checks"] == "percentage_out_of_range"
+                assert "numerator" in feedback["hint"] and "denominator" in feedback["hint"]
+                assert "do not clip" in feedback["hint"]
+            turn += 1
+            return SimpleNamespace(
+                content=json.dumps(next(actions)),
+                usage_metadata={"total_tokens": 10},
+                response_metadata={},
+            )
+
+    task = Task(
+        "bird-mini-dev-sqlite",
+        "synthetic",
+        "What percentage of people in the 1960 cohort have score 10?",
+        "The cohort uses birthday = '1960-01-01'.",
+        "easy",
+        "people",
+    )
+    result = BoundedSQLAgent(Model(), tool_profile="sql-semantic", max_steps=2).run(task, database)
+    assert result["failure"] is None
+    assert result["trace"][0]["checks"] == ["percentage_out_of_range"]
+    assert result["tokens"] == 20
+    assert database.read_bytes() == before

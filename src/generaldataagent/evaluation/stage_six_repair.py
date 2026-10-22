@@ -226,6 +226,14 @@ def execution_hint(exc: Exception) -> str:
             "public-literal matches before changing SQL. Do not merely add NULLIF or COALESCE, "
             "and do not add optional requirements to repair a population error."
         )
+    if "percentage_out_of_range" in text:
+        return (
+            "This fraction-of-population percentage is outside 0..100. Check that the "
+            "conditional numerator and total denominator use the same requested subset "
+            "and compatible entity/record grain. A numerator over the whole table divided "
+            "by a subgroup count changes the question. Preserve the public formula; do not "
+            "clip the result, remove filters, or multiply again by 100."
+        )
     if "ratio_zero_guard" in text:
         return "Use NULLIF(denominator,0) without changing the declared population or formula."
     # Only known local SQL diagnostics; never echo arbitrary model/SDK exceptions.
