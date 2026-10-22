@@ -1268,6 +1268,8 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                         for text_marker, code in [
                             ("no such column", "unknown_column"),
                             ("no such table", "unknown_table"),
+                            ("no such function", "unsupported_function"),
+                            ("wrong number of arguments to function", "function_arguments"),
                             ("ambiguous", "ambiguous_column"),
                             ("syntax", "sql_syntax"),
                             ("interrupted", "query_timeout"),
@@ -1284,6 +1286,8 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     event["response_mode"] = "native_function" if calls else "json"
                     if isinstance(action, dict):
                         event["action_keys"] = sorted(action)[:12]
+                    if code in {"unsupported_function", "function_arguments"}:
+                        event["repair_type"] = "revise_plan_or_query"
                 if semantic and isinstance(exc, ActionSchemaError):
                     event.update(
                         code="action_schema",
@@ -1303,6 +1307,8 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                 if semantic and isinstance(exc, ColumnScopeError):
                     event.update(code="unknown_column", field_candidates=exc.candidates)
                 feedback = {"step": step, "error": kind, "code": event["code"]}
+                if semantic and "repair_type" in event:
+                    feedback["repair_type"] = event["repair_type"]
                 if semantic and isinstance(exc, ColumnScopeError):
                     feedback["field_candidates"] = exc.candidates
                 if semantic and isinstance(exc, ActionSchemaError):

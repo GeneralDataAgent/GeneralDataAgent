@@ -213,6 +213,11 @@ def execution_hint(exc: Exception) -> str:
     if "ratio_zero_guard" in text:
         return "Use NULLIF(denominator,0) without changing the declared population or formula."
     # Only known local SQL diagnostics; never echo arbitrary model/SDK exceptions.
+    if "wrong number of arguments to function" in text:
+        return (
+            "The SQL function has the wrong argument count. Check its SQLite signature "
+            "and provide the required arguments; keep the requested computation."
+        )
     for marker in (
         "no such column:",
         "no such table:",

@@ -2127,3 +2127,45 @@ def test_native_collection_phase_defers_scalar_actions_and_keeps_typed_exit(
         assert model.calls == 2
         assert result["answer_evidence"]["ids"]["step"] == 1
     assert database.read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    ("sql", "code", "hint"),
+    [
+        ("SELECT STDDEV(score) FROM people", "unsupported_function", "fixed analysis"),
+        ("SELECT substr('private-literal') FROM people", "function_arguments", "signature"),
+    ],
+)
+def test_sql_execution_errors_have_actionable_feedback_and_recover(database, sql, code, hint):
+    before = database.read_bytes()
+    actions = iter(
+        [
+            {"sql": sql},
+            {"submit_sql": {"sql": "SELECT COUNT(*) AS n FROM people", "output_columns": ["n"]}},
+        ]
+    )
+    feedbacks = []
+
+    class Model:
+        def invoke(self, messages):
+            if feedbacks:
+                feedback = json.loads(messages[-2][1])
+                assert feedback["code"] == code
+                assert feedback["repair_type"] == "revise_plan_or_query"
+                assert hint in feedback["hint"]
+                assert "private-literal" not in json.dumps(feedback)
+            feedbacks.append(True)
+            return SimpleNamespace(
+                content=json.dumps(next(actions)),
+                usage_metadata={"total_tokens": 10},
+                response_metadata={},
+            )
+
+    task = Task("bird-mini-dev-sqlite", "synthetic", "How many people?", "", "easy", "people")
+    result = BoundedSQLAgent(Model(), tool_profile="sql-semantic", max_steps=2).run(task, database)
+    assert result["failure"] is None
+    assert result["trace"][0]["code"] == code
+    assert result["trace"][0]["repair_type"] == "revise_plan_or_query"
+    assert "private-literal" not in json.dumps(result["trace"][0])
+    assert result["tokens"] == 20
+    assert database.read_bytes() == before
