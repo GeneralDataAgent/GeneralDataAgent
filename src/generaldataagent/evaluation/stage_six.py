@@ -597,6 +597,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
             previous_task_spec = task_spec
             previous_automatic_spec = automatic_spec
             action = None
+            result_data = None
             calls = []
             if repair:
                 if semantic and previous_countdown is not None:
@@ -627,10 +628,16 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                                 if semantic
                                 else {}
                             ),
-                            "finish_hint": (
-                                "Return final_sql if ready."
-                                if precision
-                                else "Finish now if observed evidence is sufficient."
+                            **(
+                                {}
+                                if semantic
+                                else {
+                                    "finish_hint": (
+                                        "Return final_sql if ready."
+                                        if precision
+                                        else "Finish now if observed evidence is sufficient."
+                                    )
+                                }
                             ),
                         }
                     ),
@@ -1336,6 +1343,20 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     feedback["schema_errors"] = exc.paths
                 if semantic and isinstance(exc, SemanticError):
                     feedback["checks"] = str(exc)[:300]
+                    if str(exc) == "data_dependent_answer_required" and isinstance(
+                        result_data, dict
+                    ):
+                        mask = result_data.get("data_dependent_columns")
+                        if (
+                            isinstance(mask, (list, tuple))
+                            and len(mask) <= 50
+                            and all(type(value) is bool for value in mask)
+                        ):
+                            event["data_dependency_mask"] = list(mask)
+                            feedback["data_dependency_mask"] = list(mask)
+                            feedback["data_dependency_scope"] = (
+                                "SQL output order; structural lineage only, not semantic proof"
+                            )
                     if "undefined_percentage_check_population" in str(exc):
                         observations = (
                             request.get("semantic_context", {})

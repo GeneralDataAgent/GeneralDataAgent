@@ -2520,3 +2520,46 @@ def test_only_latest_countdown_remains_while_native_errors_results_and_spend_are
     assert observed == [100, 83, 66]
     assert result["trace"][0]["code"] == "action_schema"
     assert len(result["trace"]) == 3 and database.read_bytes() == before
+
+
+def test_atomic_sql_dependency_feedback_identifies_only_invalid_output_positions(database):
+    actions = iter(
+        [
+            {"answer_sql": "SELECT 999 AS n, AVG(score) AS mean FROM people"},
+            {"answer_sql": "SELECT COUNT(*) AS n, AVG(score) AS mean FROM people"},
+        ]
+    )
+    turn = 0
+
+    class Model:
+        def invoke(self, messages):
+            nonlocal turn
+            budget = json.loads(messages[-1][1])
+            assert "finish_hint" not in budget and "submission_hint" in budget
+            if turn:
+                feedback = json.loads(messages[-2][1])
+                assert feedback["data_dependency_mask"] == [False, True]
+                assert "999" not in json.dumps(feedback)
+                assert "structural lineage" in feedback["data_dependency_scope"]
+            turn += 1
+            return SimpleNamespace(
+                content=json.dumps(next(actions)),
+                usage_metadata={"total_tokens": 10},
+                response_metadata={},
+            )
+
+    before = database.read_bytes()
+    task = Task(
+        "infiagent-dabench",
+        "synthetic",
+        "Return count and mean.",
+        "@n[count] @mean[mean]",
+        "easy",
+        "people.csv",
+    )
+    result = BoundedSQLAgent(Model(), tool_profile="sql-semantic", max_steps=2).run(task, database)
+    assert result["failure"] is None and result["answers"] == {"n": 2, "mean": 10.0}
+    assert result["trace"][0]["data_dependency_mask"] == [False, True]
+    assert "999" not in json.dumps(result["trace"][0])
+    assert result["answer_evidence"]["n"]["step"] == 2
+    assert result["tokens"] == 20 and database.read_bytes() == before
