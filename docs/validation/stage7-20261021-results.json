@@ -23654,7 +23654,7 @@
     ]
   },
   "pending": [
-    "Full paired evaluation of follow-up code after 1cdcd84; do not attribute frozen v57 to newer fixes",
+    "Finish frozen full v62 with fresh paired baselines and original historical 61-case guard",
     "BIRD >=36/60 and no fresh/historical regressions",
     "Independent instruction/label and scientific-method review",
     "Unseen, repeated and independent promotion validation"
@@ -45202,7 +45202,7 @@
     "validator_source_commit": "28e0ac5f05ac35e1a729ad5150a69d0df85543eb"
   },
   "latest_local_validation": {
-    "source_commit": "48786efb01991a71f1dfdde912c284234e24e50b",
+    "source_commit": "07b1bfb0cf5ccb5a139a740f2b857483337302ba",
     "stage7_fingerprint": {
       "contracts/analysis.py": "791ab027c0cad0bf7d7973bc631364b25b9dcc7be6be542c35984682e7ab412d",
       "contracts/answer_fields.py": "e6ecbd59912179bc23d1be8acb4c4a085e20169c53b43e1907175391d949095b",
@@ -45215,24 +45215,24 @@
       "tools/answer_fields.py": "a19b3bd9e3ff085b0155a05b171956631d39f31bfce49173ac8c709d6138f250",
       "contracts/semantic_requirements.py": "bc0683ead82ef284acbe9fe71b5af437ddce357db5b0c46027ae34622dfe867e",
       "tools/semantic_requirements.py": "bf25b5955a61b460375ebef86e3c50c9c55fe516f639fcb10256c67187550d31",
-      "tools/public_formulas.py": "9eeab0f4c8a7e48584753a02e42989ca027283082631b9b6f6be710dc7eb4a1a",
+      "tools/public_formulas.py": "d6422a853f9794d0798013caef9f0438def78976c405446eaf8fbdda6e6c5318",
       "orchestration/analysis_plan.py": "cb9704c3b3af020317e5204a56013c83e93a3d1065b6e5ed1e08feff97770687",
       "catalog/semantic_context.py": "d1e15351e2cbe3ba01fc35f6979f27ad28662e61f025d4a8a5f7f867119809ca",
       "catalog/field_evidence.py": "e3fa95a2c4bf71f291ea3134329c5b926f666aad72a511411f9eb95a8fd2e926",
       "catalog/join_evidence.py": "cd5ae4218c11eba66a7a3b7166ed226ac37b81ed6229c64978d63be51de7205e",
-      "tools/sql_semantics.py": "1fd38f1d3a2a28c1b07d3d241104719fef47e6e7c20e5537f3928c071dd84f8e",
+      "tools/sql_semantics.py": "3797b9b68c18e4f847f7866b6e2d4ec3ad0f6634a1ed0e9b35c20def83ffd259",
       "tools/sql_guard.py": "72ef5c19eb4080f3a75f745588eff76780684a0691c3ab141c79d17c6ca5db59",
       "tools/sqlite.py": "6cc32bffd2d0822f3a0805d63ab15624c0530d9e0b6e719053f2d0c869784251",
       "evaluation/stage_six.py": "50292a750b8a3ba645590abbc7f86a9d44f09ca6e7647eb559fc33397bb0ca21",
       "evaluation/stage_six_sql_precision.py": "9636255157d5a6477972ff3dadd0d50454710dc3150b09b8c56841f8180d3fa6",
-      "evaluation/stage_six_repair.py": "63e51ce1d99c1ee408722048e96528a5ede0191d1bfd4d313814e544ed4e2996",
+      "evaluation/stage_six_repair.py": "b1ed1e92a7214b2601b4961c3eda25475269e5f2ef8d0f9c8998522d66cb105c",
       "evaluation/stage_seven.py": "6c158705eb68ecc8ad1d83c595e44c0d2e14fe7e8c53d65c0eba28db77c6e18c",
       "contracts/query_plan.py": "4b18902c4ee0a82f35b4776bde17713a18672f2ef87b45e903cae3c958c9ad9e",
       "tools/semantic_sql.py": "ae6c20f44c53eabbdd9a51d8f052b9d3b0f27c8c93c4a0ddd377d8525ba1cd47"
     },
-    "passed": 1111,
+    "passed": 1126,
     "skipped": 1,
-    "coverage_percent": 89.32,
+    "coverage_percent": 89.33,
     "ruff_check": "passed",
     "format_check": "passed",
     "diff_check": "passed",
@@ -209511,5 +209511,164 @@
     "bird_receipt_errors": [],
     "strict_passed_n": 2,
     "complete": true
+  },
+  "extremum_diagnostic_v61": {
+    "source_commit": "07b1bfb0cf5ccb5a139a740f2b857483337302ba",
+    "model_route": {
+      "provider_id": "magpie",
+      "app_type": "magpie",
+      "model": "workbuddy/deepseek-v4.1-flash",
+      "transport": "openai-chat",
+      "thinking_mode": "default",
+      "json_mode": false,
+      "max_output_tokens": 3000,
+      "endpoint_hash": "fe8827a6b46979db5015036d380dd4e1f10eda5b76101c62a322240bf51a0573",
+      "wire_api": "chat_completions",
+      "gateway_adapter_hash": "163619e55b3ee9dd7eaeda7e9275a0cdc2a07972b6b67602016151f66632b8e6",
+      "gateway_headers_hash": "0a6dda900b2ea6b80cb4df4282bd2ec368d99d39ee00f707de87660edce6d440",
+      "route_hash": "ddcb6a5429c4f5365aa21351db2a358e378a5beb5c3b07ae80138dd444b8fbd4"
+    },
+    "scope": "single repeatedly developed regression case; not a full pair or unseen acceptance",
+    "results": [
+      {
+        "answers": {},
+        "raw_answers": null,
+        "answer_evidence": {},
+        "task_contract": {
+          "question": "What was the fastest lap speed among all drivers in the 2009 Spanish Grand Prix?",
+          "public_requirements": "the fastest lap speed among all refers to max(fastestLapSpeed); Spanish Grand Prix refers to races.name = 'Spanish Grand Prix';",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "fastest_lap_speed"
+            ],
+            "shape": "scalar",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {}
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": "SELECT MAX(r.fastestLapSpeed) AS fastest_lap_speed FROM results r JOIN races ra ON r.raceId = ra.raceId WHERE ra.name = 'Spanish Grand Prix' AND ra.year = 2009",
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "status": "error",
+            "error": "SemanticError",
+            "code": "semantic_contract",
+            "response_mode": "native_function",
+            "action_keys": [
+              "final_sql",
+              "task_spec"
+            ],
+            "repair_type": "revise_plan_or_query",
+            "checks": [
+              "public_extremum_representation"
+            ]
+          },
+          {
+            "step": 2,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "ab99d9cb74e522184be59a88b197a79d6a07529c4cb54aef752472e2d296e3c4",
+            "response_mode": "native_function",
+            "sql": "SELECT MAX(r.fastestLapSpeed) AS fastest_lap_speed FROM results r JOIN races ra ON r.raceId = ra.raceId WHERE ra.name = 'Spanish Grand Prix' AND ra.year = 2009",
+            "row_count": 1,
+            "elapsed_ms": 3.6811669999678998
+          }
+        ],
+        "tokens": 7966,
+        "input_tokens": 7708,
+        "output_tokens": 258,
+        "usage_status": "complete",
+        "elapsed_seconds": 7.475846249999904,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 5.249056958999972,
+        "case_id": "931",
+        "asset": "formula_1",
+        "database_hash": "79770caf966707e35516fa566e24b40ae515c74ec1ec4631235245645b87b24d",
+        "database_unchanged": true,
+        "passed": true,
+        "sub_hits": 1,
+        "sub_total": 1
+      }
+    ],
+    "production_accepted": false
+  },
+  "extremum_diagnostic_v61_recomputed": {
+    "sql_result_hash_equal": true,
+    "returned_values": [
+      [
+        "202.484"
+      ]
+    ],
+    "returned_python_types": [
+      [
+        "str"
+      ]
+    ],
+    "receipt_errors": [],
+    "database_unchanged": true,
+    "scope": "local readonly recomputation; not independent adjudication or full qualification"
+  },
+  "extremum_offline_replay": {
+    "n": 120,
+    "new_checks": [
+      {
+        "arm": "baseline",
+        "case_id": "931",
+        "strict_passed": false,
+        "issues": [
+          "public_extremum_representation"
+        ]
+      },
+      {
+        "arm": "candidate",
+        "case_id": "931",
+        "strict_passed": false,
+        "issues": [
+          "public_extremum_representation"
+        ]
+      }
+    ],
+    "scope": "offline replay; no model rescore or independent adjudication"
+  },
+  "full_v62": {
+    "source_commit": "07b1bfb0cf5ccb5a139a740f2b857483337302ba",
+    "status": "running",
+    "attempts_planned": 260,
+    "historical_protection_n": 61,
+    "strict_score_changed": false,
+    "production_accepted": false,
+    "artifact_directory": ".artifacts/stage7/20261022-full-v62",
+    "frozen_workspace": "/private/tmp/gda-stage7-v62",
+    "fresh_baselines": true,
+    "candidate_profiles": {
+      "bird": "sql-semantic",
+      "infi": "sql-semantic",
+      "dabstep": "sql-semantic"
+    },
+    "stage7_qualified": false
   }
 }
