@@ -2289,13 +2289,19 @@ def test_out_of_range_percentage_feedback_repairs_population_without_clipping(da
         [
             {
                 "submit_sql": {
-                    "sql": "SELECT 100.0*(SELECT COUNT(*) FROM people)/(SELECT COUNT(*) FROM people WHERE birthday='1960-01-01') AS pct",
+                    "sql": (
+                        "SELECT 100.0*(SELECT COUNT(*) FROM people)/"
+                        "(SELECT COUNT(*) FROM people WHERE birthday='1960-01-01') AS pct"
+                    ),
                     "output_columns": ["pct"],
                 }
             },
             {
                 "submit_sql": {
-                    "sql": "SELECT 100.0*SUM(CASE WHEN score=10 THEN 1 ELSE 0 END)/NULLIF(COUNT(*),0) AS pct FROM people WHERE birthday='1960-01-01'",
+                    "sql": (
+                        "SELECT 100.0*SUM(CASE WHEN score=10 THEN 1 ELSE 0 END)/"
+                        "NULLIF(COUNT(*),0) AS pct FROM people WHERE birthday='1960-01-01'"
+                    ),
                     "output_columns": ["pct"],
                 }
             },
@@ -2330,4 +2336,39 @@ def test_out_of_range_percentage_feedback_repairs_population_without_clipping(da
     assert result["failure"] is None
     assert result["trace"][0]["checks"] == ["percentage_out_of_range"]
     assert result["tokens"] == 20
+    assert database.read_bytes() == before
+
+
+def test_explicit_public_time_pattern_repair_preserves_other_filters(tmp_path):
+    database = tmp_path / "times.sqlite"
+    with sqlite3.connect(database) as db:
+        db.executescript(
+            "CREATE TABLE runs(id INT, lap TEXT, race INT); "
+            "INSERT INTO runs VALUES(1,'2:07.555',5),(2,'2:07.000',6);"
+        )
+    before = database.read_bytes()
+    result = run(
+        database,
+        [
+            {
+                "submit_sql": {
+                    "sql": "SELECT id FROM runs WHERE race=5 AND lap LIKE '0:02:07%'",
+                    "output_columns": ["id"],
+                }
+            },
+            {
+                "submit_sql": {
+                    "sql": "SELECT id FROM runs WHERE race=5 AND lap LIKE '2:07%'",
+                    "output_columns": ["id"],
+                }
+            },
+        ],
+        question="Which id finished 0:02:07 in race 5?",
+        instructions="finished 0:0M:SS refers to lap LIKE 'M:SS%'",
+    )
+    assert result["failure"] is None
+    assert result["trace"][0]["checks"] == ["public_time_like_pattern"]
+    from generaldataagent.tools.sqlite import SQLiteReadOnlyExecutor
+
+    assert SQLiteReadOnlyExecutor(database).execute(result["final_sql"]).rows == ((1,),)
     assert database.read_bytes() == before

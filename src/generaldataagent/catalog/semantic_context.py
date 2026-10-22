@@ -8,6 +8,7 @@ from generaldataagent.catalog.field_evidence import (
     date_candidates,
     enum_label_candidates,
     public_field_mappings,
+    public_name_mentioned,
     public_quoted_labels,
 )
 from generaldataagent.catalog.join_evidence import observed_join_candidates
@@ -38,7 +39,7 @@ def semantic_context(
         return value[:160] if isinstance(value, str) else value
 
     def explicitly_mentioned(name):
-        return bool(name and re.search(r"(?<!\w)" + re.escape(name) + r"(?!\w)", public_text, re.I))
+        return public_name_mentioned(name, public_text)
 
     tables = {}
     full_schema = {}
@@ -246,11 +247,7 @@ def semantic_context(
                 field.pop("date_encoding")
             field.pop("declared_type", None)
     output["budget_chars"] = max_chars
-    mentioned = {
-        table
-        for table in allowed_relations
-        if re.search(r"(?<!\w)" + re.escape(table) + r"(?!\w)", public_text, re.I)
-    }
+    mentioned = {table for table in allowed_relations if public_name_mentioned(table, public_text)}
     literal_targets = {
         item["candidate"][0]
         for mapping in mappings["ambiguous"]

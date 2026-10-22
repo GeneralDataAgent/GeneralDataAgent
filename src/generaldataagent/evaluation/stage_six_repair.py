@@ -75,6 +75,12 @@ def bounded_observation(result: dict, *, max_chars: int = 6000) -> dict:
 
 def execution_hint(exc: Exception) -> str:
     text = str(exc)
+    if "public_time_like_pattern" in text:
+        return (
+            "The public text explicitly maps zero-hour 0:0M:SS to an M:SS% LIKE pattern. "
+            "Drop the zero-hour prefix and the minute's leading zero, keep two-digit seconds "
+            "and the trailing wildcard. Preserve the named physical field and other filters."
+        )
     if "iqr_public_method_conflict" in text:
         return (
             "describe uses linear inclusive quartiles and strict 1.5-IQR fences. The public "

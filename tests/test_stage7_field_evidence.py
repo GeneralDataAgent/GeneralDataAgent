@@ -1,5 +1,9 @@
 """Do not turn ambiguous dates, shared names, or unqualified evidence into trusted mappings."""
 
+import json
+
+import pytest
+
 from generaldataagent.catalog.field_evidence import date_candidates, public_field_mappings
 
 
@@ -280,4 +284,53 @@ def test_compact_declared_join_keys_prioritize_public_literals_and_preserve_comp
     assert ["items", ["x", "y"], "groups", ["b", "a"]] in result["relationships"]["join_keys"]
     assert result["public_field_mappings"]["ambiguous"][0]["literal_observations"]
     assert len(json.dumps(result)) <= 1500
+    assert path.read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    "name,text,expected",
+    [
+        ("Patient", "Compare patients.", True),
+        ("City", "List cities.", True),
+        ("Key", "These keys.", True),
+        ("Box", "Count boxes.", True),
+        ("Patient", "Compare impatient records.", False),
+        ("市", "城市数据", False),
+        ("user_data", "Only users.", False),
+    ],
+)
+def test_public_name_inflections_only_prioritize_lexical_matches(name, text, expected):
+    from generaldataagent.catalog.field_evidence import public_name_mentioned
+
+    assert public_name_mentioned(name, text) is expected
+
+
+def test_plural_table_context_priority_preserves_authorized_schema_and_ambiguity(tmp_path):
+    import sqlite3
+
+    from generaldataagent.catalog.semantic_context import semantic_context
+    from generaldataagent.evaluation.stage_six import database_context
+
+    path = tmp_path / "priority.sqlite"
+    with sqlite3.connect(path) as db:
+        db.executescript(
+            "CREATE TABLE Event(Diagnosis TEXT);CREATE TABLE Patient(Diagnosis TEXT);"
+            "INSERT INTO Event VALUES('X');INSERT INTO Patient VALUES('X');"
+        )
+    before = path.read_bytes()
+    original, names = database_context(path)
+    ranked, ranked_names = database_context(path, public_text="Describe patients.")
+    assert json.loads(original.splitlines()[0])["table"] == "Event"
+    assert json.loads(ranked.splitlines()[0])["table"] == "Patient"
+    assert names == ranked_names == {"Event", "Patient"}
+    assert {x["table"]: x for x in map(json.loads, original.splitlines())} == {
+        x["table"]: x for x in map(json.loads, ranked.splitlines())
+    }
+    context = semantic_context(
+        path,
+        allowed_relations={"Event", "Patient"},
+        public_text="Describe patients.\nDisease refers to Diagnosis = 'X'",
+    )
+    assert next(iter(context["tables"])) == "Patient"
+    assert len(context["public_field_mappings"]["ambiguous"][0]["candidates"]) == 2
     assert path.read_bytes() == before

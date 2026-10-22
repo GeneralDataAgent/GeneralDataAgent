@@ -9,6 +9,74 @@ from sqlglot.optimizer.scope import traverse_scope
 from generaldataagent.tools.semantic_requirements import _expression, _identifier_key, _unparen
 
 
+def check_public_time_pattern(
+    sql: str, question: str, instructions: str, schema: dict
+) -> list[str]:
+    """Check only an explicit zero-hour 0:0M:SS -> M:SS% public LIKE mapping."""
+    clauses = [
+        clause
+        for clause in re.split(r"[;\n]", instructions)
+        if "0:0M:SS" in clause and not re.search(r"\bnot\b|\bnever\b", clause, re.I)
+    ]
+    mappings = [
+        match
+        for clause in clauses
+        for match in re.finditer(r"\brefers to\s+(.{1,100}?)\s+LIKE\s+(['\"])M:SS%\2", clause, re.I)
+    ]
+    times = re.findall(r"(?<![\d:])0:(\d{2}):(\d{2})(?![\d:])", question)
+    if len(mappings) != 1 or len(times) != 1:
+        return []
+    minute, second = map(int, times[0])
+    if minute > 59 or second > 59:
+        return []
+    try:
+        column = _expression(mappings[0].group(1).strip())
+    except (ValueError, TypeError, SqlglotError):
+        return []
+    if not isinstance(column, exp.Column) or column.db or column.catalog:
+        return []
+    expected_fields = [
+        (_identifier_key(table), _identifier_key(name))
+        for table, names in schema.items()
+        for name in names
+        if _identifier_key(name) == _identifier_key(column.name)
+        and (not column.table or _identifier_key(table) == _identifier_key(column.table))
+    ]
+    if len(expected_fields) != 1:
+        return []
+    tree = parse_one(sql, read="sqlite")
+    if not isinstance(tree, exp.Select):
+        return []
+    scope = next((s for s in traverse_scope(tree) if s.expression is tree), None)
+    if scope is None:
+        return []
+    expected = f"{minute}:{second:02d}%"
+    for predicate in tree.find_all(exp.Like):
+        actual, pattern = predicate.this, predicate.expression
+        if predicate.find_ancestor(exp.Select) is not tree or not isinstance(actual, exp.Column):
+            continue
+        if not isinstance(pattern, exp.Literal) or not pattern.is_string:
+            continue
+        fields = []
+        unknown = False
+        for alias, (_, source) in scope.selected_sources.items():
+            if actual.table and _identifier_key(actual.table) != _identifier_key(alias):
+                continue
+            if not isinstance(source, exp.Table) or source.db or source.catalog:
+                unknown = True
+                continue
+            fields.extend(
+                (_identifier_key(table), _identifier_key(name))
+                for table, names in schema.items()
+                for name in names
+                if _identifier_key(source.name) == _identifier_key(table)
+                and _identifier_key(actual.name) == _identifier_key(name)
+            )
+        if not unknown and fields == expected_fields and pattern.this != expected:
+            return ["public_time_like_pattern"]
+    return []
+
+
 def check_public_extremum_representation(
     sql: str, instructions: str, schema: dict, *, question: str = ""
 ) -> list[str]:

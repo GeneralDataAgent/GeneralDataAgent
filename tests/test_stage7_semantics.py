@@ -639,3 +639,80 @@ def test_public_conversion_request_in_question_disables_native_extremum_guard():
         {"observations": ["value"]},
         question="Convert the maximum to a real number.",
     )
+
+
+@pytest.mark.parametrize(
+    "pattern,issues",
+    [
+        ("0:02:07%", ["public_time_like_pattern"]),
+        ("2:07%", []),
+        ("%2:07%", ["public_time_like_pattern"]),
+    ],
+)
+def test_explicit_public_zero_hour_pattern_checks_actual_physical_field(pattern, issues):
+    from generaldataagent.tools.public_formulas import check_public_time_pattern
+
+    assert (
+        check_public_time_pattern(
+            f"SELECT id FROM runs r WHERE r.lap LIKE '{pattern}'",
+            "Which id finished 0:02:07?",
+            "finished 0:0M:SS refers to lap LIKE 'M:SS%'",
+            {"runs": ["id", "lap"]},
+        )
+        == issues
+    )
+
+
+@pytest.mark.parametrize(
+    "question,instructions,schema,sql",
+    [
+        (
+            "Which id finished 0:02:07?",
+            "Return the time.",
+            {"runs": ["lap"]},
+            "SELECT lap FROM runs WHERE lap LIKE '0:02:07%'",
+        ),
+        (
+            "Which id finished 1:02:07?",
+            "finished 0:0M:SS refers to lap LIKE 'M:SS%'",
+            {"runs": ["lap"]},
+            "SELECT lap FROM runs WHERE lap LIKE '1:02:07%'",
+        ),
+        (
+            "Between 0:02:07 and 0:03:08?",
+            "finished 0:0M:SS refers to lap LIKE 'M:SS%'",
+            {"runs": ["lap"]},
+            "SELECT lap FROM runs WHERE lap LIKE '0:02:07%'",
+        ),
+        (
+            "Which id finished 0:62:07?",
+            "finished 0:0M:SS refers to lap LIKE 'M:SS%'",
+            {"runs": ["lap"]},
+            "SELECT lap FROM runs WHERE lap LIKE '0:62:07%'",
+        ),
+        (
+            "Which id finished 0:02:07?",
+            "finished 0:0M:SS refers to lap LIKE 'M:SS%'",
+            {"runs": ["lap"], "other": ["lap"]},
+            "SELECT lap FROM runs WHERE lap LIKE '0:02:07%'",
+        ),
+        (
+            "Which id finished 0:02:07?",
+            "finished 0:0M:SS refers to lap LIKE 'M:SS%'",
+            {"runs": ["lap"]},
+            "WITH x AS (SELECT lap FROM runs) SELECT lap FROM x WHERE lap LIKE '0:02:07%'",
+        ),
+        (
+            "Which id finished 0:02:07?",
+            "Do not use 0:0M:SS; lap refers to lap LIKE 'M:SS%'",
+            {"runs": ["lap"]},
+            "SELECT lap FROM runs WHERE lap LIKE '0:02:07%'",
+        ),
+    ],
+)
+def test_public_time_pattern_does_not_invent_mapping_or_resolve_ambiguous_sources(
+    question, instructions, schema, sql
+):
+    from generaldataagent.tools.public_formulas import check_public_time_pattern
+
+    assert not check_public_time_pattern(sql, question, instructions, schema)

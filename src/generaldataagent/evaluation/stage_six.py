@@ -219,11 +219,15 @@ def add_json_tables(files: dict[str, Path], target: Path) -> None:
             )
 
 
-def database_context(database: Path) -> tuple[str, set[str]]:
+def database_context(database: Path, *, public_text: str = "") -> tuple[str, set[str]]:
+    from generaldataagent.catalog.field_evidence import public_name_mentioned
+
     with sqlite3.connect(database.as_uri() + "?mode=ro", uri=True) as db:
         names = {x[0] for x in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         statements = []
-        for name in sorted(names):
+        for name in sorted(
+            names, key=lambda name: (not public_name_mentioned(name, public_text), name)
+        ):
             schema = db.execute(f"PRAGMA table_info({quote_identifier(name)})").fetchall()
             samples = db.execute(f"SELECT * FROM {quote_identifier(name)} LIMIT 1").fetchall()
             samples = [
@@ -361,7 +365,10 @@ class BoundedSQLAgent:
             retrieve_documents,
         )
 
-        context, relations = database_context(database.resolve())
+        context, relations = database_context(
+            database.resolve(),
+            public_text=task.question if self.tool_profile.startswith("sql-semantic") else "",
+        )
         physical_schema = {
             item["table"]: [column[0] for column in item["columns"]]
             for item in (json.loads(line) for line in context.splitlines())

@@ -91,6 +91,11 @@ For changes from a start to an end period, increase is (end-start)/start; verify
 actual period filters before submitting, including any public formula's A/B mapping.
 Check exact entity grain, requested projections, distinct entities versus joined records, explicit
 numerator/denominator population, real division, null handling, actual date encoding and boundaries.
+If the public question asks for a result for each named dimension, return that dimension alongside
+each group's measure. A global count or serialized group_concat summary loses the requested rows.
+When selecting the top entity within a named cohort, keep that same cohort for the returned count
+unless all-time or another population is explicitly requested. A filter inside winner selection
+does not automatically constrain an outer COUNT over the entity's complete history.
 For "for each" outputs return the requested grouping keys with each group's result; a total
 across groups does not answer a per-group request. Distinguish entity duplicates from repeated
 events before choosing DISTINCT; do not remove duplicates when records are the requested grain.
@@ -347,13 +352,13 @@ def bind_typed_tools(
         from generaldataagent.contracts.independent_test import SignificanceRule
 
         analysis_properties["significance_rule"] = SignificanceRule.model_json_schema()
-        from generaldataagent.contracts.independent_test import PublicTextFilter
+        from generaldataagent.contracts.analysis import DescribeTextFilter
 
         analysis_properties["filters"] = {
             "type": "array",
             "maxItems": 8,
-            "description": "describe only: public text-equality subgroup filters",
-            "items": _wire_contract_schema(PublicTextFilter),
+            "description": "describe only: public eq or literal case-sensitive contains filters",
+            "items": _wire_contract_schema(DescribeTextFilter),
         }
         if independent_test_requested:
             from generaldataagent.contracts.independent_test import IndependentTestSpec
@@ -509,8 +514,9 @@ describe also returns ["iqr_statistics","column","outlier_count"], q1/q3 and fen
 linear inclusive quantiles h=(n-1)*p, strict values outside q1-1.5*IQR and q3+1.5*IQR.
 It ignores nonfinite/non-numeric values columnwise and preserves duplicates. describe defaults to
 the whole physical table; a requested subgroup needs filters [{"column":"physical field",
-"value":"public label","source_excerpt":"exact original public excerpt"}]. Only text equality
-is supported, up to eight filters combined with AND. Verify the field meaning and actual values;
+"value":"public label","source_excerpt":"exact original public excerpt","operator":"eq"}].
+operator defaults to eq; contains means a literal case-sensitive substring, not SQL LIKE wildcards.
+Use up to eight filters combined with AND. Verify the field meaning and actual values;
 literal provenance does not certify business interpretation. Check the public quantile convention;
 do not bind an incompatible method or whole-table result to a subgroup question.
 For collections bind ["items"] and preserve the public list/set kind; do not repeat known rules.
