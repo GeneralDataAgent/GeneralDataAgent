@@ -209,6 +209,9 @@ def main():
         "passed": all(r["passed"] for r in records),
         "real_model_calls": 0,
         "reference_answers_accessed": False,
+        "source_integrity_scope": (
+            "May hash label files; reference answer values are not decoded by method diagnostics"
+        ),
         "strict_score_changed": False,
         "production_accepted": False,
         "source_fingerprints": stage8_fingerprint(ROOT),

@@ -1,4 +1,4 @@
-# Stage 8 fixed statistics and predictive experiments
+# Controlled statistics and predictive experiments
 
 Stage 8 extends the existing science workbench with a target-free `AnalysisSnapshot`, immutable
 derived snapshots, explicit statistics contracts and a versioned multivariate OLS template.
@@ -102,5 +102,5 @@ uv run --frozen python evals/qualify_stage8_public.py \
 Use `--oci-runtime` for real image execution. Scientific runs need a suitable declared memory
 and time quota; qualification uses 512 MB, 60 seconds and one BLAS thread. Notebook source is
 checked against the exact repository template before any cell is compiled. Public-method
-qualification reads only the public question file and source tables, with no label-file access.
+qualification reads only the public question file and source tables, without decoding reference answer values. Source-integrity checks may hash label files.
 It proves tool/method behavior, not agent answer accuracy or production acceptance.
