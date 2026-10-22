@@ -208407,5 +208407,577 @@
     "strict_passed": false,
     "strict_score_changed": false,
     "independent_external_adjudication": false
+  },
+  "regression_diagnostic_v59": {
+    "source_commit": "caed9752cf18cafa3590a9089e97bc323e741977",
+    "model_route": {
+      "provider_id": "magpie",
+      "app_type": "magpie",
+      "model": "workbuddy/deepseek-v4.1-flash",
+      "transport": "openai-chat",
+      "thinking_mode": "default",
+      "json_mode": false,
+      "max_output_tokens": 3000,
+      "endpoint_hash": "fe8827a6b46979db5015036d380dd4e1f10eda5b76101c62a322240bf51a0573",
+      "wire_api": "chat_completions",
+      "gateway_adapter_hash": "163619e55b3ee9dd7eaeda7e9275a0cdc2a07972b6b67602016151f66632b8e6",
+      "gateway_headers_hash": "0a6dda900b2ea6b80cb4df4282bd2ec368d99d39ee00f707de87660edce6d440",
+      "route_hash": "ddcb6a5429c4f5365aa21351db2a358e378a5beb5c3b07ae80138dd444b8fbd4"
+    },
+    "scope": "five repeatedly developed regression cases; not a full pair or unseen acceptance",
+    "results": [
+      {
+        "answers": {},
+        "raw_answers": null,
+        "answer_evidence": {},
+        "task_contract": {
+          "question": "What is the average blood albumin level for female patients with a PLT greater than 400 who have been diagnosed with SLE?",
+          "public_requirements": "average blood albumin level refers to AVG(ALB); female refers to SEX = 'F'; PLT greater than 400 refers to PLT > 400; diagnosed with SLE refers to Diagnosis= 'SLE'",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "avg_albumin"
+            ],
+            "shape": "scalar",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {}
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": "SELECT AVG(l.ALB) AS avg_albumin FROM Laboratory l JOIN Examination e ON l.ID = e.ID JOIN Patient p ON l.ID = p.ID WHERE p.SEX = 'F' AND l.PLT > 400 AND e.Diagnosis = 'SLE'",
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "d34480196a27d7dda10ae9cef47c1e998641372bd32d585202a574b0f0909ed2",
+            "response_mode": "native_function",
+            "sql": "SELECT 'Ex' src, COUNT(*) n FROM Examination e WHERE e.Diagnosis='SLE' AND e.ID IN (SELECT ID FROM Patient WHERE SEX='F')\nUNION ALL\nSELECT 'Pat', COUNT(*) FROM Patient p WHERE p.Diagnosis='SLE' AND p.SEX='F'",
+            "row_count": 2,
+            "elapsed_ms": 1.188124999998763
+          },
+          {
+            "step": 2,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "9e0dac2253cdf5ae8e0f5994812e47ca6fe8e385d7881f83288ca434eef859f1",
+            "response_mode": "native_function",
+            "sql": "SELECT AVG(l.ALB) AS avg_albumin FROM Laboratory l JOIN Examination e ON l.ID = e.ID JOIN Patient p ON l.ID = p.ID WHERE p.SEX = 'F' AND l.PLT > 400 AND e.Diagnosis = 'SLE'",
+            "row_count": 1,
+            "elapsed_ms": 0.4349579999143316
+          }
+        ],
+        "tokens": 6174,
+        "input_tokens": 5936,
+        "output_tokens": 238,
+        "usage_status": "complete",
+        "elapsed_seconds": 7.028091709000023,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 5.552418041999999,
+        "case_id": "1195",
+        "asset": "thrombosis_prediction",
+        "database_hash": "87583183c3dc472fba04de702965560a9d7c0a548836613f242317e0eeb83f00",
+        "database_unchanged": true,
+        "passed": false,
+        "sub_hits": 0,
+        "sub_total": 1
+      },
+      {
+        "answers": {},
+        "raw_answers": null,
+        "answer_evidence": {},
+        "task_contract": {
+          "question": "Give the coordinate position for Abu Dhabi Grand Prix.",
+          "public_requirements": "coordinate position/location refers to lat, lng; Abu Dhabi Grand Prix refers to races.name = 'Abu Dhabi Grand Prix'",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "lat",
+              "lng"
+            ],
+            "shape": "rows",
+            "unit": null,
+            "decimals": null,
+            "ties": "all",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {}
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": "SELECT c.lat, c.lng FROM races r JOIN circuits c ON r.circuitId = c.circuitId WHERE r.name = 'Abu Dhabi Grand Prix'",
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "cd79cd623447acd74fb90684eb43fc710ca5c3e8b4f3c085f0f756d861978d21",
+            "response_mode": "native_function",
+            "sql": "SELECT c.lat, c.lng FROM races r JOIN circuits c ON r.circuitId = c.circuitId WHERE r.name = 'Abu Dhabi Grand Prix'",
+            "row_count": 9,
+            "elapsed_ms": 0.5954580000206988
+          }
+        ],
+        "tokens": 3680,
+        "input_tokens": 3550,
+        "output_tokens": 130,
+        "usage_status": "complete",
+        "elapsed_seconds": 4.074523333000002,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 1.9758411669999987,
+        "case_id": "857",
+        "asset": "formula_1",
+        "database_hash": "79770caf966707e35516fa566e24b40ae515c74ec1ec4631235245645b87b24d",
+        "database_unchanged": true,
+        "passed": false,
+        "sub_hits": 0,
+        "sub_total": 1
+      },
+      {
+        "answers": {},
+        "raw_answers": null,
+        "answer_evidence": {},
+        "task_contract": {
+          "question": "What was the fastest lap speed among all drivers in the 2009 Spanish Grand Prix?",
+          "public_requirements": "the fastest lap speed among all refers to max(fastestLapSpeed); Spanish Grand Prix refers to races.name = 'Spanish Grand Prix';",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "fastestLapSpeed"
+            ],
+            "shape": "scalar",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {}
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": "SELECT MAX(CAST(r.fastestLapSpeed AS REAL)) AS fastestLapSpeed\nFROM results r\nJOIN races ra ON r.raceId = ra.raceId\nWHERE ra.year = 2009 AND ra.name = 'Spanish Grand Prix'",
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "9071f3de304106c2f5eb0e59f1ee16c4425671f591e5d93deeb8fb1d9293939c",
+            "response_mode": "native_function",
+            "sql": "SELECT MAX(CAST(r.fastestLapSpeed AS REAL)) AS fastestLapSpeed\nFROM results r\nJOIN races ra ON r.raceId = ra.raceId\nWHERE ra.year = 2009 AND ra.name = 'Spanish Grand Prix'",
+            "row_count": 1,
+            "elapsed_ms": 2.938291999953435
+          }
+        ],
+        "tokens": 3685,
+        "input_tokens": 3552,
+        "output_tokens": 133,
+        "usage_status": "complete",
+        "elapsed_seconds": 3.9468024170000717,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 1.7771016660000214,
+        "case_id": "931",
+        "asset": "formula_1",
+        "database_hash": "79770caf966707e35516fa566e24b40ae515c74ec1ec4631235245645b87b24d",
+        "database_unchanged": true,
+        "passed": false,
+        "sub_hits": 0,
+        "sub_total": 1
+      },
+      {
+        "answers": {},
+        "raw_answers": null,
+        "answer_evidence": {},
+        "task_contract": {
+          "question": "Of the schools that offers a magnet program serving a grade span of Kindergarten to 8th grade, how many offers Multiple Provision Types? List the number of cities that offers a Kindergarten to 8th grade span and indicate how many schools are there serving such grade span for each city.",
+          "public_requirements": "Kindergarten to 8th grade refers to K-8; 'Offers a magnet program' means Magnet = 1; Multiple Provision Types refers to `NSLP Provision Status` = 'Multiple Provision Types'",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "schools_multiple_provision_types",
+              "number_of_cities",
+              "total_schools_k8"
+            ],
+            "shape": "rows",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {}
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": "SELECT (SELECT COUNT(*) FROM schools s JOIN frpm f ON f.CDSCode = s.CDSCode WHERE s.Magnet = 1 AND s.GSoffered = 'K-8' AND f.[NSLP Provision Status] = 'Multiple Provision Types') AS schools_multiple_provision_types, COUNT(*) AS number_of_cities, SUM(cnt) AS total_schools_k8 FROM (SELECT s.City, COUNT(*) AS cnt FROM schools s WHERE s.GSoffered = 'K-8' GROUP BY s.City) t",
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "status": "error",
+            "error": "ActionSchemaError",
+            "code": "action_schema",
+            "response_mode": "native_function",
+            "schema_errors": [
+              {
+                "path": [
+                  "tool_calls"
+                ],
+                "type": "one_action"
+              }
+            ],
+            "repair_type": "correct_parameters"
+          },
+          {
+            "step": 2,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "b7a95df0607e5674e41c1981142893b15ac8c0a98e2f0163bdeab2487db9c2d2",
+            "response_mode": "native_function",
+            "sql": "SELECT (SELECT COUNT(*) FROM schools s JOIN frpm f ON f.CDSCode=s.CDSCode WHERE s.Magnet=1 AND s.GSoffered='K-8' AND f.[NSLP Provision Status]='Multiple Provision Types') AS multi_cnt, (SELECT COUNT(DISTINCT s.GSoffered) FROM schools s WHERE s.GSoffered LIKE '%K-8%') AS gs, (SELECT GROUP_CONCAT(DISTINCT GSoffered) FROM schools WHERE GSoffered LIKE '%K-8%') AS gsvals, (SELECT GROUP_CONCAT(DISTINCT GSserved) FROM schools WHERE GSserved LIKE '%K-8%') AS gsserved",
+            "row_count": 1,
+            "elapsed_ms": 16.92679199993563
+          },
+          {
+            "step": 3,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "4cebfdbd651176babebc9cfa4281d2e98e60ad304f79e8b780165bb7d9eb750e",
+            "response_mode": "native_function",
+            "sql": "SELECT (SELECT COUNT(*) FROM schools s JOIN frpm f ON f.CDSCode = s.CDSCode WHERE s.Magnet = 1 AND s.GSoffered = 'K-8' AND f.[NSLP Provision Status] = 'Multiple Provision Types') AS schools_multiple_provision_types, COUNT(*) AS number_of_cities, SUM(cnt) AS total_schools_k8 FROM (SELECT s.City, COUNT(*) AS cnt FROM schools s WHERE s.GSoffered = 'K-8' GROUP BY s.City) t",
+            "row_count": 1,
+            "elapsed_ms": 5.815458000029139
+          }
+        ],
+        "tokens": 11526,
+        "input_tokens": 10963,
+        "output_tokens": 563,
+        "usage_status": "complete",
+        "elapsed_seconds": 11.02693095799998,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 9.332276666999974,
+        "case_id": "83",
+        "asset": "california_schools",
+        "database_hash": "c0903eec662e63068fd1d14403d3d6c1d473287fc10c4356333ea58f878db983",
+        "database_unchanged": true,
+        "passed": false,
+        "sub_hits": 0,
+        "sub_total": 1
+      },
+      {
+        "answers": {
+          "clean_entries": 1153,
+          "mean_USFLUX": "7463837954032958000000.00",
+          "log_MEANJZH": "-2.543",
+          "norm_TOTUSJZ": "0.107"
+        },
+        "raw_answers": {},
+        "answer_evidence": {
+          "clean_entries": {
+            "step": 2,
+            "path": [
+              "rows",
+              0,
+              0
+            ],
+            "raw_value": 1153,
+            "submitted_value": 1153,
+            "raw_type": "int",
+            "submitted_type": "int",
+            "method_id": "sql",
+            "declared_public_unit": null,
+            "result_hash": "13975ba548865f90e5c18e8e2d03e1c96dc76c23cde167a8023fd32a22b4fe71"
+          },
+          "mean_USFLUX": {
+            "step": 2,
+            "path": [
+              "rows",
+              0,
+              1
+            ],
+            "raw_value": 7.463837954032958e+21,
+            "submitted_value": "7463837954032958000000.00",
+            "raw_type": "float",
+            "submitted_type": "str",
+            "method_id": "sql",
+            "declared_public_unit": null,
+            "result_hash": "13975ba548865f90e5c18e8e2d03e1c96dc76c23cde167a8023fd32a22b4fe71"
+          },
+          "log_MEANJZH": {
+            "step": 2,
+            "path": [
+              "rows",
+              0,
+              2
+            ],
+            "raw_value": -2.543,
+            "submitted_value": "-2.543",
+            "raw_type": "float",
+            "submitted_type": "str",
+            "method_id": "sql",
+            "declared_public_unit": null,
+            "result_hash": "13975ba548865f90e5c18e8e2d03e1c96dc76c23cde167a8023fd32a22b4fe71"
+          },
+          "norm_TOTUSJZ": {
+            "step": 2,
+            "path": [
+              "rows",
+              0,
+              3
+            ],
+            "raw_value": 0.107,
+            "submitted_value": "0.107",
+            "raw_type": "float",
+            "submitted_type": "str",
+            "method_id": "sql",
+            "declared_public_unit": null,
+            "result_hash": "13975ba548865f90e5c18e8e2d03e1c96dc76c23cde167a8023fd32a22b4fe71"
+          }
+        },
+        "task_contract": {
+          "question": "Perform comprehensive data preprocessing for the dataset by:\n1. Removing any duplicate entries.\n2. Filling in missing values in the USFLUX column with the mean value of the column.\n3. Transforming the MEANJZH column by applying the logarithm function (base 10).\n4. Normalizing the TOTUSJZ column using Min-Max normalization.",
+          "public_requirements": "When applying the logarithm function, add a small constant (1e-10) to the MEANJZH column to avoid infinity. The Min-Max normalization needs to transform the TOTUSJZ values to the range 0 to 1.\nReturn 4 values: @clean_entries[Number of entries after cleaning duplicates], @mean_USFLUX[Mean of the USFLUX column after filling missing values, rounded to two decimal places], @log_MEANJZH[First entry of transformed MEANJZH column, rounded to three decimal places], @norm_TOTUSJZ[First entry of normalized TOTUSJZ column, rounded to three decimal places].",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "clean_entries",
+              "log_MEANJZH",
+              "mean_USFLUX",
+              "norm_TOTUSJZ"
+            ],
+            "shape": "rows",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {
+              "clean_entries": {
+                "kind": "integer",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": null,
+                "decimals": null,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "@clean_entries[Number of entries after cleaning duplicates]",
+                "collection_separator": null
+              },
+              "log_MEANJZH": {
+                "kind": "number",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": null,
+                "decimals": 3,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "@log_MEANJZH[First entry of transformed MEANJZH column, rounded to three decimal places]",
+                "collection_separator": null
+              },
+              "mean_USFLUX": {
+                "kind": "number",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": null,
+                "decimals": 2,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "@mean_USFLUX[Mean of the USFLUX column after filling missing values, rounded to two decimal places]",
+                "collection_separator": null
+              },
+              "norm_TOTUSJZ": {
+                "kind": "number",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": null,
+                "decimals": 3,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "@norm_TOTUSJZ[First entry of normalized TOTUSJZ column, rounded to three decimal places]",
+                "collection_separator": null
+              }
+            }
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": null,
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "status": "error",
+            "error": "SemanticError",
+            "code": "semantic_contract",
+            "response_mode": "native_function",
+            "action_keys": [
+              "answer_sql"
+            ],
+            "repair_type": "revise_plan_or_query",
+            "checks": [
+              "data_dependent_answer_required"
+            ]
+          },
+          {
+            "step": 2,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "13975ba548865f90e5c18e8e2d03e1c96dc76c23cde167a8023fd32a22b4fe71",
+            "response_mode": "native_function",
+            "sql": "WITH d AS (SELECT DISTINCT * FROM data) SELECT (SELECT COUNT(*) FROM d) AS clean_entries, (SELECT ROUND(AVG(USFLUX),2) FROM d) AS mean_USFLUX, (SELECT ROUND(LOG10(MEANJZH+1e-10),3) FROM d LIMIT 1) AS log_MEANJZH, (SELECT ROUND((TOTUSJZ-(SELECT MIN(TOTUSJZ) FROM d))/((SELECT MAX(TOTUSJZ) FROM d)-(SELECT MIN(TOTUSJZ) FROM d)),3) FROM d LIMIT 1) AS norm_TOTUSJZ",
+            "row_count": 1,
+            "elapsed_ms": 2.4156669999229052
+          }
+        ],
+        "tokens": 15393,
+        "input_tokens": 14858,
+        "output_tokens": 535,
+        "usage_status": "complete",
+        "elapsed_seconds": 9.793484374999935,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 8.261812125000006,
+        "case_id": "271",
+        "asset": "3901.csv",
+        "database_hash": "131a49a38b85af069a83566e9912809398fe746d3e7872d8f901740b94d3aaee",
+        "database_unchanged": true,
+        "passed": true,
+        "sub_hits": 3,
+        "sub_total": 3
+      }
+    ],
+    "production_accepted": false
+  },
+  "regression_diagnostic_v59_recomputed": {
+    "source_commit": "caed9752cf18cafa3590a9089e97bc323e741977",
+    "sql_result_hash_equal": true,
+    "bindings": [
+      {
+        "field": "clean_entries",
+        "raw_value_equal": true,
+        "result_hash_equal": true
+      },
+      {
+        "field": "mean_USFLUX",
+        "raw_value_equal": true,
+        "result_hash_equal": true
+      },
+      {
+        "field": "log_MEANJZH",
+        "raw_value_equal": true,
+        "result_hash_equal": true
+      },
+      {
+        "field": "norm_TOTUSJZ",
+        "raw_value_equal": true,
+        "result_hash_equal": true
+      }
+    ],
+    "receipt_errors": {
+      "bird-mini-dev-sqlite": [],
+      "infiagent-dabench": []
+    },
+    "database_unchanged": true,
+    "independent_external_acceptance": false
   }
 }
