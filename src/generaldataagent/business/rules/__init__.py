@@ -16,9 +16,31 @@ from generaldataagent.business.rules.engine import (
     transaction_matches,
     volume_ratio,
 )
+from generaldataagent.business.rules.retrieval import (
+    PassageError,
+    RuleCitation,
+    citation,
+    resolve_rule_citations,
+    select_passages,
+    split_passages,
+)
+from generaldataagent.business.rules.verification import (
+    ensure_rule_source_known,
+    verify_answer,
+    verify_band_round_trip,
+    verify_citations,
+    verify_fee_arithmetic,
+    verify_month_boundary,
+    verify_monthly_ratio,
+    verify_unique_match,
+    verify_wildcard_handling,
+)
 
 __all__ = [
+    "PassageError",
+    "RuleCitation",
     "RuleSourceError",
+    "citation",
     "applicable_rules",
     "average_fee",
     "compute_fee",
@@ -31,5 +53,17 @@ __all__ = [
     "parse_capture_delay",
     "quantize",
     "transaction_matches",
+    "resolve_rule_citations",
+    "select_passages",
+    "split_passages",
     "volume_ratio",
+    "ensure_rule_source_known",
+    "verify_answer",
+    "verify_band_round_trip",
+    "verify_citations",
+    "verify_fee_arithmetic",
+    "verify_month_boundary",
+    "verify_monthly_ratio",
+    "verify_unique_match",
+    "verify_wildcard_handling",
 ]
