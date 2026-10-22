@@ -50,6 +50,7 @@ def stage7_fingerprint(root: Path) -> dict:
         "contracts/independent_test.py",
         "tools/independent_test.py",
         "tools/analysis_scope.py",
+        "tools/analysis_methods.py",
         "tools/pearson_test.py",
         "tools/iqr.py",
         "evaluation/stage_six_analysis.py",
@@ -161,6 +162,7 @@ def bind_typed_tools(
     exploration_enabled=False,
     compact_sql=False,
     independent_test_requested=False,
+    python_statistics_requested=False,
     collection_first=False,
     collection_task=False,
     answer_contract=None,
@@ -372,6 +374,10 @@ def bind_typed_tools(
 
             analysis_properties["operation"]["enum"].append("independent_t_test")
             analysis_properties["test"] = _wire_contract_schema(IndependentTestSpec)
+        if python_statistics_requested:
+            analysis_properties["operation"]["enum"] = ["describe"]
+            analysis_properties.pop("decision_rule", None)
+            analysis_properties.pop("significance_rule", None)
         tools = [
             tool(
                 "submit_sql_answers",
@@ -458,7 +464,7 @@ def bind_typed_tools(
                         ["sql", "collections"],
                     )
                 )
-        if independent_test_requested:
+        if independent_test_requested or python_statistics_requested:
             tools = [item for item in tools if item["function"]["name"] != "submit_sql_answers"]
         if collection_task:
             tools = [item for item in tools if item["function"]["name"] != "submit_sql_answers"]
@@ -525,6 +531,8 @@ and public ordering requirements; do not replace a list by a scalar or silently 
 For Pearson bind path ["correlation"]; for sample std ["statistics","column","sample_std"].
 describe also returns ["iqr_statistics","column","outlier_count"], q1/q3 and fences using
 linear inclusive quantiles h=(n-1)*p, strict values outside q1-1.5*IQR and q3+1.5*IQR.
+After excluding those outliers, ["iqr_statistics","column","cleaned_statistics","mean"] and
+sample_std (ddof=1), population_std (ddof=0), count describe the same retained finite values.
 It ignores nonfinite/non-numeric values columnwise and preserves duplicates. describe defaults to
 the whole physical table; a requested subgroup needs filters [{"column":"physical field",
 "value":"public label","source_excerpt":"exact original public excerpt","operator":"eq"}].
@@ -559,6 +567,14 @@ are unverified. Bind every public field to this test's full-data evidence: ["gro
 ["groups",0,"sample_std"], corresponding group 1, ["p_value"] or ["public_rule_label"].
 Do not use unfiltered Pearson as an independent group test or replace a finite-sample t
 distribution by a fixed 1.96 threshold. SQL-only answers cannot certify the requested test.
+"""
+
+
+STAGE7_PYTHON_STATS_PROMPT = """
+The public task requires Python mean/median functions. Use fixed_analysis operation describe:
+its statistics[column].mean and median use Python statistics.mean and statistics.median.
+Bind those successful paths through submit_answers. SQL estimates or manually implemented
+formulas are not receipts for the required Python method. Keep the original field and population.
 """
 
 

@@ -2,6 +2,7 @@
 
 import math
 import re
+import statistics
 
 
 def public_iqr_conflicts(text: str) -> list[str]:
@@ -42,12 +43,20 @@ def iqr_summary(values: list[float]) -> dict:
         return ordered[left] * (1 - weight) + ordered[right] * weight
 
     if not ordered:
-        return dict.fromkeys(("q1", "q3", "iqr", "lower_fence", "upper_fence", "outlier_count"))
+        return dict.fromkeys(("q1", "q3", "iqr", "lower_fence", "upper_fence", "outlier_count")) | {
+            "cleaned_statistics": {
+                "count": 0,
+                "mean": None,
+                "sample_std": None,
+                "population_std": None,
+            }
+        }
     q1, q3 = quantile(0.25), quantile(0.75)
     width = q3 - q1
     lower, upper = q1 - 1.5 * width, q3 + 1.5 * width
     if not all(math.isfinite(value) for value in (q1, q3, width, lower, upper)):
         raise ValueError("IQR arithmetic exceeded finite range")
+    inliers = [value for value in ordered if lower <= value <= upper]
     return {
         "q1": q1,
         "q3": q3,
@@ -55,4 +64,10 @@ def iqr_summary(values: list[float]) -> dict:
         "lower_fence": lower,
         "upper_fence": upper,
         "outlier_count": sum(value < lower or value > upper for value in ordered),
+        "cleaned_statistics": {
+            "count": len(inliers),
+            "mean": statistics.mean(inliers),
+            "sample_std": statistics.stdev(inliers) if len(inliers) > 1 else None,
+            "population_std": statistics.pstdev(inliers),
+        },
     }

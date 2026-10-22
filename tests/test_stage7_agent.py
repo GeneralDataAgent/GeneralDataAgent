@@ -2663,3 +2663,45 @@ def test_single_change_rate_repair_does_not_return_intermediate_difference(tmp_p
     from generaldataagent.tools.sqlite import SQLiteReadOnlyExecutor
 
     assert SQLiteReadOnlyExecutor(database).execute(result["final_sql"]).rows == ((25.0,),)
+
+
+def test_public_python_mean_median_rejects_sql_receipt_then_binds_standard_library(database):
+    instructions = (
+        "Use built-in Python functions for mean and median. @mean[number] @median[number]"
+    )
+    result = run(
+        database,
+        [
+            {"answer_sql": "SELECT AVG(score) AS mean, AVG(score) AS median FROM people"},
+            {"analysis": {"table": "people", "columns": ["score"], "operation": "describe"}},
+            {
+                "submit_answers": {
+                    "fields": [
+                        {"name": "mean", "step": 2, "path": ["statistics", "score", "mean"]},
+                        {"name": "median", "step": 2, "path": ["statistics", "score", "median"]},
+                    ]
+                }
+            },
+        ],
+        benchmark="infiagent-dabench",
+        question="Find mean and median of score.",
+        instructions=instructions,
+    )
+    assert result["failure"] is None and result["answers"] == {"mean": 10, "median": 10}
+    assert result["trace"][0]["checks"] == ["python_statistics_requires_method_bindings"]
+    assert all(r["method_id"] == "describe" for r in result["answer_evidence"].values())
+
+
+def test_python_mean_median_native_tools_expose_compliant_calculation_only():
+    from generaldataagent.evaluation.stage_seven import bind_typed_tools
+
+    class Model:
+        def bind(self, **kwargs):
+            self.tools = kwargs["tools"]
+            return self
+
+    model = Model()
+    bind_typed_tools(model, sql_output=False, python_statistics_requested=True)
+    tools = {t["function"]["name"]: t["function"] for t in model.tools}
+    assert "submit_sql_answers" not in tools
+    assert tools["fixed_analysis"]["parameters"]["properties"]["operation"]["enum"] == ["describe"]

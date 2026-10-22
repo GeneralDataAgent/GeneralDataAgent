@@ -35,7 +35,13 @@ def test_iqr_boundary_and_duplicate_counts_are_preserved():
     assert iqr_summary([0, 0, 0, 2, 2, 2, 5])["outlier_count"] == 0
     assert iqr_summary([0, 0, 0, 2, 2, 2, 5.00000001])["outlier_count"] == 1
     assert iqr_summary([1] * 20 + [100, 100])["outlier_count"] == 2
-    assert all(value is None for value in iqr_summary([]).values())
+    empty = iqr_summary([])
+    assert all(
+        empty[key] is None
+        for key in ("q1", "q3", "iqr", "lower_fence", "upper_fence", "outlier_count")
+    )
+    assert empty["cleaned_statistics"]["count"] == 0
+    assert empty["cleaned_statistics"]["mean"] is None
 
 
 @pytest.mark.parametrize(
@@ -233,3 +239,32 @@ def test_describe_contains_does_not_expand_independent_test_filter_policy():
                 ],
             }
         )
+
+
+def test_iqr_cleaned_statistics_match_independent_array_population_and_sample_std():
+    values = [0, 0, 0, 2, 2, 2, 6]
+    result = iqr_summary(values)
+    retained = np.array([x for x in values if result["lower_fence"] <= x <= result["upper_fence"]])
+    cleaned = result["cleaned_statistics"]
+    assert cleaned["count"] == 6 and result["outlier_count"] == 1
+    assert cleaned["mean"] == pytest.approx(np.mean(retained))
+    assert cleaned["sample_std"] == pytest.approx(np.std(retained, ddof=1))
+    assert cleaned["population_std"] == pytest.approx(np.std(retained, ddof=0))
+    assert iqr_summary([4])["cleaned_statistics"]["sample_std"] is None
+    assert iqr_summary([4])["cleaned_statistics"]["population_std"] == 0
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("Both mean and median should use built-in Python functions.", True),
+        ("Use standard-library Python mean and median.", True),
+        ("Mean and median by SQL.", False),
+        ("Do not use Python; find mean and median with built-in SQL.", False),
+        ("Use built-in Python mean, median and an independent t-test.", False),
+    ],
+)
+def test_python_statistics_requirement_is_explicit_and_does_not_override_t_test(text, expected):
+    from generaldataagent.tools.analysis_methods import requests_python_statistics
+
+    assert requests_python_statistics(text) is expected

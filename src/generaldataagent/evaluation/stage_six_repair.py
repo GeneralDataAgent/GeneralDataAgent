@@ -75,6 +75,12 @@ def bounded_observation(result: dict, *, max_chars: int = 6000) -> dict:
 
 def execution_hint(exc: Exception) -> str:
     text = str(exc)
+    if "python_statistics_requires_method_bindings" in text:
+        return (
+            "The public task requires Python mean/median functions. Use fixed_analysis "
+            "operation describe and bind statistics[column].mean or median. SQL observations "
+            "cannot certify that requested method; do not return a manual median formula."
+        )
     if "public_signed_difference_changed_to_absolute" in text:
         return (
             "The public definition is a signed subtraction of the named physical fields. "

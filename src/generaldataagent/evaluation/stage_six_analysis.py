@@ -163,6 +163,13 @@ def fixed_analysis(
                 else "full physical table"
             ),
         )
+        from generaldataagent.tools.analysis_methods import requests_python_statistics
+
+        if requests_python_statistics(public_text):
+            output["python_statistics_implementation"] = {
+                "mean": "statistics.mean",
+                "median": "statistics.median",
+            }
     elif operation == "pearson":
         if not rows:
             raise ValueError("no finite observations")

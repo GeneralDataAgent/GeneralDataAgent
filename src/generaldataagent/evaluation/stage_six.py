@@ -380,6 +380,7 @@ class BoundedSQLAgent:
             STAGE7_JSON_SQL_PROMPT,
             STAGE7_PLAN_PROMPT,
             STAGE7_PROMPT,
+            STAGE7_PYTHON_STATS_PROMPT,
             STAGE7_SQL_PROMPT,
             ToolConversation,
             bind_typed_tools,
@@ -416,10 +417,18 @@ class BoundedSQLAgent:
         )
 
         public_task_text = task.question + "\n" + task.instructions
+        from generaldataagent.tools.analysis_methods import (
+            python_statistics_bindings,
+            requests_python_statistics,
+        )
+
+        python_stats_requested = requests_python_statistics(public_task_text)
 
         def require_test_method(bindings, bound_evidence):
             if not independent_method_bindings(bindings, bound_evidence, public_task_text):
                 raise SemanticError("independent_test_requires_method_bindings")
+            if python_stats_requested and not python_statistics_bindings(bindings, bound_evidence):
+                raise SemanticError("python_statistics_requires_method_bindings")
 
         plan_mode = self.tool_profile == "sql-semantic-plan"
         semantic_json = self.tool_profile == "sql-semantic-json"
@@ -536,7 +545,8 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     STAGE7_INDEPENDENT_TEST_PROMPT
                     if requests_independent_test(public_task_text)
                     else ""
-                ),
+                )
+                + (STAGE7_PYTHON_STATS_PROMPT if python_stats_requested else ""),
             )
         if semantic and task.benchmark == "bird-mini-dev-sqlite":
             messages[0] = (
@@ -655,6 +665,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                             exploration_enabled=True,
                             compact_sql=not plan_mode,
                             independent_test_requested=requests_independent_test(public_task_text),
+                            python_statistics_requested=python_stats_requested,
                             answer_contract=task_spec.answer if task_spec is not None else None,
                             evidence_steps=sorted(evidence),
                             collection_steps=sorted(
