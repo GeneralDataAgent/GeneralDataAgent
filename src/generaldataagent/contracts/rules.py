@@ -31,6 +31,40 @@ class RuleSemantics(ContractModel):
     source: str = Field(min_length=1, max_length=256)
 
 
+class DocumentPassage(ContractModel):
+    """One citable span of a supplied document.
+
+    Line numbers are one-based and inclusive, and ``text`` is the exact body
+    the citation refers to, so a reviewer can verify the quotation.
+    """
+
+    source: str = Field(min_length=1, max_length=256)
+    heading: str = Field(default="", max_length=256)
+    start_line: int = Field(ge=1)
+    end_line: int = Field(ge=1)
+    text: str = Field(min_length=1, max_length=8_000)
+
+    @model_validator(mode="after")
+    def ordered(self):
+        if self.end_line < self.start_line:
+            raise ValueError("passage end line precedes start line")
+        return self
+
+
+class PassageSelection(ContractModel):
+    """Retrieved passages plus why they were selected."""
+
+    selected: tuple[DocumentPassage, ...]
+    required_terms: tuple[str, ...]
+    hit_count: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def bounded(self):
+        if self.hit_count < len(self.selected):
+            raise ValueError("hit count cannot be smaller than the selected set")
+        return self
+
+
 class NumericBand(BaseModel):
     """One bounded numeric interval, for example ``>8.3%`` or ``100k-1m``."""
 
@@ -230,6 +264,22 @@ class RuleMatchReport(ContractModel):
     indeterminate: tuple[str, ...] = ()
     ambiguity: bool = False
     notes: tuple[str, ...] = ()
+
+
+class RuleVerification(ContractModel):
+    """Fail-closed verification outcome with stable failure codes."""
+
+    passed: bool
+    failures: tuple[str, ...] = ()
+    checks: tuple[str, ...] = ()
+
+    @model_validator(mode="after")
+    def coherent(self):
+        if self.passed and self.failures:
+            raise ValueError("a passing verification cannot carry failures")
+        if not self.passed and not self.failures:
+            raise ValueError("a failed verification must name at least one failure")
+        return self
 
 
 class CounterfactualResult(ContractModel):
