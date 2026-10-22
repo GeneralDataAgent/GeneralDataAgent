@@ -2169,3 +2169,38 @@ def test_sql_execution_errors_have_actionable_feedback_and_recover(database, sql
     assert "private-literal" not in json.dumps(result["trace"][0])
     assert result["tokens"] == 20
     assert database.read_bytes() == before
+
+
+def test_explicit_native_extremum_rejects_cast_then_retains_text_source(tmp_path):
+    database = tmp_path / "native-extrema.sqlite"
+    with sqlite3.connect(database) as db:
+        db.executescript(
+            "CREATE TABLE measurements(value TEXT); "
+            "INSERT INTO measurements VALUES('120.500'),('130.250');"
+        )
+    before = database.read_bytes()
+    result = run(
+        database,
+        [
+            {
+                "submit_sql": {
+                    "sql": "SELECT MAX(CAST(value AS REAL)) AS peak FROM measurements",
+                    "output_columns": ["peak"],
+                }
+            },
+            {
+                "submit_sql": {
+                    "sql": "SELECT MAX(value) AS peak FROM measurements",
+                    "output_columns": ["peak"],
+                }
+            },
+        ],
+        question="Return the peak measurement.",
+        instructions="Peak refers to MAX(value);",
+    )
+    assert result["failure"] is None
+    assert result["trace"][0]["checks"] == ["public_extremum_representation"]
+    from generaldataagent.tools.sqlite import SQLiteReadOnlyExecutor
+
+    assert SQLiteReadOnlyExecutor(database).execute(result["final_sql"]).rows == (("130.250",),)
+    assert database.read_bytes() == before

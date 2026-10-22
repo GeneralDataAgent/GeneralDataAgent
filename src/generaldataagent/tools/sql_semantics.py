@@ -77,10 +77,18 @@ def inspect_semantics(sql: str, spec: AnalysisTaskSpec, *, schema: dict | None =
         issues.extend(check_public_rank_and_age(sql, spec.question, spec.public_requirements))
         issues.extend(check_public_age_direction(sql, spec.question, spec.public_requirements))
         if schema is not None:
-            from generaldataagent.tools.public_formulas import check_public_year_fields
+            from generaldataagent.tools.public_formulas import (
+                check_public_extremum_representation,
+                check_public_year_fields,
+            )
 
             issues.extend(
                 check_public_year_fields(sql, spec.question, spec.public_requirements, schema)
+            )
+            issues.extend(
+                check_public_extremum_representation(
+                    sql, spec.public_requirements, schema, question=spec.question
+                )
             )
         issues.extend(
             check_public_all_count_population(sql, spec.question, spec.public_requirements)

@@ -552,3 +552,90 @@ def test_complete_missing_column_collection_supports_only_same_field_missing_dis
         ["name"],
         allowed_relations={"data"},
     ) == [True]
+
+
+@pytest.mark.parametrize("operation", ["MIN", "MAX"])
+@pytest.mark.parametrize(
+    "expression", ["{op}(CAST(p.value AS REAL))", "CAST({op}(p.value) AS REAL)"]
+)
+def test_explicit_native_extremum_preserves_representation(operation, expression):
+    from generaldataagent.tools.public_formulas import check_public_extremum_representation
+
+    instructions = f"The requested extremum refers to {operation}(value);"
+    schema = {"observations": ["value"]}
+    sql = "SELECT " + expression.format(op=operation) + " AS result FROM observations p"
+    assert check_public_extremum_representation(sql, instructions, schema) == [
+        "public_extremum_representation"
+    ]
+    assert not check_public_extremum_representation(
+        f"SELECT {operation}(p.value) FROM observations p", instructions, schema
+    )
+
+
+@pytest.mark.parametrize(
+    ("sql", "instructions", "schema"),
+    [
+        (
+            "SELECT MAX(CAST(value AS REAL)) FROM observations",
+            "Find the maximum value.",
+            {"observations": ["value"]},
+        ),
+        (
+            "SELECT MAX(CAST(value AS REAL)) FROM observations",
+            "Maximum refers to MAX(value). Convert to a number.",
+            {"observations": ["value"]},
+        ),
+        (
+            "SELECT MAX(CAST(value AS REAL)) FROM observations",
+            "Do not use MAX(value).",
+            {"observations": ["value"]},
+        ),
+        (
+            "SELECT MAX(CAST(value AS REAL)) FROM observations",
+            "Maximum refers to MAX(value)",
+            {"observations": ["value"], "other": ["value"]},
+        ),
+        (
+            "WITH x AS (SELECT value FROM observations) SELECT MAX(CAST(value AS REAL)) FROM x",
+            "Maximum refers to MAX(value)",
+            {"observations": ["value"]},
+        ),
+        (
+            "SELECT MAX(CAST(other AS REAL)) FROM observations",
+            "Maximum refers to MAX(value)",
+            {"observations": ["value", "other"]},
+        ),
+        (
+            "SELECT AVG(CAST(value AS REAL)) FROM observations",
+            "Maximum refers to MAX(value)",
+            {"observations": ["value"]},
+        ),
+        (
+            "SELECT MAX(CAST(value AS REAL)), COUNT(*) FROM observations",
+            "Maximum refers to MAX(value)",
+            {"observations": ["value"]},
+        ),
+        (
+            "SELECT MAX(CAST(value AS REAL)) FROM observations",
+            "Upper refers to MAX(value); lower refers to MIN(value)",
+            {"observations": ["value"]},
+        ),
+    ],
+)
+def test_native_extremum_guard_abstains_outside_explicit_unambiguous_scope(
+    sql, instructions, schema
+):
+    from generaldataagent.tools.public_formulas import check_public_extremum_representation
+
+    assert not check_public_extremum_representation(sql, instructions, schema)
+
+
+def test_public_conversion_request_in_question_disables_native_extremum_guard():
+    from generaldataagent.tools.public_formulas import check_public_extremum_representation
+
+    assert not check_public_extremum_representation(
+        "SELECT MAX(CAST(value AS REAL)) FROM observations",
+        "Maximum refers to MAX(value)",
+        {"observations": ["value"]},
+        question="Convert the maximum to a real number.",
+    )

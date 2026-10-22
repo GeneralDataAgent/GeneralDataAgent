@@ -75,6 +75,12 @@ def bounded_observation(result: dict, *, max_chars: int = 6000) -> dict:
 
 def execution_hint(exc: Exception) -> str:
     text = str(exc)
+    if "public_extremum_representation" in text:
+        return (
+            "The public text explicitly specifies native MIN/MAX of a physical field. "
+            "Preserve that expression and its returned type; an added CAST changes the "
+            "declared formula or representation. Recheck the requested population and ties."
+        )
     if "public_year_formula_fields" in text:
         return (
             "Use the physical source fields in the explicit public year-difference formula, "
