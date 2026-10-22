@@ -45202,17 +45202,18 @@
     "validator_source_commit": "28e0ac5f05ac35e1a729ad5150a69d0df85543eb"
   },
   "latest_local_validation": {
-    "source_commit": "ea3c086a60e1d0a7ff62a9b4fb288cc341abed37",
-    "stage7_fingerprint": {
-      "contracts/analysis.py": "4b9b8e234962f67b5f31b8006fda0fea225cffabf96b940098758dca4a502655",
+    "source_base_commit": "4c8d8be",
+    "source_fingerprint": {
+      "contracts/analysis.py": "d01f4058ad6afe7847952a2dabd4101d4b3809b89972f27f4a2c4497086c684a",
       "contracts/answer_fields.py": "e6ecbd59912179bc23d1be8acb4c4a085e20169c53b43e1907175391d949095b",
-      "contracts/statistical_rules.py": "3f63abe15c76c51965c65b20c92fc9ec25c43b03b19a99c4a176de39017aa6f9",
+      "contracts/statistical_rules.py": "5b5e3ad068f203ccffe529839fd849b492136738bc1946f66a334428f12fd15a",
       "contracts/independent_test.py": "4d7460f13ab7585d3e32d996183ee0c3100fe5102e26abb68215e5b6f34d3ec9",
       "tools/independent_test.py": "245e7e678912d61213844cdd6e4b4fd0b46c382b66feb915d2bc9c116e17622f",
       "tools/analysis_scope.py": "aa764b78ddb57a419e9adad183a9257d8f987acfa57963490f9cc802c6743e69",
-      "tools/pearson_test.py": "4be557bc5e122bdc1f21b7cbc530e3edef4034e434657c56f7b25aea589ad327",
-      "tools/iqr.py": "35703f333de94707e434b07b6836a987d8b27554d4ef34c1254143e38f1a6813",
-      "evaluation/stage_six_analysis.py": "356cdc40cb226bca7f47862de5c8ba5a01d04d009d1749b0538f666496bbfa94",
+      "tools/analysis_methods.py": "55471e146a53f6b10c77d55715f1b1ce60908fa23e4f933e33277dbd28bd1147",
+      "tools/pearson_test.py": "0a5cd82d5c2f91a374d0ce4cec43702fd2cd862ca9eba1ae13ea15775f6aa4f9",
+      "tools/iqr.py": "74c9c4eb92283d5995bed8fe4b1accb26058f2a6f379a58fbdb5030ea11b907c",
+      "evaluation/stage_six_analysis.py": "624cd3136e6c4ce7b5d6287e5c8e1085659b8cad1371c92835ca8743ae7c6842",
       "tools/answer_fields.py": "a19b3bd9e3ff085b0155a05b171956631d39f31bfce49173ac8c709d6138f250",
       "contracts/semantic_requirements.py": "bc0683ead82ef284acbe9fe71b5af437ddce357db5b0c46027ae34622dfe867e",
       "tools/semantic_requirements.py": "bf25b5955a61b460375ebef86e3c50c9c55fe516f639fcb10256c67187550d31",
@@ -45224,20 +45225,21 @@
       "tools/sql_semantics.py": "6df3b40d2aff582b74dc5ede16bd6ade08edf0c8e9f430d8f89f77c4a0b50c77",
       "tools/sql_guard.py": "72ef5c19eb4080f3a75f745588eff76780684a0691c3ab141c79d17c6ca5db59",
       "tools/sqlite.py": "6cc32bffd2d0822f3a0805d63ab15624c0530d9e0b6e719053f2d0c869784251",
-      "evaluation/stage_six.py": "19ba29dcd4a5dd62fc33c434046411448f96d6128946481895c1d0eef417bcda",
+      "evaluation/stage_six.py": "1db410a945e75bd36b39726206a78b3cb65dbe5d5ab00611eff42776657362dc",
       "evaluation/stage_six_sql_precision.py": "9636255157d5a6477972ff3dadd0d50454710dc3150b09b8c56841f8180d3fa6",
-      "evaluation/stage_six_repair.py": "bc5c67330268a4dceff9d7633472eb27c0cde6b43778754448bca9ed1568154f",
-      "evaluation/stage_seven.py": "cf250677036a3833ab62bf318d5baaa6cd3d28050b2c7599975730e67a5025e6",
+      "evaluation/stage_six_repair.py": "a36cf9263faef190e9ffa7c23f7265ebb4e0ff57d9a2d0a631169b135b4c205c",
+      "evaluation/stage_seven.py": "7ddb952713401377b1664a944708482f41b3fb8bdc4892edbc1f4ada293c2965",
       "contracts/query_plan.py": "4b18902c4ee0a82f35b4776bde17713a18672f2ef87b45e903cae3c958c9ad9e",
       "tools/semantic_sql.py": "ae6c20f44c53eabbdd9a51d8f052b9d3b0f27c8c93c4a0ddd377d8525ba1cd47"
     },
-    "passed": 1199,
+    "passed": 1209,
     "skipped": 1,
-    "coverage_percent": 89.35,
-    "ruff_check": "passed",
-    "format_check": "passed",
-    "diff_check": "passed",
-    "full_model_rerun_after_latest_changes": false
+    "coverage_percent": 89.39,
+    "ruff_check": true,
+    "ruff_format_check": true,
+    "diff_check": true,
+    "tracing_enabled": false,
+    "production_accepted": false
   },
   "all_selected_experiments_completed": false,
   "stage7_qualified": false,
@@ -266512,5 +266514,125 @@
     ],
     "strict_score_changed": false,
     "scope": "offline structural replay only; not new model scores"
+  },
+  "python_iqr_magnitude_independent_numerical_audit": {
+    "numpy_version": "2.5.4",
+    "scope": "local independent numerical recomputation; no model or reference answers; not full qualification",
+    "audits": [
+      {
+        "case_id": "372",
+        "asset": "2014_q4.csv",
+        "csv_sha256": "f1ec88490c4cf2fde96a2783f2962743a126e66e59b16d83378192941b5dbd82",
+        "database_sha256": "3c44e5814f63e4b873428e8b1c4c892653dd2aeaf8fbede8abc404024ce5fffd",
+        "database_unchanged": true,
+        "rows": 92,
+        "specification": {
+          "table": "data",
+          "columns": [
+            "Trips over the past 24-hours (midnight to 11:59pm)"
+          ],
+          "operation": "describe"
+        },
+        "tool_values": {
+          "mean": 21144.07608695652,
+          "median": 19711.0
+        },
+        "independent_numpy_values": {
+          "mean": 21144.07608695652,
+          "median": 19711.0
+        },
+        "all_close": true,
+        "tool_result_sha256": "e3c24f1593506934ae8c5ec16d39a0ad17d2487a37201f4b25b978c1c7703368",
+        "strict_model_pass_claimed": false,
+        "business_population_verified": false
+      },
+      {
+        "case_id": "543",
+        "asset": "abalone.csv",
+        "csv_sha256": "6fda3c4b0c0cff9bd5f7a46434509179069ed620c8fc7090d872a08d2c1a729a",
+        "database_sha256": "382b1d9f97729fb13fe6d2dc90d2b0e7885a9bf0296158acce2fac46dda8baec",
+        "database_unchanged": true,
+        "rows": 4177,
+        "specification": {
+          "table": "data",
+          "columns": [
+            "Diameter",
+            "Rings"
+          ],
+          "operation": "pearson_test",
+          "magnitude_rule": {
+            "abs_r_threshold": 0.1,
+            "comparison": "ge",
+            "above_label": "correlate",
+            "below_label": "none"
+          }
+        },
+        "tool_values": {
+          "correlation": 0.5746598513059195
+        },
+        "independent_numpy_values": {
+          "correlation": 0.5746598513059193
+        },
+        "all_close": true,
+        "tool_result_sha256": "adc10704ee3e360b26cea7262921c32f33cccd5a21f3bdc68d2814016d5c54d0",
+        "strict_model_pass_claimed": false,
+        "business_population_verified": false
+      },
+      {
+        "case_id": "669",
+        "asset": "my_test_01.csv",
+        "csv_sha256": "3134c6c7260510da5aaa33441743d7aaa52efd88fc4d443e7c7a98f80d734c25",
+        "database_sha256": "9a4aaafad95893ceebef152f99e3107dc50f3b8b28e256b38bff8a5ecdb19e13",
+        "database_unchanged": true,
+        "rows": 258,
+        "specification": {
+          "table": "data",
+          "columns": [
+            "MedInc"
+          ],
+          "operation": "describe"
+        },
+        "tool_values": {
+          "count": 247,
+          "mean": 3.7321748987854253,
+          "sample_std": 1.5427878656746878,
+          "population_std": 1.5396616459158623
+        },
+        "independent_numpy_values": {
+          "count": 247,
+          "mean": 3.7321748987854253,
+          "sample_std": 1.5427878656746878,
+          "population_std": 1.5396616459158623
+        },
+        "all_close": true,
+        "tool_result_sha256": "52acfc86413c4cc11c6f023730b5ce8c7ff1811e00738c4daf402ad68dfbd5d3",
+        "strict_model_pass_claimed": false,
+        "business_population_verified": false
+      }
+    ],
+    "production_accepted": false,
+    "source_fingerprint": {
+      "tools/iqr.py": "74c9c4eb92283d5995bed8fe4b1accb26058f2a6f379a58fbdb5030ea11b907c",
+      "tools/analysis_methods.py": "55471e146a53f6b10c77d55715f1b1ce60908fa23e4f933e33277dbd28bd1147",
+      "tools/pearson_test.py": "0a5cd82d5c2f91a374d0ce4cec43702fd2cd862ca9eba1ae13ea15775f6aa4f9",
+      "contracts/statistical_rules.py": "5b5e3ad068f203ccffe529839fd849b492136738bc1946f66a334428f12fd15a",
+      "contracts/analysis.py": "d01f4058ad6afe7847952a2dabd4101d4b3809b89972f27f4a2c4497086c684a",
+      "evaluation/stage_six_analysis.py": "624cd3136e6c4ce7b5d6287e5c8e1085659b8cad1371c92835ca8743ae7c6842"
+    }
+  },
+  "model_rerun_permission_gate": {
+    "status": "authorized",
+    "reason": "automatic approval review rejected external model data transfer scope",
+    "gateway_origin": "http://127.0.0.1:3425",
+    "model": "workbuddy/deepseek-v4.1-flash",
+    "scope_requested": "public benchmark tasks, schemas and necessary computed results; no reference answers, credentials or private business data",
+    "model_rerun_executed": "four-case frozen diagnostic started; results pending",
+    "authorization": "User explicitly approved the stated gateway, model and public benchmark transfer scope on 2026-10-22."
+  },
+  "ci_7cd354a": {
+    "source_commit": "7cd354ab495aeb939d7b62e879abdd87f71f4a75",
+    "status": "completed",
+    "conclusion": "success",
+    "url": "https://github.com/GeneralDataAgent/GeneralDataAgent/actions/runs/39719651910"
   }
 }

@@ -8,7 +8,47 @@ from decimal import Decimal
 
 from generaldataagent.catalog.field_evidence import public_quoted_labels
 from generaldataagent.contracts.independent_test import SignificanceRule
-from generaldataagent.contracts.statistical_rules import PearsonDecisionRule
+from generaldataagent.contracts.statistical_rules import PearsonDecisionRule, PearsonMagnitudeRule
+
+
+def public_magnitude(rule: PearsonMagnitudeRule, r: float, public_text: str) -> dict:
+    """Require a narrow named absolute-r threshold and operator in the public text."""
+    if re.search(
+        r"\b(?:not|never)\s+(?:(?:use|apply)\s+)?(?:abs\s*\(|\|r\||absolute\b)",
+        public_text,
+        re.I,
+    ):
+        raise ValueError("negated public absolute-r rule")
+    named = re.findall(
+        r"(?:absolute\s+(?:value\s+of\s+)?r|abs\s*\(\s*r\s*\)|\|r\|)\s*"
+        r"(?:is\s+)?(greater\s+than\s+or\s+equal\s+to|greater\s+than|>=|>)\s*"
+        r"(\d+(?:\.\d+)?)(?!\w|\.\d)",
+        public_text,
+        re.I,
+    )
+    policies = {
+        (
+            "ge" if " ".join(op.casefold().split()) in {">=", "greater than or equal to"} else "gt",
+            Decimal(value),
+        )
+        for op, value in named
+    }
+    if policies != {(rule.comparison, Decimal(str(rule.abs_r_threshold)))}:
+        raise ValueError(
+            "magnitude threshold and operator need an unambiguous public absolute-r source"
+        )
+    if not {rule.above_label, rule.below_label} <= set(public_quoted_labels(public_text)):
+        raise ValueError("magnitude labels must be quoted in original public text")
+    above = (
+        abs(r) >= rule.abs_r_threshold if rule.comparison == "ge" else abs(r) > rule.abs_r_threshold
+    )
+    return {
+        "public_rule_label": rule.above_label if above else rule.below_label,
+        "magnitude_rule": rule.model_dump(),
+        "decision_source_sha256": hashlib.sha256(public_text.encode()).hexdigest(),
+        "policy_interpretation_verified": False,
+        "decision_scope": "public absolute-r policy; not p-value significance or scientific proof",
+    }
 
 
 def public_decision(rule: PearsonDecisionRule, r: float, p: float, public_text: str) -> dict:
@@ -49,12 +89,13 @@ def pearson_test(
     *,
     rule: PearsonDecisionRule | None = None,
     significance_rule: SignificanceRule | None = None,
+    magnitude_rule: PearsonMagnitudeRule | None = None,
     public_text: str = "",
 ) -> dict:
     import scipy
     from scipy.stats import ConstantInputWarning, NearConstantInputWarning, pearsonr
 
-    if rule is not None and significance_rule is not None:
+    if sum(item is not None for item in (rule, significance_rule, magnitude_rule)) > 1:
         raise ValueError("choose one public Pearson decision policy")
     if len(rows) < 2:
         raise ValueError("Pearson test requires at least two finite pairs")
@@ -87,6 +128,8 @@ def pearson_test(
         output.update(public_decision(rule, r, p, public_text))
     if significance_rule is not None:
         output.update(public_significance(significance_rule, p, public_text))
+    if magnitude_rule is not None:
+        output.update(public_magnitude(magnitude_rule, r, public_text))
     return output
 
 

@@ -273,3 +273,112 @@ def test_real_agent_binds_r_p_and_public_policy_with_method_receipts(tmp_path):
         "results": [result | {"case_id": "synthetic", "passed": True}],
     }
     assert answer_receipt_errors(report) == []
+
+
+def test_absolute_r_binary_policy_boundary_uses_unrounded_magnitude_not_p_value():
+    from generaldataagent.contracts.statistical_rules import PearsonMagnitudeRule
+    from generaldataagent.tools.pearson_test import public_magnitude
+
+    rule = PearsonMagnitudeRule(abs_r_threshold=0.1, above_label="correlate", below_label="none")
+    text = 'The absolute value of r is greater than or equal to 0.1; "correlate" or "none".'
+    for r, expected in [(0.1, "correlate"), (-0.1, "correlate"), (0.099999, "none"), (0, "none")]:
+        assert public_magnitude(rule, r, text)["public_rule_label"] == expected
+    # Two observations have exact p=1: this public magnitude rule must still say correlate.
+    result = pearson_test([(0, 1), (1, 0)], magnitude_rule=rule, public_text=text)
+    assert result["p_value"] == 1
+    assert result["public_rule_label"] == "correlate"
+    assert result["policy_interpretation_verified"] is False
+    assert "p-value significance" in result["decision_scope"]
+    strict = rule.model_copy(update={"comparison": "gt"})
+    assert (
+        public_magnitude(strict, 0.1, 'abs(r) > 0.1; "correlate", "none"')["public_rule_label"]
+        == "none"
+    )
+    for invalid in [
+        'alpha 0.1; "correlate", "none"',
+        '|r| > 0.1; "correlate", "none"',
+        '|r| >= 0.2; unrelated 0.1; "correlate", "none"',
+        '|r| >= 0.1 and |r| >= 0.2; "correlate", "none"',
+        "|r| >= 0.1; unquoted correlate, none",
+    ]:
+        with pytest.raises(ValueError):
+            public_magnitude(rule, 0.5, invalid)
+    with pytest.raises(ValueError, match="distinct"):
+        PearsonMagnitudeRule(abs_r_threshold=0.1, above_label="same", below_label="same")
+    with pytest.raises(ValueError, match="one public"):
+        pearson_test([(0, 1), (1, 0)], rule=RULE, magnitude_rule=rule, public_text=text)
+    with pytest.raises(ValueError, match="one public"):
+        AnalysisArguments(
+            table="data",
+            columns=["x", "y"],
+            operation="pearson_test",
+            decision_rule=RULE,
+            magnitude_rule=rule,
+        )
+    with pytest.raises(ValueError, match="requires pearson_test"):
+        AnalysisArguments(
+            table="data", columns=["x", "y"], operation="pearson", magnitude_rule=rule
+        )
+
+
+def test_magnitude_policy_fixed_analysis_and_receipts(tmp_path):
+    from generaldataagent.evaluation.stage_seven import bind_typed_tools
+
+    class BoundModel:
+        def bind(self, **kwargs):
+            return kwargs
+
+    tools = bind_typed_tools(BoundModel(), sql_output=False)["tools"]
+    schema = next(
+        t["function"]["parameters"] for t in tools if t["function"]["name"] == "fixed_analysis"
+    )
+    assert "magnitude_rule" in schema["properties"]
+    database = tmp_path / "data.sqlite"
+    with sqlite3.connect(database) as db:
+        db.executescript("CREATE TABLE data(x REAL,y REAL); INSERT INTO data VALUES(0,1),(1,0);")
+    text = 'Use abs(r) >= 0.1, "correlate" or "none". @r[r_value] @label[label_value]'
+    actions = iter(
+        [
+            {
+                "analysis": {
+                    "table": "data",
+                    "columns": ["x", "y"],
+                    "operation": "pearson_test",
+                    "magnitude_rule": {
+                        "abs_r_threshold": 0.1,
+                        "above_label": "correlate",
+                        "below_label": "none",
+                    },
+                }
+            },
+            {
+                "answers": {},
+                "evidence_steps": [1],
+                "bindings": {"r": [1, ["correlation"]], "label": [1, ["public_rule_label"]]},
+            },
+        ]
+    )
+
+    class Model:
+        def invoke(self, messages):
+            return SimpleNamespace(
+                content=json.dumps(next(actions)),
+                usage_metadata={"total_tokens": 10},
+                response_metadata={},
+            )
+
+    result = BoundedSQLAgent(Model(), tool_profile="sql-semantic", max_steps=2).run(
+        Task("infiagent-dabench", "synthetic", "Pearson relation?", text, "easy", "data"), database
+    )
+    assert result["failure"] is None
+    assert result["answers"] == {"r": -1.0, "label": "correlate"}
+    assert {v["method_id"] for v in result["answer_evidence"].values()} == {"pearson_test"}
+    assert (
+        answer_receipt_errors(
+            {
+                "benchmark": "infiagent-dabench",
+                "results": [result | {"case_id": "synthetic", "passed": True}],
+            }
+        )
+        == []
+    )

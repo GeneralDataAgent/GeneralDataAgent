@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from generaldataagent.contracts.statistical_rules import PearsonDecisionRule
+from generaldataagent.contracts.statistical_rules import PearsonDecisionRule, PearsonMagnitudeRule
 from generaldataagent.evaluation.stage_six import digest
 
 STAGE7_PROMPT = """
@@ -361,6 +361,7 @@ def bind_typed_tools(
         from generaldataagent.contracts.independent_test import SignificanceRule
 
         analysis_properties["significance_rule"] = SignificanceRule.model_json_schema()
+        analysis_properties["magnitude_rule"] = PearsonMagnitudeRule.model_json_schema()
         from generaldataagent.contracts.analysis import DescribeTextFilter
 
         analysis_properties["filters"] = {
@@ -378,6 +379,7 @@ def bind_typed_tools(
             analysis_properties["operation"]["enum"] = ["describe"]
             analysis_properties.pop("decision_rule", None)
             analysis_properties.pop("significance_rule", None)
+            analysis_properties.pop("magnitude_rule", None)
         tools = [
             tool(
                 "submit_sql_answers",
@@ -493,6 +495,10 @@ to unrounded values. Labels express the public decision policy, not scientific p
 For a binary p-only policy, instead use significance_rule={alpha,significant_label,
 nonsignificant_label}; alpha and both quoted labels need public sources. Do not combine rules.
 It applies p<alpha to the unrounded p-value without inventing an r-strength threshold.
+For a binary absolute-r-only policy, use magnitude_rule={abs_r_threshold,comparison:"ge" or
+"gt",above_label,below_label}. The original text must explicitly name absolute r and its
+>= or > threshold, and quote both labels. Apply it to unrounded abs(r), without a p cutoff.
+Choose only one decision_rule, significance_rule or magnitude_rule.
 Bind ["public_rule_label"] for either policy label, ["p_value"] for p. Regression has no predictor
 p-values or held-out evaluation.
 If a required method cannot be computed by the available tools, call declare_unsupported with a

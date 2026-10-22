@@ -182,6 +182,7 @@ def fixed_analysis(
                 rows,
                 rule=arguments.decision_rule,
                 significance_rule=arguments.significance_rule,
+                magnitude_rule=arguments.magnitude_rule,
                 public_text=public_text,
             )
         )
