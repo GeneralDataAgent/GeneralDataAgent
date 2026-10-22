@@ -66,6 +66,11 @@ jobs:
       - name: Stage 5 local business baseline
         run: uv run --frozen python evals/run_stage5_acceptance.py > "$RUNNER_TEMP/stage5-acceptance.json"
 
+      - name: Stage 8 local science baseline
+        run: >-
+          uv run --frozen python evals/run_stage8_acceptance.py
+          --include-sklearn --output "$RUNNER_TEMP/stage8-science"
+
       - name: Build distributions
         if: matrix.python-version == '3.12'
         run: uv build

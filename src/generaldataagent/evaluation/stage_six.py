@@ -442,6 +442,10 @@ class BoundedSQLAgent:
                     bindings, bound_evidence
                 ):
                     raise SemanticError("sklearn_requires_executed_library_evidence")
+                from generaldataagent.tools.statistical_methods import standard_deviation_bindings
+
+                if not standard_deviation_bindings(bindings, bound_evidence, public_task_text):
+                    raise SemanticError("standard_deviation_requires_fixed_method_binding")
             if not independent_method_bindings(bindings, bound_evidence, public_task_text):
                 raise SemanticError("independent_test_requires_method_bindings")
             if python_stats_requested and not python_statistics_bindings(bindings, bound_evidence):

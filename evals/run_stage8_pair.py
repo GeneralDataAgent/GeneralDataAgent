@@ -116,8 +116,11 @@ def main():
             )
         (args.output / "comparison.json").write_text(json.dumps(comparisons, indent=2) + "\n")
         metadata["status"] = "completed"
-    except Exception as error:
-        metadata.update(status="failed", error_type=type(error).__name__)
+    except BaseException as error:
+        metadata.update(
+            status="interrupted" if isinstance(error, KeyboardInterrupt) else "failed",
+            error_type=type(error).__name__,
+        )
         raise
     finally:
         status_path.write_text(json.dumps(metadata, indent=2) + "\n")

@@ -50,6 +50,10 @@ the tool refuses to invent it when absent.
 For submit_answers, rule is optional: omit it when public fields already have types/rounding.
 If present it requires kind; method must match the executed method_id (regression_evaluation,
 sklearn_linear_regression, summary, normality, etc.). Do not invent library/function method names.
+For standard deviation, use describe.sample_std or statistics summary.std, not a manual SQL
+sqrt(E[x*x]-E[x]**2) expression. The declared default is sample ddof=1; use ddof=0 only for an
+explicit population/ddof=0 requirement. Bind std to that method receipt; report conventions and
+sensitivity when the public task leaves them unspecified. Do not infer conventions from labels.
 """
 
 
@@ -65,7 +69,8 @@ def needs_science_tools(public_text: str, textual_columns=()) -> bool:
         re.search(
             r"\b(?:new feature|feature engineering|machine learning|linear regression model|"
             r"predict\w*|scikit[ -]?learn|sklearn|shapiro|normal distribution|normality|"
-            r"skewness|kurtosis|z[ -]?score|derived|ddof)\b|派生|偏度|峰度|正态|建模",
+            r"skewness|kurtosis|standard[ _-]deviation|z[ -]?score|derived|ddof)\b|"
+            r"派生|偏度|峰度|正态|建模",
             public_text,
             re.I,
         )
@@ -97,6 +102,13 @@ def science_observation(result):
 
 def science_repair_hint(exc):
     text = str(exc)
+    if "standard_deviation_requires_fixed_method_binding" in text:
+        return (
+            "Use fixed_analysis describe and bind statistics[column].sample_std (ddof=1 "
+            "default), or statistics summary.std with the explicit method_spec. A manual SQL "
+            "sqrt(E[x*x]-E[x]**2) is population ddof=0 and numerically unstable. Population "
+            "conventions must be publicly explicit; never infer them from expected labels."
+        )
     if "cross_split_duplicates" in text:
         return (
             "Identical selected feature/target rows cross the split. Default policy rejects. "
@@ -117,6 +129,7 @@ def stage8_fingerprint(root: Path) -> dict:
     files = [
         "contracts/answer_fields.py",
         "tools/answer_fields.py",
+        "tools/statistical_methods.py",
         "contracts/statistics.py",
         "contracts/data_science.py",
         "contracts/analysis.py",
