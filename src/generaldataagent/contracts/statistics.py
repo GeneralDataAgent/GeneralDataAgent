@@ -5,6 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from generaldataagent.contracts.data_science import SplitSpec
+from generaldataagent.contracts.independent_test import SignificanceRule
 
 
 class Contract(BaseModel):
@@ -21,6 +22,9 @@ class DerivedFeature(Contract):
         "year",
         "month",
         "day",
+        "hour",
+        "minute",
+        "second",
         "group_mean",
         "group_sum",
         "group_median",
@@ -53,6 +57,16 @@ class MethodSpec(Contract):
     iqr_multiplier: float = Field(default=1.5, gt=0, allow_inf_nan=False)
     normality: Literal["auto", "shapiro", "dagostino"] = "auto"
     alternative: Literal["two-sided"] = "two-sided"
+    numeric_coercion: Literal["strict", "parse"] = "strict"
+
+
+class PearsonDirectionRule(Contract):
+    alpha: float = Field(gt=0, lt=1)
+    r_threshold: float = Field(ge=0, le=1)
+    positive_label: str = Field(min_length=1, max_length=100)
+    negative_label: str = Field(min_length=1, max_length=100)
+    nonsignificant_label: str = Field(min_length=1, max_length=100)
+    weak_label: str | None = Field(default=None, min_length=1, max_length=100)
 
 
 class StatisticsRequest(Contract):
@@ -62,9 +76,19 @@ class StatisticsRequest(Contract):
     features: list[DerivedFeature] = Field(default_factory=list, max_length=20)
     where: list[NumericFilter] = Field(default_factory=list, max_length=20)
     group_by: list[str] = Field(default_factory=list, max_length=4)
+    significance_rule: SignificanceRule | None = None
+    direction_rule: PearsonDirectionRule | None = None
 
     @model_validator(mode="after")
     def coherent(self):
+        if self.direction_rule is not None and (
+            self.operation != "pearson" or self.direction_rule.alpha != self.method.alpha
+        ):
+            raise ValueError("direction rule requires Pearson and matching method alpha")
+        if self.significance_rule is not None and (
+            self.operation != "normality" or self.significance_rule.alpha != self.method.alpha
+        ):
+            raise ValueError("normality significance rule requires matching method alpha")
         if len(self.columns) != len(set(self.columns)):
             raise ValueError("statistics columns must be unique")
         if self.operation == "pearson" and len(self.columns) != 2:
@@ -82,6 +106,9 @@ class RegressionRequest(Contract):
     random_seed: int = Field(default=42, ge=0, le=2**32 - 1)
     missing_features: Literal["raise", "train_mean"] = "raise"
     standardize: bool = True
+    estimator: Literal["linear_regression", "sklearn_linear_regression"] = "linear_regression"
+    missing_rows: Literal["raise", "drop"] = "raise"
+    duplicate_policy: Literal["reject", "report"] = "reject"
 
     @model_validator(mode="after")
     def safe_features(self):

@@ -205,6 +205,7 @@ def test_snapshot_promotion_rejects_aggregate_and_target_lineage(tmp_path):
         promote_analysis_snapshot(
             snapshot=target_derived, target="y", features=["proxy2"], artifact_store=store
         )
+
     grouped = derive_analysis_snapshot(
         snapshot=source,
         artifact_store=store,
@@ -216,3 +217,72 @@ def test_snapshot_promotion_rejects_aggregate_and_target_lineage(tmp_path):
         promote_analysis_snapshot(
             snapshot=grouped, target="y", features=["gmean"], artifact_store=store
         )
+
+
+def test_clock_parts_and_public_normality_label():
+    rows = [
+        {"clock": value} for value in ["7:13 PM", "12:01 AM", "23:45:02", "2026-10-22T14:00:00"]
+    ]
+    result = derive_features(rows, [DerivedFeature(name="h", operation="hour", columns=["clock"])])
+    assert [r["h"] for r in result] == [19, 0, 23, 14]
+    request = StatisticsRequest.model_validate(
+        {
+            "columns": ["x"],
+            "operation": "normality",
+            "significance_rule": {
+                "alpha": 0.05,
+                "significant_label": "Not normal",
+                "nonsignificant_label": "Normal",
+            },
+        }
+    )
+    text = 'alpha=0.05; labels "Not normal" and "Normal"'
+    output = compute_statistics([{"x": i} for i in range(10)], request, public_text=text)
+    normal = output["groups"][0]["statistics"]["x"]["normality"]
+    assert normal["public_rule_label"] == "Normal"
+    with pytest.raises(ValueError, match="public text"):
+        compute_statistics([{"x": i} for i in range(10)], request)
+    insufficient = compute_statistics([{"x": 1}, {"x": 2}], request, public_text=text)
+    assert "public_rule_label" not in insufficient["groups"][0]["statistics"]["x"]["normality"]
+
+
+def test_directional_policy_uses_signed_r_and_rejects_unspecified_weak_class():
+    request = StatisticsRequest.model_validate(
+        {
+            "columns": ["x", "y"],
+            "operation": "pearson",
+            "direction_rule": {
+                "alpha": 0.05,
+                "r_threshold": 0.5,
+                "positive_label": "positive",
+                "negative_label": "negative",
+                "nonsignificant_label": "none",
+            },
+        }
+    )
+    text = 'alpha=0.05 threshold 0.5; labels "positive", "negative", "none"'
+    output = compute_statistics([{"x": i, "y": -i} for i in range(10)], request, public_text=text)
+    assert output["groups"][0]["public_rule_label"] == "negative"
+    with pytest.raises(ValueError, match="public text"):
+        compute_statistics([{"x": i, "y": i} for i in range(10)], request)
+
+
+def test_numeric_text_coercion_is_explicit_and_keeps_group_keys():
+    rows = [
+        {"x": "1", "y": "4", "group": "001"},
+        {"x": "2", "y": "null", "group": "001"},
+        {"x": "3", "y": "2", "group": "001"},
+    ]
+    with pytest.raises(ValueError, match="nonconstant"):
+        compute_statistics(rows, StatisticsRequest(columns=["x", "y"], operation="pearson"))
+    request = StatisticsRequest(
+        columns=["x", "y"],
+        operation="pearson",
+        group_by=["group"],
+        method=MethodSpec(numeric_coercion="parse"),
+    )
+    output = compute_statistics(rows, request)
+    group = output["groups"][0]
+    assert group["correlation"] == pytest.approx(-1)
+    assert group["dropped_rows"] == 1 and group["group"] == {"group": "001"}
+    assert rows[0]["x"] == "1"

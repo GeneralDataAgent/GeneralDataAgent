@@ -1,16 +1,20 @@
 """Opt-in Stage 8 capability discovery and source fingerprints; no label access."""
 
+import hashlib
+import json
+import re
 from pathlib import Path
 
 from generaldataagent.evaluation.stage_six import digest
 
 STAGE8_PROMPT = """
 For derived features or explicit ddof use operation="statistics", with statistics={
-columns:["interaction","wage"],operation:"pearson",features:[{name:"interaction",
-operation:"multiply",columns:["exper","looks"]}],method:{ddof:1,missing:"omit"}}.
+columns:["interaction","target"],operation:"pearson",features:[{name:"interaction",
+operation:"multiply",columns:["x","z"]}],method:{ddof:1,missing:"omit"}}.
 Outer columns must equal statistics.columns. This computes on ALL rows, never a preview.
 Statistics operations: summary, outliers, normality, pearson (coefficient and two-sided p).
 Features whitelist: add/subtract/multiply/divide (two columns), year/month/day (one ISO date),
+hour/minute/second (ISO datetime or ISO/AM-PM clock time, converted to 24-hour wall-clock),
 group_mean/group_sum/group_median/group_count (one numeric column plus group_by).
 Expressions are ordered, cannot overwrite columns, null arithmetic propagates, division by
 zero becomes null. Optional where:[{column,operator:"gt",value:0.0}] filters AFTER derivation,
@@ -25,7 +29,85 @@ temporal split requires timestamp_column. Declare defaults and sensitivity if pu
 do not fix seed or split. Optional derived uses the same whitelist but prohibits full-population
 group aggregates and target-derived features. Preprocessing fits training rows only; returns
 coefficients, held-out predictions/MAE/RMSE/R2, mean baseline, split indices and source hash.
+For an explicit scikit-learn requirement set experiment.estimator:"sklearn_linear_regression".
+This uses sklearn.model_selection.train_test_split for random splits and sklearn LinearRegression.
+The stdlib linear_regression estimator uses Python shuffling and QR; it does not satisfy sklearn.
+Set missing_rows:"drop" only when requested to drop rows before splitting; default rejects missing
+targets/features unless train-only imputation is explicitly selected. For no preprocessing set
+standardize:false. Do not infer hidden seeds. Normality may use significance_rule with alpha,
+significant_label,nonsignificant_label; both quoted labels and alpha must occur in public text.
+When a requested numeric column is stored as text (for example literal "null" cells), statistics
+may explicitly use method.numeric_coercion:"parse". Only requested numeric inputs are parsed;
+unparseable/nonfinite values are omitted or rejected according to missing policy. Group/date
+columns are not automatically coerced. Default numeric_coercion:"strict" preserves types.
+Experiments reject cross-split identical feature/target rows by default. Only for an explicit
+local diagnostic evaluation that retains original rows, duplicate_policy:"report" records a warning
+without deduplication; it does not establish entity independence or production acceptance.
+Pearson may use direction_rule:{alpha:0.05,r_threshold:0.5,positive_label:"positive",
+negative_label:"negative",nonsignificant_label:"none"}; all numbers and quoted labels require
+public sources. A significant weak correlation requires an explicit public weak_label;
+the tool refuses to invent it when absent.
 """
+
+
+def needs_science_tools(public_text: str, textual_columns=()) -> bool:
+    """Discover additional methods from public requirements, never case IDs or labels."""
+    numeric_text = bool(
+        re.search(r"\b(?:correlation|mean|deviation|variance)\b", public_text, re.I)
+    ) and any(
+        re.search(r"(?<!\w)" + re.escape(c) + r"(?!\w)", public_text, re.I) for c in textual_columns
+    )
+
+    return numeric_text or bool(
+        re.search(
+            r"\b(?:new feature|feature engineering|machine learning|linear regression model|"
+            r"predict\w*|scikit[ -]?learn|sklearn|shapiro|normal distribution|normality|"
+            r"skewness|kurtosis|z[ -]?score|derived|ddof)\b|派生|偏度|峰度|正态|建模",
+            public_text,
+            re.I,
+        )
+    )
+
+
+def science_observation(result):
+    """Summarize long index/prediction lists while preserving the full evidence result."""
+
+    def compact(value, path):
+        if isinstance(value, dict):
+            return {k: compact(v, path + [k]) for k, v in value.items()}
+        if isinstance(value, (tuple, list)):
+            if len(value) > 20:
+                return {
+                    "count": len(value),
+                    "preview": value[:5],
+                    "truncated": True,
+                    "full_result_path": path,
+                    "sha256": hashlib.sha256(
+                        json.dumps(value, sort_keys=True, default=str).encode()
+                    ).hexdigest(),
+                }
+            return [compact(v, path + [i]) for i, v in enumerate(value)]
+        return value
+
+    return compact(result, [])
+
+
+def science_repair_hint(exc):
+    text = str(exc)
+    if "cross_split_duplicates" in text:
+        return (
+            "Identical selected feature/target rows cross the split. Default policy rejects. "
+            "Use entity/group isolation when required. A local diagnostic may explicitly use "
+            "duplicate_policy='report' while retaining every original row and the warning; "
+            "never silently deduplicate or claim independent predictive acceptance."
+        )
+    if "sklearn" in text:
+        return (
+            "An explicit sklearn requirement needs regression_evaluation with "
+            "estimator='sklearn_linear_regression' and evidence from that executed result. "
+            "Use the publicly specified seed/split; stdlib fits and SQL cannot certify sklearn."
+        )
+    return None
 
 
 def stage8_fingerprint(root: Path) -> dict:

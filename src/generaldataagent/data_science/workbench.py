@@ -72,6 +72,8 @@ class DataScienceWorkbench:
         data_domain: str,
         trace_id: str | None = None,
     ) -> ExperimentReport:
+        if self.production_mode and spec.duplicate_policy != "reject":
+            raise PermissionError("production science requires duplicate rejection")
         if isinstance(self.artifact_store, GovernedArtifactStore):
             actor = self.artifact_store.actor
             if (actor.tenant_id, actor.project_id) != (

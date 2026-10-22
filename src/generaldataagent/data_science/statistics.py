@@ -7,7 +7,7 @@ import operator
 import statistics
 import warnings
 from collections import defaultdict
-from datetime import date, datetime
+from datetime import date, datetime, time
 
 import scipy
 from scipy import stats
@@ -54,18 +54,33 @@ def derive_features(rows: list[dict], features: list[DerivedFeature]) -> list[di
                 value = functions[feature.operation](group) if group else None
                 if feature.operation == "group_count":
                     value = len(group)
-            elif feature.operation in {"year", "month", "day"}:
+            elif feature.operation in {"year", "month", "day", "hour", "minute", "second"}:
                 if values[0] is None:
                     value = None
                 else:
-                    raw = str(values[0])
+                    raw = str(values[0]).strip()
                     try:
                         parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
                     except ValueError:
                         try:
                             parsed = date.fromisoformat(raw)
                         except ValueError as exc:
-                            raise ValueError("date feature requires an ISO date/datetime") from exc
+                            if feature.operation not in {"hour", "minute", "second"}:
+                                raise ValueError(
+                                    "date feature requires an ISO date/datetime"
+                                ) from exc
+                            try:
+                                parsed = time.fromisoformat(raw)
+                            except ValueError:
+                                parsed = None
+                                for fmt in ("%I:%M %p", "%I:%M:%S %p"):
+                                    try:
+                                        parsed = datetime.strptime(raw, fmt)
+                                        break
+                                    except ValueError:
+                                        continue
+                                if parsed is None:
+                                    raise ValueError("invalid ISO or AM/PM clock time") from exc
                     value = getattr(parsed, feature.operation)
             elif not all(finite_number(v) for v in values):
                 value = None
@@ -148,9 +163,24 @@ def _summary(values, method):
     }
 
 
-def compute_statistics(rows: list[dict], request: StatisticsRequest) -> dict:
+def compute_statistics(rows: list[dict], request: StatisticsRequest, *, public_text="") -> dict:
     source_hash = _rows_hash(rows)
-    derived = derive_features(rows, request.features)
+    numeric_inputs = set(request.columns + [f.column for f in request.where])
+    for feature in request.features:
+        if feature.operation not in {"year", "month", "day", "hour", "minute", "second"}:
+            numeric_inputs.update(feature.columns)
+    parsed = [dict(row) for row in rows]
+    if request.method.numeric_coercion == "parse":
+        for row in parsed:
+            for column in numeric_inputs & row.keys():
+                value = row[column]
+                if isinstance(value, str):
+                    try:
+                        number = float(value.strip().replace(",", ""))
+                        row[column] = number if math.isfinite(number) else None
+                    except ValueError:
+                        row[column] = None
+    derived = derive_features(parsed, request.features)
     schema = set(derived[0]) if derived else set()
     required = set(request.columns + request.group_by + [f.column for f in request.where])
     if not required <= schema:
@@ -192,17 +222,48 @@ def compute_statistics(rows: list[dict], request: StatisticsRequest) -> dict:
                 raise ValueError("nonfinite paired observation")
             if len(pairs) < 2 or any(len({v[j] for _, v in pairs}) < 2 for j in (0, 1)):
                 raise ValueError("Pearson requires >=2 pairs and nonconstant columns")
-            test = stats.pearsonr(
-                *zip(*(v for _, v in pairs), strict=True), alternative="two-sided"
-            )
+            from generaldataagent.tools.pearson_test import pearson_test
+
+            test = pearson_test([v for _, v in pairs])
             group.update(
-                correlation=float(test.statistic),
-                p_value=float(test.pvalue),
+                **test,
                 observations=len(pairs),
                 dropped_rows=len(entries) - len(pairs),
                 source_indices=[i for i, _ in pairs],
-                reject_null=bool(test.pvalue < request.method.alpha),
+                reject_null=bool(test["p_value"] < request.method.alpha),
             )
+            if request.direction_rule:
+                from generaldataagent.catalog.field_evidence import public_quoted_labels
+                from generaldataagent.contracts.statistical_rules import PearsonDecisionRule
+                from generaldataagent.tools.pearson_test import public_decision
+
+                rule = request.direction_rule
+                r, p = test["correlation"], test["p_value"]
+                receipt = public_decision(
+                    PearsonDecisionRule(
+                        alpha=rule.alpha,
+                        abs_r_threshold=rule.r_threshold,
+                        significant_high_label=rule.positive_label,
+                        significant_low_label=rule.negative_label,
+                        nonsignificant_label=rule.nonsignificant_label,
+                    ),
+                    r,
+                    p,
+                    public_text,
+                )
+                if p >= rule.alpha:
+                    label = rule.nonsignificant_label
+                elif r >= rule.r_threshold:
+                    label = rule.positive_label
+                elif r <= -rule.r_threshold:
+                    label = rule.negative_label
+                elif rule.weak_label and rule.weak_label in public_quoted_labels(public_text):
+                    label = rule.weak_label
+                else:
+                    raise ValueError(
+                        "public directional policy lacks significant weak-correlation label"
+                    )
+                group.update(receipt, public_rule_label=label, direction_rule=rule.model_dump())
         else:
             for column in request.columns:
                 pairs = [(i, row[column]) for i, row in entries if finite_number(row[column])]
@@ -254,6 +315,17 @@ def compute_statistics(rows: list[dict], request: StatisticsRequest) -> dict:
                             "reject_null": bool(test.pvalue < request.method.alpha),
                             "small_sample_warning": method == "dagostino" and len(values) < 20,
                         }
+                        if request.significance_rule:
+                            from generaldataagent.tools.pearson_test import public_significance
+
+                            summary["normality"].update(
+                                public_significance(
+                                    request.significance_rule, float(test.pvalue), public_text
+                                )
+                            )
+                            summary["normality"]["decision_scope"] = (
+                                "public normality p-value policy; assumptions unverified"
+                            )
                 group["statistics"][column] = summary
         output_groups.append(group)
     return {

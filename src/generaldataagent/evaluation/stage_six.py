@@ -432,6 +432,16 @@ class BoundedSQLAgent:
         python_stats_requested = requests_python_statistics(public_task_text)
 
         def require_test_method(bindings, bound_evidence):
+            if self.tool_profile == "sql-science":
+                from generaldataagent.data_science.regression import (
+                    requests_sklearn,
+                    sklearn_bindings,
+                )
+
+                if requests_sklearn(public_task_text) and not sklearn_bindings(
+                    bindings, bound_evidence
+                ):
+                    raise SemanticError("sklearn_requires_executed_library_evidence")
             if not independent_method_bindings(bindings, bound_evidence, public_task_text):
                 raise SemanticError("independent_test_requires_method_bindings")
             if python_stats_requested and not python_statistics_bindings(bindings, bound_evidence):
@@ -440,6 +450,17 @@ class BoundedSQLAgent:
         plan_mode = self.tool_profile == "sql-semantic-plan"
         semantic_json = self.tool_profile == "sql-semantic-json"
         science = self.tool_profile == "sql-science"
+        from generaldataagent.evaluation.stage_eight import needs_science_tools
+
+        science_discovery = science and needs_science_tools(
+            public_task_text,
+            textual_columns=[
+                c[0]
+                for line in context.splitlines()
+                for c in json.loads(line)["columns"]
+                if c[1] == "TEXT"
+            ],
+        )
         semantic = science or self.tool_profile in {
             "sql-semantic",
             "sql-semantic-plan",
@@ -569,7 +590,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                 if semantic_json
                 else STAGE7_SQL_PROMPT + (STAGE7_PLAN_PROMPT if plan_mode else ""),
             )
-        if science and task.benchmark != "bird-mini-dev-sqlite":
+        if science_discovery and task.benchmark != "bird-mini-dev-sqlite":
             from generaldataagent.evaluation.stage_eight import STAGE8_PROMPT
 
             messages[0] = ("system", messages[0][1] + STAGE8_PROMPT)
@@ -681,7 +702,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     active_model = (
                         bind_typed_tools(
                             self.model,
-                            science_enabled=science,
+                            science_enabled=science_discovery,
                             sql_output=task.benchmark == "bird-mini-dev-sqlite",
                             planned=task_spec is not None,
                             plan_enabled=plan_mode,
@@ -1295,6 +1316,10 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     final_sql, failure = sql, None
                     break
                 feedback = bounded_observation(result_data) if repair else result_data
+                if science and tool == "fixed_analysis":
+                    from generaldataagent.evaluation.stage_eight import science_observation
+
+                    feedback = bounded_observation(science_observation(result_data))
                 if (
                     semantic
                     and task.benchmark != "bird-mini-dev-sqlite"
@@ -1381,6 +1406,12 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                 if semantic and isinstance(exc, ColumnScopeError):
                     event.update(code="unknown_column", field_candidates=exc.candidates)
                 feedback = {"step": step, "error": kind, "code": event["code"]}
+                if science:
+                    from generaldataagent.evaluation.stage_eight import science_repair_hint
+
+                    hint = science_repair_hint(exc)
+                    if hint:
+                        feedback["science_repair_hint"] = hint
                 if semantic and "repair_type" in event:
                     feedback["repair_type"] = event["repair_type"]
                 if semantic and event["code"] == "empty_analysis_population":

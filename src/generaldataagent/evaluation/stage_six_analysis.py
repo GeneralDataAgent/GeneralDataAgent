@@ -60,8 +60,8 @@ def fixed_analysis(
         if arguments.operation == "regression_evaluation":
             from generaldataagent.data_science.regression import evaluate_regression
 
-            return evaluate_regression(rows, arguments.experiment)
-        return compute_statistics(rows, arguments.statistics)
+            return evaluate_regression(rows, arguments.experiment, public_text=public_text)
+        return compute_statistics(rows, arguments.statistics, public_text=public_text)
     if arguments.operation == "independent_t_test":
         from generaldataagent.tools.independent_test import independent_test
 

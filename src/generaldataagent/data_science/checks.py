@@ -17,6 +17,15 @@ def split_indices(
     test_count = min(test_count, count - 1)
     indices = list(range(count))
     if spec.split.strategy == "random":
+        if spec.estimator == "sklearn_linear_regression":
+            from sklearn.model_selection import train_test_split
+
+            return train_test_split(
+                indices,
+                test_size=spec.split.test_fraction,
+                random_state=spec.random_seed,
+                shuffle=True,
+            )
         random.Random(spec.random_seed).shuffle(indices)
         test = sorted(indices[:test_count])
         train = sorted(indices[test_count:])
@@ -83,7 +92,7 @@ def validate_experiment_data(
     if missing:
         return tuple(checks)
 
-    if spec.estimator == "linear_regression":
+    if spec.estimator != "baseline":
         numeric = all(
             _is_number(row[c]) or (row[c] is None and spec.missing_features == "train_mean")
             for row in rows
@@ -142,6 +151,8 @@ def validate_experiment_data(
             else f"Detected {overlap} duplicate test examples in training data.",
         )
     )
+    if spec.duplicate_policy == "report":
+        checks[-1] = checks[-1].model_copy(update={"severity": "warning"})
 
     proxies = [
         feature

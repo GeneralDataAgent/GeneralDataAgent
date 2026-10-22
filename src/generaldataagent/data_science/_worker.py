@@ -210,10 +210,25 @@ def _linear_regression(train, test, spec):
         row[c] is None for row in train + test for c in features
     ):
         raise ValueError("missing feature values")
-    coefficient = _least_squares(transform(train), [r[target] for r in train])
-    predictions = [
-        math.fsum(a * b for a, b in zip(row, coefficient, strict=True)) for row in transform(test)
-    ]
+    sklearn_version = None
+    if spec.get("estimator") == "sklearn_linear_regression":
+        import sklearn
+        from sklearn.linear_model import LinearRegression
+
+        sklearn_version = sklearn.__version__
+        fitted = LinearRegression(fit_intercept=True).fit(
+            [row[1:] for row in transform(train)], [r[target] for r in train]
+        )
+        if fitted.rank_ < len(features):
+            raise ValueError("rank deficient design matrix")
+        coefficient = [float(fitted.intercept_), *map(float, fitted.coef_)]
+        predictions = list(map(float, fitted.predict([row[1:] for row in transform(test)])))
+    else:
+        coefficient = _least_squares(transform(train), [r[target] for r in train])
+        predictions = [
+            math.fsum(a * b for a, b in zip(row, coefficient, strict=True))
+            for row in transform(test)
+        ]
     actual = [float(row[target]) for row in test]
     errors = [a - p for a, p in zip(actual, predictions, strict=True)]
     denominator = math.fsum((a - statistics.fmean(actual)) ** 2 for a in actual)
@@ -240,6 +255,10 @@ def _linear_regression(train, test, spec):
         },
         "parameters": {"random_seed": spec["random_seed"], "feature_columns": features},
     }
+    if sklearn_version:
+        model.update(
+            algorithm="sklearn.linear_model.LinearRegression", sklearn_version=sklearn_version
+        )
     baseline_metrics, _ = _regression(train, test, target)
     return (
         metrics,
@@ -259,7 +278,7 @@ def execute(payload):
     train = [rows[index] for index in payload["train_indices"]]
     test = [rows[index] for index in payload["test_indices"]]
     spec = payload["spec"]
-    linear = spec.get("estimator") == "linear_regression"
+    linear = spec.get("estimator") in {"linear_regression", "sklearn_linear_regression"}
     if linear:
         metrics, errors, model = _linear_regression(train, test, spec)
     elif spec["problem_type"] == "binary_classification":
@@ -267,7 +286,13 @@ def execute(payload):
     else:
         metrics, errors = _regression(train, test, spec["target_column"])
     result = {
-        "template_version": "2.0" if linear else TEMPLATE_VERSION,
+        "template_version": (
+            "2.1"
+            if spec.get("estimator") == "sklearn_linear_regression"
+            else "2.0"
+            if linear
+            else TEMPLATE_VERSION
+        ),
         "train_rows": len(train),
         "test_rows": len(test),
         "metrics": metrics,
@@ -305,6 +330,11 @@ def execute(payload):
             "test_indices": payload["test_indices"],
             "strategy": spec["split"]["strategy"],
             "random_seed": spec["random_seed"],
+            "random_split_implementation": (
+                "sklearn.model_selection.train_test_split"
+                if spec.get("estimator") == "sklearn_linear_regression"
+                else "random.Random.shuffle"
+            ),
         }
         for subgroup in result["subgroups"]:
             positions = [

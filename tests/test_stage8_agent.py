@@ -76,7 +76,7 @@ def test_agent_dispatch_and_field_evidence(tmp_path, operation):
     task = Task(
         "infiagent-dabench",
         "synthetic-stage8",
-        "Compute the declared statistic",
+        "Create a new feature and compute the declared statistic",
         "@answer[float]",
         "easy",
         "demo.csv",
@@ -102,3 +102,22 @@ def test_predictive_derived_target_or_group_aggregates_are_rejected():
             RegressionRequest.model_validate(
                 {"features": ["proxy"], "target": "y", "derived": derived}
             )
+
+
+def test_science_discovery_and_observation_preserve_evidence():
+    from generaldataagent.evaluation.stage_eight import needs_science_tools, science_observation
+
+    assert needs_science_tools("Create a new feature")
+    assert needs_science_tools("Use sklearn to predict")
+    assert needs_science_tools("correlation of High and Low", textual_columns=["High"])
+    assert not needs_science_tools("Find the mean of x")
+    result = {
+        "model": {"algorithm": "linear"},
+        "indices": list(range(1000)),
+        "metrics": {"rmse": 2.0},
+    }
+    observation = science_observation(result)
+    assert observation["indices"]["count"] == 1000
+    assert observation["indices"]["full_result_path"] == ["indices"]
+    assert observation["model"] == result["model"] and observation["metrics"] == result["metrics"]
+    assert result["indices"] == list(range(1000))

@@ -42,6 +42,8 @@ class FixedTemplateSandbox:
         if len(payload) > spec.quota.max_input_bytes:
             raise SandboxError("experiment input exceeds sandbox byte quota")
         command = [sys.executable, "-I", "-S", str(_WORKER)]
+        if spec.estimator == "sklearn_linear_regression":
+            command.remove("-S")
         with tempfile.TemporaryDirectory(prefix="gda-science-") as directory:
             try:
                 completed = subprocess.run(
@@ -49,7 +51,12 @@ class FixedTemplateSandbox:
                     input=payload,
                     capture_output=True,
                     cwd=directory,
-                    env={"PATH": os.environ.get("PATH", ""), "PYTHONHASHSEED": "0"},
+                    env={
+                        "PATH": os.environ.get("PATH", ""),
+                        "PYTHONHASHSEED": "0",
+                        "OPENBLAS_NUM_THREADS": "1",
+                        "OMP_NUM_THREADS": "1",
+                    },
                     timeout=spec.quota.timeout_seconds,
                     check=False,
                     preexec_fn=_resource_limiter(spec) if os.name == "posix" else None,

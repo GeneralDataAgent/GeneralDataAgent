@@ -15,6 +15,7 @@ from generaldataagent.artifacts import LocalArtifactStore
 from generaldataagent.contracts import (
     ExperimentSpec,
     OCIContainerRuntime,
+    SandboxQuota,
     SnapshotColumn,
     SplitSpec,
 )
@@ -43,6 +44,7 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--oci-runtime", type=Path)
     parser.add_argument("--public-sources", action="store_true")
+    parser.add_argument("--include-sklearn", action="store_true")
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=False)
     store = LocalArtifactStore(args.output / "artifacts")
@@ -115,45 +117,56 @@ def main():
         estimator="linear_regression",
     )
     rows = load_analysis_rows(source, store)
-    for strategy in ("random", "temporal", "group"):
-        active = spec.model_copy(
-            update={
-                "split": SplitSpec(
-                    strategy=strategy,
-                    group_column="group" if strategy == "group" else None,
-                    timestamp_column="time" if strategy == "temporal" else None,
-                )
-            }
-        )
-        report = DataScienceWorkbench(artifact_store=store, sandbox=runner).run_experiment(
-            snapshot=snapshot,
-            spec=active,
-            user_id="local-qualifier",
-            tenant_id="stage8",
-            project_id="qualification",
-            data_domain="synthetic",
-        )
-        raw = json.loads(store.read_bytes(report.output_artifact))
-        train, test = split_indices(rows, active)
-        expected = np.linalg.lstsq(
-            np.array([[1, rows[i]["x"], rows[i]["z"]] for i in train]),
-            np.array([rows[i]["y"] for i in train]),
-            rcond=None,
-        )[0]
-        record(
-            "ols_" + strategy,
-            np.allclose(
-                [
-                    raw["model"]["intercept"],
-                    raw["model"]["coefficients"]["x"],
-                    raw["model"]["coefficients"]["z"],
-                ],
-                expected,
+    specifications = [spec]
+    if args.include_sklearn:
+        specifications.append(
+            spec.model_copy(
+                update={
+                    "estimator": "sklearn_linear_regression",
+                    "quota": SandboxQuota(memory_mb=512, timeout_seconds=60, cpu_seconds=30),
+                }
             )
-            and raw["metrics"]["r2"] > 0.999999,
-            report=report.model_dump(mode="json"),
-            independent_coefficients=expected.tolist(),
         )
+    for current_spec in specifications:
+        for strategy in ("random", "temporal", "group"):
+            active = current_spec.model_copy(
+                update={
+                    "split": SplitSpec(
+                        strategy=strategy,
+                        group_column="group" if strategy == "group" else None,
+                        timestamp_column="time" if strategy == "temporal" else None,
+                    )
+                }
+            )
+            report = DataScienceWorkbench(artifact_store=store, sandbox=runner).run_experiment(
+                snapshot=snapshot,
+                spec=active,
+                user_id="local-qualifier",
+                tenant_id="stage8",
+                project_id="qualification",
+                data_domain="synthetic",
+            )
+            raw = json.loads(store.read_bytes(report.output_artifact))
+            train, test = split_indices(rows, active)
+            expected = np.linalg.lstsq(
+                np.array([[1, rows[i]["x"], rows[i]["z"]] for i in train]),
+                np.array([rows[i]["y"] for i in train]),
+                rcond=None,
+            )[0]
+            record(
+                current_spec.estimator + "_" + strategy,
+                np.allclose(
+                    [
+                        raw["model"]["intercept"],
+                        raw["model"]["coefficients"]["x"],
+                        raw["model"]["coefficients"]["z"],
+                    ],
+                    expected,
+                )
+                and raw["metrics"]["r2"] > 0.999999,
+                report=report.model_dump(mode="json"),
+                independent_coefficients=expected.tolist(),
+            )
     notebook = export_replayed_notebook(
         snapshot=snapshot, spec=spec, artifact_store=store, sandbox=runner
     )
@@ -162,6 +175,15 @@ def main():
         json.loads(store.read_bytes(notebook))["metadata"]["generaldataagent"]["reproducible"],
         artifact=notebook.model_dump(mode="json"),
     )
+    if args.include_sklearn:
+        notebook = export_replayed_notebook(
+            snapshot=snapshot, spec=specifications[-1], artifact_store=store, sandbox=runner
+        )
+        record(
+            "sklearn_notebook_exact_cell_replay",
+            json.loads(store.read_bytes(notebook))["metadata"]["generaldataagent"]["reproducible"],
+            artifact=notebook.model_dump(mode="json"),
+        )
     for ddof in (0, 1):
         result = compute_statistics(
             [{"x": v} for v in [1, 2, 3]],

@@ -164,3 +164,66 @@ def test_notebook_and_workbench_scope_checks(experiment):
             [{"x": i, "z": i * i, "y": i + 1} for i in range(5)], tiny, [0, 1, 2], [3, 4]
         )
     )
+
+
+def test_sklearn_template_uses_exact_library_split_and_predictions(experiment):
+    from sklearn.linear_model import LinearRegression
+    from sklearn.model_selection import train_test_split
+
+    rows, store, snapshot, spec = experiment
+    spec = spec.model_copy(update={"estimator": "sklearn_linear_regression", "standardize": False})
+    train, test = split_indices(rows, spec)
+    expected_train, expected_test = train_test_split(
+        list(range(len(rows))), test_size=0.2, random_state=42
+    )
+    assert train == expected_train and test == expected_test
+    expected = LinearRegression().fit(
+        [[rows[i]["x"], rows[i]["z"]] for i in train], [rows[i]["y"] for i in train]
+    )
+    result = FixedTemplateSandbox().run(
+        rows=rows, spec=spec, train_indices=train, test_indices=test
+    )
+    assert result["template_version"] == "2.1"
+    assert result["model"]["algorithm"] == "sklearn.linear_model.LinearRegression"
+    assert result["error_analysis"]["predictions"] == pytest.approx(
+        expected.predict([[rows[i]["x"], rows[i]["z"]] for i in test])
+    )
+    ref = export_replayed_notebook(snapshot=snapshot, spec=spec, artifact_store=store)
+    assert json.loads(store.read_bytes(ref))["metadata"]["generaldataagent"]["reproducible"]
+
+
+def test_sklearn_public_requirement_missing_policy_and_named_seed(experiment):
+    from generaldataagent.contracts.statistics import RegressionRequest
+    from generaldataagent.data_science.regression import evaluate_regression
+
+    rows, _, _, _ = experiment
+    request = RegressionRequest(target="y", features=["x", "z"])
+    with pytest.raises(ValueError, match="sklearn requirement"):
+        evaluate_regression(rows, request, public_text="Use the Scikit-Learn library")
+    with pytest.raises(ValueError, match="named seed"):
+        evaluate_regression(rows, request, public_text="Set random state to 7")
+    rows[0]["y"] = None
+    result = evaluate_regression(
+        rows,
+        request.model_copy(
+            update={"estimator": "sklearn_linear_regression", "missing_rows": "drop"}
+        ),
+    )
+    assert result["dropped_rows"] == 1 and result["source_indices"] == list(range(1, 40))
+
+
+def test_duplicate_reporting_is_opt_in_and_never_removes_rows(experiment):
+    rows, _, _, spec = experiment
+    rows[1] = dict(rows[0])
+    train, test = list(range(1, 32)), [0] + list(range(32, 40))
+    checks = validate_experiment_data(rows, spec, train, test)
+    duplicate = next(c for c in checks if c.check_id == "duplicate_leakage")
+    assert not duplicate.passed and duplicate.severity == "error"
+    spec = spec.model_copy(update={"duplicate_policy": "report"})
+    checks = validate_experiment_data(rows, spec, train, test)
+    duplicate = next(c for c in checks if c.check_id == "duplicate_leakage")
+    assert not duplicate.passed and duplicate.severity == "warning"
+    result = FixedTemplateSandbox().run(
+        rows=rows, spec=spec, train_indices=train, test_indices=test
+    )
+    assert result["train_rows"] + result["test_rows"] == len(rows)

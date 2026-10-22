@@ -89,9 +89,10 @@ class ExperimentSpec(ContractModel):
     subgroup_columns: tuple[str, ...] = Field(default=(), max_length=10)
     minimum_subgroup_rows: int = Field(default=5, ge=2, le=10_000)
     baseline: Literal["majority", "mean"]
-    estimator: Literal["baseline", "linear_regression"] = "baseline"
+    estimator: Literal["baseline", "linear_regression", "sklearn_linear_regression"] = "baseline"
     missing_features: Literal["raise", "train_mean"] = "raise"
     standardize: bool = True
+    duplicate_policy: Literal["reject", "report"] = "reject"
     primary_metric: Literal["accuracy", "precision", "recall", "f1", "mae", "rmse", "r2"]
     split: SplitSpec = Field(default_factory=SplitSpec)
     random_seed: int = Field(default=42, ge=0, le=2**32 - 1)
@@ -99,7 +100,7 @@ class ExperimentSpec(ContractModel):
 
     @model_validator(mode="after")
     def validate_experiment(self) -> "ExperimentSpec":
-        if self.estimator == "linear_regression" and self.problem_type != "regression":
+        if self.estimator != "baseline" and self.problem_type != "regression":
             raise ValueError("linear_regression requires regression")
         if self.target_column in self.feature_columns:
             raise ValueError("target column cannot also be a feature")
@@ -122,6 +123,8 @@ class ExperimentSpec(ContractModel):
 
     @property
     def template_version(self) -> str:
+        if self.estimator == "sklearn_linear_regression":
+            return "2.1"
         return "2.0" if self.estimator == "linear_regression" else "1.0"
 
 
