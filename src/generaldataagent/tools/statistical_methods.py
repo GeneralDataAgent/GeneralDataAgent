@@ -30,7 +30,7 @@ def standard_deviation_bindings(bindings, evidence, text):
     candidates = [
         (name, binding)
         for name, binding in bindings.items()
-        if re.search(r"\bstd\b|stddev|stdev|deviation|standard_deviation", name, re.I)
+        if re.search(r"(?:^|_)std(?:_|$)|stddev|stdev|deviation|standard_deviation", name, re.I)
     ]
     named = bool(candidates)
     if not named:
@@ -46,7 +46,10 @@ def standard_deviation_bindings(bindings, evidence, text):
         return (
             result.get("method_id") in {"summary", "outliers", "normality"}
             and result.get("method_spec", {}).get("ddof") == expected
-            and (path[-1] == "std" or (not named and str(path[-1]).startswith("z_outlier_")))
+            and (
+                path[-1] in {"std", "z_inlier_std", "iqr_inlier_std"}
+                or (not named and any(str(part).startswith("z_outlier_") for part in path))
+            )
         )
 
     return bool(candidates) and (
@@ -54,3 +57,35 @@ def standard_deviation_bindings(bindings, evidence, text):
         if named
         else any(matches(binding) for _, binding in candidates)
     )
+
+
+def statistical_collection(result, path):
+    """Only exact backend-generated complete outlier identifier paths are collectable."""
+    if (
+        len(path) != 7
+        or path[0] != "groups"
+        or type(path[1]) is not int
+        or path[1] < 0
+        or path[2] != "statistics"
+        or path[4] not in {"z_outlier_identifiers", "iqr_outlier_identifiers"}
+        or path[5] not in result.get("requested_identifiers", [])
+        or path[6] != "items"
+        or result.get("method_id") not in {"outliers", "summary"}
+    ):
+        return None
+    try:
+        summary = result["groups"][path[1]]["statistics"][path[3]]
+        collection = summary[path[4]][path[5]]
+        prefix = "z" if path[4].startswith("z_") else "iqr"
+        if (
+            collection.get("complete") is True
+            and type(collection.get("total_count")) is int
+            and isinstance(collection.get("items"), list)
+            and collection.get("collection_kind") == "list"
+            and collection.get("total_count") == summary[prefix + "_outlier_count"]
+            and collection.get("total_count") == len(collection.get("items", [])) <= 10000
+        ):
+            return collection
+    except (KeyError, IndexError, TypeError):
+        pass
+    return None

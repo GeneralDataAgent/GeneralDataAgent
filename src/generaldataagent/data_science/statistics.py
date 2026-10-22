@@ -167,11 +167,25 @@ def _summary(values, method):
     }
     for kind in ("iqr", "z"):
         selected = [values[i] for i in output[kind + "_outlier_indices"]]
+        excluded = set(output[kind + "_outlier_indices"])
+        inliers = [v for i, v in enumerate(values) if i not in excluded]
         output.update(
             {
                 kind + "_outlier_count": len(selected),
                 kind + "_outlier_mean": statistics.fmean(selected) if selected else None,
                 kind + "_outlier_median": statistics.median(selected) if selected else None,
+            }
+        )
+        output.update(
+            {
+                kind + "_inlier_count": len(inliers),
+                kind + "_inlier_mean": statistics.fmean(inliers) if inliers else None,
+                kind + "_inlier_median": statistics.median(inliers) if inliers else None,
+                kind + "_inlier_std": (
+                    statistics.stdev(inliers) if method.ddof else statistics.pstdev(inliers)
+                )
+                if len(inliers) > method.ddof
+                else None,
             }
         )
     return output
@@ -196,7 +210,9 @@ def compute_statistics(rows: list[dict], request: StatisticsRequest, *, public_t
                         row[column] = None
     derived = derive_features(parsed, request.features)
     schema = set(derived[0]) if derived else set()
-    required = set(request.columns + request.group_by + [f.column for f in request.where])
+    required = set(
+        request.columns + request.group_by + request.identifiers + [f.column for f in request.where]
+    )
     if not required <= schema:
         raise ValueError("statistics references unknown columns")
     comparisons = {
@@ -300,6 +316,29 @@ def compute_statistics(rows: list[dict], request: StatisticsRequest, *, public_t
                         summary[kind + "_outlier_source_indices"] = [
                             pairs[i][0] for i in summary[kind + "_outlier_indices"]
                         ]
+                        if request.identifiers:
+                            selected_indices = summary[kind + "_outlier_source_indices"]
+                            if len(selected_indices) > 10000:
+                                raise ValueError(
+                                    "statistical identifier collection exceeds 10000 items"
+                                )
+                            collections = {}
+                            for identifier in request.identifiers:
+                                items = [derived[i][identifier] for i in selected_indices]
+                                if request.identifier_order != "source":
+                                    try:
+                                        items.sort(reverse=request.identifier_order == "desc")
+                                    except TypeError as exc:
+                                        raise ValueError(
+                                            "identifier ordering requires comparable values"
+                                        ) from exc
+                                collections[identifier] = {
+                                    "items": items,
+                                    "total_count": len(items),
+                                    "complete": True,
+                                    "collection_kind": "list",
+                                }
+                            summary[kind + "_outlier_identifiers"] = collections
                 if request.operation == "normality":
                     method = request.method.normality
                     method = (
@@ -346,6 +385,7 @@ def compute_statistics(rows: list[dict], request: StatisticsRequest, *, public_t
         output_groups.append(group)
     return {
         "operation": request.operation,
+        "requested_identifiers": request.identifiers,
         "method_spec": request.method.model_dump(),
         "method_version": "2.0",
         "scipy_version": scipy.__version__,

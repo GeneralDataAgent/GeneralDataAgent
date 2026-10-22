@@ -86,9 +86,13 @@ class StatisticsRequest(Contract):
     significance_rule: SignificanceRule | None = None
     direction_rule: PearsonDirectionRule | None = None
     decision_rule: PearsonDecisionRule | None = None
+    identifiers: list[str] = Field(default_factory=list, max_length=10)
+    identifier_order: Literal["source", "asc", "desc"] = "source"
 
     @model_validator(mode="after")
     def coherent(self):
+        if self.identifiers and self.operation not in {"summary", "outliers"}:
+            raise ValueError("identifier collections require summary or outliers")
         if self.decision_rule is not None and (
             self.operation != "pearson"
             or self.decision_rule.alpha != self.method.alpha
@@ -120,9 +124,12 @@ class RegressionRequest(Contract):
     random_seed: int = Field(default=42, ge=0, le=2**32 - 1)
     missing_features: Literal["raise", "train_mean"] = "raise"
     standardize: bool = True
-    estimator: Literal["linear_regression", "sklearn_linear_regression"] = "linear_regression"
+    estimator: Literal["sklearn_linear_regression", "linear_regression"] = (
+        "sklearn_linear_regression"
+    )
     missing_rows: Literal["raise", "drop"] = "raise"
     duplicate_policy: Literal["reject", "report"] = "reject"
+    primary_metric: Literal["mae", "mse", "rmse", "r2"] = "rmse"
 
     @model_validator(mode="after")
     def safe_features(self):

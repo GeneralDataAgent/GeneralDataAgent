@@ -2,6 +2,7 @@ import json
 import sqlite3
 from uuid import uuid4
 
+import numpy as np
 import pytest
 from scipy import stats
 
@@ -333,3 +334,28 @@ def test_derived_pearson_reuses_sourced_public_r_p_policy():
     )
     assert result["groups"][0]["public_rule_label"] == "linear"
     assert result["groups"][0]["policy_interpretation_verified"] is False
+
+
+def test_outlier_identifiers_and_inlier_statistics_are_complete():
+    from generaldataagent.contracts.analysis import AnswerSpec
+    from generaldataagent.contracts.answer_fields import AnswerFieldSpec
+    from generaldataagent.tools.sql_semantics import SemanticError, assemble_answers
+
+    rows = [{"year": 2000 + i, "x": v} for i, v in enumerate([*range(20), 1000])]
+    request = StatisticsRequest(
+        columns=["x"], operation="outliers", identifiers=["year"], identifier_order="asc"
+    )
+    result = compute_statistics(rows, request)
+    result["method_id"] = "outliers"
+    summary = result["groups"][0]["statistics"]["x"]
+    assert summary["z_inlier_mean"] == 9.5
+    assert summary["z_inlier_std"] == pytest.approx(float(np.std(range(20), ddof=1)))
+    path = ["groups", 0, "statistics", "x", "z_outlier_identifiers", "year", "items"]
+    answer = AnswerSpec(
+        columns=["years"],
+        fields={"years": AnswerFieldSpec(kind="list", item_kind="integer", order="asc")},
+    )
+    assert assemble_answers({"years": [1, path]}, {1: result}, answer) == {"years": [2020]}
+    summary["z_outlier_identifiers"]["year"]["complete"] = False
+    with pytest.raises(SemanticError):
+        assemble_answers({"years": [1, path]}, {1: result}, answer)
