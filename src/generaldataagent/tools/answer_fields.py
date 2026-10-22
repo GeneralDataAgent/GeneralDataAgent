@@ -164,7 +164,15 @@ def validate_field_sources(fields: dict[str, AnswerFieldSpec], columns, question
 def validate_field_value(raw, field: AnswerFieldSpec, result: dict, path: list):
     method = result.get("method_id") or result.get("operation")
     if field.method:
-        if field.method == "describe.sample_std":
+        if field.method == "sklearn_linear_regression":
+            if (
+                method != "regression_evaluation"
+                or result.get("model", {}).get("algorithm")
+                != "sklearn.linear_model.LinearRegression"
+                or not result.get("model", {}).get("sklearn_version")
+            ):
+                raise ValueError("field requires executed sklearn regression evidence")
+        elif field.method == "describe.sample_std":
             if method != "describe" or not path or path[-1] != "sample_std":
                 raise ValueError("field method does not match sample-standard-deviation evidence")
         elif method != field.method:

@@ -89,13 +89,23 @@ class ExperimentSpec(ContractModel):
     subgroup_columns: tuple[str, ...] = Field(default=(), max_length=10)
     minimum_subgroup_rows: int = Field(default=5, ge=2, le=10_000)
     baseline: Literal["majority", "mean"]
-    primary_metric: Literal["accuracy", "precision", "recall", "f1", "mae", "rmse", "r2"]
+    estimator: Literal["baseline", "linear_regression", "sklearn_linear_regression"] = "baseline"
+    missing_features: Literal["raise", "train_mean"] = "raise"
+    standardize: bool = True
+    duplicate_policy: Literal["reject", "report"] = "reject"
+    primary_metric: Literal["accuracy", "precision", "recall", "f1", "mae", "mse", "rmse", "r2"]
     split: SplitSpec = Field(default_factory=SplitSpec)
     random_seed: int = Field(default=42, ge=0, le=2**32 - 1)
-    quota: SandboxQuota = Field(default_factory=SandboxQuota)
+    quota: SandboxQuota = Field(
+        default_factory=lambda data: SandboxQuota(
+            memory_mb=512 if data.get("estimator") == "sklearn_linear_regression" else 256
+        )
+    )
 
     @model_validator(mode="after")
     def validate_experiment(self) -> "ExperimentSpec":
+        if self.estimator != "baseline" and self.problem_type != "regression":
+            raise ValueError("linear_regression requires regression")
         if self.target_column in self.feature_columns:
             raise ValueError("target column cannot also be a feature")
         if len(self.feature_columns) != len(set(self.feature_columns)):
@@ -105,7 +115,9 @@ class ExperimentSpec(ContractModel):
         if self.target_column in self.subgroup_columns:
             raise ValueError("target column cannot also be a subgroup column")
         classification_metrics = {"accuracy", "precision", "recall", "f1"}
-        regression_metrics = {"mae", "rmse", "r2"}
+        regression_metrics = {"mae", "mse", "rmse", "r2"}
+        if self.estimator == "baseline" and self.primary_metric == "mse":
+            raise ValueError("MSE requires versioned predictive template")
         if self.problem_type == "binary_classification":
             if self.baseline != "majority" or self.primary_metric not in classification_metrics:
                 raise ValueError(
@@ -114,6 +126,10 @@ class ExperimentSpec(ContractModel):
         elif self.baseline != "mean" or self.primary_metric not in regression_metrics:
             raise ValueError("regression requires mean baseline and regression metric")
         return self
+
+    @property
+    def template_version(self) -> str:
+        return "2.2" if self.estimator != "baseline" else "1.0"
 
 
 class ScienceCheck(ContractModel):
@@ -125,7 +141,7 @@ class ScienceCheck(ContractModel):
 
 
 class MetricValue(ContractModel):
-    name: Literal["accuracy", "precision", "recall", "f1", "mae", "rmse", "r2"]
+    name: Literal["accuracy", "precision", "recall", "f1", "mae", "mse", "rmse", "r2"]
     value: float
 
 

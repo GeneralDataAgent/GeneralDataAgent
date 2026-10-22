@@ -47,6 +47,21 @@ def fixed_analysis(
     database, specification: dict, *, allowed_relations: set[str], public_text: str = ""
 ) -> dict:
     arguments = AnalysisArguments.model_validate(specification)
+    if arguments.operation in {"statistics", "regression_evaluation"}:
+        from generaldataagent.data_science.statistics import compute_statistics
+
+        if arguments.table not in allowed_relations:
+            raise ValueError("analysis relation is outside task scope")
+        table = '"' + arguments.table.replace('"', '""') + '"'
+        result = SQLiteReadOnlyExecutor(
+            database, max_rows=200_000, max_cells=2_000_000, timeout_seconds=5
+        ).execute("SELECT * FROM " + table)
+        rows = [dict(zip(result.columns, row, strict=True)) for row in result.rows]
+        if arguments.operation == "regression_evaluation":
+            from generaldataagent.data_science.regression import evaluate_regression
+
+            return evaluate_regression(rows, arguments.experiment, public_text=public_text)
+        return compute_statistics(rows, arguments.statistics, public_text=public_text)
     if arguments.operation == "independent_t_test":
         from generaldataagent.tools.independent_test import independent_test
 

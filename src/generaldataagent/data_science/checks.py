@@ -1,5 +1,6 @@
 """Deterministic leakage, split, and metric-suitability checks."""
 
+import math
 import random
 from collections import Counter
 from collections.abc import Sequence
@@ -16,6 +17,15 @@ def split_indices(
     test_count = min(test_count, count - 1)
     indices = list(range(count))
     if spec.split.strategy == "random":
+        if spec.estimator == "sklearn_linear_regression":
+            from sklearn.model_selection import train_test_split
+
+            return train_test_split(
+                indices,
+                test_size=spec.split.test_fraction,
+                random_state=spec.random_seed,
+                shuffle=True,
+            )
         random.Random(spec.random_seed).shuffle(indices)
         test = sorted(indices[:test_count])
         train = sorted(indices[test_count:])
@@ -56,6 +66,17 @@ def validate_experiment_data(
     rows: Sequence[dict[str, Any]], spec: ExperimentSpec, train: list[int], test: list[int]
 ) -> tuple[ScienceCheck, ...]:
     checks: list[ScienceCheck] = []
+    split_valid = (
+        bool(train)
+        and bool(test)
+        and all(type(i) is int and 0 <= i < len(rows) for i in train + test)
+        and len(set(train)) == len(train)
+        and len(set(test)) == len(test)
+        and set(train).isdisjoint(test)
+        and set(train + test) == set(range(len(rows)))
+    )
+    if not split_valid:
+        return (_check("split_integrity", False, "invalid_split", "Invalid split indices."),)
     required = {spec.target_column, *spec.feature_columns}
     missing = sorted(name for name in required if any(name not in row for row in rows))
     checks.append(
@@ -70,6 +91,36 @@ def validate_experiment_data(
     )
     if missing:
         return tuple(checks)
+
+    if spec.estimator != "baseline":
+        numeric = all(
+            _is_number(row[c]) or (row[c] is None and spec.missing_features == "train_mean")
+            for row in rows
+            for c in spec.feature_columns
+        )
+        train_observed = all(
+            any(_is_number(rows[i][c]) for i in train) for c in spec.feature_columns
+        )
+        checks.append(
+            _check(
+                "numeric_features",
+                numeric and train_observed,
+                "numeric_features_valid"
+                if numeric and train_observed
+                else "invalid_numeric_features",
+                "Linear features must be finite numeric values with train-only imputation support.",
+            )
+        )
+        checks.append(
+            _check(
+                "regression_sample_size",
+                len(train) > len(spec.feature_columns) and len(test) >= 2,
+                "regression_sample_sufficient"
+                if len(train) > len(spec.feature_columns) and len(test) >= 2
+                else "regression_sample_insufficient",
+                "OLS requires more training rows than features and at least two held-out rows.",
+            )
+        )
 
     targets = [row[spec.target_column] for row in rows]
     valid_target = all(value is not None for value in targets)
@@ -100,6 +151,8 @@ def validate_experiment_data(
             else f"Detected {overlap} duplicate test examples in training data.",
         )
     )
+    if spec.duplicate_policy == "report":
+        checks[-1] = checks[-1].model_copy(update={"severity": "warning"})
 
     proxies = [
         feature
@@ -121,9 +174,12 @@ def validate_experiment_data(
     if spec.split.strategy == "temporal" and split_ok:
         column = spec.split.timestamp_column
         assert column is not None
-        split_ok = max(str(rows[index][column]) for index in train) <= min(
-            str(rows[index][column]) for index in test
-        )
+        try:
+            split_ok = max(rows[index][column] for index in train) <= min(
+                rows[index][column] for index in test
+            )
+        except (KeyError, TypeError):
+            split_ok = False
     if spec.split.strategy == "group" and split_ok:
         column = spec.split.group_column
         assert column is not None
@@ -166,4 +222,4 @@ def _signature(row: dict[str, Any], columns: set[str]) -> tuple[str, ...]:
 
 
 def _is_number(value: object) -> bool:
-    return isinstance(value, (int, float)) and not isinstance(value, bool)
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)

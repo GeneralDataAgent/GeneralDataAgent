@@ -72,6 +72,8 @@ class DataScienceWorkbench:
         data_domain: str,
         trace_id: str | None = None,
     ) -> ExperimentReport:
+        if self.production_mode and spec.duplicate_policy != "reject":
+            raise PermissionError("production science requires duplicate rejection")
         if isinstance(self.artifact_store, GovernedArtifactStore):
             actor = self.artifact_store.actor
             if (actor.tenant_id, actor.project_id) != (
@@ -100,7 +102,7 @@ class DataScienceWorkbench:
             arguments={
                 "experiment_id": str(spec.experiment_id),
                 "snapshot_hash": snapshot.content_hash,
-                "template_version": "1.0",
+                "template_version": spec.template_version,
             },
             data_domains=(data_domain,),
             requested_risk=RiskLevel.R1,

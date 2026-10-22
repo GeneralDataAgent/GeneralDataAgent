@@ -28,6 +28,7 @@ dependencies = [
   "langsmith>=0.14,<0.15",
   "psycopg[binary]>=3.2,<4",
   "scipy>=1.15,<2",
+  "scikit-learn>=1.7,<2",
 ]
 
 [dependency-groups]

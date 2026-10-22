@@ -126,6 +126,8 @@ def normalize_protocol_action(action):
         "crosscheck_sql": "crosscheck",
         "compute_sql": "sql",
         "fixed_analysis": "analysis",
+        "compute_statistics": "analysis",
+        "evaluate_regression": "analysis",
         "search_documents": "search",
         "collect_values": "collect",
         "submit_answers": "answers",
@@ -185,6 +187,29 @@ def normalize_protocol_action(action):
         if not isinstance(arguments, dict) or "sql" not in arguments or set(arguments) - allowed:
             return action
         return {names[name]: arguments if name == "collect_values" else arguments["sql"]}
+    if name in {"compute_statistics", "evaluate_regression"}:
+        if not isinstance(arguments, dict) or "table" not in arguments:
+            return action
+        request = {key: value for key, value in arguments.items() if key != "table"}
+        if name == "compute_statistics":
+            return {
+                "analysis": {
+                    "table": arguments["table"],
+                    "columns": request.get("columns", []),
+                    "operation": "statistics",
+                    "statistics": request,
+                }
+            }
+        features = request.get("features", [])
+        return {
+            "analysis": {
+                "table": arguments["table"],
+                "columns": (features if isinstance(features, list) else [])
+                + [request.get("target", "")],
+                "operation": "regression_evaluation",
+                "experiment": request,
+            }
+        }
     if name == "fixed_analysis":
         return {"analysis": arguments}
     if name == "submit_mixed_sql_answers":

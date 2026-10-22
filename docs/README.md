@@ -17,6 +17,7 @@ This directory contains English documentation for system architecture, design de
 ## Usage and operations
 
 - [Project usage guide](guides/usage.md)
+- [Controlled statistics and modeling](guides/statistics-and-modeling.md)
 - [Deployment and operations reference](operations/deployment-and-operations.md)
 - [Controlled pilot runbook](operations/controlled-pilot-runbook.md)
 - [Business-loop runbook](operations/business-loop-runbook.md)

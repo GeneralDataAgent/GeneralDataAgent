@@ -348,6 +348,7 @@ class BoundedSQLAgent:
                 "sql-semantic",
                 "sql-semantic-plan",
                 "sql-semantic-json",
+                "sql-science",
             }
             or not math.isfinite(max_cost_usd)
             or max_cost_usd <= 0
@@ -371,7 +372,9 @@ class BoundedSQLAgent:
 
         context, relations = database_context(
             database.resolve(),
-            public_text=task.question if self.tool_profile.startswith("sql-semantic") else "",
+            public_text=task.question
+            if self.tool_profile.startswith("sql-semantic") or self.tool_profile == "sql-science"
+            else "",
         )
         physical_schema = {
             item["table"]: [column[0] for column in item["columns"]]
@@ -429,6 +432,23 @@ class BoundedSQLAgent:
         python_stats_requested = requests_python_statistics(public_task_text)
 
         def require_test_method(bindings, bound_evidence):
+            if self.tool_profile == "sql-science":
+                from generaldataagent.data_science.regression import (
+                    regression_metric_bindings,
+                    requests_sklearn,
+                    sklearn_bindings,
+                )
+
+                if requests_sklearn(public_task_text) and not sklearn_bindings(
+                    bindings, bound_evidence
+                ):
+                    raise SemanticError("sklearn_requires_executed_library_evidence")
+                if not regression_metric_bindings(bindings, bound_evidence, public_task_text):
+                    raise SemanticError("regression_requires_requested_metric_binding")
+                from generaldataagent.tools.statistical_methods import standard_deviation_bindings
+
+                if not standard_deviation_bindings(bindings, bound_evidence, public_task_text):
+                    raise SemanticError("standard_deviation_requires_fixed_method_binding")
             if not independent_method_bindings(bindings, bound_evidence, public_task_text):
                 raise SemanticError("independent_test_requires_method_bindings")
             if python_stats_requested and not python_statistics_bindings(bindings, bound_evidence):
@@ -436,7 +456,23 @@ class BoundedSQLAgent:
 
         plan_mode = self.tool_profile == "sql-semantic-plan"
         semantic_json = self.tool_profile == "sql-semantic-json"
-        semantic = self.tool_profile in {"sql-semantic", "sql-semantic-plan", "sql-semantic-json"}
+        science = self.tool_profile == "sql-science"
+        from generaldataagent.evaluation.stage_eight import needs_science_tools
+
+        science_discovery = science and needs_science_tools(
+            public_task_text,
+            textual_columns=[
+                c[0]
+                for line in context.splitlines()
+                for c in json.loads(line)["columns"]
+                if c[1] == "TEXT"
+            ],
+        )
+        semantic = science or self.tool_profile in {
+            "sql-semantic",
+            "sql-semantic-plan",
+            "sql-semantic-json",
+        }
         if semantic_json and task.benchmark != "bird-mini-dev-sqlite":
             raise ValueError("JSON SQL mode requires SQL-output tasks")
         if plan_mode and task.benchmark != "bird-mini-dev-sqlite":
@@ -455,6 +491,7 @@ class BoundedSQLAgent:
             "sql-semantic",
             "sql-semantic-plan",
             "sql-semantic-json",
+            "sql-science",
         }
         enhanced = self.tool_profile in {
             "sql-analysis",
@@ -462,6 +499,7 @@ class BoundedSQLAgent:
             "sql-semantic",
             "sql-semantic-plan",
             "sql-semantic-json",
+            "sql-science",
         }
         extra = (
             """
@@ -559,6 +597,10 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                 if semantic_json
                 else STAGE7_SQL_PROMPT + (STAGE7_PLAN_PROMPT if plan_mode else ""),
             )
+        if science_discovery and task.benchmark != "bird-mini-dev-sqlite":
+            from generaldataagent.evaluation.stage_eight import STAGE8_PROMPT
+
+            messages[0] = ("system", messages[0][1] + STAGE8_PROMPT)
         if precision or semantic_json:
             request = json.loads(messages[1][1])
             request.pop("answer_fields", None)
@@ -667,6 +709,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     active_model = (
                         bind_typed_tools(
                             self.model,
+                            science_enabled=science_discovery,
                             sql_output=task.benchmark == "bird-mini-dev-sqlite",
                             planned=task_spec is not None,
                             plan_enabled=plan_mode,
@@ -1056,6 +1099,12 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     result_data = retrieve_documents(documents, action["search"])
                     tool = "document_search"
                 elif enhanced and "analysis" in action:
+                    if (
+                        action["analysis"].get("operation")
+                        in {"statistics", "regression_evaluation"}
+                        and not science
+                    ):
+                        raise ValueError("Stage 8 analysis requires sql-science profile")
                     result_data = fixed_analysis(
                         database,
                         action["analysis"],
@@ -1274,6 +1323,10 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     final_sql, failure = sql, None
                     break
                 feedback = bounded_observation(result_data) if repair else result_data
+                if science and tool == "fixed_analysis":
+                    from generaldataagent.evaluation.stage_eight import science_observation
+
+                    feedback = bounded_observation(science_observation(result_data))
                 if (
                     semantic
                     and task.benchmark != "bird-mini-dev-sqlite"
@@ -1360,6 +1413,12 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                 if semantic and isinstance(exc, ColumnScopeError):
                     event.update(code="unknown_column", field_candidates=exc.candidates)
                 feedback = {"step": step, "error": kind, "code": event["code"]}
+                if science:
+                    from generaldataagent.evaluation.stage_eight import science_repair_hint
+
+                    hint = science_repair_hint(exc)
+                    if hint:
+                        feedback["science_repair_hint"] = hint
                 if semantic and "repair_type" in event:
                     feedback["repair_type"] = event["repair_type"]
                 if semantic and event["code"] == "empty_analysis_population":

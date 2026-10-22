@@ -151,18 +151,150 @@ def _subgroup_evaluation(test, spec, prediction):
     return results
 
 
-def main():
-    payload = json.load(sys.stdin)
+def _least_squares(matrix, target):
+    """Householder QR; rejects rank deficiency instead of unstable normal equations."""
+    a = [list(map(float, row)) for row in matrix]
+    y = list(map(float, target))
+    n, p = len(a), len(a[0])
+    scale = max(abs(v) for row in a for v in row)
+    for k in range(p):
+        norm = math.hypot(*(a[i][k] for i in range(k, n)))
+        if norm <= 1e-12 * max(1.0, scale):
+            raise ValueError("rank deficient design matrix")
+        alpha = -math.copysign(norm, a[k][k])
+        vector = [a[i][k] for i in range(k, n)]
+        vector[0] -= alpha
+        magnitude = math.hypot(*vector)
+        vector = [v / magnitude for v in vector]
+        for j in range(k, p):
+            dot = math.fsum(v * a[i][j] for i, v in zip(range(k, n), vector, strict=True))
+            for i, v in zip(range(k, n), vector, strict=True):
+                a[i][j] -= 2 * v * dot
+        dot = math.fsum(v * y[i] for i, v in zip(range(k, n), vector, strict=True))
+        for i, v in zip(range(k, n), vector, strict=True):
+            y[i] -= 2 * v * dot
+    coefficients = [0.0] * p
+    for i in reversed(range(p)):
+        coefficients[i] = (
+            y[i] - math.fsum(a[i][j] * coefficients[j] for j in range(i + 1, p))
+        ) / a[i][i]
+    return coefficients
+
+
+def _linear_regression(train, test, spec):
+    features, target = spec["feature_columns"], spec["target_column"]
+    means, scales = {}, {}
+    for c in features:
+        values = [float(row[c]) for row in train if row[c] is not None]
+        if not values:
+            raise ValueError("feature has no observed training values")
+        means[c] = statistics.fmean(values)
+        imputed = [means[c] if row[c] is None else float(row[c]) for row in train]
+        scales[c] = (statistics.pstdev(imputed) or 1.0) if spec["standardize"] else 1.0
+
+    def transform(rows):
+        return [
+            [1.0]
+            + [
+                (
+                    (means[c] if row[c] is None else float(row[c]))
+                    - (means[c] if spec["standardize"] else 0)
+                )
+                / scales[c]
+                for c in features
+            ]
+            for row in rows
+        ]
+
+    if spec["missing_features"] == "raise" and any(
+        row[c] is None for row in train + test for c in features
+    ):
+        raise ValueError("missing feature values")
+    sklearn_version = None
+    if spec.get("estimator") == "sklearn_linear_regression":
+        import sklearn
+        from sklearn.linear_model import LinearRegression
+
+        sklearn_version = sklearn.__version__
+        fitted = LinearRegression(fit_intercept=True).fit(
+            [row[1:] for row in transform(train)], [r[target] for r in train]
+        )
+        if fitted.rank_ < len(features):
+            raise ValueError("rank deficient design matrix")
+        coefficient = [float(fitted.intercept_), *map(float, fitted.coef_)]
+        predictions = list(map(float, fitted.predict([row[1:] for row in transform(test)])))
+    else:
+        coefficient = _least_squares(transform(train), [r[target] for r in train])
+        predictions = [
+            math.fsum(a * b for a, b in zip(row, coefficient, strict=True))
+            for row in transform(test)
+        ]
+    actual = [float(row[target]) for row in test]
+    errors = [a - p for a, p in zip(actual, predictions, strict=True)]
+    denominator = math.fsum((a - statistics.fmean(actual)) ** 2 for a in actual)
+    if denominator == 0 and spec["primary_metric"] == "r2":
+        raise ValueError("held-out R2 undefined for constant target")
+    metrics = {
+        "mae": statistics.fmean(abs(e) for e in errors),
+        "rmse": math.sqrt(statistics.fmean(e * e for e in errors)),
+        "mse": statistics.fmean(e * e for e in errors),
+    }
+    if denominator:
+        metrics["r2"] = 1 - math.fsum(e * e for e in errors) / denominator
+    raw_coefficient = {c: coefficient[i + 1] / scales[c] for i, c in enumerate(features)}
+    intercept = coefficient[0] - (
+        math.fsum(raw_coefficient[c] * means[c] for c in features) if spec["standardize"] else 0
+    )
+    model = {
+        "algorithm": "linear_regression_householder_qr",
+        "coefficients": raw_coefficient,
+        "intercept": intercept,
+        "preprocessing": {
+            "fit_scope": "training_indices_only",
+            "imputation_means": means,
+            "scales": scales,
+            "standardize": spec["standardize"],
+        },
+        "parameters": {"random_seed": spec["random_seed"], "feature_columns": features},
+    }
+    if sklearn_version:
+        model.update(
+            algorithm="sklearn.linear_model.LinearRegression", sklearn_version=sklearn_version
+        )
+    baseline_metrics, _ = _regression(train, test, target)
+    baseline_metrics["mse"] = statistics.fmean(
+        (float(r[target]) - statistics.fmean(t[target] for t in train)) ** 2 for r in test
+    )
+    if not denominator:
+        baseline_metrics.pop("r2")
+    return (
+        metrics,
+        {
+            "baseline_prediction": statistics.fmean(r[target] for r in train),
+            "baseline_metrics": baseline_metrics,
+            "predictions": predictions,
+            "mean_error": statistics.fmean(errors),
+            "maximum_absolute_error": max(abs(e) for e in errors),
+            "r2_status": "defined" if denominator else "undefined_constant_holdout",
+        },
+        model,
+    )
+
+
+def execute(payload):
     rows = payload["rows"]
     train = [rows[index] for index in payload["train_indices"]]
     test = [rows[index] for index in payload["test_indices"]]
     spec = payload["spec"]
-    if spec["problem_type"] == "binary_classification":
+    linear = spec.get("estimator") in {"linear_regression", "sklearn_linear_regression"}
+    if linear:
+        metrics, errors, model = _linear_regression(train, test, spec)
+    elif spec["problem_type"] == "binary_classification":
         metrics, errors = _classification(train, test, spec["target_column"])
     else:
         metrics, errors = _regression(train, test, spec["target_column"])
     result = {
-        "template_version": TEMPLATE_VERSION,
+        "template_version": "2.2" if linear else TEMPLATE_VERSION,
         "train_rows": len(train),
         "test_rows": len(test),
         "metrics": metrics,
@@ -193,7 +325,69 @@ def main():
             "parameters": {"random_seed": spec["random_seed"]},
         },
     }
-    sys.stdout.write(json.dumps(result, sort_keys=True, separators=(",", ":")))
+    if linear:
+        result["model"] = model
+        result["statistical_checks"]["split_manifest"] = {
+            "train_indices": payload["train_indices"],
+            "test_indices": payload["test_indices"],
+            "strategy": spec["split"]["strategy"],
+            "random_seed": spec["random_seed"],
+            "random_split_implementation": (
+                "sklearn.model_selection.train_test_split"
+                if spec.get("estimator") == "sklearn_linear_regression"
+                else "random.Random.shuffle"
+            ),
+        }
+        for subgroup in result["subgroups"]:
+            positions = [
+                i for i, row in enumerate(test) if str(row[subgroup["column"]]) == subgroup["value"]
+            ]
+            subgroup["metrics"]["mae"] = statistics.fmean(
+                abs(float(test[i][spec["target_column"]]) - errors["predictions"][i])
+                for i in positions
+            )
+    return result
+
+
+def notebook_sources(payload):
+    from pathlib import Path
+
+    source = Path(__file__).read_text().split('\nif __name__ == "__main__":')[0]
+    cell = (
+        "payload = json.loads(" + repr(json.dumps(payload, sort_keys=True, allow_nan=False)) + ")\n"
+    )
+    cell += "result = execute(payload)\nprint(json.dumps(result, sort_keys=True, allow_nan=False))"
+    return source, cell
+
+
+def execute_notebook(notebook):
+    # Only the exact repository template and a JSON literal are executable. User
+    # edits, extra cells and alternate source are rejected before compilation.
+    payload = notebook["metadata"]["generaldataagent"]["payload"]
+    expected = notebook_sources(payload)
+    cells = notebook["cells"]
+    if len(cells) != 2 or any(
+        c.get("cell_type") != "code" or c.get("source") != source
+        for c, source in zip(cells, expected, strict=True)
+    ):
+        raise ValueError("notebook is not the fixed repository template")
+    namespace = {"__name__": "gda_fixed_notebook", "__file__": __file__}
+    for cell in cells:
+        exec(compile(cell["source"], "<fixed-stage8-notebook>", "exec"), namespace)
+    return namespace["result"]
+
+
+def main():
+    import contextlib
+    import io
+
+    payload = json.load(sys.stdin)
+    if "notebook" in payload:
+        with contextlib.redirect_stdout(io.StringIO()):
+            result = execute_notebook(payload["notebook"])
+    else:
+        result = execute(payload)
+    sys.stdout.write(json.dumps(result, sort_keys=True, separators=(",", ":"), allow_nan=False))
 
 
 if __name__ == "__main__":

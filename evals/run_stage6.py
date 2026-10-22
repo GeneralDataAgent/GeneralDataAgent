@@ -46,7 +46,9 @@ def main():
     parser.add_argument("--benchmark", choices=["infi", "dabstep", "bird"], required=True)
     parser.add_argument("--limit", type=int, default=60)
     parser.add_argument(
-        "--evaluation-protocol", choices=["stage6-v7", "stage7-v1"], default="stage6-v7"
+        "--evaluation-protocol",
+        choices=["stage6-v7", "stage7-v1", "stage8-v1", "stage8-v2"],
+        default="stage6-v7",
     )
     parser.add_argument("--seed", type=int, default=20261020)
     parser.add_argument("--workers", type=int, choices=range(1, 5), default=1)
@@ -76,6 +78,7 @@ def main():
             "sql-semantic",
             "sql-semantic-plan",
             "sql-semantic-json",
+            "sql-science",
         ],
         default="sql",
     )
@@ -89,11 +92,14 @@ def main():
     args = parser.parse_args()
     if args.max_tokens is not None and args.max_tokens < 1:
         parser.error("max tokens must be positive")
-    if (
-        args.tool_profile in {"sql-semantic", "sql-semantic-plan", "sql-semantic-json"}
-        and args.evaluation_protocol != "stage7-v1"
-    ):
+    if args.tool_profile in {
+        "sql-semantic",
+        "sql-semantic-plan",
+        "sql-semantic-json",
+    } and args.evaluation_protocol not in {"stage7-v1", "stage8-v1", "stage8-v2"}:
         parser.error("sql-semantic requires stage7-v1; rerun both comparison arms")
+    if args.tool_profile == "sql-science" and args.evaluation_protocol != "stage8-v2":
+        parser.error("sql-science requires stage8-v2; rerun both comparison arms")
     if args.tool_profile == "sql-semantic-plan" and args.benchmark != "bird":
         parser.error("structured query plans require the SQL-output benchmark")
     if args.tool_profile == "sql-semantic-json" and args.benchmark != "bird":
@@ -182,9 +188,11 @@ def main():
         if not readiness["ready"]:
             print(json.dumps(readiness, indent=2), flush=True)
             raise SystemExit(2)
+    from generaldataagent.evaluation.stage_eight import stage8_fingerprint
     from generaldataagent.evaluation.stage_seven import stage7_fingerprint
 
     system_fingerprint = {
+        "stage8_sources": stage8_fingerprint(ROOT) if args.tool_profile == "sql-science" else None,
         "prompt_hash": hashlib.sha256(SYSTEM_PROMPT.encode()).hexdigest(),
         "agent_hash": digest(ROOT / "src/generaldataagent/evaluation/stage_six.py"),
         "analysis_tools_hash": digest(
@@ -214,7 +222,8 @@ def main():
         "dependency_lock_hash": digest(ROOT / "uv.lock"),
         "tool_profile": args.tool_profile,
         "stage7_sources": stage7_fingerprint(ROOT)
-        if args.tool_profile in {"sql-semantic", "sql-semantic-plan", "sql-semantic-json"}
+        if args.tool_profile
+        in {"sql-semantic", "sql-semantic-plan", "sql-semantic-json", "sql-science"}
         else None,
         "route_hash": route["route_hash"],
     }

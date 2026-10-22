@@ -39,6 +39,7 @@ def create_dataset_snapshot(
     rows: Sequence[dict[str, Any]],
     columns: tuple[SnapshotColumn, ...],
     artifact_store: LocalArtifactStore,
+    lineage: tuple[UUID, ...] = (),
 ) -> DatasetSnapshot:
     declared = tuple(column.name for column in columns)
     if tuple(rows[0]) != declared:
@@ -51,6 +52,7 @@ def create_dataset_snapshot(
         content=content,
         created_by="data_scientist",
         extension="json",
+        lineage=lineage,
     )
     return DatasetSnapshot(
         task_id=task_id,

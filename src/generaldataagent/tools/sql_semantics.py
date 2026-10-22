@@ -176,8 +176,11 @@ def assemble_answers(bindings: dict, evidence: dict[int, dict], answer: AnswerSp
                 value = validate_field_value(value, field, evidence[step], path)
             except ValueError as exc:
                 raise SemanticError(str(exc)) from None
-        if isinstance(value, list) and path == ["items"]:
-            result = evidence[step]
+        from generaldataagent.tools.statistical_methods import statistical_collection
+
+        stat_collection = statistical_collection(evidence[step], path)
+        if isinstance(value, list) and (path == ["items"] or stat_collection is not None):
+            result = evidence[step] if stat_collection is None else stat_collection
             if (
                 result.get("complete") is not True
                 or result.get("total_count") != len(value)
