@@ -115,3 +115,14 @@ In the research profile, a requested standard deviation requires a fixed-method 
 The public default is ddof=1; explicit population/ddof=0 requirements use that convention.
 Manual SQL moment-subtraction formulas cannot substitute for a method receipt. Z-score outlier
 summaries carry the corresponding ddof receipt without requiring an unrequested std output.
+
+For a complete synthetic path that saves an actually reexecuted Notebook and artifact lineage:
+
+```bash
+uv run --frozen python examples/statistics_modeling_demo.py \
+  --output .artifacts/statistics-modeling-demo
+```
+
+The generated `results.json` and `experiment.ipynb` demonstrate the API. Synthetic linear data
+is not real-world predictive evidence. Editing a Notebook invalidates its recorded replay claim;
+the fixed executor accepts only the exact repository template and bound input manifest.
