@@ -347,6 +347,7 @@ def bind_typed_tools(
             from generaldataagent.contracts.answer_fields import AnswerFieldSpec
 
             field["properties"]["rule"] = _wire_contract_schema(AnswerFieldSpec)
+            field["properties"]["rule"]["properties"].pop("method", None)
         if answer_contract is not None:
             if answer_contract.columns:
                 field["properties"]["name"] = string | {"enum": list(answer_contract.columns)}
@@ -386,13 +387,6 @@ def bind_typed_tools(
             analysis_properties.pop("decision_rule", None)
             analysis_properties.pop("significance_rule", None)
             analysis_properties.pop("magnitude_rule", None)
-        if science_enabled and not python_statistics_requested:
-            from generaldataagent.contracts.statistics import RegressionRequest, StatisticsRequest
-
-            analysis_properties["columns"]["maxItems"] = 21
-            analysis_properties["operation"]["enum"].extend(["statistics", "regression_evaluation"])
-            analysis_properties["statistics"] = _wire_contract_schema(StatisticsRequest)
-            analysis_properties["experiment"] = _wire_contract_schema(RegressionRequest)
         tools = [
             tool(
                 "submit_sql_answers",
@@ -432,6 +426,27 @@ def bind_typed_tools(
                 ["fields"],
             ),
         ]
+        if science_enabled and not python_statistics_requested:
+            from generaldataagent.contracts.statistics import RegressionRequest, StatisticsRequest
+
+            stat_schema = _wire_contract_schema(StatisticsRequest)
+            model_schema = _wire_contract_schema(RegressionRequest)
+            tools = [
+                tool(
+                    "compute_statistics",
+                    "Full-snapshot statistics and derived features; flat method contract; "
+                    "complete outlier identifiers",
+                    {"table": string, **stat_schema["properties"]},
+                    ["table", "columns", "operation"],
+                ),
+                tool(
+                    "evaluate_regression",
+                    "Real held-out regression: locked features, target, split and metric; "
+                    "sklearn or fixed QR",
+                    {"table": string, **model_schema["properties"]},
+                    ["table", "features", "target", "estimator", "primary_metric"],
+                ),
+            ] + tools
         tools.append(
             tool(
                 "declare_unsupported",

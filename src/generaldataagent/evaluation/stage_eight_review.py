@@ -5,8 +5,8 @@ from generaldataagent.evaluation.stage_six_comparison import compare_runs
 
 def review_stage8(baseline, candidate, historical=None):
     for report in (baseline, candidate):
-        if report.get("protocol", {}).get("version") != "stage8-v1":
-            raise ValueError("fresh stage8-v1 paired runs required")
+        if report.get("protocol", {}).get("version") not in {"stage8-v1", "stage8-v2"}:
+            raise ValueError("fresh matching Stage 8 paired runs required")
         if report.get("run_status") != "completed":
             raise ValueError("completed paired runs required")
     if baseline.get("model_route") != candidate.get("model_route"):

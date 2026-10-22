@@ -7,7 +7,7 @@ from generaldataagent.evaluation.stage_eight_review import review_stage8
 
 def test_stage8_rejects_old_incomplete_and_different_routes():
     report = {"protocol": {"version": "stage7-v1"}, "run_status": "completed"}
-    with pytest.raises(ValueError, match="stage8-v1"):
+    with pytest.raises(ValueError, match="Stage 8"):
         review_stage8(report, report)
     report["protocol"]["version"] = "stage8-v1"
     report["run_status"] = "interrupted"

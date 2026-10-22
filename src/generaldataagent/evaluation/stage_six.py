@@ -434,6 +434,7 @@ class BoundedSQLAgent:
         def require_test_method(bindings, bound_evidence):
             if self.tool_profile == "sql-science":
                 from generaldataagent.data_science.regression import (
+                    regression_metric_bindings,
                     requests_sklearn,
                     sklearn_bindings,
                 )
@@ -442,6 +443,8 @@ class BoundedSQLAgent:
                     bindings, bound_evidence
                 ):
                     raise SemanticError("sklearn_requires_executed_library_evidence")
+                if not regression_metric_bindings(bindings, bound_evidence, public_task_text):
+                    raise SemanticError("regression_requires_requested_metric_binding")
                 from generaldataagent.tools.statistical_methods import standard_deviation_bindings
 
                 if not standard_deviation_bindings(bindings, bound_evidence, public_task_text):

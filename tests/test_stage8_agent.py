@@ -25,8 +25,8 @@ def test_science_schema_is_opt_in():
     legacy, science = schema(False), schema(True)
     assert "statistics" not in legacy["properties"]
     assert "regression_evaluation" not in legacy["properties"]["operation"]["enum"]
-    assert "statistics" in science["properties"]
-    assert "experiment" in science["properties"]
+    assert "statistics" not in science["properties"]
+    assert "experiment" not in science["properties"]
     assert "$ref" not in json.dumps(science)
     wire = bind_typed_tools(Model(), sql_output=False, science_enabled=True)
     submit = next(
@@ -36,7 +36,9 @@ def test_science_schema_is_opt_in():
     )
     rule = submit["properties"]["fields"]["items"]["properties"]["rule"]
     assert "kind" in rule["required"]
-    assert "regression_evaluation" in json.dumps(rule)
+    assert "method" not in rule["properties"]
+    names = {t["function"]["name"] for t in wire["tools"]}
+    assert {"compute_statistics", "evaluate_regression"} <= names
 
 
 @pytest.mark.parametrize("operation", ["statistics", "regression_evaluation"])
@@ -70,14 +72,26 @@ def test_agent_dispatch_and_field_evidence(tmp_path, operation):
         binding = ["metrics", "r2"]
     actions = iter(
         [
-            {"analysis": arguments},
+            {
+                "name": "compute_statistics"
+                if operation == "statistics"
+                else "evaluate_regression",
+                "arguments": {
+                    "table": "data",
+                    **(
+                        arguments["statistics"]
+                        if operation == "statistics"
+                        else arguments["experiment"]
+                    ),
+                },
+            },
             {"answers": {}, "evidence_steps": [1], "bindings": {"answer": [1, binding]}},
         ]
     )
 
     class Model:
         def invoke(self, messages):
-            assert "regression_evaluation" in messages[0][1]
+            assert "evaluate_regression" in messages[0][1]
             return SimpleNamespace(
                 content=json.dumps(next(actions)), usage_metadata={"total_tokens": 10}
             )

@@ -47,7 +47,7 @@ def main():
     parser.add_argument("--limit", type=int, default=60)
     parser.add_argument(
         "--evaluation-protocol",
-        choices=["stage6-v7", "stage7-v1", "stage8-v1"],
+        choices=["stage6-v7", "stage7-v1", "stage8-v1", "stage8-v2"],
         default="stage6-v7",
     )
     parser.add_argument("--seed", type=int, default=20261020)
@@ -96,10 +96,10 @@ def main():
         "sql-semantic",
         "sql-semantic-plan",
         "sql-semantic-json",
-    } and args.evaluation_protocol not in {"stage7-v1", "stage8-v1"}:
+    } and args.evaluation_protocol not in {"stage7-v1", "stage8-v1", "stage8-v2"}:
         parser.error("sql-semantic requires stage7-v1; rerun both comparison arms")
-    if args.tool_profile == "sql-science" and args.evaluation_protocol != "stage8-v1":
-        parser.error("sql-science requires stage8-v1; rerun both comparison arms")
+    if args.tool_profile == "sql-science" and args.evaluation_protocol != "stage8-v2":
+        parser.error("sql-science requires stage8-v2; rerun both comparison arms")
     if args.tool_profile == "sql-semantic-plan" and args.benchmark != "bird":
         parser.error("structured query plans require the SQL-output benchmark")
     if args.tool_profile == "sql-semantic-json" and args.benchmark != "bird":

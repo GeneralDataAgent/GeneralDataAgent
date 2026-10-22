@@ -22,6 +22,9 @@ def main():
         choices=["infi", "bird", "dabstep"],
         default=["infi", "bird", "dabstep"],
     )
+    parser.add_argument(
+        "--evaluation-protocol", choices=["stage8-v1", "stage8-v2"], default="stage8-v2"
+    )
     parser.add_argument("--workers", type=int, choices=[1, 2], default=1)
     parser.add_argument("--model", default="workbuddy/deepseek-v4.1-flash")
     parser.add_argument("--historical-root", type=Path)
@@ -32,7 +35,7 @@ def main():
     status_path = args.output / "driver-status.json"
     metadata = {
         "status": "running",
-        "protocol": "stage8-v1",
+        "protocol": args.evaluation_protocol,
         "token_caps": None,
         "git_commit": subprocess.check_output(
             ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
@@ -65,7 +68,7 @@ def main():
                 "--csv-importer",
                 "identifier-v2",
                 "--evaluation-protocol",
-                "stage8-v1",
+                args.evaluation_protocol,
                 "--request-interval-seconds",
                 "3.5",
                 "--tool-profile",

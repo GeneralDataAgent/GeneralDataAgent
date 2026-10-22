@@ -43,7 +43,7 @@ def main():
         for q in questions
     }
     records = []
-    for key in ("5", "30", "69", "70", "255", "326", "644", "659", "27", "132", "575"):
+    for key in ("5", "30", "69", "70", "255", "326", "644", "659", "27", "132", "575", "23", "495"):
         task = public_tasks[key]
         source = ROOT / "data/stage6/infi/da-dev-tables" / task.asset
         database = args.output / (key + ".sqlite")
@@ -52,7 +52,7 @@ def main():
             cursor = db.execute("SELECT * FROM data")
             names = [d[0] for d in cursor.description]
             rows = [dict(zip(names, row, strict=True)) for row in cursor.fetchall()]
-        if key in {"30", "70"}:
+        if key in {"23", "30", "70"}:
             features = (
                 ["age", "bmi"]
                 if key == "30"
@@ -71,7 +71,9 @@ def main():
                     "educ",
                 ]
             )
-            target = "charges" if key == "30" else "wage"
+            if key == "23":
+                features = ["Mar.2019"]
+            target = "Mar.2020" if key == "23" else "charges" if key == "30" else "wage"
             columns = features + [target]
             experiment = {
                 "features": features,
@@ -79,7 +81,8 @@ def main():
                 "estimator": "sklearn_linear_regression",
                 "random_seed": 42,
                 "split": {"test_fraction": 0.2 if key == "30" else 0.3},
-                "missing_rows": "drop" if key == "30" else "raise",
+                "missing_rows": "drop" if key in {"23", "30"} else "raise",
+                "primary_metric": "mse" if key == "23" else "rmse",
                 "standardize": False,
                 "duplicate_policy": "report",
             }
@@ -101,7 +104,9 @@ def main():
                     y_test, LinearRegression().fit(x_train, y_train).predict(x_test)
                 )
             )
-            path = ["metrics", "rmse"]
+            if key == "23":
+                independent = independent * independent
+            path = ["metrics", "mse" if key == "23" else "rmse"]
         else:
             request = {"columns": [], "operation": "pearson"}
             if key in {"5", "69"}:
@@ -138,6 +143,17 @@ def main():
                         pairs.append(pair)
                 independent = float(stats.pearsonr(*zip(*pairs, strict=True)).statistic)
                 path = ["groups", 0, "correlation"]
+            elif key == "495":
+                request.update(
+                    columns=["Architecture"],
+                    operation="outliers",
+                    identifiers=["Year"],
+                    identifier_order="asc",
+                )
+                values = np.array([r["Architecture"] for r in rows])
+                mask = np.abs((values - np.mean(values)) / np.std(values, ddof=1)) <= 3
+                independent = float(np.std(values[mask], ddof=1))
+                path = ["groups", 0, "statistics", "Architecture", "z_inlier_std"]
             elif key in {"27", "132"}:
                 column = "charges" if key == "27" else "Fare"
                 values = [
