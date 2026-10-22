@@ -23654,7 +23654,7 @@
     ]
   },
   "pending": [
-    "Finish frozen v67 priority diagnostic; complete paired evaluation of latest code is still required",
+    "Finish frozen full v72 paired evaluation and original historical 61-case guard; no stitching of priority diagnostics",
     "BIRD >=36/60 and no fresh/historical regressions",
     "Independent instruction/label and scientific-method review",
     "Unseen, repeated and independent promotion validation"
@@ -45202,7 +45202,7 @@
     "validator_source_commit": "28e0ac5f05ac35e1a729ad5150a69d0df85543eb"
   },
   "latest_local_validation": {
-    "source_commit": "ca2a105ec55d4efd887c0e7bd08b97569c2a2360",
+    "source_commit": "ffffba04fc67fb4fc825d6a2876bd045c75e47ee",
     "stage7_fingerprint": {
       "contracts/analysis.py": "4b9b8e234962f67b5f31b8006fda0fea225cffabf96b940098758dca4a502655",
       "contracts/answer_fields.py": "e6ecbd59912179bc23d1be8acb4c4a085e20169c53b43e1907175391d949095b",
@@ -45218,22 +45218,22 @@
       "tools/semantic_requirements.py": "bf25b5955a61b460375ebef86e3c50c9c55fe516f639fcb10256c67187550d31",
       "tools/public_formulas.py": "2d81de1d666f8b4cdd6403705954c54d54cad4881194603fd144407c0289d397",
       "orchestration/analysis_plan.py": "cb9704c3b3af020317e5204a56013c83e93a3d1065b6e5ed1e08feff97770687",
-      "catalog/semantic_context.py": "9005741f7d664d5ca5f65e6e37c2dd39fb3ea9659c89b89e9af418366ff5940f",
-      "catalog/field_evidence.py": "aa026db57b4d721f67c6d6845f87fe79c17d2f98eed5e683bf4fa394fb1feb4a",
+      "catalog/semantic_context.py": "5718e2b25b8e3500161d05bcbfc6762c5f77dd936ba073bffaf332db29f73898",
+      "catalog/field_evidence.py": "298ef33ed45e1518b759cfb2fe4dab2cc7363687cf8974c45b8f823d3641fa10",
       "catalog/join_evidence.py": "cd5ae4218c11eba66a7a3b7166ed226ac37b81ed6229c64978d63be51de7205e",
       "tools/sql_semantics.py": "3376bbc50a68b411c8028c00eee3ea409b337469d353ea0132bec398708acaf7",
       "tools/sql_guard.py": "72ef5c19eb4080f3a75f745588eff76780684a0691c3ab141c79d17c6ca5db59",
       "tools/sqlite.py": "6cc32bffd2d0822f3a0805d63ab15624c0530d9e0b6e719053f2d0c869784251",
-      "evaluation/stage_six.py": "93e45ccbbc5efbe87e2060a3a9be72e3137e94aa934bea6e8d8ea8d990c1b225",
+      "evaluation/stage_six.py": "19ba29dcd4a5dd62fc33c434046411448f96d6128946481895c1d0eef417bcda",
       "evaluation/stage_six_sql_precision.py": "9636255157d5a6477972ff3dadd0d50454710dc3150b09b8c56841f8180d3fa6",
-      "evaluation/stage_six_repair.py": "52de615d7752a26e6afc8f8a5f9ed204c3bbdd880cdb61e4ca5719b2ae27a1a8",
-      "evaluation/stage_seven.py": "82439f0054929d0bb70f755820d7e7550d3324408972d9f87ff37e12c2f28e01",
+      "evaluation/stage_six_repair.py": "62da81c184ea9f8279c7332cb8f4302c7d031d4d3cc9c1ce619660afa8cb5d83",
+      "evaluation/stage_seven.py": "d99cb5def4e002af3cbe31b4b7172c89c6079a3a085f38e4e0aaa450e828b4b3",
       "contracts/query_plan.py": "4b18902c4ee0a82f35b4776bde17713a18672f2ef87b45e903cae3c958c9ad9e",
       "tools/semantic_sql.py": "ae6c20f44c53eabbdd9a51d8f052b9d3b0f27c8c93c4a0ddd377d8525ba1cd47"
     },
-    "passed": 1173,
+    "passed": 1184,
     "skipped": 1,
-    "coverage_percent": 89.33,
+    "coverage_percent": 89.39,
     "ruff_check": "passed",
     "format_check": "passed",
     "diff_check": "passed",
@@ -232971,5 +232971,3851 @@
       }
     ],
     "scope": "offline replay; strict scores unchanged"
+  },
+  "priority_diagnostic_v67": {
+    "source_commit": "ca2a105ec55d4efd887c0e7bd08b97569c2a2360",
+    "model_route": {
+      "provider_id": "magpie",
+      "app_type": "magpie",
+      "model": "workbuddy/deepseek-v4.1-flash",
+      "transport": "openai-chat",
+      "thinking_mode": "default",
+      "json_mode": false,
+      "max_output_tokens": 3000,
+      "endpoint_hash": "fe8827a6b46979db5015036d380dd4e1f10eda5b76101c62a322240bf51a0573",
+      "wire_api": "chat_completions",
+      "gateway_adapter_hash": "163619e55b3ee9dd7eaeda7e9275a0cdc2a07972b6b67602016151f66632b8e6",
+      "gateway_headers_hash": "0a6dda900b2ea6b80cb4df4282bd2ec368d99d39ee00f707de87660edce6d440",
+      "route_hash": "ddcb6a5429c4f5365aa21351db2a358e378a5beb5c3b07ae80138dd444b8fbd4"
+    },
+    "scope": "nine repeatedly developed cases; frozen source; not a full pair or unseen acceptance",
+    "results": [
+      {
+        "answers": {},
+        "raw_answers": null,
+        "answer_evidence": {},
+        "task_contract": {
+          "question": "What is the average blood albumin level for female patients with a PLT greater than 400 who have been diagnosed with SLE?",
+          "public_requirements": "average blood albumin level refers to AVG(ALB); female refers to SEX = 'F'; PLT greater than 400 refers to PLT > 400; diagnosed with SLE refers to Diagnosis= 'SLE'",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "avg_alb"
+            ],
+            "shape": "scalar",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {}
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": "SELECT AVG(L.ALB) AS avg_alb FROM Patient P JOIN Laboratory L ON P.ID = L.ID WHERE P.SEX = 'F' AND P.Diagnosis = 'SLE' AND L.PLT > 400",
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "status": "error",
+            "error": "ActionSchemaError",
+            "code": "action_schema",
+            "response_mode": "native_function",
+            "schema_errors": [
+              {
+                "path": [
+                  "tool_calls"
+                ],
+                "type": "one_action"
+              }
+            ],
+            "repair_type": "correct_parameters"
+          },
+          {
+            "step": 2,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "3df37e895e531ecab5ec42475896377ec4c6919a916a88ca69f048113ee8da37",
+            "response_mode": "native_function",
+            "sql": "SELECT AVG(L.ALB) AS avg_alb FROM Patient P JOIN Laboratory L ON P.ID = L.ID WHERE P.SEX = 'F' AND P.Diagnosis = 'SLE' AND L.PLT > 400",
+            "row_count": 1,
+            "elapsed_ms": 1.4310420001493185
+          }
+        ],
+        "tokens": 6666,
+        "input_tokens": 6340,
+        "output_tokens": 326,
+        "usage_status": "complete",
+        "elapsed_seconds": 7.494851208,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 5.910529666999537,
+        "case_id": "1195",
+        "asset": "thrombosis_prediction",
+        "database_hash": "87583183c3dc472fba04de702965560a9d7c0a548836613f242317e0eeb83f00",
+        "database_unchanged": true,
+        "passed": true,
+        "sub_hits": 1,
+        "sub_total": 1
+      },
+      {
+        "answers": {},
+        "raw_answers": null,
+        "answer_evidence": {},
+        "task_contract": {
+          "question": "What is his number of the driver who finished 0:01:54 in the Q3 of qualifying race No.903?",
+          "public_requirements": "race number refers to raceId; finished 0:0M:SS in the Q3 refers to q3 LIKE 'M:SS%'",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "number"
+            ],
+            "shape": "rows",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {}
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": "SELECT number FROM qualifying WHERE raceId = 903 AND q3 LIKE '1:54%'",
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "606bd49d5e668ba48ad2689ebb7a8f662cd11b2984dcd569ff938e12d58bf46d",
+            "response_mode": "native_function",
+            "sql": "SELECT number FROM qualifying WHERE raceId = 903 AND q3 LIKE '1:54%'",
+            "row_count": 2,
+            "elapsed_ms": 1.1176250000062282
+          }
+        ],
+        "tokens": 3890,
+        "input_tokens": 3797,
+        "output_tokens": 93,
+        "usage_status": "complete",
+        "elapsed_seconds": 4.502220291999947,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 2.2928748750000523,
+        "case_id": "861",
+        "asset": "formula_1",
+        "database_hash": "79770caf966707e35516fa566e24b40ae515c74ec1ec4631235245645b87b24d",
+        "database_unchanged": true,
+        "passed": false,
+        "sub_hits": 0,
+        "sub_total": 1
+      },
+      {
+        "answers": {},
+        "raw_answers": null,
+        "answer_evidence": {},
+        "task_contract": {
+          "question": "How many accidents did the driver who had the highest number accidents in the Canadian Grand Prix have?",
+          "public_requirements": "number of accidents refers to the number where statusid = 3; Canadian Grand Prix refers to the race of name\n",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "accident_count"
+            ],
+            "shape": "scalar",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {}
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": "SELECT COUNT(*) AS accident_count\nFROM results r\nJOIN races ra ON r.raceId = ra.raceId\nWHERE r.statusId = 3\n  AND r.driverId = (\n    SELECT r2.driverId\n    FROM results r2\n    JOIN races ra2 ON r2.raceId = ra2.raceId\n    WHERE ra2.name = 'Canadian Grand Prix' AND r2.statusId = 3\n    GROUP BY r2.driverId\n    ORDER BY COUNT(*) DESC\n    LIMIT 1\n  )",
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "aa48068b0bbb7c2139ce37c08c6682bf6ce6f55a517486181ee12808dec52d9c",
+            "response_mode": "native_function",
+            "sql": "SELECT COUNT(*) AS accident_count\nFROM results r\nJOIN races ra ON r.raceId = ra.raceId\nWHERE r.statusId = 3\n  AND r.driverId = (\n    SELECT r2.driverId\n    FROM results r2\n    JOIN races ra2 ON r2.raceId = ra2.raceId\n    WHERE ra2.name = 'Canadian Grand Prix' AND r2.statusId = 3\n    GROUP BY r2.driverId\n    ORDER BY COUNT(*) DESC\n    LIMIT 1\n  )",
+            "row_count": 1,
+            "elapsed_ms": 3.9009160000205156
+          }
+        ],
+        "tokens": 3977,
+        "input_tokens": 3783,
+        "output_tokens": 194,
+        "usage_status": "complete",
+        "elapsed_seconds": 4.07829295800002,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 1.915800499999932,
+        "case_id": "1003",
+        "asset": "formula_1",
+        "database_hash": "79770caf966707e35516fa566e24b40ae515c74ec1ec4631235245645b87b24d",
+        "database_unchanged": true,
+        "passed": false,
+        "sub_hits": 0,
+        "sub_total": 1
+      },
+      {
+        "answers": {},
+        "raw_answers": null,
+        "answer_evidence": {},
+        "task_contract": {
+          "question": "What is the percentage of incredibly powerful cards in the set Coldsnap?",
+          "public_requirements": "card set Coldsnap refers to name = 'Coldsnap'; foil is incredibly powerful refers to cardKingdomFoilId is not null AND cardKingdomId is not null; the percentage of incredibly powerful cards in the set refers to DIVIDE(SUM(incredibly powerful), SUM(name = 'Coldsnap'))*100",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "answer"
+            ],
+            "shape": "scalar",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {}
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": "SELECT 1.0 * SUM(CASE WHEN c.cardKingdomFoilId IS NOT NULL AND c.cardKingdomId IS NOT NULL THEN 1 ELSE 0 END) / NULLIF(SUM(CASE WHEN s.name = 'Coldsnap' THEN 1 ELSE 0 END), 0) * 100 AS answer FROM cards c JOIN sets s ON c.setCode = s.code WHERE s.name = 'Coldsnap'",
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "df29883c85a9ff1b28f59dc4eea4e48f57630f691b31805d10ef0e46cd97d67b",
+            "response_mode": "native_function",
+            "sql": "SELECT COUNT(*) AS total, SUM(CASE WHEN cardKingdomFoilId IS NOT NULL AND cardKingdomId IS NOT NULL THEN 1 ELSE 0 END) AS powerful FROM cards WHERE name = 'Coldsnap'",
+            "row_count": 1,
+            "elapsed_ms": 35.27795800073363
+          },
+          {
+            "step": 2,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "69b65579b2c22a71751444a7c86fc4567fed7ce4696dd63d6dafb5a5090cdccc",
+            "response_mode": "native_function",
+            "sql": "SELECT s.code FROM sets s WHERE s.name = 'Coldsnap'",
+            "row_count": 1,
+            "elapsed_ms": 0.6092920002629398
+          },
+          {
+            "step": 3,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "066b91070e4a502d986343be7b8652a69878116f15b2283dc6ce6ac5e615c127",
+            "response_mode": "native_function",
+            "sql": "SELECT 1.0 * SUM(CASE WHEN c.cardKingdomFoilId IS NOT NULL AND c.cardKingdomId IS NOT NULL THEN 1 ELSE 0 END) / NULLIF(SUM(CASE WHEN s.name = 'Coldsnap' THEN 1 ELSE 0 END), 0) * 100 AS answer FROM cards c JOIN sets s ON c.setCode = s.code WHERE s.name = 'Coldsnap'",
+            "row_count": 1,
+            "elapsed_ms": 35.86637499938661
+          }
+        ],
+        "tokens": 14718,
+        "input_tokens": 14397,
+        "output_tokens": 321,
+        "usage_status": "complete",
+        "elapsed_seconds": 13.28581079200012,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 9.4949074999995,
+        "case_id": "487",
+        "asset": "card_games",
+        "database_hash": "c98bdb57fe7474da798b407785544b9af0daaad5d61fd21e2a73309493bc1227",
+        "database_unchanged": true,
+        "passed": true,
+        "sub_hits": 1,
+        "sub_total": 1
+      },
+      {
+        "answers": {},
+        "raw_answers": null,
+        "answer_evidence": {},
+        "task_contract": {
+          "question": "Of the schools that offers a magnet program serving a grade span of Kindergarten to 8th grade, how many offers Multiple Provision Types? List the number of cities that offers a Kindergarten to 8th grade span and indicate how many schools are there serving such grade span for each city.",
+          "public_requirements": "Kindergarten to 8th grade refers to K-8; 'Offers a magnet program' means Magnet = 1; Multiple Provision Types refers to `NSLP Provision Status` = 'Multiple Provision Types'",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "City",
+              "school_count"
+            ],
+            "shape": "rows",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {}
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": "SELECT s.City, COUNT(DISTINCT s.CDSCode) AS school_count\nFROM schools s\nJOIN frpm f ON f.CDSCode = s.CDSCode\nWHERE s.GSoffered = 'K-8' AND s.Magnet = 1 AND f.\"NSLP Provision Status\" = 'Multiple Provision Types'\nGROUP BY s.City\nORDER BY school_count DESC, s.City",
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "status": "error",
+            "error": "ActionSchemaError",
+            "code": "action_schema",
+            "response_mode": "native_function",
+            "schema_errors": [
+              {
+                "path": [
+                  "tool_calls"
+                ],
+                "type": "one_action"
+              }
+            ],
+            "repair_type": "correct_parameters"
+          },
+          {
+            "step": 2,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "df3d630c34b8114562f2ff4d99417aee239da75ad007f5241263af0eab998af0",
+            "response_mode": "native_function",
+            "sql": "SELECT GSoffered, COUNT(*) c FROM schools WHERE Magnet=1 GROUP BY GSoffered ORDER BY c DESC LIMIT 20",
+            "row_count": 20,
+            "elapsed_ms": 7.474874999388703
+          },
+          {
+            "step": 3,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "02543b05a69b303c6398c429f1d2f558e4549177a6f4ff1adcd758facf4758ec",
+            "response_mode": "native_function",
+            "sql": "SELECT s.City, COUNT(DISTINCT s.CDSCode) AS school_count\nFROM schools s\nJOIN frpm f ON f.CDSCode = s.CDSCode\nWHERE s.GSoffered = 'K-8' AND s.Magnet = 1 AND f.\"NSLP Provision Status\" = 'Multiple Provision Types'\nGROUP BY s.City\nORDER BY school_count DESC, s.City",
+            "row_count": 1,
+            "elapsed_ms": 2.1161670001674793
+          }
+        ],
+        "tokens": 12057,
+        "input_tokens": 11656,
+        "output_tokens": 401,
+        "usage_status": "complete",
+        "elapsed_seconds": 10.916078457999902,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 9.343240209000214,
+        "case_id": "83",
+        "asset": "california_schools",
+        "database_hash": "c0903eec662e63068fd1d14403d3d6c1d473287fc10c4356333ea58f878db983",
+        "database_unchanged": true,
+        "passed": true,
+        "sub_hits": 1,
+        "sub_total": 1
+      },
+      {
+        "answers": {
+          "missing_columns_in_object_type": "author, urlToImage"
+        },
+        "raw_answers": {},
+        "answer_evidence": {
+          "missing_columns_in_object_type": {
+            "step": 1,
+            "path": [
+              "items"
+            ],
+            "raw_value": [
+              "author",
+              "urlToImage"
+            ],
+            "submitted_value": "author, urlToImage",
+            "raw_type": "list",
+            "submitted_type": "str",
+            "method_id": "complete_collection",
+            "declared_public_unit": null,
+            "result_hash": "1536961880547e2e35cf6e188c2052400346f49c79e6b1d3bf6b81295d5ccf55"
+          }
+        },
+        "task_contract": {
+          "question": "1. Which column(s) contain missing values in the dataset?",
+          "public_requirements": "This question requires a straightforward identification of columns with missing values in the dataset. Only count the missing values in columns where the data type is 'object' (i.e., strings). Do not include columns of other data types and consider a \"missing value\" as one that is recorded as 'NaN', 'na', 'null', or an empty string in the dataset.\n@missing_columns_in_object_type[missing_column1, missing_column2,…] whereby 'missing_column1', 'missing_column2', etc. are string names of the columns with missing values. The answer should not contain any duplicates and should be sorted alphabetically for easy checking.",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "missing_columns_in_object_type"
+            ],
+            "shape": "rows",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {
+              "missing_columns_in_object_type": {
+                "kind": "set",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": false,
+                "decimals": null,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "This question requires a straightforward identification of columns with missing values in the dataset. Only count the missing values in columns where the data type is 'object' (i.e., strings). Do not include columns of other data types and consider a \"missing value\" as one that is recorded as 'NaN', 'na', 'null', or an empty string in the dataset.\n@missing_columns_in_object_type[missing_column1, missing_column2,…] whereby 'missing_column1', 'missing_column2', etc. are string names of the columns with missing values. The answer should not contain any duplicates and should be sorted alphabetically for easy checking.",
+                "collection_separator": ", "
+              }
+            }
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": null,
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "tool": "complete_collection",
+            "status": "ok",
+            "result_hash": "1536961880547e2e35cf6e188c2052400346f49c79e6b1d3bf6b81295d5ccf55",
+            "response_mode": "native_function",
+            "action": {
+              "collect": {
+                "sql": "SELECT DISTINCT 'author' AS c FROM data WHERE author IS NULL OR TRIM(author) IN ('NaN','na','null','') UNION SELECT DISTINCT 'description' FROM data WHERE description IS NULL OR TRIM(description) IN ('NaN','na','null','') UNION SELECT DISTINCT 'publishedAt' FROM data WHERE publishedAt IS NULL OR TRIM(publishedAt) IN ('NaN','na','null','') UNION SELECT DISTINCT 'source' FROM data WHERE source IS NULL OR TRIM(source) IN ('NaN','na','null','') UNION SELECT DISTINCT 'title' FROM data WHERE title IS NULL OR TRIM(title) IN ('NaN','na','null','') UNION SELECT DISTINCT 'url' FROM data WHERE url IS NULL OR TRIM(url) IN ('NaN','na','null','') UNION SELECT DISTINCT 'urlToImage' FROM data WHERE urlToImage IS NULL OR TRIM(urlToImage) IN ('NaN','na','null','') UNION SELECT DISTINCT 'text' FROM data WHERE text IS NULL OR TRIM(text) IN ('NaN','na','null','') ORDER BY 1",
+                "collection_kind": "set"
+              }
+            }
+          }
+        ],
+        "tokens": 8402,
+        "input_tokens": 8053,
+        "output_tokens": 349,
+        "usage_status": "complete",
+        "elapsed_seconds": 6.83362012500038,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 5.464944959000604,
+        "case_id": "207",
+        "asset": "fb_articles_20180822_20180829_df.csv",
+        "database_hash": "094c8bd59c8dcbbddc2edddb38c8c003e6f314a3bb3e313da4d9a215414e7aba",
+        "database_unchanged": true,
+        "passed": true,
+        "sub_hits": 1,
+        "sub_total": 1
+      },
+      {
+        "answers": {},
+        "raw_answers": null,
+        "answer_evidence": {},
+        "task_contract": {
+          "question": "Perform comprehensive data preprocessing for the dataset by:\n1. Removing any duplicate entries.\n2. Filling in missing values in the USFLUX column with the mean value of the column.\n3. Transforming the MEANJZH column by applying the logarithm function (base 10).\n4. Normalizing the TOTUSJZ column using Min-Max normalization.",
+          "public_requirements": "When applying the logarithm function, add a small constant (1e-10) to the MEANJZH column to avoid infinity. The Min-Max normalization needs to transform the TOTUSJZ values to the range 0 to 1.\nReturn 4 values: @clean_entries[Number of entries after cleaning duplicates], @mean_USFLUX[Mean of the USFLUX column after filling missing values, rounded to two decimal places], @log_MEANJZH[First entry of transformed MEANJZH column, rounded to three decimal places], @norm_TOTUSJZ[First entry of normalized TOTUSJZ column, rounded to three decimal places].",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "clean_entries",
+              "log_MEANJZH",
+              "mean_USFLUX",
+              "norm_TOTUSJZ"
+            ],
+            "shape": "rows",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {
+              "clean_entries": {
+                "kind": "integer",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": null,
+                "decimals": null,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "@clean_entries[Number of entries after cleaning duplicates]",
+                "collection_separator": null
+              },
+              "log_MEANJZH": {
+                "kind": "number",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": null,
+                "decimals": 3,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "@log_MEANJZH[First entry of transformed MEANJZH column, rounded to three decimal places]",
+                "collection_separator": null
+              },
+              "mean_USFLUX": {
+                "kind": "number",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": null,
+                "decimals": 2,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "@mean_USFLUX[Mean of the USFLUX column after filling missing values, rounded to two decimal places]",
+                "collection_separator": null
+              },
+              "norm_TOTUSJZ": {
+                "kind": "number",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": null,
+                "decimals": 3,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "@norm_TOTUSJZ[First entry of normalized TOTUSJZ column, rounded to three decimal places]",
+                "collection_separator": null
+              }
+            }
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": null,
+        "failure": "token_budget",
+        "trace": [
+          {
+            "step": 1,
+            "status": "error",
+            "error": "ActionSchemaError",
+            "code": "action_schema",
+            "response_mode": "native_function",
+            "schema_errors": [
+              {
+                "path": [
+                  "tool_calls"
+                ],
+                "type": "one_action"
+              }
+            ],
+            "repair_type": "correct_parameters"
+          },
+          {
+            "step": 2,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "5060dbb2f5fc3ccb7468bbcd13cbcb867b999f4c8bd1dde293874d98b9464be1",
+            "response_mode": "native_function",
+            "sql": "SELECT COUNT(*) AS n_all, COUNT(DISTINCT TRUE_TIME||'|'||TIME||'|'||COALESCE(CAST(USFLUX AS TEXT),'#NULL')||'|'||MEANGAM) AS dummy, (SELECT COUNT(*) FROM data WHERE USFLUX IS NULL) AS usflux_null, (SELECT COUNT(*) FROM (SELECT DISTINCT * FROM data)) AS clean_rows FROM data",
+            "row_count": 1,
+            "elapsed_ms": 4.303540999899269
+          },
+          {
+            "step": 3,
+            "status": "error",
+            "error": "QueryExecutionError",
+            "code": "unknown_column",
+            "response_mode": "native_function",
+            "action_keys": [
+              "answer_sql"
+            ]
+          },
+          {
+            "step": 4,
+            "status": "error",
+            "error": "SemanticError",
+            "code": "semantic_contract",
+            "response_mode": "native_function",
+            "action_keys": [
+              "answer_sql"
+            ],
+            "repair_type": "revise_plan_or_query",
+            "checks": [
+              "data_dependent_answer_required"
+            ]
+          }
+        ],
+        "tokens": 28847,
+        "input_tokens": 27876,
+        "output_tokens": 971,
+        "usage_status": "complete",
+        "elapsed_seconds": 17.966422874999807,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 16.60911416699946,
+        "case_id": "271",
+        "asset": "3901.csv",
+        "database_hash": "131a49a38b85af069a83566e9912809398fe746d3e7872d8f901740b94d3aaee",
+        "database_unchanged": true,
+        "passed": false,
+        "sub_hits": 0,
+        "sub_total": 3
+      },
+      {
+        "answers": {
+          "number_of_outliers": 111
+        },
+        "raw_answers": {},
+        "answer_evidence": {
+          "number_of_outliers": {
+            "step": 2,
+            "path": [
+              "iqr_statistics",
+              " BARO",
+              "outlier_count"
+            ],
+            "raw_value": 111,
+            "submitted_value": 111,
+            "raw_type": "int",
+            "submitted_type": "int",
+            "method_id": "describe",
+            "declared_public_unit": null,
+            "result_hash": "5cf29b2d8e3f08aa16f6a26e6fd7f2d58086da30b7b2a629985c8091e4708401"
+          }
+        },
+        "task_contract": {
+          "question": "2. Are there any outliers in the atmospheric pressure column (BARO)? If yes, how many outliers are there?",
+          "public_requirements": "An outlier is any value that is more than 1.5 times the interquartile range above the third quartile or below the first quartile. Ignore null values.\n@number_of_outliers[number_of_outliers], where \"number_of_outliers\" is an integer representing the total number of outliers detected under the conditions specified in the constraints.",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "number_of_outliers"
+            ],
+            "shape": "rows",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {
+              "number_of_outliers": {
+                "kind": "integer",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": null,
+                "decimals": null,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "where \"number_of_outliers\" is an integer representing the total number of outliers detected under the conditions specified in the constraints.",
+                "collection_separator": null
+              }
+            }
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": null,
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "status": "error",
+            "error": "SemanticError",
+            "code": "semantic_contract",
+            "response_mode": "native_function",
+            "action_keys": [
+              "answer_sql"
+            ],
+            "repair_type": "revise_plan_or_query",
+            "checks": [
+              "data_dependent_answer_required"
+            ]
+          },
+          {
+            "step": 2,
+            "tool": "fixed_analysis",
+            "status": "ok",
+            "result_hash": "5cf29b2d8e3f08aa16f6a26e6fd7f2d58086da30b7b2a629985c8091e4708401",
+            "response_mode": "native_function",
+            "action": {
+              "analysis": {
+                "table": "data",
+                "columns": [
+                  " BARO"
+                ],
+                "operation": "describe"
+              }
+            }
+          }
+        ],
+        "tokens": 12420,
+        "input_tokens": 12125,
+        "output_tokens": 295,
+        "usage_status": "complete",
+        "elapsed_seconds": 10.329375625000466,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 8.958554832999653,
+        "case_id": "447",
+        "asset": "baro_2015.csv",
+        "database_hash": "bf6d64c2c04f374edb3fc761bc476f80d9e13dd60a885eafc19c9f40072940c5",
+        "database_unchanged": true,
+        "passed": true,
+        "sub_hits": 1,
+        "sub_total": 1
+      },
+      {
+        "answers": {
+          "number_of_outliers": 0
+        },
+        "raw_answers": {},
+        "answer_evidence": {
+          "number_of_outliers": {
+            "step": 4,
+            "path": [
+              "rows",
+              0,
+              0
+            ],
+            "raw_value": 0,
+            "submitted_value": 0,
+            "raw_type": "int",
+            "submitted_type": "int",
+            "method_id": "sql",
+            "declared_public_unit": null,
+            "result_hash": "1ad62e97afaff01fcfa6ac724d7ffaec107c527bacc04d1465a678be6faedeea"
+          }
+        },
+        "task_contract": {
+          "question": "2. Are there any outliers in the age distribution of offenders in 'Assault' category, according to the IQR method? If yes, report the number of outliers.",
+          "public_requirements": "You are to use the Interquartile Range (IQR) method for outlier detection. Calculate the IQR as Q3 (75th percentile) - Q1 (25th percentile) for the 'Assault' category. Outliers are considered as values lying below Q1 - 1.5 * IQR or above Q3 + 1.5 * IQR.\n@number_of_outliers[number] where \"number\" is a positive integer denoting the number of outliers",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "number_of_outliers"
+            ],
+            "shape": "rows",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {
+              "number_of_outliers": {
+                "kind": "integer",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": null,
+                "decimals": null,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "where \"number\" is a positive integer denoting the number of outliers",
+                "collection_separator": null
+              }
+            }
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": null,
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "status": "error",
+            "error": "ValueError",
+            "code": "invalid_action",
+            "response_mode": "native_function",
+            "action_keys": [
+              "analysis"
+            ]
+          },
+          {
+            "step": 2,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "dd90b84ed5a2ec496c86fb00e08e4b7d3b6aa5ec4beb15d6086d7f05e6de2b0d",
+            "response_mode": "native_function",
+            "sql": "SELECT Offense, COUNT(*) c FROM data WHERE Offense LIKE '%Assault%' GROUP BY Offense",
+            "row_count": 3,
+            "elapsed_ms": 2.528333000554994
+          },
+          {
+            "step": 3,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "c7e8995b02eea229e58cc944af86cec60cf55e4853b27e53e4184b8800185d67",
+            "response_mode": "native_function",
+            "sql": "WITH a AS (SELECT Age FROM data WHERE Offense='Simple Assault' AND Age IS NOT NULL),\ns AS (SELECT Age, ROW_NUMBER() OVER (ORDER BY Age) rn, COUNT(*) OVER () n FROM a),\nq AS (SELECT\n (SELECT Age FROM s WHERE rn = CAST((n-1)*0.25 AS INTEGER)+1) q1pos,\n (SELECT Age FROM s WHERE rn = CAST((n-1)*0.75 AS INTEGER)+1) q3pos,\n (SELECT (n-1)*0.25 - CAST((n-1)*0.25 AS INTEGER) FROM s LIMIT 1) f1,\n (SELECT (n-1)*0.75 - CAST((n-1)*0.75 AS INTEGER) FROM s LIMIT 1) f3,\n (SELECT n FROM s LIMIT 1) n)\nSELECT * FROM q",
+            "row_count": 1,
+            "elapsed_ms": 1.9578329993237276
+          },
+          {
+            "step": 4,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "1ad62e97afaff01fcfa6ac724d7ffaec107c527bacc04d1465a678be6faedeea",
+            "response_mode": "native_function",
+            "sql": "WITH a AS (SELECT Age FROM data WHERE Offense='Simple Assault' AND Age IS NOT NULL),\ns AS (SELECT Age, ROW_NUMBER() OVER (ORDER BY Age) rn, COUNT(*) OVER () n FROM a),\np AS (SELECT (n-1)*0.25 AS hp, (n-1)*0.75 AS hq FROM s LIMIT 1),\nq1 AS (SELECT (SELECT Age FROM s WHERE rn=(SELECT CAST(hp AS INTEGER) FROM p)+1)\n        + ((SELECT hp-CAST(hp AS INTEGER) FROM p)) *\n          ((SELECT Age FROM s WHERE rn=MIN((SELECT CAST(hp AS INTEGER) FROM p)+2,(SELECT n FROM s LIMIT 1)))-\n           (SELECT Age FROM s WHERE rn=(SELECT CAST(hp AS INTEGER) FROM p)+1)) q1),\nq3 AS (SELECT (SELECT Age FROM s WHERE rn=(SELECT CAST(hq AS INTEGER) FROM p)+1)\n        + ((SELECT hq-CAST(hq AS INTEGER) FROM p)) *\n          ((SELECT Age FROM s WHERE rn=MIN((SELECT CAST(hq AS INTEGER) FROM p)+2,(SELECT n FROM s LIMIT 1)))-\n           (SELECT Age FROM s WHERE rn=(SELECT CAST(hq AS INTEGER) FROM p)+1)) q3)\nSELECT (SELECT COUNT(*) FROM s, q1, q3 WHERE Age < q1.q1 - 1.5*(q3.q3-q1.q1) OR Age > q3.q3 + 1.5*(q3.q3-q1.q1)) AS number_of_outliers",
+            "row_count": 1,
+            "elapsed_ms": 1.8735420007942594,
+            "auto_bound_public_keys": [
+              "number_of_outliers"
+            ]
+          }
+        ],
+        "tokens": 17053,
+        "input_tokens": 16262,
+        "output_tokens": 791,
+        "usage_status": "complete",
+        "elapsed_seconds": 15.13765208299992,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 13.77883466700041,
+        "case_id": "468",
+        "asset": "arrest_expungibility.csv",
+        "database_hash": "eae5714828c7f61cc547a8dee053ad8405aafb16e3cc44b6d492d1137ca77767",
+        "database_unchanged": true,
+        "passed": true,
+        "sub_hits": 1,
+        "sub_total": 1
+      }
+    ],
+    "production_accepted": false,
+    "strict_passed_n": 6,
+    "attempts_completed": 9
+  },
+  "priority_diagnostic_v67_recomputed": {
+    "source_commit": "ca2a105ec55d4efd887c0e7bd08b97569c2a2360",
+    "recomputed_from_frozen_commit": "ca2a105ec55d4efd887c0e7bd08b97569c2a2360",
+    "step_hashes": [
+      {
+        "case_id": "1195",
+        "step": 2,
+        "hash_equal": true
+      },
+      {
+        "case_id": "861",
+        "step": 1,
+        "hash_equal": true
+      },
+      {
+        "case_id": "1003",
+        "step": 1,
+        "hash_equal": true
+      },
+      {
+        "case_id": "487",
+        "step": 1,
+        "hash_equal": true
+      },
+      {
+        "case_id": "487",
+        "step": 2,
+        "hash_equal": true
+      },
+      {
+        "case_id": "487",
+        "step": 3,
+        "hash_equal": true
+      },
+      {
+        "case_id": "83",
+        "step": 2,
+        "hash_equal": true
+      },
+      {
+        "case_id": "83",
+        "step": 3,
+        "hash_equal": true
+      },
+      {
+        "case_id": "207",
+        "step": 1,
+        "hash_equal": true
+      },
+      {
+        "case_id": "271",
+        "step": 2,
+        "hash_equal": true
+      },
+      {
+        "case_id": "447",
+        "step": 2,
+        "hash_equal": true
+      },
+      {
+        "case_id": "468",
+        "step": 2,
+        "hash_equal": true
+      },
+      {
+        "case_id": "468",
+        "step": 3,
+        "hash_equal": true
+      },
+      {
+        "case_id": "468",
+        "step": 4,
+        "hash_equal": true
+      }
+    ],
+    "raw_bindings": [
+      {
+        "case_id": "207",
+        "field": "missing_columns_in_object_type",
+        "raw_value_equal": true
+      },
+      {
+        "case_id": "447",
+        "field": "number_of_outliers",
+        "raw_value_equal": true
+      },
+      {
+        "case_id": "468",
+        "field": "number_of_outliers",
+        "raw_value_equal": true
+      }
+    ],
+    "receipt_errors": {
+      "1195": [],
+      "861": [],
+      "1003": [],
+      "487": [],
+      "83": [],
+      "207": [],
+      "271": [],
+      "447": [],
+      "468": []
+    },
+    "database_unchanged": true,
+    "independent_external_acceptance": false
+  },
+  "priority_diagnostic_v68": {
+    "source_commit": "a52022727c3e3c511f3990da3627a040dd5063c6",
+    "model_route": {
+      "provider_id": "magpie",
+      "app_type": "magpie",
+      "model": "workbuddy/deepseek-v4.1-flash",
+      "transport": "openai-chat",
+      "thinking_mode": "default",
+      "json_mode": false,
+      "max_output_tokens": 3000,
+      "endpoint_hash": "fe8827a6b46979db5015036d380dd4e1f10eda5b76101c62a322240bf51a0573",
+      "wire_api": "chat_completions",
+      "gateway_adapter_hash": "163619e55b3ee9dd7eaeda7e9275a0cdc2a07972b6b67602016151f66632b8e6",
+      "gateway_headers_hash": "0a6dda900b2ea6b80cb4df4282bd2ec368d99d39ee00f707de87660edce6d440",
+      "route_hash": "ddcb6a5429c4f5365aa21351db2a358e378a5beb5c3b07ae80138dd444b8fbd4"
+    },
+    "scope": "nine repeatedly developed cases; frozen source; not a full pair or unseen acceptance",
+    "results": [
+      {
+        "answers": {},
+        "raw_answers": null,
+        "answer_evidence": {},
+        "task_contract": {
+          "question": "What is the average blood albumin level for female patients with a PLT greater than 400 who have been diagnosed with SLE?",
+          "public_requirements": "average blood albumin level refers to AVG(ALB); female refers to SEX = 'F'; PLT greater than 400 refers to PLT > 400; diagnosed with SLE refers to Diagnosis= 'SLE'",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "avg_alb"
+            ],
+            "shape": "scalar",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {}
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": "SELECT AVG(l.ALB) AS avg_alb FROM Patient p JOIN Laboratory l ON l.ID = p.ID WHERE p.SEX = 'F' AND p.Diagnosis = 'SLE' AND l.PLT > 400",
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "3df37e895e531ecab5ec42475896377ec4c6919a916a88ca69f048113ee8da37",
+            "response_mode": "native_function",
+            "sql": "SELECT AVG(l.ALB) AS avg_alb FROM Patient p JOIN Laboratory l ON l.ID = p.ID WHERE p.SEX = 'F' AND p.Diagnosis = 'SLE' AND l.PLT > 400",
+            "row_count": 1,
+            "elapsed_ms": 1.7403340007149382
+          }
+        ],
+        "tokens": 3198,
+        "input_tokens": 3073,
+        "output_tokens": 125,
+        "usage_status": "complete",
+        "elapsed_seconds": 3.2137711249997665,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 1.750170999999682,
+        "case_id": "1195",
+        "asset": "thrombosis_prediction",
+        "database_hash": "87583183c3dc472fba04de702965560a9d7c0a548836613f242317e0eeb83f00",
+        "database_unchanged": true,
+        "passed": true,
+        "sub_hits": 1,
+        "sub_total": 1
+      },
+      {
+        "answers": {},
+        "raw_answers": null,
+        "answer_evidence": {},
+        "task_contract": {
+          "question": "What is his number of the driver who finished 0:01:54 in the Q3 of qualifying race No.903?",
+          "public_requirements": "race number refers to raceId; finished 0:0M:SS in the Q3 refers to q3 LIKE 'M:SS%'",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "number"
+            ],
+            "shape": "rows",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {}
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": "SELECT d.number FROM qualifying q JOIN drivers d ON d.driverId = q.driverId WHERE q.raceId = 903 AND q.q3 LIKE '1:54%'",
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "status": "error",
+            "error": "SemanticError",
+            "code": "semantic_contract",
+            "response_mode": "native_function",
+            "action_keys": [
+              "final_sql",
+              "task_spec"
+            ],
+            "repair_type": "revise_plan_or_query",
+            "checks": [
+              "scalar_cardinality"
+            ]
+          },
+          {
+            "step": 2,
+            "status": "error",
+            "error": "SemanticError",
+            "code": "semantic_contract",
+            "response_mode": "native_function",
+            "action_keys": [
+              "final_sql",
+              "task_spec"
+            ],
+            "repair_type": "revise_plan_or_query",
+            "checks": [
+              "public_time_like_pattern"
+            ]
+          },
+          {
+            "step": 3,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "893fcfd4950d488002923759ddbe209c8fc44f89094c99a7fdaab3f43b471c19",
+            "response_mode": "native_function",
+            "sql": "SELECT d.number FROM qualifying q JOIN drivers d ON d.driverId = q.driverId WHERE q.raceId = 903 AND q.q3 LIKE '1:54%'",
+            "row_count": 2,
+            "elapsed_ms": 1.0878749999392312
+          }
+        ],
+        "tokens": 12602,
+        "input_tokens": 12266,
+        "output_tokens": 336,
+        "usage_status": "complete",
+        "elapsed_seconds": 10.898759666999467,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 8.820909916000346,
+        "case_id": "861",
+        "asset": "formula_1",
+        "database_hash": "79770caf966707e35516fa566e24b40ae515c74ec1ec4631235245645b87b24d",
+        "database_unchanged": true,
+        "passed": true,
+        "sub_hits": 1,
+        "sub_total": 1
+      },
+      {
+        "answers": {},
+        "raw_answers": null,
+        "answer_evidence": {},
+        "task_contract": {
+          "question": "How many accidents did the driver who had the highest number accidents in the Canadian Grand Prix have?",
+          "public_requirements": "number of accidents refers to the number where statusid = 3; Canadian Grand Prix refers to the race of name\n",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "accident_count"
+            ],
+            "shape": "scalar",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {}
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": "SELECT COUNT(*) AS accident_count FROM results WHERE driverId = (SELECT driverId FROM results JOIN races ON results.raceId = races.raceId WHERE races.name = 'Canadian Grand Prix' AND results.statusId = 3 GROUP BY driverId ORDER BY COUNT(*) DESC LIMIT 1) AND statusId = 3",
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "aa48068b0bbb7c2139ce37c08c6682bf6ce6f55a517486181ee12808dec52d9c",
+            "response_mode": "native_function",
+            "sql": "SELECT COUNT(*) AS accident_count FROM results WHERE driverId = (SELECT driverId FROM results JOIN races ON results.raceId = races.raceId WHERE races.name = 'Canadian Grand Prix' AND results.statusId = 3 GROUP BY driverId ORDER BY COUNT(*) DESC LIMIT 1) AND statusId = 3",
+            "row_count": 1,
+            "elapsed_ms": 3.6774580003111623
+          }
+        ],
+        "tokens": 3925,
+        "input_tokens": 3783,
+        "output_tokens": 142,
+        "usage_status": "complete",
+        "elapsed_seconds": 3.7394997080000394,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 1.7036762919997273,
+        "case_id": "1003",
+        "asset": "formula_1",
+        "database_hash": "79770caf966707e35516fa566e24b40ae515c74ec1ec4631235245645b87b24d",
+        "database_unchanged": true,
+        "passed": false,
+        "sub_hits": 0,
+        "sub_total": 1
+      },
+      {
+        "answers": {},
+        "raw_answers": null,
+        "answer_evidence": {},
+        "task_contract": {
+          "question": "What is the percentage of incredibly powerful cards in the set Coldsnap?",
+          "public_requirements": "card set Coldsnap refers to name = 'Coldsnap'; foil is incredibly powerful refers to cardKingdomFoilId is not null AND cardKingdomId is not null; the percentage of incredibly powerful cards in the set refers to DIVIDE(SUM(incredibly powerful), SUM(name = 'Coldsnap'))*100",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "answer"
+            ],
+            "shape": "scalar",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {}
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": "SELECT 100.0 * SUM(CASE WHEN c.cardKingdomFoilId IS NOT NULL AND c.cardKingdomId IS NOT NULL THEN 1 ELSE 0 END) / SUM(CASE WHEN s.name = 'Coldsnap' THEN 1 ELSE 0 END) AS answer FROM cards c JOIN sets s ON c.setCode = s.code WHERE s.name = 'Coldsnap'",
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "066b91070e4a502d986343be7b8652a69878116f15b2283dc6ce6ac5e615c127",
+            "response_mode": "native_function",
+            "sql": "SELECT 100.0 * SUM(CASE WHEN c.cardKingdomFoilId IS NOT NULL AND c.cardKingdomId IS NOT NULL THEN 1 ELSE 0 END) / SUM(CASE WHEN s.name = 'Coldsnap' THEN 1 ELSE 0 END) AS answer FROM cards c JOIN sets s ON c.setCode = s.code WHERE s.name = 'Coldsnap'",
+            "row_count": 1,
+            "elapsed_ms": 33.66012500009674
+          }
+        ],
+        "tokens": 4741,
+        "input_tokens": 4587,
+        "output_tokens": 154,
+        "usage_status": "complete",
+        "elapsed_seconds": 5.8928099170007044,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 2.379895499999293,
+        "case_id": "487",
+        "asset": "card_games",
+        "database_hash": "c98bdb57fe7474da798b407785544b9af0daaad5d61fd21e2a73309493bc1227",
+        "database_unchanged": true,
+        "passed": true,
+        "sub_hits": 1,
+        "sub_total": 1
+      },
+      {
+        "answers": {},
+        "raw_answers": null,
+        "answer_evidence": {},
+        "task_contract": {
+          "question": "Of the schools that offers a magnet program serving a grade span of Kindergarten to 8th grade, how many offers Multiple Provision Types? List the number of cities that offers a Kindergarten to 8th grade span and indicate how many schools are there serving such grade span for each city.",
+          "public_requirements": "Kindergarten to 8th grade refers to K-8; 'Offers a magnet program' means Magnet = 1; Multiple Provision Types refers to `NSLP Provision Status` = 'Multiple Provision Types'",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "City",
+              "num_schools",
+              "num_multiple_provision"
+            ],
+            "shape": "rows",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {}
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": "SELECT s.City, COUNT(DISTINCT s.CDSCode) AS num_schools, SUM(CASE WHEN s.Magnet=1 AND f.\"NSLP Provision Status\"='Multiple Provision Types' THEN 1 ELSE 0 END) AS num_multiple_provision FROM schools s JOIN frpm f ON f.CDSCode=s.CDSCode WHERE (s.GSoffered='K-8' OR s.GSserved='K-8') GROUP BY s.City ORDER BY s.City",
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "status": "error",
+            "error": "ActionSchemaError",
+            "code": "action_schema",
+            "response_mode": "native_function",
+            "schema_errors": [
+              {
+                "path": [
+                  "tool_calls"
+                ],
+                "type": "one_action"
+              }
+            ],
+            "repair_type": "correct_parameters"
+          },
+          {
+            "step": 2,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "bf2dd37f92bdc76de1621eb31e211f76b30add785891f7e08429481d76119208",
+            "response_mode": "native_function",
+            "sql": "SELECT s.City, COUNT(DISTINCT s.CDSCode) AS n_schools, SUM(CASE WHEN s.Magnet=1 AND f.\"NSLP Provision Status\"='Multiple Provision Types' THEN 1 ELSE 0 END) AS n_multiple FROM schools s JOIN frpm f ON f.CDSCode=s.CDSCode WHERE (s.GSoffered='K-8' OR s.GSserved='K-8') GROUP BY s.City ORDER BY s.City LIMIT 200",
+            "row_count": 200,
+            "elapsed_ms": 9.238583000296785
+          },
+          {
+            "step": 3,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "d05b26e0375ad44969723cbd4fc1107071ca7bd540be2b53078cd57a350a1ead",
+            "response_mode": "native_function",
+            "sql": "SELECT s.City, COUNT(DISTINCT s.CDSCode) AS num_schools, SUM(CASE WHEN s.Magnet=1 AND f.\"NSLP Provision Status\"='Multiple Provision Types' THEN 1 ELSE 0 END) AS num_multiple_provision FROM schools s JOIN frpm f ON f.CDSCode=s.CDSCode WHERE (s.GSoffered='K-8' OR s.GSserved='K-8') GROUP BY s.City ORDER BY s.City",
+            "row_count": 477,
+            "elapsed_ms": 4.74495799971919
+          }
+        ],
+        "tokens": 14300,
+        "input_tokens": 13729,
+        "output_tokens": 571,
+        "usage_status": "complete",
+        "elapsed_seconds": 10.698260875000415,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 9.11329483300051,
+        "case_id": "83",
+        "asset": "california_schools",
+        "database_hash": "c0903eec662e63068fd1d14403d3d6c1d473287fc10c4356333ea58f878db983",
+        "database_unchanged": true,
+        "passed": false,
+        "sub_hits": 0,
+        "sub_total": 1
+      },
+      {
+        "answers": {
+          "missing_columns_in_object_type": "author, urlToImage"
+        },
+        "raw_answers": {},
+        "answer_evidence": {
+          "missing_columns_in_object_type": {
+            "step": 1,
+            "path": [
+              "items"
+            ],
+            "raw_value": [
+              "author",
+              "urlToImage"
+            ],
+            "submitted_value": "author, urlToImage",
+            "raw_type": "list",
+            "submitted_type": "str",
+            "method_id": "complete_collection",
+            "declared_public_unit": null,
+            "result_hash": "1536961880547e2e35cf6e188c2052400346f49c79e6b1d3bf6b81295d5ccf55"
+          }
+        },
+        "task_contract": {
+          "question": "1. Which column(s) contain missing values in the dataset?",
+          "public_requirements": "This question requires a straightforward identification of columns with missing values in the dataset. Only count the missing values in columns where the data type is 'object' (i.e., strings). Do not include columns of other data types and consider a \"missing value\" as one that is recorded as 'NaN', 'na', 'null', or an empty string in the dataset.\n@missing_columns_in_object_type[missing_column1, missing_column2,…] whereby 'missing_column1', 'missing_column2', etc. are string names of the columns with missing values. The answer should not contain any duplicates and should be sorted alphabetically for easy checking.",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "missing_columns_in_object_type"
+            ],
+            "shape": "rows",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {
+              "missing_columns_in_object_type": {
+                "kind": "set",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": false,
+                "decimals": null,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "This question requires a straightforward identification of columns with missing values in the dataset. Only count the missing values in columns where the data type is 'object' (i.e., strings). Do not include columns of other data types and consider a \"missing value\" as one that is recorded as 'NaN', 'na', 'null', or an empty string in the dataset.\n@missing_columns_in_object_type[missing_column1, missing_column2,…] whereby 'missing_column1', 'missing_column2', etc. are string names of the columns with missing values. The answer should not contain any duplicates and should be sorted alphabetically for easy checking.",
+                "collection_separator": ", "
+              }
+            }
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": null,
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "tool": "complete_collection",
+            "status": "ok",
+            "result_hash": "1536961880547e2e35cf6e188c2052400346f49c79e6b1d3bf6b81295d5ccf55",
+            "response_mode": "native_function",
+            "action": {
+              "collect": {
+                "sql": "SELECT DISTINCT c FROM (SELECT 'author' AS c FROM data WHERE author IS NULL OR author IN ('NaN','na','null','') UNION ALL SELECT 'description' FROM data WHERE description IS NULL OR description IN ('NaN','na','null','') UNION ALL SELECT 'publishedAt' FROM data WHERE publishedAt IS NULL OR publishedAt IN ('NaN','na','null','') UNION ALL SELECT 'source' FROM data WHERE source IS NULL OR source IN ('NaN','na','null','') UNION ALL SELECT 'title' FROM data WHERE title IS NULL OR title IN ('NaN','na','null','') UNION ALL SELECT 'url' FROM data WHERE url IS NULL OR url IN ('NaN','na','null','') UNION ALL SELECT 'urlToImage' FROM data WHERE urlToImage IS NULL OR urlToImage IN ('NaN','na','null','') UNION ALL SELECT 'text' FROM data WHERE text IS NULL OR text IN ('NaN','na','null','')) ORDER BY c",
+                "collection_kind": "set"
+              }
+            }
+          }
+        ],
+        "tokens": 8564,
+        "input_tokens": 8246,
+        "output_tokens": 318,
+        "usage_status": "complete",
+        "elapsed_seconds": 6.685483125000246,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 5.314058250000016,
+        "case_id": "207",
+        "asset": "fb_articles_20180822_20180829_df.csv",
+        "database_hash": "094c8bd59c8dcbbddc2edddb38c8c003e6f314a3bb3e313da4d9a215414e7aba",
+        "database_unchanged": true,
+        "passed": true,
+        "sub_hits": 1,
+        "sub_total": 1
+      },
+      {
+        "answers": {
+          "clean_entries": 1153,
+          "mean_USFLUX": "7463837954032958000000.00",
+          "log_MEANJZH": "-2.543",
+          "norm_TOTUSJZ": "0.107"
+        },
+        "raw_answers": {},
+        "answer_evidence": {
+          "clean_entries": {
+            "step": 2,
+            "path": [
+              "rows",
+              0,
+              0
+            ],
+            "raw_value": 1153,
+            "submitted_value": 1153,
+            "raw_type": "int",
+            "submitted_type": "int",
+            "method_id": "sql",
+            "declared_public_unit": null,
+            "result_hash": "15177e64aedabcc39c0e1b7fcb8f166749e383fb9a2dcab77811ddff985cb9a8"
+          },
+          "mean_USFLUX": {
+            "step": 2,
+            "path": [
+              "rows",
+              0,
+              1
+            ],
+            "raw_value": 7.463837954032958e+21,
+            "submitted_value": "7463837954032958000000.00",
+            "raw_type": "float",
+            "submitted_type": "str",
+            "method_id": "sql",
+            "declared_public_unit": null,
+            "result_hash": "15177e64aedabcc39c0e1b7fcb8f166749e383fb9a2dcab77811ddff985cb9a8"
+          },
+          "log_MEANJZH": {
+            "step": 3,
+            "path": [
+              "rows",
+              0,
+              0
+            ],
+            "raw_value": -2.543,
+            "submitted_value": "-2.543",
+            "raw_type": "float",
+            "submitted_type": "str",
+            "method_id": "sql",
+            "declared_public_unit": null,
+            "result_hash": "cafbb0a0833acaacf7f17fe3c02001816c0d119cbe0b46b969b7f32e3bcdf14c"
+          },
+          "norm_TOTUSJZ": {
+            "step": 3,
+            "path": [
+              "rows",
+              0,
+              1
+            ],
+            "raw_value": 0.107,
+            "submitted_value": "0.107",
+            "raw_type": "float",
+            "submitted_type": "str",
+            "method_id": "sql",
+            "declared_public_unit": null,
+            "result_hash": "cafbb0a0833acaacf7f17fe3c02001816c0d119cbe0b46b969b7f32e3bcdf14c"
+          }
+        },
+        "task_contract": {
+          "question": "Perform comprehensive data preprocessing for the dataset by:\n1. Removing any duplicate entries.\n2. Filling in missing values in the USFLUX column with the mean value of the column.\n3. Transforming the MEANJZH column by applying the logarithm function (base 10).\n4. Normalizing the TOTUSJZ column using Min-Max normalization.",
+          "public_requirements": "When applying the logarithm function, add a small constant (1e-10) to the MEANJZH column to avoid infinity. The Min-Max normalization needs to transform the TOTUSJZ values to the range 0 to 1.\nReturn 4 values: @clean_entries[Number of entries after cleaning duplicates], @mean_USFLUX[Mean of the USFLUX column after filling missing values, rounded to two decimal places], @log_MEANJZH[First entry of transformed MEANJZH column, rounded to three decimal places], @norm_TOTUSJZ[First entry of normalized TOTUSJZ column, rounded to three decimal places].",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "clean_entries",
+              "log_MEANJZH",
+              "mean_USFLUX",
+              "norm_TOTUSJZ"
+            ],
+            "shape": "rows",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {
+              "clean_entries": {
+                "kind": "integer",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": null,
+                "decimals": null,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "@clean_entries[Number of entries after cleaning duplicates]",
+                "collection_separator": null
+              },
+              "log_MEANJZH": {
+                "kind": "number",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": null,
+                "decimals": 3,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "@log_MEANJZH[First entry of transformed MEANJZH column, rounded to three decimal places]",
+                "collection_separator": null
+              },
+              "mean_USFLUX": {
+                "kind": "number",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": null,
+                "decimals": 2,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "@mean_USFLUX[Mean of the USFLUX column after filling missing values, rounded to two decimal places]",
+                "collection_separator": null
+              },
+              "norm_TOTUSJZ": {
+                "kind": "number",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": null,
+                "decimals": 3,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "@norm_TOTUSJZ[First entry of normalized TOTUSJZ column, rounded to three decimal places]",
+                "collection_separator": null
+              }
+            }
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": null,
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "status": "error",
+            "error": "SemanticError",
+            "code": "semantic_contract",
+            "response_mode": "native_function",
+            "action_keys": [
+              "answer_sql"
+            ],
+            "repair_type": "revise_plan_or_query",
+            "checks": [
+              "data_dependent_answer_required"
+            ]
+          },
+          {
+            "step": 2,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "15177e64aedabcc39c0e1b7fcb8f166749e383fb9a2dcab77811ddff985cb9a8",
+            "response_mode": "native_function",
+            "sql": "WITH d AS (SELECT DISTINCT * FROM data),\nm AS (SELECT AVG(USFLUX) AS mu FROM d WHERE USFLUX IS NOT NULL),\nfilled AS (SELECT *, COALESCE(USFLUX, (SELECT mu FROM m)) AS uf FROM d),\nnorm AS (SELECT *, (TOTUSJZ - MIN(TOTUSJZ) OVER ()) / (MAX(TOTUSJZ) OVER () - MIN(TOTUSJZ) OVER ()) AS nt,\n  LOG10(MEANJZH + 1e-10) AS lm FROM filled)\nSELECT (SELECT COUNT(*) FROM d) AS clean_entries,\n  ROUND((SELECT AVG(uf) FROM filled), 2) AS mean_USFLUX,\n  ROUND((SELECT lm FROM norm LIMIT 1), 3) AS log_MEANJZH,\n  ROUND((SELECT nt FROM norm LIMIT 1), 3) AS norm_TOTUSJZ",
+            "row_count": 1,
+            "elapsed_ms": 5.111666000630066
+          },
+          {
+            "step": 3,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "cafbb0a0833acaacf7f17fe3c02001816c0d119cbe0b46b969b7f32e3bcdf14c",
+            "response_mode": "native_function",
+            "sql": "WITH d AS (SELECT DISTINCT * FROM data),\nnorm AS (SELECT (TOTUSJZ - MIN(TOTUSJZ) OVER ()) / (MAX(TOTUSJZ) OVER () - MIN(TOTUSJZ) OVER ()) AS nt, LOG10(MEANJZH + 1e-10) AS lm FROM d)\nSELECT ROUND(lm,3) AS lmx, ROUND(nt,3) AS ntx FROM norm LIMIT 1",
+            "row_count": 1,
+            "elapsed_ms": 2.4678749996382976
+          }
+        ],
+        "tokens": 23956,
+        "input_tokens": 23170,
+        "output_tokens": 786,
+        "usage_status": "complete",
+        "elapsed_seconds": 14.51156841700049,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 13.152678833999744,
+        "case_id": "271",
+        "asset": "3901.csv",
+        "database_hash": "131a49a38b85af069a83566e9912809398fe746d3e7872d8f901740b94d3aaee",
+        "database_unchanged": true,
+        "passed": true,
+        "sub_hits": 3,
+        "sub_total": 3
+      },
+      {
+        "answers": {
+          "number_of_outliers": 111
+        },
+        "raw_answers": {},
+        "answer_evidence": {
+          "number_of_outliers": {
+            "step": 1,
+            "path": [
+              "iqr_statistics",
+              " BARO",
+              "outlier_count"
+            ],
+            "raw_value": 111,
+            "submitted_value": 111,
+            "raw_type": "int",
+            "submitted_type": "int",
+            "method_id": "describe",
+            "declared_public_unit": null,
+            "result_hash": "5cf29b2d8e3f08aa16f6a26e6fd7f2d58086da30b7b2a629985c8091e4708401"
+          }
+        },
+        "task_contract": {
+          "question": "2. Are there any outliers in the atmospheric pressure column (BARO)? If yes, how many outliers are there?",
+          "public_requirements": "An outlier is any value that is more than 1.5 times the interquartile range above the third quartile or below the first quartile. Ignore null values.\n@number_of_outliers[number_of_outliers], where \"number_of_outliers\" is an integer representing the total number of outliers detected under the conditions specified in the constraints.",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "number_of_outliers"
+            ],
+            "shape": "rows",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {
+              "number_of_outliers": {
+                "kind": "integer",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": null,
+                "decimals": null,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "where \"number_of_outliers\" is an integer representing the total number of outliers detected under the conditions specified in the constraints.",
+                "collection_separator": null
+              }
+            }
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": null,
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "tool": "fixed_analysis",
+            "status": "ok",
+            "result_hash": "5cf29b2d8e3f08aa16f6a26e6fd7f2d58086da30b7b2a629985c8091e4708401",
+            "response_mode": "native_function",
+            "action": {
+              "analysis": {
+                "table": "data",
+                "columns": [
+                  " BARO"
+                ],
+                "operation": "describe"
+              }
+            }
+          }
+        ],
+        "tokens": 8113,
+        "input_tokens": 7968,
+        "output_tokens": 145,
+        "usage_status": "complete",
+        "elapsed_seconds": 6.8202326669998,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 5.4793620840000585,
+        "case_id": "447",
+        "asset": "baro_2015.csv",
+        "database_hash": "bf6d64c2c04f374edb3fc761bc476f80d9e13dd60a885eafc19c9f40072940c5",
+        "database_unchanged": true,
+        "passed": true,
+        "sub_hits": 1,
+        "sub_total": 1
+      },
+      {
+        "answers": {},
+        "raw_answers": null,
+        "answer_evidence": {},
+        "task_contract": {
+          "question": "2. Are there any outliers in the age distribution of offenders in 'Assault' category, according to the IQR method? If yes, report the number of outliers.",
+          "public_requirements": "You are to use the Interquartile Range (IQR) method for outlier detection. Calculate the IQR as Q3 (75th percentile) - Q1 (25th percentile) for the 'Assault' category. Outliers are considered as values lying below Q1 - 1.5 * IQR or above Q3 + 1.5 * IQR.\n@number_of_outliers[number] where \"number\" is a positive integer denoting the number of outliers",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "number_of_outliers"
+            ],
+            "shape": "rows",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {
+              "number_of_outliers": {
+                "kind": "integer",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": null,
+                "decimals": null,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "where \"number\" is a positive integer denoting the number of outliers",
+                "collection_separator": null
+              }
+            }
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": null,
+        "failure": "token_budget",
+        "trace": [
+          {
+            "step": 1,
+            "status": "error",
+            "error": "ValueError",
+            "code": "invalid_action",
+            "response_mode": "native_function",
+            "action_keys": [
+              "analysis"
+            ]
+          },
+          {
+            "step": 2,
+            "status": "error",
+            "error": "ActionSchemaError",
+            "code": "action_schema",
+            "response_mode": "native_function",
+            "schema_errors": [
+              {
+                "path": [
+                  "tool_calls"
+                ],
+                "type": "one_action"
+              }
+            ],
+            "repair_type": "correct_parameters"
+          },
+          {
+            "step": 3,
+            "status": "error",
+            "error": "ValueError",
+            "code": "invalid_action",
+            "response_mode": "native_function",
+            "action_keys": [
+              "analysis"
+            ]
+          },
+          {
+            "step": 4,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "cbf20821e6641a8d6c19660aaaf3194def9fff93494543e9c695a43a20d6a341",
+            "response_mode": "native_function",
+            "sql": "SELECT Category, COUNT(*) c FROM data GROUP BY Category",
+            "row_count": 4,
+            "elapsed_ms": 3.972999999859894
+          },
+          {
+            "step": 5,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "b50e63e779fc57e69367a56886243309a30dea1f495621b3730459552ab49de2",
+            "response_mode": "native_function",
+            "sql": "WITH base AS (SELECT Age FROM data WHERE Offense = 'Assault' AND Age IS NOT NULL),\nsorted AS (SELECT Age, ROW_NUMBER() OVER (ORDER BY Age) - 1 AS rn, COUNT(*) OVER () AS n FROM base),\nq AS (SELECT\n (SELECT Age FROM (SELECT Age, MIN(rn) OVER () mn FROM sorted) WHERE 0) dummy FROM (SELECT 1))\nSELECT COUNT(*) FROM base",
+            "row_count": 1,
+            "elapsed_ms": 1.5144999997573905
+          }
+        ],
+        "tokens": 26739,
+        "input_tokens": 26092,
+        "output_tokens": 647,
+        "usage_status": "complete",
+        "elapsed_seconds": 21.22087670899964,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 19.852668167000047,
+        "case_id": "468",
+        "asset": "arrest_expungibility.csv",
+        "database_hash": "eae5714828c7f61cc547a8dee053ad8405aafb16e3cc44b6d492d1137ca77767",
+        "database_unchanged": true,
+        "passed": false,
+        "sub_hits": 0,
+        "sub_total": 1
+      }
+    ],
+    "production_accepted": false,
+    "strict_passed_n": 6,
+    "attempts_completed": 9
+  },
+  "priority_diagnostic_v68_recomputed": {
+    "source_commit": "a52022727c3e3c511f3990da3627a040dd5063c6",
+    "recomputed_from_frozen_commit": "a52022727c3e3c511f3990da3627a040dd5063c6",
+    "step_hashes": [
+      {
+        "case_id": "1195",
+        "step": 1,
+        "hash_equal": true
+      },
+      {
+        "case_id": "861",
+        "step": 3,
+        "hash_equal": true
+      },
+      {
+        "case_id": "1003",
+        "step": 1,
+        "hash_equal": true
+      },
+      {
+        "case_id": "487",
+        "step": 1,
+        "hash_equal": true
+      },
+      {
+        "case_id": "83",
+        "step": 2,
+        "hash_equal": true
+      },
+      {
+        "case_id": "83",
+        "step": 3,
+        "hash_equal": true
+      },
+      {
+        "case_id": "207",
+        "step": 1,
+        "hash_equal": true
+      },
+      {
+        "case_id": "271",
+        "step": 2,
+        "hash_equal": true
+      },
+      {
+        "case_id": "271",
+        "step": 3,
+        "hash_equal": true
+      },
+      {
+        "case_id": "447",
+        "step": 1,
+        "hash_equal": true
+      },
+      {
+        "case_id": "468",
+        "step": 4,
+        "hash_equal": true
+      },
+      {
+        "case_id": "468",
+        "step": 5,
+        "hash_equal": true
+      }
+    ],
+    "raw_bindings": [
+      {
+        "case_id": "207",
+        "field": "missing_columns_in_object_type",
+        "raw_value_equal": true
+      },
+      {
+        "case_id": "271",
+        "field": "clean_entries",
+        "raw_value_equal": true
+      },
+      {
+        "case_id": "271",
+        "field": "mean_USFLUX",
+        "raw_value_equal": true
+      },
+      {
+        "case_id": "271",
+        "field": "log_MEANJZH",
+        "raw_value_equal": true
+      },
+      {
+        "case_id": "271",
+        "field": "norm_TOTUSJZ",
+        "raw_value_equal": true
+      },
+      {
+        "case_id": "447",
+        "field": "number_of_outliers",
+        "raw_value_equal": true
+      }
+    ],
+    "receipt_errors": {
+      "1195": [],
+      "861": [],
+      "1003": [],
+      "487": [],
+      "83": [],
+      "207": [],
+      "271": [],
+      "447": [],
+      "468": []
+    },
+    "database_unchanged": true,
+    "independent_external_acceptance": false
+  },
+  "priority_diagnostic_v69": {
+    "source_commit": "d190cbe2d0da18acc4342a8e04254ab03da7f5b0",
+    "model_route": {
+      "provider_id": "magpie",
+      "app_type": "magpie",
+      "model": "workbuddy/deepseek-v4.1-flash",
+      "transport": "openai-chat",
+      "thinking_mode": "default",
+      "json_mode": false,
+      "max_output_tokens": 3000,
+      "endpoint_hash": "fe8827a6b46979db5015036d380dd4e1f10eda5b76101c62a322240bf51a0573",
+      "wire_api": "chat_completions",
+      "gateway_adapter_hash": "163619e55b3ee9dd7eaeda7e9275a0cdc2a07972b6b67602016151f66632b8e6",
+      "gateway_headers_hash": "0a6dda900b2ea6b80cb4df4282bd2ec368d99d39ee00f707de87660edce6d440",
+      "route_hash": "ddcb6a5429c4f5365aa21351db2a358e378a5beb5c3b07ae80138dd444b8fbd4"
+    },
+    "scope": "nine repeatedly developed cases; frozen source; not a full pair or unseen acceptance",
+    "results": [
+      {
+        "answers": {},
+        "raw_answers": null,
+        "answer_evidence": {},
+        "task_contract": null,
+        "final_sql": null,
+        "failure": "unsupported_capability",
+        "trace": [
+          {
+            "step": 1,
+            "tool": "capability_declaration",
+            "status": "unsupported",
+            "code": "unsupported_capability",
+            "response_mode": "native_function"
+          }
+        ],
+        "tokens": 3220,
+        "input_tokens": 3015,
+        "output_tokens": 205,
+        "usage_status": "complete",
+        "elapsed_seconds": 4.197886582999672,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 2.6775790829997277,
+        "case_id": "1195",
+        "asset": "thrombosis_prediction",
+        "database_hash": "87583183c3dc472fba04de702965560a9d7c0a548836613f242317e0eeb83f00",
+        "database_unchanged": true,
+        "passed": false,
+        "sub_hits": 0,
+        "sub_total": 1
+      },
+      {
+        "answers": {},
+        "raw_answers": null,
+        "answer_evidence": {},
+        "task_contract": {
+          "question": "What is his number of the driver who finished 0:01:54 in the Q3 of qualifying race No.903?",
+          "public_requirements": "race number refers to raceId; finished 0:0M:SS in the Q3 refers to q3 LIKE 'M:SS%'",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "number"
+            ],
+            "shape": "rows",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {}
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": "SELECT d.number FROM qualifying q JOIN drivers d ON q.driverId = d.driverId WHERE q.raceId = 903 AND q.q3 LIKE '1:54%'",
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "status": "error",
+            "error": "SemanticError",
+            "code": "semantic_contract",
+            "response_mode": "native_function",
+            "action_keys": [
+              "final_sql",
+              "task_spec"
+            ],
+            "repair_type": "revise_plan_or_query",
+            "checks": [
+              "scalar_cardinality"
+            ]
+          },
+          {
+            "step": 2,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "893fcfd4950d488002923759ddbe209c8fc44f89094c99a7fdaab3f43b471c19",
+            "response_mode": "native_function",
+            "sql": "SELECT d.number FROM qualifying q JOIN drivers d ON q.driverId = d.driverId WHERE q.raceId = 903 AND q.q3 LIKE '1:54%'",
+            "row_count": 2,
+            "elapsed_ms": 1.0966669997287681
+          }
+        ],
+        "tokens": 8112,
+        "input_tokens": 7889,
+        "output_tokens": 223,
+        "usage_status": "complete",
+        "elapsed_seconds": 7.539193999999952,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 5.435683791999509,
+        "case_id": "861",
+        "asset": "formula_1",
+        "database_hash": "79770caf966707e35516fa566e24b40ae515c74ec1ec4631235245645b87b24d",
+        "database_unchanged": true,
+        "passed": true,
+        "sub_hits": 1,
+        "sub_total": 1
+      },
+      {
+        "answers": {},
+        "raw_answers": null,
+        "answer_evidence": {},
+        "task_contract": {
+          "question": "How many accidents did the driver who had the highest number accidents in the Canadian Grand Prix have?",
+          "public_requirements": "number of accidents refers to the number where statusid = 3; Canadian Grand Prix refers to the race of name\n",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "answer"
+            ],
+            "shape": "scalar",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {}
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": "WITH cg AS (\n  SELECT r.raceId FROM races r WHERE r.name = 'Canadian Grand Prix'\n),\nacc AS (\n  SELECT res.driverId, COUNT(*) AS accidents\n  FROM results res JOIN cg ON res.raceId = cg.raceId\n  WHERE res.statusId = 3\n  GROUP BY res.driverId\n)\nSELECT MAX(accidents) AS answer FROM acc",
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "status": "error",
+            "error": "SemanticError",
+            "code": "semantic_contract",
+            "response_mode": "native_function",
+            "action_keys": [
+              "final_sql",
+              "task_spec"
+            ],
+            "repair_type": "revise_plan_or_query",
+            "checks": [
+              "ties_may_be_truncated"
+            ]
+          },
+          {
+            "step": 2,
+            "status": "error",
+            "error": "SemanticError",
+            "code": "semantic_contract",
+            "response_mode": "native_function",
+            "action_keys": [
+              "final_sql",
+              "task_spec"
+            ],
+            "repair_type": "revise_plan_or_query",
+            "checks": [
+              "scalar_cardinality"
+            ]
+          },
+          {
+            "step": 3,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "9850e1e153de874c02f21453a00aba35194f1cf6d9aa7ec2a05d18ff2fa17663",
+            "response_mode": "native_function",
+            "sql": "SELECT res.driverId, COUNT(*) AS accidents\nFROM results res JOIN races r ON res.raceId = r.raceId\nWHERE r.name = 'Canadian Grand Prix' AND res.statusId = 3\nGROUP BY res.driverId ORDER BY accidents DESC LIMIT 5",
+            "row_count": 5,
+            "elapsed_ms": 3.5045839995291317
+          },
+          {
+            "step": 4,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "4c20008c03bd4b4b210aa707aecdaba1131a1d5990891367ee646666321f07a5",
+            "response_mode": "native_function",
+            "sql": "WITH cg AS (\n  SELECT r.raceId FROM races r WHERE r.name = 'Canadian Grand Prix'\n),\nacc AS (\n  SELECT res.driverId, COUNT(*) AS accidents\n  FROM results res JOIN cg ON res.raceId = cg.raceId\n  WHERE res.statusId = 3\n  GROUP BY res.driverId\n)\nSELECT MAX(accidents) AS answer FROM acc",
+            "row_count": 1,
+            "elapsed_ms": 2.117834000273433
+          }
+        ],
+        "tokens": 17763,
+        "input_tokens": 17126,
+        "output_tokens": 637,
+        "usage_status": "complete",
+        "elapsed_seconds": 14.955299582999942,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 12.899790792000204,
+        "case_id": "1003",
+        "asset": "formula_1",
+        "database_hash": "79770caf966707e35516fa566e24b40ae515c74ec1ec4631235245645b87b24d",
+        "database_unchanged": true,
+        "passed": true,
+        "sub_hits": 1,
+        "sub_total": 1
+      },
+      {
+        "answers": {},
+        "raw_answers": null,
+        "answer_evidence": {},
+        "task_contract": {
+          "question": "What is the percentage of incredibly powerful cards in the set Coldsnap?",
+          "public_requirements": "card set Coldsnap refers to name = 'Coldsnap'; foil is incredibly powerful refers to cardKingdomFoilId is not null AND cardKingdomId is not null; the percentage of incredibly powerful cards in the set refers to DIVIDE(SUM(incredibly powerful), SUM(name = 'Coldsnap'))*100",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "answer"
+            ],
+            "shape": "scalar",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {}
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": "SELECT 100.0 * SUM(CASE WHEN cardKingdomFoilId IS NOT NULL AND cardKingdomId IS NOT NULL THEN 1 ELSE 0 END) / COUNT(*) AS answer FROM cards WHERE setCode = (SELECT code FROM sets WHERE name = 'Coldsnap')",
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "066b91070e4a502d986343be7b8652a69878116f15b2283dc6ce6ac5e615c127",
+            "response_mode": "native_function",
+            "sql": "SELECT 100.0 * SUM(CASE WHEN cardKingdomFoilId IS NOT NULL AND cardKingdomId IS NOT NULL THEN 1 ELSE 0 END) / COUNT(*) AS answer FROM cards WHERE setCode = (SELECT code FROM sets WHERE name = 'Coldsnap')",
+            "row_count": 1,
+            "elapsed_ms": 31.825083000512677
+          }
+        ],
+        "tokens": 4705,
+        "input_tokens": 4574,
+        "output_tokens": 131,
+        "usage_status": "complete",
+        "elapsed_seconds": 6.34112983399973,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 2.5186882919997515,
+        "case_id": "487",
+        "asset": "card_games",
+        "database_hash": "c98bdb57fe7474da798b407785544b9af0daaad5d61fd21e2a73309493bc1227",
+        "database_unchanged": true,
+        "passed": true,
+        "sub_hits": 1,
+        "sub_total": 1
+      },
+      {
+        "answers": {},
+        "raw_answers": null,
+        "answer_evidence": {},
+        "task_contract": {
+          "question": "Of the schools that offers a magnet program serving a grade span of Kindergarten to 8th grade, how many offers Multiple Provision Types? List the number of cities that offers a Kindergarten to 8th grade span and indicate how many schools are there serving such grade span for each city.",
+          "public_requirements": "Kindergarten to 8th grade refers to K-8; 'Offers a magnet program' means Magnet = 1; Multiple Provision Types refers to `NSLP Provision Status` = 'Multiple Provision Types'",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "city",
+              "num_schools",
+              "num_multiple_provision_schools"
+            ],
+            "shape": "rows",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {}
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": "SELECT s.City AS city,\n       COUNT(DISTINCT s.CDSCode) AS num_schools,\n       COUNT(DISTINCT CASE WHEN f.\"NSLP Provision Status\" = 'Multiple Provision Types' THEN s.CDSCode END) AS num_multiple_provision_schools\nFROM schools s\nLEFT JOIN frpm f ON f.CDSCode = s.CDSCode\nWHERE s.GSoffered = 'K-8' AND s.Magnet = 1\nGROUP BY s.City\nORDER BY s.City",
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "status": "error",
+            "error": "ActionSchemaError",
+            "code": "action_schema",
+            "response_mode": "native_function",
+            "schema_errors": [
+              {
+                "path": [
+                  "tool_calls"
+                ],
+                "type": "one_action"
+              }
+            ],
+            "repair_type": "correct_parameters"
+          },
+          {
+            "step": 2,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "e6d101b6add82f085475e68f5003dc5ce94688f3d1feb3a18c2c439c577cd84b",
+            "response_mode": "native_function",
+            "sql": "SELECT 'schools' t, GSoffered, GSserved, Magnet, COUNT(*) c FROM schools GROUP BY GSoffered, GSserved, Magnet ORDER BY c DESC LIMIT 30",
+            "row_count": 30,
+            "elapsed_ms": 20.168250000097032
+          },
+          {
+            "step": 3,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "82c59c0907d80ffe1c2826604b107b4af7db024bb35dd711590e39b144f68fe9",
+            "response_mode": "native_function",
+            "sql": "SELECT s.City AS city,\n       COUNT(DISTINCT s.CDSCode) AS num_schools,\n       COUNT(DISTINCT CASE WHEN f.\"NSLP Provision Status\" = 'Multiple Provision Types' THEN s.CDSCode END) AS num_multiple_provision_schools\nFROM schools s\nLEFT JOIN frpm f ON f.CDSCode = s.CDSCode\nWHERE s.GSoffered = 'K-8' AND s.Magnet = 1\nGROUP BY s.City\nORDER BY s.City",
+            "row_count": 20,
+            "elapsed_ms": 6.3417910005227895
+          }
+        ],
+        "tokens": 12708,
+        "input_tokens": 12182,
+        "output_tokens": 526,
+        "usage_status": "complete",
+        "elapsed_seconds": 11.253936541000257,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 9.644610041000306,
+        "case_id": "83",
+        "asset": "california_schools",
+        "database_hash": "c0903eec662e63068fd1d14403d3d6c1d473287fc10c4356333ea58f878db983",
+        "database_unchanged": true,
+        "passed": false,
+        "sub_hits": 0,
+        "sub_total": 1
+      },
+      {
+        "answers": {
+          "missing_columns_in_object_type": "author, urlToImage"
+        },
+        "raw_answers": {},
+        "answer_evidence": {
+          "missing_columns_in_object_type": {
+            "step": 2,
+            "path": [
+              "items"
+            ],
+            "raw_value": [
+              "author",
+              "urlToImage"
+            ],
+            "submitted_value": "author, urlToImage",
+            "raw_type": "list",
+            "submitted_type": "str",
+            "method_id": "complete_collection",
+            "declared_public_unit": null,
+            "result_hash": "1536961880547e2e35cf6e188c2052400346f49c79e6b1d3bf6b81295d5ccf55"
+          }
+        },
+        "task_contract": {
+          "question": "1. Which column(s) contain missing values in the dataset?",
+          "public_requirements": "This question requires a straightforward identification of columns with missing values in the dataset. Only count the missing values in columns where the data type is 'object' (i.e., strings). Do not include columns of other data types and consider a \"missing value\" as one that is recorded as 'NaN', 'na', 'null', or an empty string in the dataset.\n@missing_columns_in_object_type[missing_column1, missing_column2,…] whereby 'missing_column1', 'missing_column2', etc. are string names of the columns with missing values. The answer should not contain any duplicates and should be sorted alphabetically for easy checking.",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "missing_columns_in_object_type"
+            ],
+            "shape": "rows",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {
+              "missing_columns_in_object_type": {
+                "kind": "set",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": false,
+                "decimals": null,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "This question requires a straightforward identification of columns with missing values in the dataset. Only count the missing values in columns where the data type is 'object' (i.e., strings). Do not include columns of other data types and consider a \"missing value\" as one that is recorded as 'NaN', 'na', 'null', or an empty string in the dataset.\n@missing_columns_in_object_type[missing_column1, missing_column2,…] whereby 'missing_column1', 'missing_column2', etc. are string names of the columns with missing values. The answer should not contain any duplicates and should be sorted alphabetically for easy checking.",
+                "collection_separator": ", "
+              }
+            }
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": null,
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "status": "error",
+            "error": "SemanticError",
+            "code": "semantic_contract",
+            "response_mode": "native_function",
+            "action_keys": [
+              "collect"
+            ],
+            "repair_type": "revise_plan_or_query",
+            "checks": [
+              "data_dependent_answer_required"
+            ]
+          },
+          {
+            "step": 2,
+            "tool": "complete_collection",
+            "status": "ok",
+            "result_hash": "1536961880547e2e35cf6e188c2052400346f49c79e6b1d3bf6b81295d5ccf55",
+            "response_mode": "native_function",
+            "action": {
+              "collect": {
+                "sql": "SELECT name FROM (SELECT DISTINCT 'author' AS name FROM data WHERE author IS NULL OR author IN ('NaN','na','null','') UNION SELECT DISTINCT 'description' FROM data WHERE description IS NULL OR description IN ('NaN','na','null','') UNION SELECT DISTINCT 'publishedAt' FROM data WHERE publishedAt IS NULL OR publishedAt IN ('NaN','na','null','') UNION SELECT DISTINCT 'source' FROM data WHERE source IS NULL OR source IN ('NaN','na','null','') UNION SELECT DISTINCT 'title' FROM data WHERE title IS NULL OR title IN ('NaN','na','null','') UNION SELECT DISTINCT 'url' FROM data WHERE url IS NULL OR url IN ('NaN','na','null','') UNION SELECT DISTINCT 'urlToImage' FROM data WHERE urlToImage IS NULL OR urlToImage IN ('NaN','na','null','') UNION SELECT DISTINCT 'text' FROM data WHERE text IS NULL OR text IN ('NaN','na','null','')) ORDER BY name",
+                "collection_kind": "set"
+              }
+            }
+          }
+        ],
+        "tokens": 13529,
+        "input_tokens": 12908,
+        "output_tokens": 621,
+        "usage_status": "complete",
+        "elapsed_seconds": 9.929004208000151,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 8.510099375000209,
+        "case_id": "207",
+        "asset": "fb_articles_20180822_20180829_df.csv",
+        "database_hash": "094c8bd59c8dcbbddc2edddb38c8c003e6f314a3bb3e313da4d9a215414e7aba",
+        "database_unchanged": true,
+        "passed": true,
+        "sub_hits": 1,
+        "sub_total": 1
+      },
+      {
+        "answers": {},
+        "raw_answers": null,
+        "answer_evidence": {},
+        "task_contract": {
+          "question": "Perform comprehensive data preprocessing for the dataset by:\n1. Removing any duplicate entries.\n2. Filling in missing values in the USFLUX column with the mean value of the column.\n3. Transforming the MEANJZH column by applying the logarithm function (base 10).\n4. Normalizing the TOTUSJZ column using Min-Max normalization.",
+          "public_requirements": "When applying the logarithm function, add a small constant (1e-10) to the MEANJZH column to avoid infinity. The Min-Max normalization needs to transform the TOTUSJZ values to the range 0 to 1.\nReturn 4 values: @clean_entries[Number of entries after cleaning duplicates], @mean_USFLUX[Mean of the USFLUX column after filling missing values, rounded to two decimal places], @log_MEANJZH[First entry of transformed MEANJZH column, rounded to three decimal places], @norm_TOTUSJZ[First entry of normalized TOTUSJZ column, rounded to three decimal places].",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "clean_entries",
+              "log_MEANJZH",
+              "mean_USFLUX",
+              "norm_TOTUSJZ"
+            ],
+            "shape": "rows",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {
+              "clean_entries": {
+                "kind": "integer",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": null,
+                "decimals": null,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "@clean_entries[Number of entries after cleaning duplicates]",
+                "collection_separator": null
+              },
+              "log_MEANJZH": {
+                "kind": "number",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": null,
+                "decimals": 3,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "@log_MEANJZH[First entry of transformed MEANJZH column, rounded to three decimal places]",
+                "collection_separator": null
+              },
+              "mean_USFLUX": {
+                "kind": "number",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": null,
+                "decimals": 2,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "@mean_USFLUX[Mean of the USFLUX column after filling missing values, rounded to two decimal places]",
+                "collection_separator": null
+              },
+              "norm_TOTUSJZ": {
+                "kind": "number",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": null,
+                "decimals": 3,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "@norm_TOTUSJZ[First entry of normalized TOTUSJZ column, rounded to three decimal places]",
+                "collection_separator": null
+              }
+            }
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": null,
+        "failure": "token_budget",
+        "trace": [
+          {
+            "step": 1,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "18eda77586f3794728ac6f688e29f7d7be84d345ad1f381d2b9de4d4c23ae43e",
+            "response_mode": "native_function",
+            "sql": "SELECT COUNT(*) AS total FROM data",
+            "row_count": 1,
+            "elapsed_ms": 0.8922919996621204
+          },
+          {
+            "step": 2,
+            "status": "error",
+            "error": "QueryExecutionError",
+            "code": "unknown_column",
+            "response_mode": "native_function",
+            "action_keys": [
+              "answer_sql"
+            ]
+          },
+          {
+            "step": 3,
+            "status": "error",
+            "error": "SemanticError",
+            "code": "semantic_contract",
+            "response_mode": "native_function",
+            "action_keys": [
+              "answer_sql"
+            ],
+            "repair_type": "revise_plan_or_query",
+            "checks": [
+              "data_dependent_answer_required"
+            ]
+          },
+          {
+            "step": 4,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "15177e64aedabcc39c0e1b7fcb8f166749e383fb9a2dcab77811ddff985cb9a8",
+            "response_mode": "native_function",
+            "sql": "WITH d AS (SELECT DISTINCT * FROM data),\nf AS (SELECT *, (SELECT AVG(USFLUX) FROM d WHERE USFLUX IS NOT NULL) AS m FROM d),\nfilled AS (SELECT *, COALESCE(USFLUX, m) AS u FROM f),\nmm AS (SELECT MIN(TOTUSJZ) AS mn, MAX(TOTUSJZ) AS mx FROM filled)\nSELECT COUNT(*) AS clean_entries,\n       ROUND(AVG(u), 2) AS mean_USFLUX,\n       (SELECT ROUND(LOG10(MEANJZH + 1e-10), 3) FROM filled ORDER BY TRUE_TIME, TIME LIMIT 1) AS log_MEANJZH,\n       (SELECT ROUND((TOTUSJZ - mn) / (mx - mn), 3) FROM filled, mm ORDER BY TRUE_TIME, TIME LIMIT 1) AS norm_TOTUSJZ\nFROM filled",
+            "row_count": 1,
+            "elapsed_ms": 2.9034579993094667
+          }
+        ],
+        "tokens": 30415,
+        "input_tokens": 29288,
+        "output_tokens": 1127,
+        "usage_status": "complete",
+        "elapsed_seconds": 18.482460209000237,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 17.091047124999932,
+        "case_id": "271",
+        "asset": "3901.csv",
+        "database_hash": "131a49a38b85af069a83566e9912809398fe746d3e7872d8f901740b94d3aaee",
+        "database_unchanged": true,
+        "passed": false,
+        "sub_hits": 0,
+        "sub_total": 3
+      },
+      {
+        "answers": {
+          "number_of_outliers": 111
+        },
+        "raw_answers": {},
+        "answer_evidence": {
+          "number_of_outliers": {
+            "step": 1,
+            "path": [
+              "iqr_statistics",
+              " BARO",
+              "outlier_count"
+            ],
+            "raw_value": 111,
+            "submitted_value": 111,
+            "raw_type": "int",
+            "submitted_type": "int",
+            "method_id": "describe",
+            "declared_public_unit": null,
+            "result_hash": "5cf29b2d8e3f08aa16f6a26e6fd7f2d58086da30b7b2a629985c8091e4708401"
+          }
+        },
+        "task_contract": {
+          "question": "2. Are there any outliers in the atmospheric pressure column (BARO)? If yes, how many outliers are there?",
+          "public_requirements": "An outlier is any value that is more than 1.5 times the interquartile range above the third quartile or below the first quartile. Ignore null values.\n@number_of_outliers[number_of_outliers], where \"number_of_outliers\" is an integer representing the total number of outliers detected under the conditions specified in the constraints.",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "number_of_outliers"
+            ],
+            "shape": "rows",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {
+              "number_of_outliers": {
+                "kind": "integer",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": null,
+                "decimals": null,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "where \"number_of_outliers\" is an integer representing the total number of outliers detected under the conditions specified in the constraints.",
+                "collection_separator": null
+              }
+            }
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": null,
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "tool": "fixed_analysis",
+            "status": "ok",
+            "result_hash": "5cf29b2d8e3f08aa16f6a26e6fd7f2d58086da30b7b2a629985c8091e4708401",
+            "response_mode": "native_function",
+            "action": {
+              "analysis": {
+                "table": "data",
+                "columns": [
+                  " BARO"
+                ],
+                "operation": "describe"
+              }
+            }
+          }
+        ],
+        "tokens": 8167,
+        "input_tokens": 8022,
+        "output_tokens": 145,
+        "usage_status": "complete",
+        "elapsed_seconds": 6.701029875000131,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 5.30140399999982,
+        "case_id": "447",
+        "asset": "baro_2015.csv",
+        "database_hash": "bf6d64c2c04f374edb3fc761bc476f80d9e13dd60a885eafc19c9f40072940c5",
+        "database_unchanged": true,
+        "passed": true,
+        "sub_hits": 1,
+        "sub_total": 1
+      },
+      {
+        "answers": {
+          "number_of_outliers": 0
+        },
+        "raw_answers": {},
+        "answer_evidence": {
+          "number_of_outliers": {
+            "step": 1,
+            "path": [
+              "iqr_statistics",
+              "Age",
+              "outlier_count"
+            ],
+            "raw_value": 0,
+            "submitted_value": 0,
+            "raw_type": "int",
+            "submitted_type": "int",
+            "method_id": "describe",
+            "declared_public_unit": null,
+            "result_hash": "6b9fe3ec1deeb0012742dcd6d2b4d4fc0f914dc1ede09186ce0552b7fa8e5664"
+          }
+        },
+        "task_contract": {
+          "question": "2. Are there any outliers in the age distribution of offenders in 'Assault' category, according to the IQR method? If yes, report the number of outliers.",
+          "public_requirements": "You are to use the Interquartile Range (IQR) method for outlier detection. Calculate the IQR as Q3 (75th percentile) - Q1 (25th percentile) for the 'Assault' category. Outliers are considered as values lying below Q1 - 1.5 * IQR or above Q3 + 1.5 * IQR.\n@number_of_outliers[number] where \"number\" is a positive integer denoting the number of outliers",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "number_of_outliers"
+            ],
+            "shape": "rows",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {
+              "number_of_outliers": {
+                "kind": "integer",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": null,
+                "decimals": null,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "where \"number\" is a positive integer denoting the number of outliers",
+                "collection_separator": null
+              }
+            }
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": null,
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "tool": "fixed_analysis",
+            "status": "ok",
+            "result_hash": "6b9fe3ec1deeb0012742dcd6d2b4d4fc0f914dc1ede09186ce0552b7fa8e5664",
+            "response_mode": "native_function",
+            "action": {
+              "analysis": {
+                "table": "data",
+                "columns": [
+                  "Age"
+                ],
+                "operation": "describe",
+                "filters": [
+                  {
+                    "column": "Offense",
+                    "value": "Assault",
+                    "source_excerpt": "Are there any outliers in the age distribution of offenders in 'Assault' category",
+                    "operator": "contains"
+                  }
+                ]
+              }
+            }
+          }
+        ],
+        "tokens": 8449,
+        "input_tokens": 8245,
+        "output_tokens": 204,
+        "usage_status": "complete",
+        "elapsed_seconds": 7.22132454199982,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 5.771962249999888,
+        "case_id": "468",
+        "asset": "arrest_expungibility.csv",
+        "database_hash": "eae5714828c7f61cc547a8dee053ad8405aafb16e3cc44b6d492d1137ca77767",
+        "database_unchanged": true,
+        "passed": true,
+        "sub_hits": 1,
+        "sub_total": 1
+      }
+    ],
+    "production_accepted": false,
+    "strict_passed_n": 6,
+    "attempts_completed": 9
+  },
+  "priority_diagnostic_v69_recomputed": {
+    "source_commit": "d190cbe2d0da18acc4342a8e04254ab03da7f5b0",
+    "recomputed_from_frozen_commit": "d190cbe2d0da18acc4342a8e04254ab03da7f5b0",
+    "step_hashes": [
+      {
+        "case_id": "861",
+        "step": 2,
+        "hash_equal": true
+      },
+      {
+        "case_id": "1003",
+        "step": 3,
+        "hash_equal": true
+      },
+      {
+        "case_id": "1003",
+        "step": 4,
+        "hash_equal": true
+      },
+      {
+        "case_id": "487",
+        "step": 1,
+        "hash_equal": true
+      },
+      {
+        "case_id": "83",
+        "step": 2,
+        "hash_equal": true
+      },
+      {
+        "case_id": "83",
+        "step": 3,
+        "hash_equal": true
+      },
+      {
+        "case_id": "207",
+        "step": 2,
+        "hash_equal": true
+      },
+      {
+        "case_id": "271",
+        "step": 1,
+        "hash_equal": true
+      },
+      {
+        "case_id": "271",
+        "step": 4,
+        "hash_equal": true
+      },
+      {
+        "case_id": "447",
+        "step": 1,
+        "hash_equal": true
+      },
+      {
+        "case_id": "468",
+        "step": 1,
+        "hash_equal": true
+      }
+    ],
+    "raw_bindings": [
+      {
+        "case_id": "207",
+        "field": "missing_columns_in_object_type",
+        "raw_value_equal": true
+      },
+      {
+        "case_id": "447",
+        "field": "number_of_outliers",
+        "raw_value_equal": true
+      },
+      {
+        "case_id": "468",
+        "field": "number_of_outliers",
+        "raw_value_equal": true
+      }
+    ],
+    "receipt_errors": {
+      "1195": [],
+      "861": [],
+      "1003": [],
+      "487": [],
+      "83": [],
+      "207": [],
+      "271": [],
+      "447": [],
+      "468": []
+    },
+    "database_unchanged": true,
+    "independent_external_acceptance": false
+  },
+  "budget_diagnostic_v70": {
+    "source_commit": "a2cd80b06683c3e2ea46da6c45a919a474c487b9",
+    "model_route": {
+      "provider_id": "magpie",
+      "app_type": "magpie",
+      "model": "workbuddy/deepseek-v4.1-flash",
+      "transport": "openai-chat",
+      "thinking_mode": "default",
+      "json_mode": false,
+      "max_output_tokens": 3000,
+      "endpoint_hash": "fe8827a6b46979db5015036d380dd4e1f10eda5b76101c62a322240bf51a0573",
+      "wire_api": "chat_completions",
+      "gateway_adapter_hash": "163619e55b3ee9dd7eaeda7e9275a0cdc2a07972b6b67602016151f66632b8e6",
+      "gateway_headers_hash": "0a6dda900b2ea6b80cb4df4282bd2ec368d99d39ee00f707de87660edce6d440",
+      "route_hash": "ddcb6a5429c4f5365aa21351db2a358e378a5beb5c3b07ae80138dd444b8fbd4"
+    },
+    "scope": "three repeatedly developed cases; frozen source; not a full pair or unseen acceptance",
+    "results": [
+      {
+        "answers": {},
+        "raw_answers": null,
+        "answer_evidence": {},
+        "task_contract": {
+          "question": "What is the average blood albumin level for female patients with a PLT greater than 400 who have been diagnosed with SLE?",
+          "public_requirements": "average blood albumin level refers to AVG(ALB); female refers to SEX = 'F'; PLT greater than 400 refers to PLT > 400; diagnosed with SLE refers to Diagnosis= 'SLE'",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "avg_alb"
+            ],
+            "shape": "scalar",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {}
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": "SELECT AVG(l.ALB) AS avg_alb FROM Patient p JOIN Laboratory l ON l.ID = p.ID WHERE p.SEX = 'F' AND p.Diagnosis = 'SLE' AND l.PLT > 400",
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "0c2549ba0456c57f2181894a4e36150c60ada69bbf2502ae9999078a7be89917",
+            "response_mode": "native_function",
+            "sql": "SELECT (SELECT COUNT(*) FROM Patient WHERE Diagnosis LIKE '%SLE%') AS patient_sle, (SELECT COUNT(*) FROM Patient WHERE Diagnosis = 'SLE') AS patient_sle_exact, (SELECT COUNT(*) FROM Examination WHERE Diagnosis LIKE '%SLE%') AS exam_sle_like, (SELECT COUNT(DISTINCT ID) FROM Examination WHERE Diagnosis = 'SLE') AS exam_sle_distinct_ids",
+            "row_count": 1,
+            "elapsed_ms": 1.1064589998568408
+          },
+          {
+            "step": 2,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "3df37e895e531ecab5ec42475896377ec4c6919a916a88ca69f048113ee8da37",
+            "response_mode": "native_function",
+            "sql": "SELECT AVG(l.ALB) AS avg_alb FROM Patient p JOIN Laboratory l ON l.ID = p.ID WHERE p.SEX = 'F' AND p.Diagnosis = 'SLE' AND l.PLT > 400",
+            "row_count": 1,
+            "elapsed_ms": 1.3414170007308712
+          }
+        ],
+        "tokens": 6670,
+        "input_tokens": 6331,
+        "output_tokens": 339,
+        "usage_status": "complete",
+        "elapsed_seconds": 7.012921833000291,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 5.493692792000729,
+        "case_id": "1195",
+        "asset": "thrombosis_prediction",
+        "database_hash": "87583183c3dc472fba04de702965560a9d7c0a548836613f242317e0eeb83f00",
+        "database_unchanged": true,
+        "passed": true,
+        "sub_hits": 1,
+        "sub_total": 1
+      },
+      {
+        "answers": {},
+        "raw_answers": null,
+        "answer_evidence": {},
+        "task_contract": {
+          "question": "Of the schools that offers a magnet program serving a grade span of Kindergarten to 8th grade, how many offers Multiple Provision Types? List the number of cities that offers a Kindergarten to 8th grade span and indicate how many schools are there serving such grade span for each city.",
+          "public_requirements": "Kindergarten to 8th grade refers to K-8; 'Offers a magnet program' means Magnet = 1; Multiple Provision Types refers to `NSLP Provision Status` = 'Multiple Provision Types'",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "schools_multiple_provision_k8_magnet"
+            ],
+            "shape": "scalar",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {}
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": "SELECT COUNT(DISTINCT s.CDSCode) AS schools_multiple_provision_k8_magnet\nFROM schools s\nJOIN frpm f ON f.CDSCode = s.CDSCode\nWHERE s.Magnet = 1\n  AND s.GSserved = 'K-8'\n  AND f.[NSLP Provision Status] = 'Multiple Provision Types'",
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "74692911712898f85d42be8df8a989377d28eaab060dde977c811a95dc2cdc9a",
+            "response_mode": "native_function",
+            "sql": "SELECT COUNT(DISTINCT s.CDSCode) AS schools_multiple_provision_k8_magnet\nFROM schools s\nJOIN frpm f ON f.CDSCode = s.CDSCode\nWHERE s.Magnet = 1\n  AND s.GSserved = 'K-8'\n  AND f.[NSLP Provision Status] = 'Multiple Provision Types'",
+            "row_count": 1,
+            "elapsed_ms": 6.860041999971145
+          }
+        ],
+        "tokens": 3863,
+        "input_tokens": 3700,
+        "output_tokens": 163,
+        "usage_status": "complete",
+        "elapsed_seconds": 3.3771098329998495,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 1.7187906660001318,
+        "case_id": "83",
+        "asset": "california_schools",
+        "database_hash": "c0903eec662e63068fd1d14403d3d6c1d473287fc10c4356333ea58f878db983",
+        "database_unchanged": true,
+        "passed": false,
+        "sub_hits": 0,
+        "sub_total": 1
+      },
+      {
+        "answers": {},
+        "raw_answers": null,
+        "answer_evidence": {},
+        "task_contract": {
+          "question": "Perform comprehensive data preprocessing for the dataset by:\n1. Removing any duplicate entries.\n2. Filling in missing values in the USFLUX column with the mean value of the column.\n3. Transforming the MEANJZH column by applying the logarithm function (base 10).\n4. Normalizing the TOTUSJZ column using Min-Max normalization.",
+          "public_requirements": "When applying the logarithm function, add a small constant (1e-10) to the MEANJZH column to avoid infinity. The Min-Max normalization needs to transform the TOTUSJZ values to the range 0 to 1.\nReturn 4 values: @clean_entries[Number of entries after cleaning duplicates], @mean_USFLUX[Mean of the USFLUX column after filling missing values, rounded to two decimal places], @log_MEANJZH[First entry of transformed MEANJZH column, rounded to three decimal places], @norm_TOTUSJZ[First entry of normalized TOTUSJZ column, rounded to three decimal places].",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "clean_entries",
+              "log_MEANJZH",
+              "mean_USFLUX",
+              "norm_TOTUSJZ"
+            ],
+            "shape": "rows",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {
+              "clean_entries": {
+                "kind": "integer",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": null,
+                "decimals": null,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "@clean_entries[Number of entries after cleaning duplicates]",
+                "collection_separator": null
+              },
+              "log_MEANJZH": {
+                "kind": "number",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": null,
+                "decimals": 3,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "@log_MEANJZH[First entry of transformed MEANJZH column, rounded to three decimal places]",
+                "collection_separator": null
+              },
+              "mean_USFLUX": {
+                "kind": "number",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": null,
+                "decimals": 2,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "@mean_USFLUX[Mean of the USFLUX column after filling missing values, rounded to two decimal places]",
+                "collection_separator": null
+              },
+              "norm_TOTUSJZ": {
+                "kind": "number",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": null,
+                "decimals": 3,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "@norm_TOTUSJZ[First entry of normalized TOTUSJZ column, rounded to three decimal places]",
+                "collection_separator": null
+              }
+            }
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": null,
+        "failure": "token_budget",
+        "trace": [
+          {
+            "step": 1,
+            "status": "error",
+            "error": "QueryExecutionError",
+            "code": "unknown_column",
+            "response_mode": "native_function",
+            "action_keys": [
+              "answer_sql"
+            ]
+          },
+          {
+            "step": 2,
+            "status": "error",
+            "error": "SemanticError",
+            "code": "semantic_contract",
+            "response_mode": "native_function",
+            "action_keys": [
+              "answer_sql"
+            ],
+            "repair_type": "revise_plan_or_query",
+            "checks": [
+              "data_dependent_answer_required"
+            ]
+          },
+          {
+            "step": 3,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "d37c8d76183688ca654338124ca65563184a46a592f8f4da11bf50489526980d",
+            "response_mode": "native_function",
+            "sql": "WITH dedup AS (\n  SELECT TRUE_TIME, TIME, USFLUX, MEANGAM, MEANGBT, MEANGBZ, MEANGBH, MEANJZD, TOTUSJZ, MEANJZH, TOTUSJH, ABSNJZH, SAVNCPP, MEANPOT, TOTPOT, MEANSHR, SHRGT45, R_VALUE, AREA_ACR FROM data\n  GROUP BY TRUE_TIME, TIME, USFLUX, MEANGAM, MEANGBT, MEANGBZ, MEANGBH, MEANJZD, TOTUSJZ, MEANJZH, TOTUSJH, ABSNJZH, SAVNCPP, MEANPOT, TOTPOT, MEANSHR, SHRGT45, R_VALUE, AREA_ACR\n)\nSELECT COUNT(*) AS n, COUNT(USFLUX) AS nuf, SUM(USFLUX) AS sumuf FROM dedup",
+            "row_count": 1,
+            "elapsed_ms": 3.019290999873192
+          }
+        ],
+        "tokens": 24051,
+        "input_tokens": 22658,
+        "output_tokens": 1393,
+        "usage_status": "complete",
+        "elapsed_seconds": 15.337658165999528,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 13.943068667000261,
+        "case_id": "271",
+        "asset": "3901.csv",
+        "database_hash": "131a49a38b85af069a83566e9912809398fe746d3e7872d8f901740b94d3aaee",
+        "database_unchanged": true,
+        "passed": false,
+        "sub_hits": 0,
+        "sub_total": 3
+      }
+    ],
+    "production_accepted": false,
+    "strict_passed_n": 1,
+    "attempts_completed": 3
+  },
+  "budget_diagnostic_v70_recomputed": {
+    "source_commit": "a2cd80b06683c3e2ea46da6c45a919a474c487b9",
+    "recomputed_from_frozen_commit": "a2cd80b06683c3e2ea46da6c45a919a474c487b9",
+    "step_hashes": [
+      {
+        "case_id": "1195",
+        "step": 1,
+        "hash_equal": true
+      },
+      {
+        "case_id": "1195",
+        "step": 2,
+        "hash_equal": true
+      },
+      {
+        "case_id": "83",
+        "step": 1,
+        "hash_equal": true
+      },
+      {
+        "case_id": "271",
+        "step": 3,
+        "hash_equal": true
+      }
+    ],
+    "raw_bindings": [],
+    "receipt_errors": {
+      "1195": [],
+      "83": [],
+      "271": []
+    },
+    "database_unchanged": true,
+    "independent_external_acceptance": false
+  },
+  "budget_diagnostic_v71": {
+    "source_commit": "ffffba04fc67fb4fc825d6a2876bd045c75e47ee",
+    "model_route": {
+      "provider_id": "magpie",
+      "app_type": "magpie",
+      "model": "workbuddy/deepseek-v4.1-flash",
+      "transport": "openai-chat",
+      "thinking_mode": "default",
+      "json_mode": false,
+      "max_output_tokens": 3000,
+      "endpoint_hash": "fe8827a6b46979db5015036d380dd4e1f10eda5b76101c62a322240bf51a0573",
+      "wire_api": "chat_completions",
+      "gateway_adapter_hash": "163619e55b3ee9dd7eaeda7e9275a0cdc2a07972b6b67602016151f66632b8e6",
+      "gateway_headers_hash": "0a6dda900b2ea6b80cb4df4282bd2ec368d99d39ee00f707de87660edce6d440",
+      "route_hash": "ddcb6a5429c4f5365aa21351db2a358e378a5beb5c3b07ae80138dd444b8fbd4"
+    },
+    "scope": "one repeatedly developed case; frozen source; not a full pair or unseen acceptance",
+    "results": [
+      {
+        "answers": {
+          "clean_entries": 1153,
+          "mean_USFLUX": "7463837954032958000000.00",
+          "log_MEANJZH": "-2.543",
+          "norm_TOTUSJZ": "0.107"
+        },
+        "raw_answers": {},
+        "answer_evidence": {
+          "clean_entries": {
+            "step": 1,
+            "path": [
+              "rows",
+              0,
+              0
+            ],
+            "raw_value": 1153,
+            "submitted_value": 1153,
+            "raw_type": "int",
+            "submitted_type": "int",
+            "method_id": "sql",
+            "declared_public_unit": null,
+            "result_hash": "13975ba548865f90e5c18e8e2d03e1c96dc76c23cde167a8023fd32a22b4fe71"
+          },
+          "mean_USFLUX": {
+            "step": 1,
+            "path": [
+              "rows",
+              0,
+              1
+            ],
+            "raw_value": 7.463837954032958e+21,
+            "submitted_value": "7463837954032958000000.00",
+            "raw_type": "float",
+            "submitted_type": "str",
+            "method_id": "sql",
+            "declared_public_unit": null,
+            "result_hash": "13975ba548865f90e5c18e8e2d03e1c96dc76c23cde167a8023fd32a22b4fe71"
+          },
+          "log_MEANJZH": {
+            "step": 1,
+            "path": [
+              "rows",
+              0,
+              2
+            ],
+            "raw_value": -2.543,
+            "submitted_value": "-2.543",
+            "raw_type": "float",
+            "submitted_type": "str",
+            "method_id": "sql",
+            "declared_public_unit": null,
+            "result_hash": "13975ba548865f90e5c18e8e2d03e1c96dc76c23cde167a8023fd32a22b4fe71"
+          },
+          "norm_TOTUSJZ": {
+            "step": 1,
+            "path": [
+              "rows",
+              0,
+              3
+            ],
+            "raw_value": 0.107,
+            "submitted_value": "0.107",
+            "raw_type": "float",
+            "submitted_type": "str",
+            "method_id": "sql",
+            "declared_public_unit": null,
+            "result_hash": "13975ba548865f90e5c18e8e2d03e1c96dc76c23cde167a8023fd32a22b4fe71"
+          }
+        },
+        "task_contract": {
+          "question": "Perform comprehensive data preprocessing for the dataset by:\n1. Removing any duplicate entries.\n2. Filling in missing values in the USFLUX column with the mean value of the column.\n3. Transforming the MEANJZH column by applying the logarithm function (base 10).\n4. Normalizing the TOTUSJZ column using Min-Max normalization.",
+          "public_requirements": "When applying the logarithm function, add a small constant (1e-10) to the MEANJZH column to avoid infinity. The Min-Max normalization needs to transform the TOTUSJZ values to the range 0 to 1.\nReturn 4 values: @clean_entries[Number of entries after cleaning duplicates], @mean_USFLUX[Mean of the USFLUX column after filling missing values, rounded to two decimal places], @log_MEANJZH[First entry of transformed MEANJZH column, rounded to three decimal places], @norm_TOTUSJZ[First entry of normalized TOTUSJZ column, rounded to three decimal places].",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "clean_entries",
+              "log_MEANJZH",
+              "mean_USFLUX",
+              "norm_TOTUSJZ"
+            ],
+            "shape": "rows",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {
+              "clean_entries": {
+                "kind": "integer",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": null,
+                "decimals": null,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "@clean_entries[Number of entries after cleaning duplicates]",
+                "collection_separator": null
+              },
+              "log_MEANJZH": {
+                "kind": "number",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": null,
+                "decimals": 3,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "@log_MEANJZH[First entry of transformed MEANJZH column, rounded to three decimal places]",
+                "collection_separator": null
+              },
+              "mean_USFLUX": {
+                "kind": "number",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": null,
+                "decimals": 2,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "@mean_USFLUX[Mean of the USFLUX column after filling missing values, rounded to two decimal places]",
+                "collection_separator": null
+              },
+              "norm_TOTUSJZ": {
+                "kind": "number",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": null,
+                "decimals": 3,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "@norm_TOTUSJZ[First entry of normalized TOTUSJZ column, rounded to three decimal places]",
+                "collection_separator": null
+              }
+            }
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": null,
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "13975ba548865f90e5c18e8e2d03e1c96dc76c23cde167a8023fd32a22b4fe71",
+            "response_mode": "native_function",
+            "sql": "WITH d AS (SELECT DISTINCT TRUE_TIME,TIME,USFLUX,MEANGAM,MEANGBT,MEANGBZ,MEANGBH,MEANJZD,TOTUSJZ,MEANJZH,TOTUSJH,ABSNJZH,SAVNCPP,MEANPOT,TOTPOT,MEANSHR,SHRGT45,R_VALUE,AREA_ACR FROM data), m AS (SELECT AVG(USFLUX) mv FROM d WHERE USFLUX IS NOT NULL), f AS (SELECT *, COALESCE(USFLUX,(SELECT mv FROM m)) u FROM d) SELECT (SELECT COUNT(*) FROM f) AS clean_entries, ROUND((SELECT AVG(u) FROM f),2) AS mean_USFLUX, ROUND(LOG10((SELECT MEANJZH FROM f LIMIT 1)+1e-10),3) AS log_MEANJZH, ROUND(((SELECT TOTUSJZ FROM f LIMIT 1)-(SELECT MIN(TOTUSJZ) FROM f))/((SELECT MAX(TOTUSJZ) FROM f)-(SELECT MIN(TOTUSJZ) FROM f)),3) AS norm_TOTUSJZ",
+            "row_count": 1,
+            "elapsed_ms": 2.3095420001482125,
+            "auto_bound_public_keys": [
+              "clean_entries",
+              "log_MEANJZH",
+              "mean_USFLUX",
+              "norm_TOTUSJZ"
+            ]
+          }
+        ],
+        "tokens": 5258,
+        "input_tokens": 4961,
+        "output_tokens": 297,
+        "usage_status": "complete",
+        "elapsed_seconds": 4.063585415999114,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 2.525271624999732,
+        "case_id": "271",
+        "asset": "3901.csv",
+        "database_hash": "131a49a38b85af069a83566e9912809398fe746d3e7872d8f901740b94d3aaee",
+        "database_unchanged": true,
+        "passed": true,
+        "sub_hits": 3,
+        "sub_total": 3
+      }
+    ],
+    "production_accepted": false,
+    "strict_passed_n": 1,
+    "attempts_completed": 1
+  },
+  "budget_diagnostic_v71_recomputed": {
+    "source_commit": "ffffba04fc67fb4fc825d6a2876bd045c75e47ee",
+    "recomputed_from_frozen_commit": "ffffba04fc67fb4fc825d6a2876bd045c75e47ee",
+    "step_hashes": [
+      {
+        "case_id": "271",
+        "step": 1,
+        "hash_equal": true
+      }
+    ],
+    "raw_bindings": [
+      {
+        "case_id": "271",
+        "field": "clean_entries",
+        "raw_value_equal": true
+      },
+      {
+        "case_id": "271",
+        "field": "mean_USFLUX",
+        "raw_value_equal": true
+      },
+      {
+        "case_id": "271",
+        "field": "log_MEANJZH",
+        "raw_value_equal": true
+      },
+      {
+        "case_id": "271",
+        "field": "norm_TOTUSJZ",
+        "raw_value_equal": true
+      }
+    ],
+    "receipt_errors": {
+      "271": []
+    },
+    "database_unchanged": true,
+    "independent_external_acceptance": false
+  },
+  "package_a520227": {
+    "source_commit": "a52022727c3e3c511f3990da3627a040dd5063c6",
+    "python_modules_verified": 165,
+    "wheel_integrity": "passed",
+    "all_module_bytes_equal_git": true,
+    "iqr_in_wheel": true,
+    "iqr_in_sdist": true,
+    "wheel_sha256": "f2344fc8fab332217b300d045a531a039e0457689f8deb0d3a2f66154936f5bc",
+    "sdist_sha256": "8c526de437e7c79f03366ed6e1550699535bbf53b405b373eb409545d87138bc",
+    "published": false
+  },
+  "school_scope_audit_83": {
+    "scope": "offline interpretation audit only; not a model input or adjudication",
+    "question": "Of the schools that offers a magnet program serving a grade span of Kindergarten to 8th grade, how many offers Multiple Provision Types? List the number of cities that offers a Kindergarten to 8th grade span and indicate how many schools are there serving such grade span for each city.",
+    "instructions": "Kindergarten to 8th grade refers to K-8; 'Offers a magnet program' means Magnet = 1; Multiple Provision Types refers to `NSLP Provision Status` = 'Multiple Provision Types'",
+    "database_sha256": "c0903eec662e63068fd1d14403d3d6c1d473287fc10c4356333ea58f878db983",
+    "interpretations": {
+      "GSoffered_all_magnet": {
+        "sql": "SELECT s.City, COUNT(s.CDSCode), COUNT(DISTINCT s.CDSCode) FROM schools s JOIN frpm f ON f.CDSCode=s.CDSCode WHERE s.Magnet=1 AND s.GSoffered='K-8' GROUP BY s.City ORDER BY s.City",
+        "city_rows": 19,
+        "joined_school_rows": 35,
+        "distinct_schools_summed_by_city": 35,
+        "result_hash": "94afcdda0e2b0c710167c3e92be0d54128a3839974631d7d8ff3c54bb93b5f82"
+      },
+      "GSoffered_mpt": {
+        "sql": "SELECT s.City, COUNT(s.CDSCode), COUNT(DISTINCT s.CDSCode) FROM schools s JOIN frpm f ON f.CDSCode=s.CDSCode WHERE s.Magnet=1 AND s.GSoffered='K-8' AND f.\"NSLP Provision Status\"='Multiple Provision Types' GROUP BY s.City ORDER BY s.City",
+        "city_rows": 1,
+        "joined_school_rows": 1,
+        "distinct_schools_summed_by_city": 1,
+        "result_hash": "39e17e32a386f2408c343a0340d642d4595f92b0582919c16be8d31529a1a485"
+      },
+      "GSserved_all_magnet": {
+        "sql": "SELECT s.City, COUNT(s.CDSCode), COUNT(DISTINCT s.CDSCode) FROM schools s JOIN frpm f ON f.CDSCode=s.CDSCode WHERE s.Magnet=1 AND s.GSserved='K-8' GROUP BY s.City ORDER BY s.City",
+        "city_rows": 18,
+        "joined_school_rows": 34,
+        "distinct_schools_summed_by_city": 34,
+        "result_hash": "18a14ccced904b8e954f654a8580d7fd1effa90c6d2c13d563a0bf9371d98bfd"
+      },
+      "GSserved_mpt": {
+        "sql": "SELECT s.City, COUNT(s.CDSCode), COUNT(DISTINCT s.CDSCode) FROM schools s JOIN frpm f ON f.CDSCode=s.CDSCode WHERE s.Magnet=1 AND s.GSserved='K-8' AND f.\"NSLP Provision Status\"='Multiple Provision Types' GROUP BY s.City ORDER BY s.City",
+        "city_rows": 1,
+        "joined_school_rows": 1,
+        "distinct_schools_summed_by_city": 1,
+        "result_hash": "39e17e32a386f2408c343a0340d642d4595f92b0582919c16be8d31529a1a485"
+      }
+    },
+    "strict_score_changed": false,
+    "independently_adjudicated": false
+  },
+  "label_review_scope_refresh": {
+    "entries": 6,
+    "all_pending": true,
+    "strict_comparison_unchanged": true,
+    "fresh_protection_unchanged": true,
+    "historical_members_changed": false,
+    "independent_external_adjudication": false
+  },
+  "full_v72": {
+    "source_commit": "ffffba04fc67fb4fc825d6a2876bd045c75e47ee",
+    "status": "running",
+    "attempts_planned": 260,
+    "historical_protection_n": 61,
+    "strict_score_changed": false,
+    "production_accepted": false,
+    "artifact_directory": ".artifacts/stage7/20261022-full-v72",
+    "frozen_workspace": "/private/tmp/gda-stage7-v71",
+    "fresh_baselines": true,
+    "candidate_profiles": {
+      "bird": "sql-semantic",
+      "infi": "sql-semantic",
+      "dabstep": "sql-semantic"
+    },
+    "stage7_qualified": false
   }
 }

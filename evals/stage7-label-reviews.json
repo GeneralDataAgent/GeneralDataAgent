@@ -44,5 +44,15 @@
       "docs/validation/stage7-continuation-2026-10-21.md"
     ],
     "status": "pending_independent_adjudication"
+  },
+  {
+    "benchmark": "bird-mini-dev-sqlite",
+    "case_id": "83",
+    "issue": "The public question combines a magnet/grade cohort, Multiple Provision Types count and per-city listing; GSserved versus GSoffered and whether the later listing inherits the Multiple Provision Types restriction need independent scope adjudication. Offline fixed-snapshot counts differ. Preserve every strict score, denominator and original historical member.",
+    "evidence_refs": [
+      "docs/validation/stage7-independent-review-packet-2026-10-22.md",
+      "docs/validation/stage7-20261021-results.json"
+    ],
+    "status": "pending_independent_adjudication"
   }
 ]
