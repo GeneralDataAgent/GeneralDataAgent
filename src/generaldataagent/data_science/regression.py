@@ -24,7 +24,38 @@ def sklearn_bindings(bindings, evidence):
     )
 
 
+def requested_regression_metrics(text):
+    if not re.search(r"\b(?:regression|train\w*|machine learning|model)\b", text, re.I):
+        return set()
+    metrics = set()
+    if re.search(r"root\s+mean\s+squared\s+error|\bRMSE\b", text, re.I):
+        metrics.add("rmse")
+    without_root = re.sub(r"root\s+mean\s+squared\s+error", "", text, flags=re.I)
+    if re.search(r"mean\s+squared\s+error|\bMSE\b", without_root, re.I):
+        metrics.add("mse")
+    if re.search(r"mean\s+absolute\s+error|\bMAE\b", text, re.I):
+        metrics.add("mae")
+    if re.search(r"\br[ -]?squared\b|\br2\b|r\^2", text, re.I):
+        metrics.add("r2")
+    return metrics
+
+
+def regression_metric_bindings(bindings, evidence, text):
+    requested = requested_regression_metrics(text)
+    if len(requested) != 1:
+        return True
+    metric = next(iter(requested))
+    return any(
+        evidence.get(step, {}).get("method_id") == "regression_evaluation"
+        and path == ["metrics", metric]
+        for step, path in bindings.values()
+    )
+
+
 def evaluate_regression(rows, request, *, public_text=""):
+    requested_metrics = requested_regression_metrics(public_text)
+    if len(requested_metrics) == 1 and request.primary_metric not in requested_metrics:
+        raise ValueError("primary metric conflicts with public regression metric")
     if requests_sklearn(public_text) and request.estimator != "sklearn_linear_regression":
         raise ValueError("public sklearn requirement cannot use the stdlib estimator")
     named_seeds = {
@@ -52,7 +83,7 @@ def evaluate_regression(rows, request, *, public_text=""):
         feature_columns=tuple(request.features),
         baseline="mean",
         estimator=request.estimator,
-        primary_metric="r2",
+        primary_metric=request.primary_metric,
         split=request.split,
         random_seed=request.random_seed,
         missing_features=request.missing_features,

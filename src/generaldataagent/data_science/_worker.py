@@ -232,13 +232,15 @@ def _linear_regression(train, test, spec):
     actual = [float(row[target]) for row in test]
     errors = [a - p for a, p in zip(actual, predictions, strict=True)]
     denominator = math.fsum((a - statistics.fmean(actual)) ** 2 for a in actual)
-    if denominator == 0:
+    if denominator == 0 and spec["primary_metric"] == "r2":
         raise ValueError("held-out R2 undefined for constant target")
     metrics = {
         "mae": statistics.fmean(abs(e) for e in errors),
         "rmse": math.sqrt(statistics.fmean(e * e for e in errors)),
-        "r2": 1 - math.fsum(e * e for e in errors) / denominator,
+        "mse": statistics.fmean(e * e for e in errors),
     }
+    if denominator:
+        metrics["r2"] = 1 - math.fsum(e * e for e in errors) / denominator
     raw_coefficient = {c: coefficient[i + 1] / scales[c] for i, c in enumerate(features)}
     intercept = coefficient[0] - (
         math.fsum(raw_coefficient[c] * means[c] for c in features) if spec["standardize"] else 0
@@ -260,6 +262,11 @@ def _linear_regression(train, test, spec):
             algorithm="sklearn.linear_model.LinearRegression", sklearn_version=sklearn_version
         )
     baseline_metrics, _ = _regression(train, test, target)
+    baseline_metrics["mse"] = statistics.fmean(
+        (float(r[target]) - statistics.fmean(t[target] for t in train)) ** 2 for r in test
+    )
+    if not denominator:
+        baseline_metrics.pop("r2")
     return (
         metrics,
         {
@@ -268,6 +275,7 @@ def _linear_regression(train, test, spec):
             "predictions": predictions,
             "mean_error": statistics.fmean(errors),
             "maximum_absolute_error": max(abs(e) for e in errors),
+            "r2_status": "defined" if denominator else "undefined_constant_holdout",
         },
         model,
     )
@@ -286,13 +294,7 @@ def execute(payload):
     else:
         metrics, errors = _regression(train, test, spec["target_column"])
     result = {
-        "template_version": (
-            "2.1"
-            if spec.get("estimator") == "sklearn_linear_regression"
-            else "2.0"
-            if linear
-            else TEMPLATE_VERSION
-        ),
+        "template_version": "2.2" if linear else TEMPLATE_VERSION,
         "train_rows": len(train),
         "test_rows": len(test),
         "metrics": metrics,

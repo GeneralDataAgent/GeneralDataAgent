@@ -72,7 +72,7 @@ def test_real_multivariate_holdout_against_numpy(experiment, strategy):
     report = DataScienceWorkbench(artifact_store=store).run_experiment(
         snapshot=snapshot, spec=spec, user_id="u", tenant_id="t", project_id="p", data_domain="d"
     )
-    assert report.passed and report.template_version == "2.0"
+    assert report.passed and report.template_version == "2.2"
     result = json.loads(store.read_bytes(report.output_artifact))
     model = result["model"]
     assert model["coefficients"] == pytest.approx({"x": 2, "z": -3})
@@ -189,7 +189,7 @@ def test_sklearn_template_uses_exact_library_split_and_predictions(experiment):
     result = FixedTemplateSandbox().run(
         rows=rows, spec=spec, train_indices=train, test_indices=test
     )
-    assert result["template_version"] == "2.1"
+    assert result["template_version"] == "2.2"
     assert result["model"]["algorithm"] == "sklearn.linear_model.LinearRegression"
     from generaldataagent.contracts.answer_fields import AnswerFieldSpec
     from generaldataagent.tools.answer_fields import validate_field_value
@@ -214,7 +214,7 @@ def test_sklearn_public_requirement_missing_policy_and_named_seed(experiment):
     from generaldataagent.data_science.regression import evaluate_regression
 
     rows, _, _, _ = experiment
-    request = RegressionRequest(target="y", features=["x", "z"])
+    request = RegressionRequest(target="y", features=["x", "z"], estimator="linear_regression")
     with pytest.raises(ValueError, match="sklearn requirement"):
         evaluate_regression(rows, request, public_text="Use the Scikit-Learn library")
     with pytest.raises(ValueError, match="named seed"):
@@ -244,3 +244,31 @@ def test_duplicate_reporting_is_opt_in_and_never_removes_rows(experiment):
         rows=rows, spec=spec, train_indices=train, test_indices=test
     )
     assert result["train_rows"] + result["test_rows"] == len(rows)
+
+
+def test_mse_is_computed_and_constant_holdout_r2_is_explicit(experiment):
+    from sklearn.metrics import mean_squared_error
+
+    rows, _, _, spec = experiment
+    spec = spec.model_copy(update={"primary_metric": "mse"})
+    train, test = split_indices(rows, spec)
+    result = FixedTemplateSandbox().run(
+        rows=rows, spec=spec, train_indices=train, test_indices=test
+    )
+    assert result["metrics"]["mse"] == pytest.approx(
+        mean_squared_error([rows[i]["y"] for i in test], result["error_analysis"]["predictions"])
+    )
+    for row in rows:
+        row["y"] = 5.0
+    result = FixedTemplateSandbox().run(
+        rows=rows, spec=spec, train_indices=train, test_indices=test
+    )
+    assert result["metrics"]["mse"] < 1e-20 and "r2" not in result["metrics"]
+    assert result["error_analysis"]["r2_status"] == "undefined_constant_holdout"
+    with pytest.raises(SandboxError, match="undefined"):
+        FixedTemplateSandbox().run(
+            rows=rows,
+            spec=spec.model_copy(update={"primary_metric": "r2"}),
+            train_indices=train,
+            test_indices=test,
+        )

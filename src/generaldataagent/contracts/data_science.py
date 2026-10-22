@@ -93,7 +93,7 @@ class ExperimentSpec(ContractModel):
     missing_features: Literal["raise", "train_mean"] = "raise"
     standardize: bool = True
     duplicate_policy: Literal["reject", "report"] = "reject"
-    primary_metric: Literal["accuracy", "precision", "recall", "f1", "mae", "rmse", "r2"]
+    primary_metric: Literal["accuracy", "precision", "recall", "f1", "mae", "mse", "rmse", "r2"]
     split: SplitSpec = Field(default_factory=SplitSpec)
     random_seed: int = Field(default=42, ge=0, le=2**32 - 1)
     quota: SandboxQuota = Field(
@@ -115,7 +115,9 @@ class ExperimentSpec(ContractModel):
         if self.target_column in self.subgroup_columns:
             raise ValueError("target column cannot also be a subgroup column")
         classification_metrics = {"accuracy", "precision", "recall", "f1"}
-        regression_metrics = {"mae", "rmse", "r2"}
+        regression_metrics = {"mae", "mse", "rmse", "r2"}
+        if self.estimator == "baseline" and self.primary_metric == "mse":
+            raise ValueError("MSE requires versioned predictive template")
         if self.problem_type == "binary_classification":
             if self.baseline != "majority" or self.primary_metric not in classification_metrics:
                 raise ValueError(
@@ -127,9 +129,7 @@ class ExperimentSpec(ContractModel):
 
     @property
     def template_version(self) -> str:
-        if self.estimator == "sklearn_linear_regression":
-            return "2.1"
-        return "2.0" if self.estimator == "linear_regression" else "1.0"
+        return "2.2" if self.estimator != "baseline" else "1.0"
 
 
 class ScienceCheck(ContractModel):
@@ -141,7 +141,7 @@ class ScienceCheck(ContractModel):
 
 
 class MetricValue(ContractModel):
-    name: Literal["accuracy", "precision", "recall", "f1", "mae", "rmse", "r2"]
+    name: Literal["accuracy", "precision", "recall", "f1", "mae", "mse", "rmse", "r2"]
     value: float
 
 

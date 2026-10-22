@@ -211,6 +211,14 @@ def _validate_template_result(
         else {"mae", "rmse", "r2"}
     )
     metrics = result["metrics"]
+    if spec.estimator != "baseline":
+        expected_metrics.add("mse")
+        if (
+            isinstance(result.get("error_analysis"), dict)
+            and result["error_analysis"].get("r2_status") == "undefined_constant_holdout"
+            and spec.primary_metric != "r2"
+        ):
+            expected_metrics.discard("r2")
     if not isinstance(metrics, dict) or set(metrics) != expected_metrics:
         raise SandboxError("experiment template metrics do not match the problem type")
     if not all(
