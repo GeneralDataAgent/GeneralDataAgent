@@ -25,16 +25,10 @@ output.
 
 ## Rationale
 
-Real-model testing exposed two failure modes that prompt-only coordination did not prevent:
-
-1. The model invented a task UUID when delegating to Verifier.
-2. The model stopped after Verifier and claimed completion without calling Reporter.
-
-Binding Verifier and Reporter to the single controller-owned candidate removes the first failure.
-A bounded second Supervisor invocation was tested for the second failure, but it ran for more than
-eleven minutes before manual interruption. Reporter is an assembly step over validated data, so a
-fixed node is both safer and consistent with the planned hybrid of dynamic planning and fixed
-control gates.
+Prompt-only coordination permits an invented task identifier or completion before Reporter runs.
+Binding Verifier and Reporter to the controller-owned candidate prevents identifier substitution.
+A fixed Reporter node guarantees assembly after validation without another open-ended model loop.
+The [historical validation record](../../../docs/progress/development-history.md) retains the experiments that motivated this decision.
 
 ## Consequences
 
@@ -46,6 +40,5 @@ control gates.
 - Repeated Data Analyst calls in one request are idempotent and return the same candidate.
 - Provider exceptions are converted into a structured failed result. The acceptance profile uses
   no automatic provider retry so rate limits fail quickly instead of holding the workflow open.
-- This increment validates the analytics slice. Data Engineer and Data Scientist orchestration
-  remain subsequent increments.
-- The current free CC Switch model is suitable for functional exploration, not latency acceptance.
+- The decision covers the certified analytics slice. Other specialist workflows require separate
+  orchestration contracts and qualification.

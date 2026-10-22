@@ -1,4 +1,4 @@
-# Stage 5 business-loop runbook
+# Business-loop runbook
 
 ## Configure the authenticated draft pilot
 
@@ -97,9 +97,9 @@ Use fresh authorization/source versions from trusted systems, never user-supplie
 keys are runtime state and must not be committed. The existing Supervisor is unchanged: this port
 must be explicitly wired by a qualified deployment. Do not enable the local pilot in production.
 
-## Routed narration in the analysis workflow (2026-10-19)
+## Routed narration in the analysis workflow
 
-`MetricAnalysisRuntime(routed_narrator=..., budgets=...)` now invokes the governed executor from
+`MetricAnalysisRuntime(routed_narrator=..., budgets=...)` invokes the governed executor from
 its normal analyze node; the existing Supervisor's certified-query tool uses that same runtime.
 The routed narrator must share the exact task budget ledger with SQL execution. Legacy and routed
 narrators are mutually exclusive. Each successful narrative is preserved as a task artifact with
@@ -119,7 +119,7 @@ Use existing CC Switch model constructors to resolve credentials without copying
 Pin the model route to reviewed configuration and set transport deadlines/retries on the model.
 Provider enrollment and review are trusted operator steps; the code never auto-approves a model.
 
-## Feishu notification receiver (2026-10-19)
+## Feishu notification receiver
 
 Supply a `FeishuNotificationBackend` for an explicit notification destination in
 `BusinessActionRuntime(feishu_backends=...)`. `FeishuTarget` pins application, sender identity,
@@ -145,7 +145,7 @@ A separately approved compensation recalls only the original matching message. A
 human confirmation port (`recall_confirmed`) is required for the CLI's high-risk recall operation;
 there is no automatic `--yes` retry on exit 10. Receiver readback must verify the recalled/deleted
 state. If a platform/CLI version cannot expose that evidence, compensation remains uncertain for
-manual verification rather than claiming success. Real recall has not been exercised in this pilot.
+manual verification rather than claiming success. Record recall qualification separately from send/readback.
 
 `examples/feishu_notification_smoke.py --state-dir .state/feishu-pilot` prepares a local request to
 the currently verified user's own account and prints the exact sender/recipient/content. Only after
@@ -154,14 +154,13 @@ service; the approval records the actual verified human ID, never invented indep
 `--reconcile-message-id` supports read-only recovery. The helper is explicitly a development live
 smoke; it cannot provide production admission or the required independent multi-party qualification.
 
-A user-authorized bot-to-self message was sent and read back successfully on 2026-10-19. Repeating
-the completed action returned the same message ID and resource revision, with no second send.
-No group message, recall, or GitHub PR was created. Private receiver IDs and runtime databases remain
-under the ignored `.state/` directory; no bearer token/app secret was copied into the repository.
+Store private receiver IDs and runtime databases under the ignored `.state/` directory. Keep bearer
+tokens and app secrets outside the repository. Record actual live smoke outcomes in the
+[external validation records](../../../docs/progress/development-history.md).
 
-## Fresh periodic reports (2026-10-19)
+## Fresh periodic reports
 
-A `ReportSchedule` can now pin a certified `query`. Supply a `MetricReportRefresher` backed by the
+A `ReportSchedule` can pin a certified `query`. Supply a `MetricReportRefresher` backed by the
 existing analysis workflow, plus its `read_artifact` method as the action runtime's `artifact_reader`.
 Use separate protected databases for schedules, refresh metadata, approvals and action state.
 Schedules without a query retain the earlier fixed-snapshot behavior.
@@ -184,9 +183,9 @@ proposal and action execution; missing or modified report evidence blocks delive
 Previously persisted local actions remain readable. Integrity and completion checks use the exact
 stored approved JSON rather than materializing newly added optional schema fields into old hashes.
 
-## Enforcing extension admission at assembly/use (2026-10-19)
+## Enforcing extension admission at assembly/use
 
-`build_supervisor` now rejects new or modified specialist definitions unless an `ExtensionAdmission`,
+`build_supervisor` rejects new or modified specialist definitions unless an `ExtensionAdmission`,
 actor and pinned `agent_versions` are supplied. Existing checked-in specialist definitions remain
 the core baseline. The reviewed hash includes the full specialist definition. An admitted graph
 rechecks version/scope/expiry/revocation before and after sync/async calls and during streaming.
@@ -211,9 +210,9 @@ Revocation blocks subsequent reads, including repeated aggregate queries within 
 local enforcement is code-backed; production still requires independently authenticated reviews
 and evidence, not synthetic test fixture enrollments.
 
-## Measured optimization and complete acceptance (2026-10-19)
+## Measured optimization and complete acceptance
 
-The aggregate runner now consumes `--optimization-evidence` with operator-pinned
+The aggregate runner consumes `--optimization-evidence` with operator-pinned
 `--routing-configuration-hash` and `--evaluation-dataset-hash`, plus `--stage4-release-bundle`.
 Both reuse the operator-owned `--trusted-signers` registry. Optimization evidence binds exact
 revision/environment/configuration/held-out dataset, at least 90 tasks, baseline and optimized
@@ -225,15 +224,13 @@ within one day. Estimated prices or cached-token counters alone cannot qualify a
 Acceptance is computed from all six independently qualified action gates, optimization and the
 existing Stage 4 release verifier, plus the clean-tree/local regression checks. With every valid
 proof it can return `passed`; missing, stale, changed, untrusted or below-target evidence remains
-`incomplete`. `--require-production` now exits according to those actual blockers rather than
+`incomplete`. `--require-production` exits according to those actual blockers rather than
 always failing. This verifies admission evidence; it does not deploy or widen runtime permissions.
-The real environment remains incomplete: this development run has a single authorized Feishu
-connectivity sample, not the independent multi-party production evidence those gates require.
+Record the actual decision and missing evidence in the [external Stage 5 record](../../../docs/validation/stage5-business-loop.md).
 
-A local SDK integration test also found that invocation kwargs are dropped by LangChain's raw
-structured-output `RunnableMap` branch. The provider bridge now binds the output-token cap directly
-on the model's forced Narrative tool request. A test using the installed ChatAnthropic runnable
-verifies the cap reaches the model call, in addition to the existing returned-usage bound checks.
+For production narration with a configured output-token cap, bind the cap on the model's forced
+Narrative tool request. Verify provider-side invocation separately from returned-usage checks.
+This production routing procedure does not set default token caps for research evaluation.
 
 ## Background report worker
 
@@ -382,7 +379,7 @@ shared delegation policy, deployment/process manager and independent service qua
 adapter does not lift the production business-API guard or create external approvals.
 
 
-## GitHub JSON scheduling draft PR receiver (2026-10-19)
+## GitHub JSON scheduling draft PR receiver
 
 `GitHubSchedulePRBackend` implements `schedule_pr` for one operator-pinned github.com repository,
 base branch, pipeline and JSON object key path. This version supports an existing non-secret UTF-8
@@ -484,9 +481,9 @@ The implementation pins REST API version `2026-03-10`; target enrollment and liv
 receiver qualification remain required. No real GitHub PR has been created in this continuation.
 
 
-## GitHub review queues for remaining draft kinds (2026-10-19)
+## GitHub review queues for remaining draft kinds
 
-The roadmap's Dashboard draft, ticket draft and model-registration request can now be delivered
+The roadmap's Dashboard draft, ticket draft and model-registration request can be delivered
 to a pinned GitHub Issues review repository using `GitHubReviewBackend`. This publishes a **review
 artifact**, not an operational BI dashboard, registered model version or deployment. Dashboard
 panels contain names/evidence hashes and `query_enabled=false`; registration requests retain
@@ -515,7 +512,7 @@ publishing, MLflow model-version creation and cloud-document/file publishing are
 integrations beyond these draft/request endpoints; they are not implemented by a review issue.
 
 
-## Scoped business console (2026-10-19)
+## Scoped business console
 
 A configured pilot business API serves the Chinese console at `/business`. It has no frontend
 build step or external scripts/fonts. Connect with an existing short-lived user session, issued by
@@ -542,7 +539,7 @@ approved execution, receipts, compensation proposal, disconnect and a 390-pixel 
 No real external action was performed.
 
 
-## Independent approval authority and reviewer console (2026-10-19)
+## Independent approval authority and reviewer console
 
 `create_approval_service` is a separate FastAPI application and trust boundary. The business API
 still has no grant endpoint. Operate the authority under a separate identity with its own protected
@@ -588,7 +585,7 @@ The 16 focused integration/transport cases and browser checks use synthetic acco
 transports and local state. No real reviewer was enrolled and no real business action was approved.
 
 
-## Report worker deployment entry point (2026-10-19)
+## Report worker deployment entry point
 
 An operator-owned factory can return the fully assembled `ReportWorker`. Run
 `python -m generaldataagent.services.report_worker --factory report_runtime:create_worker --check-config`
@@ -611,10 +608,10 @@ listens on loopback only. These templates have not been installed or run on a re
 verification used macOS and isolated signed service credentials, with no external report delivery.
 
 
-## Conditional production business and feedback assembly (2026-10-19)
+## Conditional production business and feedback assembly
 
 Plain `BusinessActionRuntime`/`FeedbackRegistry` instances still fail production API construction.
-Do not rename a pilot or disable that check. Two separate qualified variants now implement the
+Do not rename a pilot or disable that check. Two separate qualified variants implement the
 production integration ports, with no built-in permissive evidence or default live destination.
 
 `QualifiedBusinessActionRuntime` requires all of the following operator-supplied ports:

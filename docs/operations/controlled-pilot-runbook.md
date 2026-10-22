@@ -1,6 +1,6 @@
-# Stage 4 controlled pilot runbook
+# Controlled pilot runbook
 
-Status: repository controls implemented incrementally; production admission is not approved.
+This runbook describes configuration, rollout, and recovery. See the [external validation record](../../../docs/validation/stage4-production-readiness.md) for admission status.
 
 ## Deployment prerequisites and trust boundaries
 

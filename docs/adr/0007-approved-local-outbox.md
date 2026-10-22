@@ -1,8 +1,8 @@
 # ADR 0007: Approval-bound business drafts
 
-Status: accepted for local development; external action qualification pending.
+Status: accepted for local development. External qualification is recorded in the [Stage 5 evidence](../../../docs/validation/stage5-business-loop.md).
 
-Stage 5 adds six independently configured destinations: Dashboard, ticket, scheduling PR,
+The business-draft design supports six independently configured destinations: Dashboard, ticket, scheduling PR,
 model-registration application, enterprise-IM message and periodic report. These are strict
 structured drafts. The installed backend is a transactional local outbox, with no external
 credentials, arbitrary commands, deployment or message transmission.
@@ -22,10 +22,10 @@ approval and only retracts the currently matching draft revision; it cannot reve
 
 Protected approval and action databases must be separate. Hash chains detect edited intermediate
 history but require independent signed checkpoints to detect whole-history rollback. Local state is
-not a substitute for the Stage 4 independent audit infrastructure. A future external adapter must
+not a substitute for independent audit infrastructure. A future external adapter must
 prove receiver-side idempotency, reconciliation, compensation, native authorization and independently
 verified delivery receipts before it can be enabled. A local draft receipt never claims delivery.
 
 
-Related: [ADR 0008](0008-stage5-qualified-service-assembly.md) implements separate qualified service
+Related: [ADR 0008](0008-qualified-service-assembly.md) implements separate qualified service
 ports. The local-pilot decision and its production rejection remain unchanged.

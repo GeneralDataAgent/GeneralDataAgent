@@ -1,4 +1,4 @@
-# ADR 0006: Stage 4 scoped pilot boundary
+# ADR 0006: Scoped pilot boundary
 
 Date: 2026-10-18. Status: accepted for local pilot implementation.
 

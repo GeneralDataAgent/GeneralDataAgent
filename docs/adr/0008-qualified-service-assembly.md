@@ -1,8 +1,8 @@
 # ADR 0008: Qualified service assembly is separate from the local pilot
 
-Status: accepted for implementation; real deployment/acceptance remains blocked.
+Status: accepted for implementation. Deployment and acceptance decisions are recorded in the [Stage 5 evidence](../../../docs/validation/stage5-business-loop.md).
 
-The original Stage 5 local outbox remains useful for engineering and review. It cannot establish
+The local outbox remains useful for engineering and review. It cannot establish
 native receiver delivery, human authentication or independent audit. Removing its production guard
 would erase that boundary. The implemented production ports use separate qualified types instead.
 
