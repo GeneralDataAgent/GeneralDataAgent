@@ -6,6 +6,30 @@ from datetime import datetime
 from sqlglot import exp, parse_one
 
 
+def public_name_mentioned(name: str, text: str) -> bool:
+    """Lexical preview priority only, including simple English plural spellings.
+
+    This never authorizes a relation, creates an alias, or certifies business identity.
+    """
+    if not name:
+        return False
+    forms = [name]
+    if re.fullmatch(r"[A-Za-z]{2,100}", name):
+        if re.search(r"ies$", name, re.I):
+            forms.append(name[:-3] + "y")
+        elif re.search(r"(?:sses|xes|zes|ches|shes)$", name, re.I):
+            forms.append(name[:-2])
+        elif name.lower().endswith("s") and not re.search(r"(?:ss|us|is)$", name, re.I):
+            forms.append(name[:-1])
+        if re.search(r"[^aeiou]y$", name, re.I):
+            forms.append(name[:-1] + "ies")
+        elif re.search(r"(?:s|x|z|ch|sh)$", name, re.I):
+            forms.append(name + "es")
+        else:
+            forms.append(name + "s")
+    return bool(re.search(r"(?<!\w)(?:" + "|".join(map(re.escape, forms)) + r")(?!\w)", text, re.I))
+
+
 def date_candidates(column: str, values: list, *, complete: bool) -> dict | None:
     if not values or not re.search(r"date|day|birth|time|日期|生日", column, re.I):
         return None

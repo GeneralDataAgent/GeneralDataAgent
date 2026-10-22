@@ -20,9 +20,15 @@ from generaldataagent.tools import SQLiteReadOnlyExecutor
 from generaldataagent.tools.sql_guard import SqlGuard
 
 
-def evaluation_protocol(*, workers: int, max_output_tokens: int = 3000) -> dict:
-    if type(max_output_tokens) is not int or not 32 <= max_output_tokens <= 3000:
+def evaluation_protocol(
+    *, workers: int, max_output_tokens: int | None = None, max_tokens: int | None = None
+) -> dict:
+    if max_output_tokens is not None and (
+        type(max_output_tokens) is not int or max_output_tokens < 32
+    ):
         raise ValueError("invalid per-call output token budget")
+    if max_tokens is not None and (type(max_tokens) is not int or max_tokens < 1):
+        raise ValueError("invalid total observed token budget")
     scoring = "\n".join(
         inspect.getsource(fn) for fn in [_number, compare_value, score_answers, equivalent_rows]
     )
@@ -44,7 +50,7 @@ def evaluation_protocol(*, workers: int, max_output_tokens: int = 3000) -> dict:
         "steps": 6,
         "seconds": 120,
         "hard_case_deadline_seconds": 125,
-        "tokens": 24000,
+        "tokens": max_tokens,
         "max_cost_usd_per_case": 0.02,
         "call_timeout_seconds": 30,
         "result_row_limit": 200,

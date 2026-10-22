@@ -2127,3 +2127,632 @@ def test_native_collection_phase_defers_scalar_actions_and_keeps_typed_exit(
         assert model.calls == 2
         assert result["answer_evidence"]["ids"]["step"] == 1
     assert database.read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    ("sql", "code", "hint"),
+    [
+        ("SELECT STDDEV(score) FROM people", "unsupported_function", "fixed analysis"),
+        ("SELECT substr('private-literal') FROM people", "function_arguments", "signature"),
+    ],
+)
+def test_sql_execution_errors_have_actionable_feedback_and_recover(database, sql, code, hint):
+    before = database.read_bytes()
+    actions = iter(
+        [
+            {"sql": sql},
+            {"submit_sql": {"sql": "SELECT COUNT(*) AS n FROM people", "output_columns": ["n"]}},
+        ]
+    )
+    feedbacks = []
+
+    class Model:
+        def invoke(self, messages):
+            if feedbacks:
+                feedback = json.loads(messages[-2][1])
+                assert feedback["code"] == code
+                assert feedback["repair_type"] == "revise_plan_or_query"
+                assert hint in feedback["hint"]
+                assert "private-literal" not in json.dumps(feedback)
+            feedbacks.append(True)
+            return SimpleNamespace(
+                content=json.dumps(next(actions)),
+                usage_metadata={"total_tokens": 10},
+                response_metadata={},
+            )
+
+    task = Task("bird-mini-dev-sqlite", "synthetic", "How many people?", "", "easy", "people")
+    result = BoundedSQLAgent(Model(), tool_profile="sql-semantic", max_steps=2).run(task, database)
+    assert result["failure"] is None
+    assert result["trace"][0]["code"] == code
+    assert result["trace"][0]["repair_type"] == "revise_plan_or_query"
+    assert "private-literal" not in json.dumps(result["trace"][0])
+    assert result["tokens"] == 20
+    assert database.read_bytes() == before
+
+
+def test_explicit_native_extremum_rejects_cast_then_retains_text_source(tmp_path):
+    database = tmp_path / "native-extrema.sqlite"
+    with sqlite3.connect(database) as db:
+        db.executescript(
+            "CREATE TABLE measurements(value TEXT); "
+            "INSERT INTO measurements VALUES('120.500'),('130.250');"
+        )
+    before = database.read_bytes()
+    result = run(
+        database,
+        [
+            {
+                "submit_sql": {
+                    "sql": "SELECT MAX(CAST(value AS REAL)) AS peak FROM measurements",
+                    "output_columns": ["peak"],
+                }
+            },
+            {
+                "submit_sql": {
+                    "sql": "SELECT MAX(value) AS peak FROM measurements",
+                    "output_columns": ["peak"],
+                }
+            },
+        ],
+        question="Return the peak measurement.",
+        instructions="Peak refers to MAX(value);",
+    )
+    assert result["failure"] is None
+    assert result["trace"][0]["checks"] == ["public_extremum_representation"]
+    from generaldataagent.tools.sqlite import SQLiteReadOnlyExecutor
+
+    assert SQLiteReadOnlyExecutor(database).execute(result["final_sql"]).rows == (("130.250",),)
+    assert database.read_bytes() == before
+
+
+def test_full_data_describe_iqr_binds_outlier_count_receipt(tmp_path):
+    database = tmp_path / "outliers.sqlite"
+    with sqlite3.connect(database) as db:
+        db.execute("CREATE TABLE observations(value REAL)")
+        db.executemany("INSERT INTO observations VALUES(?)", [(x,) for x in [0, 0, 0, 2, 2, 2, 6]])
+    before = database.read_bytes()
+    result = run(
+        database,
+        [
+            {"analysis": {"table": "observations", "columns": ["value"], "operation": "describe"}},
+            {
+                "submit_answers": {
+                    "fields": [
+                        {
+                            "name": "n",
+                            "step": 1,
+                            "path": ["iqr_statistics", "value", "outlier_count"],
+                        }
+                    ]
+                }
+            },
+        ],
+        benchmark="infiagent-dabench",
+        question="How many IQR outliers?",
+        instructions=(
+            "Use linear quartiles and strict 1.5-IQR fences. "
+            '@n[number] where "number" is an integer.'
+        ),
+    )
+    assert result["failure"] is None and result["answers"] == {"n": 1}
+    assert result["answer_evidence"]["n"]["method_id"] == "describe"
+    assert result["answer_evidence"]["n"]["raw_value"] == 1
+    assert result["answer_evidence"]["n"]["result_hash"] == result["trace"][0]["result_hash"]
+    assert database.read_bytes() == before
+
+
+def test_filtered_describe_iqr_uses_public_subgroup_evidence(tmp_path):
+    database = tmp_path / "subgroup.sqlite"
+    with sqlite3.connect(database) as db:
+        db.execute("CREATE TABLE observations(value REAL, category TEXT)")
+        db.executemany(
+            "INSERT INTO observations VALUES(?,?)",
+            [(x, "A") for x in [0, 0, 0, 0, 0, 20]] + [(100, "B")] * 6,
+        )
+    source = "Only category A."
+    result = run(
+        database,
+        [
+            {
+                "analysis": {
+                    "table": "observations",
+                    "columns": ["value"],
+                    "operation": "describe",
+                    "filters": [{"column": "category", "value": "A", "source_excerpt": source}],
+                }
+            },
+            {
+                "submit_answers": {
+                    "fields": [
+                        {
+                            "name": "n",
+                            "step": 1,
+                            "path": ["iqr_statistics", "value", "outlier_count"],
+                        }
+                    ]
+                }
+            },
+        ],
+        benchmark="infiagent-dabench",
+        question="Count IQR outliers.",
+        instructions=source + ' @n[number] where "number" is an integer.',
+    )
+    assert result["failure"] is None and result["answers"] == {"n": 1}
+    assert result["answer_evidence"]["n"]["method_id"] == "describe"
+    assert result["trace"][0]["action"]["analysis"]["filters"][0]["value"] == "A"
+
+
+def test_out_of_range_percentage_feedback_repairs_population_without_clipping(database):
+    before = database.read_bytes()
+    actions = iter(
+        [
+            {
+                "submit_sql": {
+                    "sql": (
+                        "SELECT 100.0*(SELECT COUNT(*) FROM people)/"
+                        "(SELECT COUNT(*) FROM people WHERE birthday='1960-01-01') AS pct"
+                    ),
+                    "output_columns": ["pct"],
+                }
+            },
+            {
+                "submit_sql": {
+                    "sql": (
+                        "SELECT 100.0*SUM(CASE WHEN score=10 THEN 1 ELSE 0 END)/"
+                        "NULLIF(COUNT(*),0) AS pct FROM people WHERE birthday='1960-01-01'"
+                    ),
+                    "output_columns": ["pct"],
+                }
+            },
+        ]
+    )
+    turn = 0
+
+    class Model:
+        def invoke(self, messages):
+            nonlocal turn
+            if turn:
+                feedback = json.loads(messages[-2][1])
+                assert feedback["checks"] == "percentage_out_of_range"
+                assert "numerator" in feedback["hint"] and "denominator" in feedback["hint"]
+                assert "do not clip" in feedback["hint"]
+            turn += 1
+            return SimpleNamespace(
+                content=json.dumps(next(actions)),
+                usage_metadata={"total_tokens": 10},
+                response_metadata={},
+            )
+
+    task = Task(
+        "bird-mini-dev-sqlite",
+        "synthetic",
+        "What percentage of people in the 1960 cohort have score 10?",
+        "The cohort uses birthday = '1960-01-01'.",
+        "easy",
+        "people",
+    )
+    result = BoundedSQLAgent(Model(), tool_profile="sql-semantic", max_steps=2).run(task, database)
+    assert result["failure"] is None
+    assert result["trace"][0]["checks"] == ["percentage_out_of_range"]
+    assert result["tokens"] == 20
+    assert database.read_bytes() == before
+
+
+def test_explicit_public_time_pattern_repair_preserves_other_filters(tmp_path):
+    database = tmp_path / "times.sqlite"
+    with sqlite3.connect(database) as db:
+        db.executescript(
+            "CREATE TABLE runs(id INT, lap TEXT, race INT); "
+            "INSERT INTO runs VALUES(1,'2:07.555',5),(2,'2:07.000',6);"
+        )
+    before = database.read_bytes()
+    result = run(
+        database,
+        [
+            {
+                "submit_sql": {
+                    "sql": "SELECT id FROM runs WHERE race=5 AND lap LIKE '0:02:07%'",
+                    "output_columns": ["id"],
+                }
+            },
+            {
+                "submit_sql": {
+                    "sql": "SELECT id FROM runs WHERE race=5 AND lap LIKE '2:07%'",
+                    "output_columns": ["id"],
+                }
+            },
+        ],
+        question="Which id finished 0:02:07 in race 5?",
+        instructions="finished 0:0M:SS refers to lap LIKE 'M:SS%'",
+    )
+    assert result["failure"] is None
+    assert result["trace"][0]["checks"] == ["public_time_like_pattern"]
+    from generaldataagent.tools.sqlite import SQLiteReadOnlyExecutor
+
+    assert SQLiteReadOnlyExecutor(database).execute(result["final_sql"]).rows == ((1,),)
+    assert database.read_bytes() == before
+
+
+def test_empty_analysis_population_feedback_reuses_scoped_literal_observations(tmp_path):
+    database = tmp_path / "literal-repair.sqlite"
+    with sqlite3.connect(database) as db:
+        db.execute("CREATE TABLE events(value REAL, category TEXT, detail TEXT)")
+        db.executemany(
+            "INSERT INTO events VALUES(?,?,?)",
+            [(x, "General", "A Topic Z") for x in [0, 0, 0, 2, 2, 2, 6]],
+        )
+    before = database.read_bytes()
+    question = "Count IQR outliers for 'Topic Z' category."
+    actions = iter(
+        [
+            {
+                "analysis": {
+                    "table": "events",
+                    "columns": ["value"],
+                    "operation": "describe",
+                    "filters": [
+                        {"column": "category", "value": "Topic Z", "source_excerpt": question}
+                    ],
+                }
+            },
+            {
+                "analysis": {
+                    "table": "events",
+                    "columns": ["value"],
+                    "operation": "describe",
+                    "filters": [
+                        {
+                            "column": "detail",
+                            "value": "Topic Z",
+                            "operator": "contains",
+                            "source_excerpt": question,
+                        }
+                    ],
+                }
+            },
+            {
+                "submit_answers": {
+                    "fields": [
+                        {
+                            "name": "n",
+                            "step": 2,
+                            "path": ["iqr_statistics", "value", "outlier_count"],
+                        }
+                    ]
+                }
+            },
+        ]
+    )
+    turn = 0
+
+    class Model:
+        def invoke(self, messages):
+            nonlocal turn
+            if turn == 1:
+                feedback = json.loads(messages[-2][1])
+                assert feedback["code"] == "empty_analysis_population"
+                assert "not an outlier count of zero" in feedback["hint"]
+                profile = feedback["literal_occurrence_observations"][0]
+                assert profile["column"] == "detail" and profile["literal_contains_rows"] == 7
+                assert not profile["verified_business_semantics"]
+            turn += 1
+            return SimpleNamespace(
+                content=json.dumps(next(actions)),
+                usage_metadata={"total_tokens": 10},
+                response_metadata={},
+            )
+
+    task = Task(
+        "infiagent-dabench",
+        "synthetic",
+        question,
+        'Use linear quartiles and 1.5-IQR fences. @n[number] where "number" is an integer.',
+        "easy",
+        "events.csv",
+    )
+    result = BoundedSQLAgent(Model(), tool_profile="sql-semantic", max_steps=3).run(task, database)
+    assert result["failure"] is None and result["answers"] == {"n": 1}
+    assert result["trace"][0]["code"] == "empty_analysis_population"
+    assert result["answer_evidence"]["n"]["method_id"] == "describe"
+    assert result["tokens"] == 30 and database.read_bytes() == before
+
+
+def test_only_latest_countdown_remains_while_native_errors_results_and_spend_are_preserved(
+    database,
+):
+    from langchain_core.messages import AIMessage, ToolMessage
+
+    observed = []
+    calls = iter(
+        [
+            {"name": "execute_sql", "args": {"sql": 123}, "id": "bad"},
+            {
+                "name": "execute_sql",
+                "args": {"sql": "SELECT COUNT(*) AS n FROM people"},
+                "id": "observe",
+            },
+            {
+                "name": "submit_sql",
+                "args": {"sql": "SELECT COUNT(*) AS n FROM people", "output_columns": ["n"]},
+                "id": "finish",
+            },
+        ]
+    )
+
+    class Model:
+        def bind(self, **kwargs):
+            return self
+
+        def invoke(self, messages):
+            countdowns = []
+            for message in messages:
+                if isinstance(message, tuple) and message[0] == "human":
+                    item = json.loads(message[1])
+                    if "remaining_actions" in item:
+                        countdowns.append(item)
+            assert len(countdowns) == 1
+            observed.append(countdowns[0]["remaining_observed_tokens"])
+            if len(observed) == 3:
+                assert {
+                    c["id"] for m in messages if isinstance(m, AIMessage) for c in m.tool_calls
+                } == {"bad", "observe"}
+                feedbacks = {
+                    m.tool_call_id: json.loads(m.content)
+                    for m in messages
+                    if isinstance(m, ToolMessage)
+                }
+                assert feedbacks["bad"]["code"] == "action_schema"
+                assert feedbacks["observe"]["rows"] == [[2]]
+            return SimpleNamespace(
+                content="",
+                tool_calls=[next(calls)],
+                usage_metadata={"total_tokens": 17},
+                response_metadata={},
+            )
+
+    before = database.read_bytes()
+    task = Task("bird-mini-dev-sqlite", "synthetic", "How many people?", "", "easy", "people")
+    result = BoundedSQLAgent(Model(), tool_profile="sql-semantic", max_steps=3, max_tokens=100).run(
+        task, database
+    )
+    assert result["failure"] is None and result["tokens"] == 51
+    assert observed == [100, 83, 66]
+    assert result["trace"][0]["code"] == "action_schema"
+    assert len(result["trace"]) == 3 and database.read_bytes() == before
+
+
+def test_atomic_sql_dependency_feedback_identifies_only_invalid_output_positions(database):
+    actions = iter(
+        [
+            {"answer_sql": "SELECT 999 AS n, AVG(score) AS mean FROM people"},
+            {"answer_sql": "SELECT COUNT(*) AS n, AVG(score) AS mean FROM people"},
+        ]
+    )
+    turn = 0
+
+    class Model:
+        def invoke(self, messages):
+            nonlocal turn
+            budget = json.loads(messages[-1][1])
+            assert "finish_hint" not in budget and "submission_hint" in budget
+            if turn:
+                feedback = json.loads(messages[-2][1])
+                assert feedback["data_dependency_mask"] == [False, True]
+                assert "999" not in json.dumps(feedback)
+                assert "structural lineage" in feedback["data_dependency_scope"]
+            turn += 1
+            return SimpleNamespace(
+                content=json.dumps(next(actions)),
+                usage_metadata={"total_tokens": 10},
+                response_metadata={},
+            )
+
+    before = database.read_bytes()
+    task = Task(
+        "infiagent-dabench",
+        "synthetic",
+        "Return count and mean.",
+        "@n[count] @mean[mean]",
+        "easy",
+        "people.csv",
+    )
+    result = BoundedSQLAgent(Model(), tool_profile="sql-semantic", max_steps=2).run(task, database)
+    assert result["failure"] is None and result["answers"] == {"n": 2, "mean": 10.0}
+    assert result["trace"][0]["data_dependency_mask"] == [False, True]
+    assert "999" not in json.dumps(result["trace"][0])
+    assert result["answer_evidence"]["n"]["step"] == 2
+    assert result["tokens"] == 20 and database.read_bytes() == before
+
+
+def test_public_signed_difference_repairs_negative_distance_false_positive(tmp_path):
+    database = tmp_path / "signed.sqlite"
+    with sqlite3.connect(database) as db:
+        db.executescript(
+            "CREATE TABLE data(label TEXT,a REAL,b REAL);"
+            "INSERT INTO data VALUES('positive',50,0),('negative',0,50);"
+        )
+    before = database.read_bytes()
+    result = run(
+        database,
+        [
+            {
+                "submit_sql": {
+                    "sql": "SELECT label FROM data WHERE ABS(a-b)>30",
+                    "output_columns": ["label"],
+                }
+            },
+            {
+                "submit_sql": {
+                    "sql": "SELECT label FROM data WHERE a-b>30",
+                    "output_columns": ["label"],
+                }
+            },
+        ],
+        question="List labels with difference over 30.",
+        instructions="Difference=a-b",
+    )
+    assert result["failure"] is None
+    assert result["trace"][0]["checks"] == ["public_signed_difference_changed_to_absolute"]
+    from generaldataagent.tools.sqlite import SQLiteReadOnlyExecutor
+
+    assert SQLiteReadOnlyExecutor(database).execute(result["final_sql"]).rows == (("positive",),)
+    assert database.read_bytes() == before
+
+
+def test_unique_parent_values_repair_keeps_record_grain_available(tmp_path):
+    database = tmp_path / "existence.sqlite"
+    with sqlite3.connect(database) as db:
+        db.executescript(
+            "CREATE TABLE places(id INT,point TEXT);CREATE TABLE events(place INT);"
+            "INSERT INTO places VALUES(1,'A'),(2,'B');INSERT INTO events VALUES(1),(1),(2);"
+        )
+    query = "SELECT p.point FROM places p JOIN events e ON e.place=p.id"
+    result = run(
+        database,
+        [
+            {"submit_sql": {"sql": query, "output_columns": ["point"], "shape": "set"}},
+            {
+                "submit_sql": {
+                    "sql": query.replace("SELECT p.point", "SELECT DISTINCT p.point"),
+                    "output_columns": ["point"],
+                    "shape": "set",
+                }
+            },
+        ],
+        question="List unique point values with matching events.",
+    )
+    assert result["failure"] is None and result["trace"][0]["checks"] == ["duplicate_entities"]
+    records = run(
+        database,
+        [{"submit_sql": {"sql": query, "output_columns": ["point"], "shape": "rows"}}],
+        question="For each event, list point.",
+    )
+    assert records["failure"] is None and records["trace"][0]["row_count"] == 3
+
+
+def test_single_change_rate_repair_does_not_return_intermediate_difference(tmp_path):
+    database = tmp_path / "rate.sqlite"
+    with sqlite3.connect(database) as db:
+        db.executescript(
+            "CREATE TABLE balances(start_value REAL,end_value REAL);"
+            "INSERT INTO balances VALUES(100,125);"
+        )
+    rate = "100.0*(end_value-start_value)/NULLIF(start_value,0)"
+    result = run(
+        database,
+        [
+            {
+                "submit_sql": {
+                    "sql": f"SELECT end_value-start_value AS delta,{rate} AS rate FROM balances",
+                    "output_columns": ["delta", "rate"],
+                }
+            },
+            {
+                "submit_sql": {
+                    "sql": f"SELECT {rate} AS rate FROM balances",
+                    "output_columns": ["rate"],
+                }
+            },
+        ],
+        question="What is the increase rate from 2020 to 2021?",
+        instructions="Increase rate = (end_value-start_value)/start_value*100%",
+    )
+    assert result["failure"] is None
+    assert result["trace"][0]["checks"] == ["unrequested_change_intermediate_outputs"]
+    from generaldataagent.tools.sqlite import SQLiteReadOnlyExecutor
+
+    assert SQLiteReadOnlyExecutor(database).execute(result["final_sql"]).rows == ((25.0,),)
+
+
+def test_public_python_mean_median_rejects_sql_receipt_then_binds_standard_library(database):
+    instructions = (
+        "Use built-in Python functions for mean and median. @mean[number] @median[number]"
+    )
+    result = run(
+        database,
+        [
+            {"answer_sql": "SELECT AVG(score) AS mean, AVG(score) AS median FROM people"},
+            {"analysis": {"table": "people", "columns": ["score"], "operation": "describe"}},
+            {
+                "submit_answers": {
+                    "fields": [
+                        {"name": "mean", "step": 2, "path": ["statistics", "score", "mean"]},
+                        {"name": "median", "step": 2, "path": ["statistics", "score", "median"]},
+                    ]
+                }
+            },
+        ],
+        benchmark="infiagent-dabench",
+        question="Find mean and median of score.",
+        instructions=instructions,
+    )
+    assert result["failure"] is None and result["answers"] == {"mean": 10, "median": 10}
+    assert result["trace"][0]["checks"] == ["python_statistics_requires_method_bindings"]
+    assert all(r["method_id"] == "describe" for r in result["answer_evidence"].values())
+
+
+def test_python_mean_median_native_tools_expose_compliant_calculation_only():
+    from generaldataagent.evaluation.stage_seven import bind_typed_tools
+
+    class Model:
+        def bind(self, **kwargs):
+            self.tools = kwargs["tools"]
+            return self
+
+    model = Model()
+    bind_typed_tools(model, sql_output=False, python_statistics_requested=True)
+    tools = {t["function"]["name"]: t["function"] for t in model.tools}
+    assert "submit_sql_answers" not in tools
+    assert tools["fixed_analysis"]["parameters"]["properties"]["operation"]["enum"] == ["describe"]
+
+
+def test_csv_missing_string_union_branch_repairs_omitted_null_population(tmp_path):
+    path = tmp_path / "data.sqlite"
+    with sqlite3.connect(path) as db:
+        db.executescript(
+            "CREATE TABLE data(author TEXT,title TEXT); "
+            "INSERT INTO data VALUES(NULL,'ok'),('ok',NULL);"
+        )
+    public = (
+        "Only object strings. A missing value is 'na' or an empty string. "
+        "@columns[column1, column2,…] whereby column1 and column2 are string names. "
+        "The answer should not contain any duplicates and should be sorted alphabetically."
+    )
+    bad = (
+        "SELECT DISTINCT 'author' AS name FROM data WHERE TRIM(author) IN ('na','') "
+        "UNION SELECT DISTINCT 'title' FROM data WHERE title IS NULL OR TRIM(title) IN "
+        "('na','') ORDER BY name"
+    )
+    good = bad.replace("WHERE TRIM(author)", "WHERE author IS NULL OR TRIM(author)")
+    actions = iter(
+        [
+            {"collect": {"sql": bad}},
+            {"collect": {"sql": good}},
+            {"answers": {}, "evidence_steps": [2], "bindings": {"columns": [2, ["items"]]}},
+        ]
+    )
+
+    class Model:
+        def invoke(self, messages):
+            return SimpleNamespace(
+                content=json.dumps(next(actions)),
+                usage_metadata={"total_tokens": 10},
+                response_metadata={},
+            )
+
+    result = BoundedSQLAgent(Model(), tool_profile="sql-semantic", max_steps=3).run(
+        Task(
+            "infiagent-dabench",
+            "synthetic",
+            "Which columns contain missing values?",
+            public,
+            "easy",
+            "source.csv",
+        ),
+        path,
+    )
+    assert result["failure"] is None, result
+    assert result["answers"] == {"columns": "author, title"}
+    assert result["trace"][0]["status"] == "error"
+    assert "missing_string_branch_omits_imported_nulls" in str(result["trace"][0])

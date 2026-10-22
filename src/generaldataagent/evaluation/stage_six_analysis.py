@@ -74,11 +74,33 @@ def fixed_analysis(
 
     # Verify physical column names: SQLite double-quoted-string compatibility must not
     # turn a misspelled identifier into an apparently valid constant numeric feature.
-    validate_analysis_columns(database, table, columns, allowed_relations=allowed_relations)
-    executor = SQLiteReadOnlyExecutor(database, max_rows=200_000, timeout_seconds=5)
-    result = executor.execute(
-        "SELECT " + ",".join(quote(c) for c in columns) + " FROM " + quote(table)
+    validate_analysis_columns(
+        database,
+        table,
+        columns + [f.column for f in arguments.filters],
+        allowed_relations=allowed_relations,
     )
+    predicates, parameters = [], []
+    for item in arguments.filters:
+        if item.source_excerpt not in public_text or not re.search(
+            r"(?<!\w)" + re.escape(item.value) + r"(?!\w)", item.source_excerpt, re.I
+        ):
+            raise ValueError("describe filter requires exact public source and value")
+        predicates.append(
+            quote(item.column) + "=?"
+            if item.operator == "eq"
+            else "instr(" + quote(item.column) + ",?)>0"
+        )
+        parameters.append(item.value)
+    executor = SQLiteReadOnlyExecutor(database, max_rows=200_000, timeout_seconds=5)
+    sql = (
+        "SELECT "
+        + ",".join(quote(c) for c in columns)
+        + " FROM "
+        + quote(table)
+        + (" WHERE " + " AND ".join(predicates) if predicates else "")
+    )
+    result = executor.execute(sql, tuple(parameters))
     rows = [
         row
         for row in result.rows
@@ -95,7 +117,10 @@ def fixed_analysis(
         "method": "pairwise finite values",
     }
     if operation == "describe":
+        from generaldataagent.tools.iqr import iqr_summary, public_iqr_conflicts
+
         summaries = {}
+        iqr_statistics = {}
         for index, column in enumerate(columns):
             values = [
                 row[index]
@@ -113,6 +138,7 @@ def fixed_analysis(
                 "min": min(values) if values else None,
                 "max": max(values) if values else None,
             }
+            iqr_statistics[column] = iqr_summary(values)
         if not any(summary["count"] for summary in summaries.values()):
             raise ValueError("no finite observations")
         output.update(
@@ -120,7 +146,30 @@ def fixed_analysis(
             method="columnwise finite values",
             observations=len(result.rows),
             dropped_rows=None,
+            iqr_statistics=iqr_statistics,
+            iqr_method="linear inclusive quantiles h=(n-1)*p; strict 1.5-IQR fences",
+            iqr_scope=(
+                "same columnwise finite population; quantile convention not publicly verified"
+            ),
+            iqr_public_conflicts=public_iqr_conflicts(public_text),
+            population_filters=[
+                {"column": f.column, "value": f.value, "operator": f.operator}
+                for f in arguments.filters
+            ],
+            population_scope=(
+                "public text filters; eq or literal case-sensitive contains; "
+                "business interpretation unverified"
+                if arguments.filters
+                else "full physical table"
+            ),
         )
+        from generaldataagent.tools.analysis_methods import requests_python_statistics
+
+        if requests_python_statistics(public_text):
+            output["python_statistics_implementation"] = {
+                "mean": "statistics.mean",
+                "median": "statistics.median",
+            }
     elif operation == "pearson":
         if not rows:
             raise ValueError("no finite observations")
@@ -133,6 +182,7 @@ def fixed_analysis(
                 rows,
                 rule=arguments.decision_rule,
                 significance_rule=arguments.significance_rule,
+                magnitude_rule=arguments.magnitude_rule,
                 public_text=public_text,
             )
         )

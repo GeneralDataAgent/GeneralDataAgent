@@ -8,6 +8,7 @@ from generaldataagent.catalog.field_evidence import (
     date_candidates,
     enum_label_candidates,
     public_field_mappings,
+    public_name_mentioned,
     public_quoted_labels,
 )
 from generaldataagent.catalog.join_evidence import observed_join_candidates
@@ -38,13 +39,14 @@ def semantic_context(
         return value[:160] if isinstance(value, str) else value
 
     def explicitly_mentioned(name):
-        return bool(name and re.search(r"(?<!\w)" + re.escape(name) + r"(?!\w)", public_text, re.I))
+        return public_name_mentioned(name, public_text)
 
     tables = {}
     full_schema = {}
     value_candidates = []
     enum_checks = 0
     enum_failures = 0
+    profile_columns = []
     has_public_labels = bool(public_quoted_labels(public_text))
     with sqlite3.connect(database.resolve().as_uri() + "?mode=ro", uri=True) as db:
         physical_columns = {
@@ -72,6 +74,8 @@ def semantic_context(
                     f"SELECT DISTINCT {quote(name)} FROM {quote(table)} "
                     f"WHERE {quote(name)} IS NOT NULL ORDER BY {quote(name)} LIMIT 6"
                 )
+                if any(isinstance(row[0], str) for row in samples):
+                    profile_columns.append((table, name))
                 profile = date_candidates(
                     name, [row[0] for row in samples[:5]], complete=len(samples) < 6
                 )
@@ -122,6 +126,55 @@ def semantic_context(
                 "fields": fields,
                 "omitted_fields": max(0, len(columns) - 24),
             }
+    # Inspect at most three scoped text fields for one original public literal.
+    # Literal occurrence does not establish category membership or authorize a filter.
+    literal_profiles, profile_checks, profile_failures = [], 0, 0
+    question_text = public_text.split("\n", 1)[0]
+    labels = sorted(
+        public_quoted_labels(public_text),
+        key=lambda label: (
+            not re.search(r"(?<!\w)" + re.escape(label) + r"(?!\w)", question_text, re.I),
+            label,
+        ),
+    )
+    if labels:
+        label = labels[0]
+        for table, column in profile_columns[:3]:
+            profile_checks += 1
+            sql = (
+                "SELECT COALESCE(SUM(CASE WHEN "
+                + quote(column)
+                + " COLLATE BINARY = ? THEN 1 ELSE 0 END),0),"
+                + "COALESCE(SUM(CASE WHEN instr("
+                + quote(column)
+                + ",?)>0 THEN 1 ELSE 0 END),0) FROM "
+                + quote(table)
+            )
+            guard.inspect(sql, allowed_relations=allowed_relations)
+            try:
+                rows = (
+                    SQLiteReadOnlyExecutor(database, max_rows=1, timeout_seconds=1)
+                    .execute(sql, (label, label))
+                    .rows
+                )
+            except QueryExecutionError:
+                profile_failures += 1
+            else:
+                exact, contains = rows[0]
+                if contains:
+                    literal_profiles.append(
+                        {
+                            "table": table,
+                            "column": column,
+                            "public_literal": label,
+                            "exact_rows": exact,
+                            "literal_contains_rows": contains,
+                            "scope": (
+                                "full-table binary exact/literal case-sensitive substring counts"
+                            ),
+                            "verified_business_semantics": False,
+                        }
+                    )
     mappings = public_field_mappings(public_text, full_schema)
     literal_checks = literal_failures = 0
     for mapping in [m for m in mappings["ambiguous"] if m.get("literal_kind") == "string"][:2]:
@@ -230,6 +283,12 @@ def semantic_context(
         "cardinalities": cardinalities,
         "scope": "untrusted observations; aliases and date semantics require public evidence",
     }
+    if profile_checks:
+        output.update(
+            public_literal_profiles=literal_profiles,
+            literal_profile_checks=profile_checks,
+            literal_profile_failures=profile_failures,
+        )
     if observed_joins["candidates"]:
         output["observed_join_candidates"] = observed_joins["candidates"]
         output["scope"] += "; observed join candidates are not declared business relationships"
@@ -246,11 +305,7 @@ def semantic_context(
                 field.pop("date_encoding")
             field.pop("declared_type", None)
     output["budget_chars"] = max_chars
-    mentioned = {
-        table
-        for table in allowed_relations
-        if re.search(r"(?<!\w)" + re.escape(table) + r"(?!\w)", public_text, re.I)
-    }
+    mentioned = {table for table in allowed_relations if public_name_mentioned(table, public_text)}
     literal_targets = {
         item["candidate"][0]
         for mapping in mappings["ambiguous"]
@@ -286,6 +341,9 @@ def semantic_context(
             # scoped public observations before these low-information row counters.
             output["tables"].popitem()
             output["omitted_table_previews"] += 1
+        elif output.get("public_literal_profiles"):
+            output["public_literal_profiles"].pop()
+            output["omitted_literal_profiles"] = output.get("omitted_literal_profiles", 0) + 1
         elif output["cardinalities"]:
             output["cardinalities"].pop()
             output["omitted_cardinality_checks"] += 1

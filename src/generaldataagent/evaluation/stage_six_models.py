@@ -18,7 +18,7 @@ def resolve_evaluation_model(
     transport: str = "configured",
     thinking_mode: str = "default",
     json_mode: bool = False,
-    max_output_tokens: int = 3000,
+    max_output_tokens: int | None = None,
 ):
     if app_type not in {"claude", "codex", "magpie"} or transport not in {
         "configured",
@@ -36,8 +36,10 @@ def resolve_evaluation_model(
         raise ValueError("invalid or floating model selector")
     if thinking_mode not in {"default", "on", "off"} or type(json_mode) is not bool:
         raise ValueError("invalid reasoning or JSON setting")
-    if type(max_output_tokens) is not int or not 32 <= max_output_tokens <= 3000:
-        raise ValueError("output token limit must be between 32 and 3000")
+    if max_output_tokens is not None and (
+        type(max_output_tokens) is not int or max_output_tokens < 32
+    ):
+        raise ValueError("output token limit must be at least 32 or omitted")
     if json_mode and transport != "openai-chat":
         raise ValueError("JSON mode is qualified only for OpenAI chat transport")
     if thinking_mode != "default" and (
@@ -92,6 +94,8 @@ def build_evaluation_model(provider, route: dict):
             }
         if route.get("json_mode"):
             options["model_kwargs"] = {"response_format": {"type": "json_object"}}
+        if route.get("max_output_tokens") is not None:
+            options["max_tokens"] = route["max_output_tokens"]
         return ChatOpenAI(
             model=provider.model,
             api_key=provider.api_key,
@@ -99,9 +103,11 @@ def build_evaluation_model(provider, route: dict):
             timeout=30,
             max_retries=0,
             temperature=0,
-            max_tokens=route.get("max_output_tokens", 3000),
             **options,
         )
-    return provider.build_chat_model(timeout_seconds=30, max_retries=0).bind(
-        max_tokens=route.get("max_output_tokens", 3000)
+    model = provider.build_chat_model(timeout_seconds=30, max_retries=0)
+    return (
+        model.bind(max_tokens=route["max_output_tokens"])
+        if route.get("max_output_tokens") is not None
+        else model
     )

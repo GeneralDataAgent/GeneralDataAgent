@@ -75,6 +75,56 @@ def bounded_observation(result: dict, *, max_chars: int = 6000) -> dict:
 
 def execution_hint(exc: Exception) -> str:
     text = str(exc)
+    if "missing_string_branch_omits_imported_nulls" in text:
+        return (
+            "CSV empty fields are imported as SQL NULL. For each direct missing-string "
+            "column branch, include that same column IS NULL alongside its public missing "
+            "literal checks. Another column's or UNION branch's NULL check does not cover it."
+        )
+    if "python_statistics_requires_method_bindings" in text:
+        return (
+            "The public task requires Python mean/median functions. Use fixed_analysis "
+            "operation describe and bind statistics[column].mean or median. SQL observations "
+            "cannot certify that requested method; do not return a manual median formula."
+        )
+    if "public_signed_difference_changed_to_absolute" in text:
+        return (
+            "The public definition is a signed subtraction of the named physical fields. "
+            "ABS changes which rows satisfy its threshold. Preserve the stated subtraction "
+            "and direction; do not turn a signed difference into an absolute distance."
+        )
+    if "unrequested_change_intermediate_outputs" in text:
+        return (
+            "This public question requests only the change rate. Return that rate as the "
+            "final projection; raw differences and balances may be internal calculations, "
+            "but are not additional requested answer columns. Keep the original periods and scope."
+        )
+    if "no finite observations" in text:
+        return (
+            "The selected physical fields and filters contain no finite numeric observations. "
+            "Check the field meaning, type and actual public-label occurrences before retrying. "
+            "An empty subgroup is not an outlier count of zero. For describe, eq needs an exact "
+            "label; contains is a literal case-sensitive substring only when that interpretation "
+            "is supported by the public request and observations. Do not invent a new category."
+        )
+    if "public_time_like_pattern" in text:
+        return (
+            "The public text explicitly maps zero-hour 0:0M:SS to an M:SS% LIKE pattern. "
+            "Drop the zero-hour prefix and the minute's leading zero, keep two-digit seconds "
+            "and the trailing wildcard. Preserve the named physical field and other filters."
+        )
+    if "iqr_public_method_conflict" in text:
+        return (
+            "describe uses linear inclusive quartiles and strict 1.5-IQR fences. The public "
+            "text explicitly requests another recognized convention. Compute that exact method "
+            "with supported scoped SQL, or declare unsupported; do not bind these IQR values."
+        )
+    if "public_extremum_representation" in text:
+        return (
+            "The public text explicitly specifies native MIN/MAX of a physical field. "
+            "Preserve that expression and its returned type; an added CAST changes the "
+            "declared formula or representation. Recheck the requested population and ties."
+        )
     if "public_year_formula_fields" in text:
         return (
             "Use the physical source fields in the explicit public year-difference formula, "
@@ -173,7 +223,11 @@ def execution_hint(exc: Exception) -> str:
             "Bind a computed scalar projection, not constants or whole SQL row containers. "
             "For a complete collection use collect_values with one DISTINCT data-derived "
             "column, then bind path [items]. Column-name labels must be conditional on data "
-            "for that exact physical field."
+            "for that exact physical field. For missing-column names, a supported form is "
+            "SELECT DISTINCT 'field_name' AS name FROM scoped_table WHERE field_name IS NULL. "
+            "Replace both field_name occurrences with the same actual physical column. "
+            "Add only publicly requested missing markers and column-type restrictions; "
+            "combine eligible branches with UNION and order the full collection as requested."
         )
     if "field requires complete collection evidence" in text:
         return (
@@ -210,9 +264,29 @@ def execution_hint(exc: Exception) -> str:
             "public-literal matches before changing SQL. Do not merely add NULLIF or COALESCE, "
             "and do not add optional requirements to repair a population error."
         )
+    if "percentage_out_of_range" in text:
+        return (
+            "This fraction-of-population percentage is outside 0..100. Check that the "
+            "conditional numerator and total denominator use the same requested subset "
+            "and compatible entity/record grain. A numerator over the whole table divided "
+            "by a subgroup count changes the question. Preserve the public formula; do not "
+            "clip the result, remove filters, or multiply again by 100."
+        )
     if "ratio_zero_guard" in text:
         return "Use NULLIF(denominator,0) without changing the declared population or formula."
     # Only known local SQL diagnostics; never echo arbitrary model/SDK exceptions.
+    if re.search(r"no such column:\s*(?:[\w]+\.)?(?:rowid|_rowid_|oid)\b", text, re.I):
+        return (
+            "A CTE or derived table does not inherit its source rowid unless explicitly "
+            "projected. Use a real available ordering key for a first-entry request. Do not "
+            "add rowid to full-row DISTINCT, which would prevent duplicate removal; preserve "
+            "the requested cleaning and calculation populations."
+        )
+    if "wrong number of arguments to function" in text:
+        return (
+            "The SQL function has the wrong argument count. Check its SQLite signature "
+            "and provide the required arguments; keep the requested computation."
+        )
     for marker in (
         "no such column:",
         "no such table:",

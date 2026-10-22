@@ -219,11 +219,15 @@ def add_json_tables(files: dict[str, Path], target: Path) -> None:
             )
 
 
-def database_context(database: Path) -> tuple[str, set[str]]:
+def database_context(database: Path, *, public_text: str = "") -> tuple[str, set[str]]:
+    from generaldataagent.catalog.field_evidence import public_name_mentioned
+
     with sqlite3.connect(database.as_uri() + "?mode=ro", uri=True) as db:
         names = {x[0] for x in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         statements = []
-        for name in sorted(names):
+        for name in sorted(
+            names, key=lambda name: (not public_name_mentioned(name, public_text), name)
+        ):
             schema = db.execute(f"PRAGMA table_info({quote_identifier(name)})").fetchall()
             samples = db.execute(f"SELECT * FROM {quote_identifier(name)} LIMIT 1").fetchall()
             samples = [
@@ -324,11 +328,15 @@ class BoundedSQLAgent:
         *,
         max_steps=6,
         max_seconds=120,
-        max_tokens=24000,
+        max_tokens=None,
         tool_profile="sql",
         max_cost_usd=0.02,
     ):
-        if max_steps < 1 or max_seconds <= 0 or max_tokens < 1:
+        if (
+            max_steps < 1
+            or max_seconds <= 0
+            or (max_tokens is not None and (type(max_tokens) is not int or max_tokens < 1))
+        ):
             raise ValueError("invalid agent budget")
         if (
             tool_profile
@@ -361,7 +369,10 @@ class BoundedSQLAgent:
             retrieve_documents,
         )
 
-        context, relations = database_context(database.resolve())
+        context, relations = database_context(
+            database.resolve(),
+            public_text=task.question if self.tool_profile.startswith("sql-semantic") else "",
+        )
         physical_schema = {
             item["table"]: [column[0] for column in item["columns"]]
             for item in (json.loads(line) for line in context.splitlines())
@@ -373,6 +384,7 @@ class BoundedSQLAgent:
             STAGE7_JSON_SQL_PROMPT,
             STAGE7_PLAN_PROMPT,
             STAGE7_PROMPT,
+            STAGE7_PYTHON_STATS_PROMPT,
             STAGE7_SQL_PROMPT,
             ToolConversation,
             bind_typed_tools,
@@ -409,10 +421,18 @@ class BoundedSQLAgent:
         )
 
         public_task_text = task.question + "\n" + task.instructions
+        from generaldataagent.tools.analysis_methods import (
+            python_statistics_bindings,
+            requests_python_statistics,
+        )
+
+        python_stats_requested = requests_python_statistics(public_task_text)
 
         def require_test_method(bindings, bound_evidence):
             if not independent_method_bindings(bindings, bound_evidence, public_task_text):
                 raise SemanticError("independent_test_requires_method_bindings")
+            if python_stats_requested and not python_statistics_bindings(bindings, bound_evidence):
+                raise SemanticError("python_statistics_requires_method_bindings")
 
         plan_mode = self.tool_profile == "sql-semantic-plan"
         semantic_json = self.tool_profile == "sql-semantic-json"
@@ -529,7 +549,8 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     STAGE7_INDEPENDENT_TEST_PROMPT
                     if requests_independent_test(public_task_text)
                     else ""
-                ),
+                )
+                + (STAGE7_PYTHON_STATS_PROMPT if python_stats_requested else ""),
             )
         if semantic and task.benchmark == "bird-mini-dev-sqlite":
             messages[0] = (
@@ -577,6 +598,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
         observed_cost = 0.0
         failure, final_sql = "step_budget", None
         raw_answers = None
+        previous_countdown = None
         for step in range(1, self.max_steps + 1):
             if time.monotonic() - started > self.max_seconds:
                 failure = "time_budget"
@@ -589,42 +611,57 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
             previous_task_spec = task_spec
             previous_automatic_spec = automatic_spec
             action = None
+            result_data = None
             calls = []
             if repair:
-                messages.append(
-                    (
-                        "human",
-                        json.dumps(
-                            {
-                                "remaining_actions": self.max_steps - step + 1,
-                                **(
-                                    {
-                                        "remaining_observed_tokens": max(
-                                            0, self.max_tokens - tokens
-                                        ),
-                                        "token_budget_scope": (
-                                            "future input plus output; no reset after errors"
-                                        ),
-                                        "submission_hint": (
-                                            "Computing evidence does not submit it. "
-                                            "Once sufficient, use an advertised final "
-                                            "submission tool. Avoid repeating successful "
-                                            "computations or spending the last turn "
-                                            "on observation."
-                                        ),
-                                    }
-                                    if semantic
-                                    else {}
-                                ),
-                                "finish_hint": (
-                                    "Return final_sql if ready."
-                                    if precision
-                                    else "Finish now if observed evidence is sufficient."
-                                ),
-                            }
-                        ),
-                    )
+                if semantic and previous_countdown is not None:
+                    # Remove only the exact runtime-created stale countdown object.
+                    # Model actions, tool results, errors and spent usage stay intact.
+                    for index, message in enumerate(messages):
+                        if message is previous_countdown:
+                            del messages[index]
+                            break
+                countdown = (
+                    "human",
+                    json.dumps(
+                        {
+                            "remaining_actions": self.max_steps - step + 1,
+                            **(
+                                {
+                                    "remaining_observed_tokens": (
+                                        max(0, self.max_tokens - tokens)
+                                        if self.max_tokens is not None
+                                        else None
+                                    ),
+                                    "token_budget_scope": (
+                                        "future input plus output; no reset after errors"
+                                    ),
+                                    "submission_hint": (
+                                        "Computing evidence does not submit it. Once sufficient, "
+                                        "use an advertised final submission tool. Avoid repeating "
+                                        "successful computations or spending the last turn "
+                                        "on observation."
+                                    ),
+                                }
+                                if semantic
+                                else {}
+                            ),
+                            **(
+                                {}
+                                if semantic
+                                else {
+                                    "finish_hint": (
+                                        "Return final_sql if ready."
+                                        if precision
+                                        else "Finish now if observed evidence is sufficient."
+                                    )
+                                }
+                            ),
+                        }
+                    ),
                 )
+                messages.append(countdown)
+                previous_countdown = countdown
             try:
                 try:
                     active_model = (
@@ -636,6 +673,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                             exploration_enabled=True,
                             compact_sql=not plan_mode,
                             independent_test_requested=requests_independent_test(public_task_text),
+                            python_statistics_requested=python_stats_requested,
                             answer_contract=task_spec.answer if task_spec is not None else None,
                             evidence_steps=sorted(evidence),
                             collection_steps=sorted(
@@ -698,13 +736,13 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                 else:
                     cost_complete = False
                 if (
-                    tokens > self.max_tokens
+                    (self.max_tokens is not None and tokens > self.max_tokens)
                     or time.monotonic() - started > self.max_seconds
                     or observed_cost > self.max_cost_usd
                 ):
                     failure = (
                         "token_budget"
-                        if tokens > self.max_tokens
+                        if (self.max_tokens is not None and tokens > self.max_tokens)
                         else "cost_budget"
                         if observed_cost > self.max_cost_usd
                         else "time_budget"
@@ -997,6 +1035,16 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     }
                     tool = "sql_crosscheck"
                 elif semantic and "collect" in action:
+                    if task.asset.casefold().endswith(".csv"):
+                        from generaldataagent.tools.public_formulas import (
+                            check_public_missing_nulls,
+                        )
+
+                        issues = check_public_missing_nulls(
+                            action["collect"]["sql"], public_task_text, physical_schema
+                        )
+                        if issues:
+                            raise SemanticError(issues[0])
                     result_data = collect_complete(
                         database,
                         action["collect"]["sql"],
@@ -1268,6 +1316,9 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                         for text_marker, code in [
                             ("no such column", "unknown_column"),
                             ("no such table", "unknown_table"),
+                            ("no such function", "unsupported_function"),
+                            ("wrong number of arguments to function", "function_arguments"),
+                            ("no finite observations", "empty_analysis_population"),
                             ("ambiguous", "ambiguous_column"),
                             ("syntax", "sql_syntax"),
                             ("interrupted", "query_timeout"),
@@ -1284,6 +1335,12 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     event["response_mode"] = "native_function" if calls else "json"
                     if isinstance(action, dict):
                         event["action_keys"] = sorted(action)[:12]
+                    if code in {
+                        "unsupported_function",
+                        "function_arguments",
+                        "empty_analysis_population",
+                    }:
+                        event["repair_type"] = "revise_plan_or_query"
                 if semantic and isinstance(exc, ActionSchemaError):
                     event.update(
                         code="action_schema",
@@ -1303,12 +1360,32 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                 if semantic and isinstance(exc, ColumnScopeError):
                     event.update(code="unknown_column", field_candidates=exc.candidates)
                 feedback = {"step": step, "error": kind, "code": event["code"]}
+                if semantic and "repair_type" in event:
+                    feedback["repair_type"] = event["repair_type"]
+                if semantic and event["code"] == "empty_analysis_population":
+                    feedback["literal_occurrence_observations"] = request.get(
+                        "semantic_context", {}
+                    ).get("public_literal_profiles", [])[:3]
                 if semantic and isinstance(exc, ColumnScopeError):
                     feedback["field_candidates"] = exc.candidates
                 if semantic and isinstance(exc, ActionSchemaError):
                     feedback["schema_errors"] = exc.paths
                 if semantic and isinstance(exc, SemanticError):
                     feedback["checks"] = str(exc)[:300]
+                    if str(exc) == "data_dependent_answer_required" and isinstance(
+                        result_data, dict
+                    ):
+                        mask = result_data.get("data_dependent_columns")
+                        if (
+                            isinstance(mask, (list, tuple))
+                            and len(mask) <= 50
+                            and all(type(value) is bool for value in mask)
+                        ):
+                            event["data_dependency_mask"] = list(mask)
+                            feedback["data_dependency_mask"] = list(mask)
+                            feedback["data_dependency_scope"] = (
+                                "SQL output order; structural lineage only, not semantic proof"
+                            )
                     if "undefined_percentage_check_population" in str(exc):
                         observations = (
                             request.get("semantic_context", {})
@@ -1456,11 +1533,14 @@ def run_isolated(
     tool_profile: str = "sql",
     thinking_mode: str = "default",
     json_mode: bool = False,
-    max_output_tokens: int = 3000,
+    max_output_tokens: int | None = None,
+    max_tokens: int | None = None,
     request_interval_seconds: float = 0,
     pacing_database: Path | None = None,
 ) -> dict:
     """Kill a stuck model/tool worker at the OS process boundary; send no golden data."""
+    if max_tokens is not None and (type(max_tokens) is not int or max_tokens < 1):
+        raise ValueError("invalid total observed token budget")
     payload = {
         "task": asdict(task),
         "database": str(database.resolve()),
@@ -1473,6 +1553,7 @@ def run_isolated(
         "thinking_mode": thinking_mode,
         "json_mode": json_mode,
         "max_output_tokens": max_output_tokens,
+        "max_tokens": max_tokens,
         "request_interval_seconds": request_interval_seconds,
         "pacing_database": str(pacing_database) if pacing_database else None,
         "documents": documents,

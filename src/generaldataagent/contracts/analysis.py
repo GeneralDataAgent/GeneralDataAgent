@@ -5,10 +5,14 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from generaldataagent.contracts.answer_fields import AnswerFieldSpec
-from generaldataagent.contracts.independent_test import IndependentTestSpec, SignificanceRule
+from generaldataagent.contracts.independent_test import (
+    IndependentTestSpec,
+    PublicTextFilter,
+    SignificanceRule,
+)
 from generaldataagent.contracts.query_plan import SemanticQueryPlan
 from generaldataagent.contracts.semantic_requirements import SemanticRequirements
-from generaldataagent.contracts.statistical_rules import PearsonDecisionRule
+from generaldataagent.contracts.statistical_rules import PearsonDecisionRule, PearsonMagnitudeRule
 
 
 class Contract(BaseModel):
@@ -53,6 +57,10 @@ class AnalysisTaskSpec(Contract):
     requirements: SemanticRequirements = Field(default_factory=SemanticRequirements)
 
 
+class DescribeTextFilter(PublicTextFilter):
+    operator: Literal["eq", "contains"] = "eq"
+
+
 class AnalysisArguments(Contract):
     table: str = Field(min_length=1, max_length=200)
     columns: list[str] = Field(min_length=1, max_length=2)
@@ -61,17 +69,31 @@ class AnalysisArguments(Contract):
     ]
     decision_rule: PearsonDecisionRule | None = None
     significance_rule: SignificanceRule | None = None
+    magnitude_rule: PearsonMagnitudeRule | None = None
     test: IndependentTestSpec | None = None
+    filters: list[DescribeTextFilter] = Field(default_factory=list, max_length=8)
 
     @model_validator(mode="after")
     def paired(self):
+        if self.filters and self.operation != "describe":
+            raise ValueError("top-level public filters are supported only for describe")
+        if len({item.column for item in self.filters}) != len(self.filters):
+            raise ValueError("duplicate describe filter columns")
         if (self.operation == "independent_t_test") != (self.test is not None):
             raise ValueError("independent_t_test requires its explicit test specification only")
         if self.decision_rule is not None and self.operation != "pearson_test":
             raise ValueError("decision rule requires pearson_test")
         if self.significance_rule is not None and self.operation != "pearson_test":
             raise ValueError("Pearson significance rule requires pearson_test")
-        if self.significance_rule is not None and self.decision_rule is not None:
+        if self.magnitude_rule is not None and self.operation != "pearson_test":
+            raise ValueError("Pearson magnitude rule requires pearson_test")
+        if (
+            sum(
+                rule is not None
+                for rule in (self.significance_rule, self.decision_rule, self.magnitude_rule)
+            )
+            > 1
+        ):
             raise ValueError("choose one public Pearson decision policy")
         if self.operation != "describe" and len(self.columns) != 2:
             raise ValueError("paired analysis requires two columns")

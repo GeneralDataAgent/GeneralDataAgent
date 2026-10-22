@@ -552,3 +552,291 @@ def test_complete_missing_column_collection_supports_only_same_field_missing_dis
         ["name"],
         allowed_relations={"data"},
     ) == [True]
+
+
+@pytest.mark.parametrize("operation", ["MIN", "MAX"])
+@pytest.mark.parametrize(
+    "expression", ["{op}(CAST(p.value AS REAL))", "CAST({op}(p.value) AS REAL)"]
+)
+def test_explicit_native_extremum_preserves_representation(operation, expression):
+    from generaldataagent.tools.public_formulas import check_public_extremum_representation
+
+    instructions = f"The requested extremum refers to {operation}(value);"
+    schema = {"observations": ["value"]}
+    sql = "SELECT " + expression.format(op=operation) + " AS result FROM observations p"
+    assert check_public_extremum_representation(sql, instructions, schema) == [
+        "public_extremum_representation"
+    ]
+    assert not check_public_extremum_representation(
+        f"SELECT {operation}(p.value) FROM observations p", instructions, schema
+    )
+
+
+@pytest.mark.parametrize(
+    ("sql", "instructions", "schema"),
+    [
+        (
+            "SELECT MAX(CAST(value AS REAL)) FROM observations",
+            "Find the maximum value.",
+            {"observations": ["value"]},
+        ),
+        (
+            "SELECT MAX(CAST(value AS REAL)) FROM observations",
+            "Maximum refers to MAX(value). Convert to a number.",
+            {"observations": ["value"]},
+        ),
+        (
+            "SELECT MAX(CAST(value AS REAL)) FROM observations",
+            "Do not use MAX(value).",
+            {"observations": ["value"]},
+        ),
+        (
+            "SELECT MAX(CAST(value AS REAL)) FROM observations",
+            "Maximum refers to MAX(value)",
+            {"observations": ["value"], "other": ["value"]},
+        ),
+        (
+            "WITH x AS (SELECT value FROM observations) SELECT MAX(CAST(value AS REAL)) FROM x",
+            "Maximum refers to MAX(value)",
+            {"observations": ["value"]},
+        ),
+        (
+            "SELECT MAX(CAST(other AS REAL)) FROM observations",
+            "Maximum refers to MAX(value)",
+            {"observations": ["value", "other"]},
+        ),
+        (
+            "SELECT AVG(CAST(value AS REAL)) FROM observations",
+            "Maximum refers to MAX(value)",
+            {"observations": ["value"]},
+        ),
+        (
+            "SELECT MAX(CAST(value AS REAL)), COUNT(*) FROM observations",
+            "Maximum refers to MAX(value)",
+            {"observations": ["value"]},
+        ),
+        (
+            "SELECT MAX(CAST(value AS REAL)) FROM observations",
+            "Upper refers to MAX(value); lower refers to MIN(value)",
+            {"observations": ["value"]},
+        ),
+    ],
+)
+def test_native_extremum_guard_abstains_outside_explicit_unambiguous_scope(
+    sql, instructions, schema
+):
+    from generaldataagent.tools.public_formulas import check_public_extremum_representation
+
+    assert not check_public_extremum_representation(sql, instructions, schema)
+
+
+def test_public_conversion_request_in_question_disables_native_extremum_guard():
+    from generaldataagent.tools.public_formulas import check_public_extremum_representation
+
+    assert not check_public_extremum_representation(
+        "SELECT MAX(CAST(value AS REAL)) FROM observations",
+        "Maximum refers to MAX(value)",
+        {"observations": ["value"]},
+        question="Convert the maximum to a real number.",
+    )
+
+
+@pytest.mark.parametrize(
+    "pattern,issues",
+    [
+        ("0:02:07%", ["public_time_like_pattern"]),
+        ("2:07%", []),
+        ("%2:07%", ["public_time_like_pattern"]),
+    ],
+)
+def test_explicit_public_zero_hour_pattern_checks_actual_physical_field(pattern, issues):
+    from generaldataagent.tools.public_formulas import check_public_time_pattern
+
+    assert (
+        check_public_time_pattern(
+            f"SELECT id FROM runs r WHERE r.lap LIKE '{pattern}'",
+            "Which id finished 0:02:07?",
+            "finished 0:0M:SS refers to lap LIKE 'M:SS%'",
+            {"runs": ["id", "lap"]},
+        )
+        == issues
+    )
+
+
+@pytest.mark.parametrize(
+    "question,instructions,schema,sql",
+    [
+        (
+            "Which id finished 0:02:07?",
+            "Return the time.",
+            {"runs": ["lap"]},
+            "SELECT lap FROM runs WHERE lap LIKE '0:02:07%'",
+        ),
+        (
+            "Which id finished 1:02:07?",
+            "finished 0:0M:SS refers to lap LIKE 'M:SS%'",
+            {"runs": ["lap"]},
+            "SELECT lap FROM runs WHERE lap LIKE '1:02:07%'",
+        ),
+        (
+            "Between 0:02:07 and 0:03:08?",
+            "finished 0:0M:SS refers to lap LIKE 'M:SS%'",
+            {"runs": ["lap"]},
+            "SELECT lap FROM runs WHERE lap LIKE '0:02:07%'",
+        ),
+        (
+            "Which id finished 0:62:07?",
+            "finished 0:0M:SS refers to lap LIKE 'M:SS%'",
+            {"runs": ["lap"]},
+            "SELECT lap FROM runs WHERE lap LIKE '0:62:07%'",
+        ),
+        (
+            "Which id finished 0:02:07?",
+            "finished 0:0M:SS refers to lap LIKE 'M:SS%'",
+            {"runs": ["lap"], "other": ["lap"]},
+            "SELECT lap FROM runs WHERE lap LIKE '0:02:07%'",
+        ),
+        (
+            "Which id finished 0:02:07?",
+            "finished 0:0M:SS refers to lap LIKE 'M:SS%'",
+            {"runs": ["lap"]},
+            "WITH x AS (SELECT lap FROM runs) SELECT lap FROM x WHERE lap LIKE '0:02:07%'",
+        ),
+        (
+            "Which id finished 0:02:07?",
+            "Do not use 0:0M:SS; lap refers to lap LIKE 'M:SS%'",
+            {"runs": ["lap"]},
+            "SELECT lap FROM runs WHERE lap LIKE '0:02:07%'",
+        ),
+    ],
+)
+def test_public_time_pattern_does_not_invent_mapping_or_resolve_ambiguous_sources(
+    question, instructions, schema, sql
+):
+    from generaldataagent.tools.public_formulas import check_public_time_pattern
+
+    assert not check_public_time_pattern(sql, question, instructions, schema)
+
+
+@pytest.mark.parametrize(
+    "question,instructions,expected",
+    [
+        (
+            "What is the increase rate from A to B?",
+            "rate=(B-A)/A*100",
+            ["unrequested_change_intermediate_outputs"],
+        ),
+        ("What is the increase rate and raw difference?", "Report both.", []),
+        ("What is the growth rate for each group?", "", []),
+        ("What is the change rate?", "@rate[value] @difference[value]", []),
+    ],
+)
+def test_single_rate_projection_does_not_include_unrequested_intermediates(
+    question, instructions, expected
+):
+    from generaldataagent.tools.public_formulas import check_public_rate_projection
+
+    assert (
+        check_public_rate_projection(
+            "SELECT a-b AS delta, 100.0*(a-b)/b AS rate FROM data", question, instructions
+        )
+        == expected
+    )
+    assert not check_public_rate_projection(
+        "SELECT 100.0*(a-b)/b AS rate FROM data", question, instructions
+    )
+
+
+@pytest.mark.parametrize("expression", ["ABS(a-b)", "ABS(b-a)"])
+def test_public_signed_difference_is_not_changed_to_distance(expression):
+    from generaldataagent.tools.public_formulas import check_public_signed_difference
+
+    assert check_public_signed_difference(
+        f"SELECT label FROM data WHERE {expression}>30",
+        "List labels with difference over 30.",
+        "Difference = a-b",
+        {"data": ["label", "a", "b"]},
+    ) == ["public_signed_difference_changed_to_absolute"]
+
+
+@pytest.mark.parametrize(
+    "sql,question,instructions,schema",
+    [
+        (
+            "SELECT a FROM data WHERE ABS(a-b)>30",
+            "List absolute differences.",
+            "Difference=a-b",
+            {"data": ["a", "b"]},
+        ),
+        (
+            "SELECT a FROM data WHERE ABS(a-b)>30",
+            "List differences.",
+            "Difference=a-b",
+            {"data": ["a", "b"], "other": ["a"]},
+        ),
+        (
+            "WITH d AS(SELECT a,b FROM data) SELECT a FROM d WHERE ABS(a-b)>30",
+            "List differences.",
+            "Difference=a-b",
+            {"data": ["a", "b"]},
+        ),
+        (
+            "SELECT a FROM data WHERE ABS(a-b)>30",
+            "List differences.",
+            "Difference=a-b; other=c-d",
+            {"data": ["a", "b", "c", "d"]},
+        ),
+        (
+            "SELECT a FROM data WHERE ABS(c-d)>30",
+            "List differences.",
+            "Difference=a-b",
+            {"data": ["a", "b", "c", "d"]},
+        ),
+        (
+            "SELECT a FROM data WHERE a-b>30",
+            "List differences.",
+            "Difference=a-b",
+            {"data": ["a", "b"]},
+        ),
+    ],
+)
+def test_signed_difference_guard_abstains_on_unrelated_or_ambiguous_expression(
+    sql, question, instructions, schema
+):
+    from generaldataagent.tools.public_formulas import check_public_signed_difference
+
+    assert not check_public_signed_difference(sql, question, instructions, schema)
+
+
+def test_missing_string_check_is_per_physical_union_branch_and_column():
+    from generaldataagent.tools.public_formulas import check_public_missing_nulls
+
+    text = "Which columns contain missing values? Only object strings; include an empty string."
+    schema = {"data": ["author", "title"]}
+    bad = (
+        "SELECT DISTINCT 'author' AS name FROM data WHERE TRIM(author) IN ('na','') "
+        "UNION SELECT DISTINCT 'title' FROM data WHERE title IS NULL OR TRIM(title) IN "
+        "('na','')"
+    )
+    assert check_public_missing_nulls(bad, text, schema) == [
+        "missing_string_branch_omits_imported_nulls"
+    ]
+    good = bad.replace("WHERE TRIM(author)", "WHERE author IS NULL OR TRIM(author)")
+    assert check_public_missing_nulls(good, text, schema) == []
+    for sql in [
+        "SELECT 'author' FROM data d WHERE d.title IS NULL OR TRIM(d.author) IN ('')",
+        "SELECT 'author' FROM data WHERE NOT author IS NULL OR TRIM(author) IN ('')",
+    ]:
+        assert check_public_missing_nulls(sql, text, schema)
+    for sql in [
+        "SELECT 'author' FROM data WHERE COALESCE(author,'') IN ('')",
+        "WITH x AS (SELECT author FROM data) SELECT 'author' FROM x WHERE TRIM(author) IN ('')",
+        "SELECT 'author' FROM data WHERE author IS NULL",
+        "SELECT 'author' FROM data WHERE TRIM(author) IN ('na')",
+        "SELECT 'author' FROM data WHERE NOT (TRIM(author) IN (''))",
+    ]:
+        assert check_public_missing_nulls(sql, text, schema) == []
+    assert (
+        check_public_missing_nulls(bad, "Only exact literal values; exclude SQL NULL.", schema)
+        == []
+    )

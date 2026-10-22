@@ -2,7 +2,7 @@
 
 状态：待独立裁定。此文件用于离线审阅，不能作为模型工具输入，也不是已有外部审阅或验收结论。严格分数、历史保护成员、标签和分母保持不变。
 
-当前完整v53：63→69/130，历史保护57/61，开发资格未通过。完整v57冻结1cdcd84另行运行。单题结果与争议解释不加回任何分数。
+当前最新完整v62：63→72/130，历史保护56/61，开发资格未通过。后续局部诊断分别保留，不拼接成绩。单题结果与争议解释不加回任何分数。
 
 ## 审阅方式
 
@@ -106,3 +106,27 @@ Calculate the mean of "FamilySize" separately for the passengers who survived an
 待裁定：请裁定rounding up是否指向正无穷舍入，或只是普通舍入措辞，并记录采用的规则和独立复算。
 
 裁定记录：审阅者____；时间____；结论____；独立步骤/产物____；状态pending。
+
+
+## bird-mini-dev-sqlite / 83：共同总体、年级字段与逐市输出
+
+公开问题：
+
+Of the schools that offers a magnet program serving a grade span of Kindergarten to 8th grade, how many offers Multiple Provision Types? List the number of cities that offers a Kindergarten to 8th grade span and indicate how many schools are there serving such grade span for each city.
+
+公开说明：
+
+Kindergarten to 8th grade refers to K-8; 'Offers a magnet program' means Magnet = 1; Multiple Provision Types refers to `NSLP Provision Status` = 'Multiple Provision Types'
+
+固定数据库SHA-256：`c0903eec662e63068fd1d14403d3d6c1d473287fc10c4356333ea58f878db983`。以下均为离线口径核对，不是模型输入；不裁定参考错误，不改严格成绩。
+
+- `GSoffered_all_magnet`：19个城市结果，35条关联学校记录，逐市学校去重计数之和35。
+- `GSoffered_mpt`：1个城市结果，1条关联学校记录，逐市学校去重计数之和1。
+- `GSserved_all_magnet`：18个城市结果，34条关联学校记录，逐市学校去重计数之和34。
+- `GSserved_mpt`：1个城市结果，1条关联学校记录，逐市学校去重计数之和1。
+
+待裁定：先独立说明年级字段依据、学校总体与后半句是否继承Multiple Provision Types限制，再核对所需输出行和列；现有公开措辞不能由一份数值结果替代裁定。即使裁定支持修订，也必须建立新版本评估，不能重写既有分数和61题保护成员。
+
+裁定记录：审阅者____；时间____；结论____；独立步骤/产物____；状态pending。
+
+83补充范围说明：以上四种计数均使用schools与frpm按CDSCode内连接；不是全部主表学校均已匹配的证明。审阅还须核实未匹配学校是否属于后半句所问总体。
