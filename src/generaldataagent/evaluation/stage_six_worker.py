@@ -20,7 +20,7 @@ def main():
         transport=payload.get("transport", "configured"),
         thinking_mode=payload.get("thinking_mode", "default"),
         json_mode=payload.get("json_mode", False),
-        max_output_tokens=payload.get("max_output_tokens", 3000),
+        max_output_tokens=payload.get("max_output_tokens"),
     )
     if payload.get("route_hash") and payload["route_hash"] != route["route_hash"]:
         raise ValueError("evaluation route changed after snapshot")
@@ -40,7 +40,7 @@ def main():
     result = BoundedSQLAgent(
         model,
         tool_profile=payload.get("tool_profile", "sql"),
-        max_tokens=payload.get("max_tokens", 24000),
+        max_tokens=payload.get("max_tokens"),
     ).run(Task(**payload["task"]), Path(payload["database"]), documents=payload["documents"])
     print(json.dumps(result))
 

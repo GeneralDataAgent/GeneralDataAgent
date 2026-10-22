@@ -9,6 +9,73 @@ from sqlglot.optimizer.scope import traverse_scope
 from generaldataagent.tools.semantic_requirements import _expression, _identifier_key, _unparen
 
 
+def check_public_missing_nulls(sql: str, public_text: str, schema: dict) -> list[str]:
+    """Catch a narrow CSV missing-string branch that forgets imported empty NULLs.
+
+    Only direct physical-table scopes and explicit empty-string IN predicates are
+    classified. Derived/coalesced expressions and other missing-data policies abstain.
+    Presence of an IS NULL branch is not proof of the complete business predicate.
+    """
+    if not (
+        re.search(r"\bmissing values?\b", public_text, re.I)
+        and re.search(r"\bempty string\b", public_text, re.I)
+        and re.search(r"\bobject\b|\bstrings\b", public_text, re.I)
+    ):
+        return []
+    tree = parse_one(sql, read="sqlite")
+    for scope in traverse_scope(tree):
+        if not isinstance(scope.expression, exp.Select) or len(scope.selected_sources) != 1:
+            continue
+        alias, (_, source) = next(iter(scope.selected_sources.items()))
+        if not isinstance(source, exp.Table) or source.db or source.catalog:
+            continue
+        physical = next(
+            (
+                names
+                for table, names in schema.items()
+                if _identifier_key(table) == _identifier_key(source.name)
+            ),
+            None,
+        )
+        if physical is None:
+            continue
+        where = scope.expression.args.get("where")
+        if where is None:
+            continue
+
+        def field(node, alias=alias, physical=physical):
+            if isinstance(node, exp.Trim):
+                node = node.this
+            if not isinstance(node, exp.Column) or node.db or node.catalog:
+                return None
+            if node.table and _identifier_key(node.table) != _identifier_key(alias):
+                return None
+            key = _identifier_key(node.name)
+            return key if any(_identifier_key(name) == key for name in physical) else None
+
+        null_fields = {
+            field(node.this)
+            for node in where.find_all(exp.Is)
+            if isinstance(node.expression, exp.Null)
+            and node.find_ancestor(exp.Select) is scope.expression
+            and not node.find_ancestor(exp.Not)
+        }
+        for predicate in where.find_all(exp.In):
+            if predicate.find_ancestor(
+                exp.Select
+            ) is not scope.expression or predicate.find_ancestor(exp.Not):
+                continue
+            if not any(
+                isinstance(value, exp.Literal) and value.is_string and value.this == ""
+                for value in predicate.expressions
+            ):
+                continue
+            key = field(predicate.this)
+            if key is not None and key not in null_fields:
+                return ["missing_string_branch_omits_imported_nulls"]
+    return []
+
+
 def check_public_rate_projection(sql: str, question: str, instructions: str) -> list[str]:
     """A narrow singular-rate request does not request intermediate output columns."""
     if not re.search(

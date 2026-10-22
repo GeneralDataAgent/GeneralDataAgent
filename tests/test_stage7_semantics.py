@@ -806,3 +806,37 @@ def test_signed_difference_guard_abstains_on_unrelated_or_ambiguous_expression(
     from generaldataagent.tools.public_formulas import check_public_signed_difference
 
     assert not check_public_signed_difference(sql, question, instructions, schema)
+
+
+def test_missing_string_check_is_per_physical_union_branch_and_column():
+    from generaldataagent.tools.public_formulas import check_public_missing_nulls
+
+    text = "Which columns contain missing values? Only object strings; include an empty string."
+    schema = {"data": ["author", "title"]}
+    bad = (
+        "SELECT DISTINCT 'author' AS name FROM data WHERE TRIM(author) IN ('na','') "
+        "UNION SELECT DISTINCT 'title' FROM data WHERE title IS NULL OR TRIM(title) IN "
+        "('na','')"
+    )
+    assert check_public_missing_nulls(bad, text, schema) == [
+        "missing_string_branch_omits_imported_nulls"
+    ]
+    good = bad.replace("WHERE TRIM(author)", "WHERE author IS NULL OR TRIM(author)")
+    assert check_public_missing_nulls(good, text, schema) == []
+    for sql in [
+        "SELECT 'author' FROM data d WHERE d.title IS NULL OR TRIM(d.author) IN ('')",
+        "SELECT 'author' FROM data WHERE NOT author IS NULL OR TRIM(author) IN ('')",
+    ]:
+        assert check_public_missing_nulls(sql, text, schema)
+    for sql in [
+        "SELECT 'author' FROM data WHERE COALESCE(author,'') IN ('')",
+        "WITH x AS (SELECT author FROM data) SELECT 'author' FROM x WHERE TRIM(author) IN ('')",
+        "SELECT 'author' FROM data WHERE author IS NULL",
+        "SELECT 'author' FROM data WHERE TRIM(author) IN ('na')",
+        "SELECT 'author' FROM data WHERE NOT (TRIM(author) IN (''))",
+    ]:
+        assert check_public_missing_nulls(sql, text, schema) == []
+    assert (
+        check_public_missing_nulls(bad, "Only exact literal values; exclude SQL NULL.", schema)
+        == []
+    )

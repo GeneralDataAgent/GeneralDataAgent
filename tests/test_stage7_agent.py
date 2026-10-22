@@ -2705,3 +2705,54 @@ def test_python_mean_median_native_tools_expose_compliant_calculation_only():
     tools = {t["function"]["name"]: t["function"] for t in model.tools}
     assert "submit_sql_answers" not in tools
     assert tools["fixed_analysis"]["parameters"]["properties"]["operation"]["enum"] == ["describe"]
+
+
+def test_csv_missing_string_union_branch_repairs_omitted_null_population(tmp_path):
+    path = tmp_path / "data.sqlite"
+    with sqlite3.connect(path) as db:
+        db.executescript(
+            "CREATE TABLE data(author TEXT,title TEXT); "
+            "INSERT INTO data VALUES(NULL,'ok'),('ok',NULL);"
+        )
+    public = (
+        "Only object strings. A missing value is 'na' or an empty string. "
+        "@columns[column1, column2,…] whereby column1 and column2 are string names. "
+        "The answer should not contain any duplicates and should be sorted alphabetically."
+    )
+    bad = (
+        "SELECT DISTINCT 'author' AS name FROM data WHERE TRIM(author) IN ('na','') "
+        "UNION SELECT DISTINCT 'title' FROM data WHERE title IS NULL OR TRIM(title) IN "
+        "('na','') ORDER BY name"
+    )
+    good = bad.replace("WHERE TRIM(author)", "WHERE author IS NULL OR TRIM(author)")
+    actions = iter(
+        [
+            {"collect": {"sql": bad}},
+            {"collect": {"sql": good}},
+            {"answers": {}, "evidence_steps": [2], "bindings": {"columns": [2, ["items"]]}},
+        ]
+    )
+
+    class Model:
+        def invoke(self, messages):
+            return SimpleNamespace(
+                content=json.dumps(next(actions)),
+                usage_metadata={"total_tokens": 10},
+                response_metadata={},
+            )
+
+    result = BoundedSQLAgent(Model(), tool_profile="sql-semantic", max_steps=3).run(
+        Task(
+            "infiagent-dabench",
+            "synthetic",
+            "Which columns contain missing values?",
+            public,
+            "easy",
+            "source.csv",
+        ),
+        path,
+    )
+    assert result["failure"] is None, result
+    assert result["answers"] == {"columns": "author, title"}
+    assert result["trace"][0]["status"] == "error"
+    assert "missing_string_branch_omits_imported_nulls" in str(result["trace"][0])

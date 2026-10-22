@@ -56,12 +56,12 @@ def main():
         "--csv-importer", choices=["legacy-v1", "identifier-v2"], default="legacy-v1"
     )
     parser.add_argument("--request-interval-seconds", type=float, default=0)
-    parser.add_argument("--max-output-tokens", type=int, default=3000)
+    parser.add_argument("--max-output-tokens", type=int, default=None)
     parser.add_argument(
         "--max-tokens",
         type=int,
-        default=24000,
-        help="Total observed input+output tokens per case; recorded in the paired protocol",
+        default=None,
+        help="Optional total observed token cap; default: no evaluator token cap",
     )
     parser.add_argument("--preflight-report", type=Path)
     parser.add_argument("--thinking", choices=["default", "on", "off"], default="default")
@@ -87,7 +87,7 @@ def main():
     parser.add_argument("--bird-databases", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    if args.max_tokens < 1:
+    if args.max_tokens is not None and args.max_tokens < 1:
         parser.error("max tokens must be positive")
     if (
         args.tool_profile in {"sql-semantic", "sql-semantic-plan", "sql-semantic-json"}

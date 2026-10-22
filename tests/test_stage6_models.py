@@ -109,7 +109,33 @@ def test_output_cap_is_request_scoped_and_fingerprinted(provider, monkeypatch):
     assert provider.model == "old/model"
 
 
-@pytest.mark.parametrize("cap", [0, 31, 3001, True, 1.5])
+@pytest.mark.parametrize("cap", [0, 31, True, 1.5])
 def test_invalid_output_caps_are_rejected(provider, cap):
     with pytest.raises(ValueError, match="output token limit"):
         resolve_evaluation_model(app_type="codex", provider_id="p", max_output_tokens=cap)
+
+
+def test_uncapped_model_omits_max_tokens_on_both_transports(provider, monkeypatch):
+    import generaldataagent.evaluation.stage_six_models as module
+
+    captured = {}
+    monkeypatch.setattr(module, "ChatOpenAI", lambda **kwargs: captured.update(kwargs))
+    selected, route = resolve_evaluation_model(
+        app_type="codex", provider_id="p", transport="openai-chat"
+    )
+    module.build_evaluation_model(selected, route)
+    assert route["max_output_tokens"] is None
+    assert "max_tokens" not in captured
+
+    class Native:
+        def bind(self, **kwargs):
+            raise AssertionError("uncapped configured transport must not inject a token limit")
+
+    model = Native()
+    monkeypatch.setattr(type(provider), "build_chat_model", lambda *args, **kwargs: model)
+    selected, configured = resolve_evaluation_model(app_type="codex", provider_id="p")
+    assert module.build_evaluation_model(selected, configured) is model
+    _, expanded = resolve_evaluation_model(
+        app_type="codex", provider_id="p", max_output_tokens=16000
+    )
+    assert expanded["max_output_tokens"] == 16000

@@ -75,6 +75,12 @@ def bounded_observation(result: dict, *, max_chars: int = 6000) -> dict:
 
 def execution_hint(exc: Exception) -> str:
     text = str(exc)
+    if "missing_string_branch_omits_imported_nulls" in text:
+        return (
+            "CSV empty fields are imported as SQL NULL. For each direct missing-string "
+            "column branch, include that same column IS NULL alongside its public missing "
+            "literal checks. Another column's or UNION branch's NULL check does not cover it."
+        )
     if "python_statistics_requires_method_bindings" in text:
         return (
             "The public task requires Python mean/median functions. Use fixed_analysis "

@@ -328,11 +328,15 @@ class BoundedSQLAgent:
         *,
         max_steps=6,
         max_seconds=120,
-        max_tokens=24000,
+        max_tokens=None,
         tool_profile="sql",
         max_cost_usd=0.02,
     ):
-        if max_steps < 1 or max_seconds <= 0 or max_tokens < 1:
+        if (
+            max_steps < 1
+            or max_seconds <= 0
+            or (max_tokens is not None and (type(max_tokens) is not int or max_tokens < 1))
+        ):
             raise ValueError("invalid agent budget")
         if (
             tool_profile
@@ -624,7 +628,11 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                             "remaining_actions": self.max_steps - step + 1,
                             **(
                                 {
-                                    "remaining_observed_tokens": max(0, self.max_tokens - tokens),
+                                    "remaining_observed_tokens": (
+                                        max(0, self.max_tokens - tokens)
+                                        if self.max_tokens is not None
+                                        else None
+                                    ),
                                     "token_budget_scope": (
                                         "future input plus output; no reset after errors"
                                     ),
@@ -728,13 +736,13 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                 else:
                     cost_complete = False
                 if (
-                    tokens > self.max_tokens
+                    (self.max_tokens is not None and tokens > self.max_tokens)
                     or time.monotonic() - started > self.max_seconds
                     or observed_cost > self.max_cost_usd
                 ):
                     failure = (
                         "token_budget"
-                        if tokens > self.max_tokens
+                        if (self.max_tokens is not None and tokens > self.max_tokens)
                         else "cost_budget"
                         if observed_cost > self.max_cost_usd
                         else "time_budget"
@@ -1027,6 +1035,16 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     }
                     tool = "sql_crosscheck"
                 elif semantic and "collect" in action:
+                    if task.asset.casefold().endswith(".csv"):
+                        from generaldataagent.tools.public_formulas import (
+                            check_public_missing_nulls,
+                        )
+
+                        issues = check_public_missing_nulls(
+                            action["collect"]["sql"], public_task_text, physical_schema
+                        )
+                        if issues:
+                            raise SemanticError(issues[0])
                     result_data = collect_complete(
                         database,
                         action["collect"]["sql"],
@@ -1515,13 +1533,13 @@ def run_isolated(
     tool_profile: str = "sql",
     thinking_mode: str = "default",
     json_mode: bool = False,
-    max_output_tokens: int = 3000,
-    max_tokens: int = 24000,
+    max_output_tokens: int | None = None,
+    max_tokens: int | None = None,
     request_interval_seconds: float = 0,
     pacing_database: Path | None = None,
 ) -> dict:
     """Kill a stuck model/tool worker at the OS process boundary; send no golden data."""
-    if type(max_tokens) is not int or max_tokens < 1:
+    if max_tokens is not None and (type(max_tokens) is not int or max_tokens < 1):
         raise ValueError("invalid total observed token budget")
     payload = {
         "task": asdict(task),

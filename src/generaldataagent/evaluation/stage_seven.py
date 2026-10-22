@@ -38,7 +38,8 @@ For complete ID sets use {"collect":{"sql":"SELECT DISTINCT id FROM table WHERE 
 This returns total_count, complete and items, bounded to 10000 items, and rejects LIMIT/OFFSET.
 Bind [step,["items"]] and declare answer.shape="set"; the runtime checks completeness.
 Sets larger than the collection limit fail explicitly; LIMIT previews cannot
-stand in for complete answers. You have the same six actions and 24000-token total budget.
+stand in for complete answers. Follow runtime-reported action and token policies;
+a null token budget means no evaluator cap.
 """
 
 
@@ -559,7 +560,8 @@ Precision and units require exact public source excerpts.
 Use no rule when the public contract already supplies its type/precision. rule.method, if given,
 must match the result's method_id: use sql for compute_sql even if SQL implements statistics.
 Runtime assembles values and rounds only as publicly requested. Never supply guessed final values.
-One action per turn, six actions and 24000 total observed tokens. Once evidence suffices, submit.
+One action per turn; follow runtime action limits. A null token budget means no evaluator cap.
+Once evidence suffices, submit.
 """
 
 
@@ -647,7 +649,7 @@ Honor an explicit public year-difference formula; otherwise age at arrival uses 
 When related records only establish existence, use EXISTS at the requested entity grain rather
 than multiply an entity's attributes or measurements by the number of matching history rows.
 Return the requested percentage, not just its intermediate counts. Do not invent zero for an
-undefined percentage. Keep the same six actions, 24000-token and 120-second model budget.
+undefined percentage. Follow runtime action, token and time policies; do not invent a token ceiling.
 """
 
 

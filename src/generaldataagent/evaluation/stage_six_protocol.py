@@ -21,11 +21,13 @@ from generaldataagent.tools.sql_guard import SqlGuard
 
 
 def evaluation_protocol(
-    *, workers: int, max_output_tokens: int = 3000, max_tokens: int = 24000
+    *, workers: int, max_output_tokens: int | None = None, max_tokens: int | None = None
 ) -> dict:
-    if type(max_output_tokens) is not int or not 32 <= max_output_tokens <= 3000:
+    if max_output_tokens is not None and (
+        type(max_output_tokens) is not int or max_output_tokens < 32
+    ):
         raise ValueError("invalid per-call output token budget")
-    if type(max_tokens) is not int or max_tokens < 1:
+    if max_tokens is not None and (type(max_tokens) is not int or max_tokens < 1):
         raise ValueError("invalid total observed token budget")
     scoring = "\n".join(
         inspect.getsource(fn) for fn in [_number, compare_value, score_answers, equivalent_rows]

@@ -384,7 +384,10 @@ def test_action_schema_errors_are_visible_for_repair(database):
     assert "allowed_actions" in str(model.messages)
 
 
-def test_expanded_token_budget_reaches_answer_blind_worker(database, monkeypatch, capsys):
+@pytest.mark.parametrize("token_cap", [48000, None])
+def test_expanded_token_budget_reaches_answer_blind_worker(
+    database, monkeypatch, capsys, token_cap
+):
     import io
     import subprocess
     import sys
@@ -400,9 +403,9 @@ def test_expanded_token_budget_reaches_answer_blind_worker(database, monkeypatch
 
     monkeypatch.setattr(subprocess, "run", fake_process)
     run_isolated(
-        case("GOLD_SECRET").task, database, app_type="magpie", provider_id="p", max_tokens=48000
+        case("GOLD_SECRET").task, database, app_type="magpie", provider_id="p", max_tokens=token_cap
     )
-    assert seen["max_tokens"] == 48000
+    assert seen["max_tokens"] == token_cap
     assert "GOLD_SECRET" not in json.dumps(seen)
     monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(seen)))
     monkeypatch.setattr(worker, "resolve_evaluation_model", lambda **kwargs: (None, {}))
@@ -417,7 +420,7 @@ def test_expanded_token_budget_reaches_answer_blind_worker(database, monkeypatch
             ),
             **kwargs,
         )
-        assert agent.max_tokens == 48000
+        assert agent.max_tokens == token_cap
         return agent
 
     monkeypatch.setattr(worker, "BoundedSQLAgent", factory)
@@ -446,3 +449,29 @@ def test_expanded_budget_allows_actual_consumption_above_original_cap(database):
     assert expanded["failure"] is None
     assert old["tokens"] == expanded["tokens"] == 30000
     assert expanded["answers"] == {"mean": "2"}
+
+
+def test_uncapped_default_keeps_counting_tokens_without_token_budget_failure(database):
+    class LargerUsageModel(Model):
+        def invoke(self, messages):
+            response = super().invoke(messages)
+            response.usage_metadata = {"total_tokens": 60000}
+            return response
+
+    result = BoundedSQLAgent(
+        LargerUsageModel(
+            {"sql": "SELECT AVG(value) AS mean FROM data"},
+            {"answers": {"mean": "2"}, "evidence_steps": [1]},
+        )
+    ).run(case().task, database)
+    assert result["failure"] is None
+    assert result["tokens"] == 120000
+    assert result["answers"] == {"mean": "2"}
+
+
+def test_semantic_uncapped_prompt_has_no_stale_token_ceiling(database):
+    model = Model({"unsupported": "synthetic stop"})
+    BoundedSQLAgent(model, tool_profile="sql-semantic").run(case().task, database)
+    messages = str(model.messages)
+    assert "24000" not in messages
+    assert '"remaining_observed_tokens": null' in messages
