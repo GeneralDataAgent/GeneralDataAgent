@@ -93,6 +93,11 @@ For changes from a start to an end period, increase is (end-start)/start; verify
 actual period filters before submitting, including any public formula's A/B mapping.
 Check exact entity grain, requested projections, distinct entities versus joined records, explicit
 numerator/denominator population, real division, null handling, actual date encoding and boundaries.
+When related records only establish existence, use EXISTS or an entity-grain subquery instead of
+multiplying parent attributes by matching events. For requested unique attribute values use
+shape=set and a complete DISTINCT query; duplicate rows are rejected, not silently removed.
+If the public text specifies several possible numbered roles, inspect all physical role slots
+when their full names are requested; slot 1 alone may omit other named people.
 If the public question asks for a result for each named dimension, return that dimension alongside
 each group's measure. A global count or serialized group_concat summary loses the requested rows.
 When selecting the top entity within a named cohort, keep that same cohort for the returned count
