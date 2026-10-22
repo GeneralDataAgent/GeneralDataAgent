@@ -37,9 +37,11 @@ def main():
                 interval_seconds=payload["request_interval_seconds"],
             ),
         )
-    result = BoundedSQLAgent(model, tool_profile=payload.get("tool_profile", "sql")).run(
-        Task(**payload["task"]), Path(payload["database"]), documents=payload["documents"]
-    )
+    result = BoundedSQLAgent(
+        model,
+        tool_profile=payload.get("tool_profile", "sql"),
+        max_tokens=payload.get("max_tokens", 24000),
+    ).run(Task(**payload["task"]), Path(payload["database"]), documents=payload["documents"])
     print(json.dumps(result))
 
 

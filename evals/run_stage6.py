@@ -57,6 +57,12 @@ def main():
     )
     parser.add_argument("--request-interval-seconds", type=float, default=0)
     parser.add_argument("--max-output-tokens", type=int, default=3000)
+    parser.add_argument(
+        "--max-tokens",
+        type=int,
+        default=24000,
+        help="Total observed input+output tokens per case; recorded in the paired protocol",
+    )
     parser.add_argument("--preflight-report", type=Path)
     parser.add_argument("--thinking", choices=["default", "on", "off"], default="default")
     parser.add_argument("--json-mode", action="store_true")
@@ -81,6 +87,8 @@ def main():
     parser.add_argument("--bird-databases", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
+    if args.max_tokens < 1:
+        parser.error("max tokens must be positive")
     if (
         args.tool_profile in {"sql-semantic", "sql-semantic-plan", "sql-semantic-json"}
         and args.evaluation_protocol != "stage7-v1"
@@ -134,7 +142,9 @@ def main():
     )
     args.output.mkdir(parents=True)
     code_hash = digest(Path(__file__).resolve())
-    protocol = evaluation_protocol(workers=args.workers, max_output_tokens=args.max_output_tokens)
+    protocol = evaluation_protocol(
+        workers=args.workers, max_output_tokens=args.max_output_tokens, max_tokens=args.max_tokens
+    )
     protocol["version"] = args.evaluation_protocol
     protocol["request_interval_seconds"] = args.request_interval_seconds
     if args.csv_importer == "identifier-v2":
@@ -292,6 +302,7 @@ def main():
                 thinking_mode=args.thinking,
                 json_mode=args.json_mode,
                 max_output_tokens=args.max_output_tokens,
+                max_tokens=args.max_tokens,
                 request_interval_seconds=args.request_interval_seconds,
                 pacing_database=ROOT / ".state/stage6/request-pacing.sqlite",
             )

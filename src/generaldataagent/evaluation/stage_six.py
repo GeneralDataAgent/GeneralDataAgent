@@ -1516,10 +1516,13 @@ def run_isolated(
     thinking_mode: str = "default",
     json_mode: bool = False,
     max_output_tokens: int = 3000,
+    max_tokens: int = 24000,
     request_interval_seconds: float = 0,
     pacing_database: Path | None = None,
 ) -> dict:
     """Kill a stuck model/tool worker at the OS process boundary; send no golden data."""
+    if type(max_tokens) is not int or max_tokens < 1:
+        raise ValueError("invalid total observed token budget")
     payload = {
         "task": asdict(task),
         "database": str(database.resolve()),
@@ -1532,6 +1535,7 @@ def run_isolated(
         "thinking_mode": thinking_mode,
         "json_mode": json_mode,
         "max_output_tokens": max_output_tokens,
+        "max_tokens": max_tokens,
         "request_interval_seconds": request_interval_seconds,
         "pacing_database": str(pacing_database) if pacing_database else None,
         "documents": documents,

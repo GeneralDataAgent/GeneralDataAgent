@@ -45202,7 +45202,7 @@
     "validator_source_commit": "28e0ac5f05ac35e1a729ad5150a69d0df85543eb"
   },
   "latest_local_validation": {
-    "source_base_commit": "4c8d8be",
+    "source_base_commit": "f0f76ea",
     "source_fingerprint": {
       "contracts/analysis.py": "d01f4058ad6afe7847952a2dabd4101d4b3809b89972f27f4a2c4497086c684a",
       "contracts/answer_fields.py": "e6ecbd59912179bc23d1be8acb4c4a085e20169c53b43e1907175391d949095b",
@@ -45225,16 +45225,16 @@
       "tools/sql_semantics.py": "6df3b40d2aff582b74dc5ede16bd6ade08edf0c8e9f430d8f89f77c4a0b50c77",
       "tools/sql_guard.py": "72ef5c19eb4080f3a75f745588eff76780684a0691c3ab141c79d17c6ca5db59",
       "tools/sqlite.py": "6cc32bffd2d0822f3a0805d63ab15624c0530d9e0b6e719053f2d0c869784251",
-      "evaluation/stage_six.py": "1db410a945e75bd36b39726206a78b3cb65dbe5d5ab00611eff42776657362dc",
+      "evaluation/stage_six.py": "854b5dc218d6b5b3785736e04a11ad50c3ae27c1e357913259f2550b92f18964",
       "evaluation/stage_six_sql_precision.py": "9636255157d5a6477972ff3dadd0d50454710dc3150b09b8c56841f8180d3fa6",
       "evaluation/stage_six_repair.py": "a36cf9263faef190e9ffa7c23f7265ebb4e0ff57d9a2d0a631169b135b4c205c",
       "evaluation/stage_seven.py": "7ddb952713401377b1664a944708482f41b3fb8bdc4892edbc1f4ada293c2965",
       "contracts/query_plan.py": "4b18902c4ee0a82f35b4776bde17713a18672f2ef87b45e903cae3c958c9ad9e",
       "tools/semantic_sql.py": "ae6c20f44c53eabbdd9a51d8f052b9d3b0f27c8c93c4a0ddd377d8525ba1cd47"
     },
-    "passed": 1209,
+    "passed": 1212,
     "skipped": 1,
-    "coverage_percent": 89.39,
+    "coverage_percent": 89.51,
     "ruff_check": true,
     "ruff_format_check": true,
     "diff_check": true,
@@ -266634,5 +266634,1116 @@
     "status": "completed",
     "conclusion": "success",
     "url": "https://github.com/GeneralDataAgent/GeneralDataAgent/actions/runs/39719651910"
+  },
+  "diagnostic_v73_python_iqr": {
+    "report": {
+      "source_commit": "4c8d8be91881e632becc08695135ef1117e7b0b9",
+      "model_route": {
+        "provider_id": "magpie",
+        "app_type": "magpie",
+        "model": "workbuddy/deepseek-v4.1-flash",
+        "transport": "openai-chat",
+        "thinking_mode": "default",
+        "json_mode": false,
+        "max_output_tokens": 3000,
+        "endpoint_hash": "fe8827a6b46979db5015036d380dd4e1f10eda5b76101c62a322240bf51a0573",
+        "wire_api": "chat_completions",
+        "gateway_adapter_hash": "163619e55b3ee9dd7eaeda7e9275a0cdc2a07972b6b67602016151f66632b8e6",
+        "gateway_headers_hash": "0a6dda900b2ea6b80cb4df4282bd2ec368d99d39ee00f707de87660edce6d440",
+        "route_hash": "ddcb6a5429c4f5365aa21351db2a358e378a5beb5c3b07ae80138dd444b8fbd4"
+      },
+      "scope": "four repeatedly developed cases; frozen source; not a full pair or unseen acceptance",
+      "results": [
+        {
+          "answers": {
+            "missing_columns_in_object_type": "urlToImage"
+          },
+          "raw_answers": {},
+          "answer_evidence": {
+            "missing_columns_in_object_type": {
+              "step": 2,
+              "path": [
+                "items"
+              ],
+              "raw_value": [
+                "urlToImage"
+              ],
+              "submitted_value": "urlToImage",
+              "raw_type": "list",
+              "submitted_type": "str",
+              "method_id": "complete_collection",
+              "declared_public_unit": null,
+              "result_hash": "43a9e904b6c4e99d7c6251c1e6e832aaaacfcf5ae16d605abaaaf152669b7155"
+            }
+          },
+          "task_contract": {
+            "question": "1. Which column(s) contain missing values in the dataset?",
+            "public_requirements": "This question requires a straightforward identification of columns with missing values in the dataset. Only count the missing values in columns where the data type is 'object' (i.e., strings). Do not include columns of other data types and consider a \"missing value\" as one that is recorded as 'NaN', 'na', 'null', or an empty string in the dataset.\n@missing_columns_in_object_type[missing_column1, missing_column2,…] whereby 'missing_column1', 'missing_column2', etc. are string names of the columns with missing values. The answer should not contain any duplicates and should be sorted alphabetically for easy checking.",
+            "entity": null,
+            "grain": [],
+            "filters": [],
+            "time_range": null,
+            "formula": null,
+            "denominator": null,
+            "count_basis": "unspecified",
+            "order_by": null,
+            "order_direction": null,
+            "conflicts": [],
+            "answer": {
+              "columns": [
+                "missing_columns_in_object_type"
+              ],
+              "shape": "rows",
+              "unit": null,
+              "decimals": null,
+              "ties": "unspecified",
+              "empty": "allow",
+              "nullable": true,
+              "minimum": null,
+              "maximum": null,
+              "fields": {
+                "missing_columns_in_object_type": {
+                  "kind": "set",
+                  "item_kind": null,
+                  "order": null,
+                  "minimum": null,
+                  "maximum": null,
+                  "choices": null,
+                  "nullable": false,
+                  "decimals": null,
+                  "unit": null,
+                  "method": null,
+                  "source_excerpt": "This question requires a straightforward identification of columns with missing values in the dataset. Only count the missing values in columns where the data type is 'object' (i.e., strings). Do not include columns of other data types and consider a \"missing value\" as one that is recorded as 'NaN', 'na', 'null', or an empty string in the dataset.\n@missing_columns_in_object_type[missing_column1, missing_column2,…] whereby 'missing_column1', 'missing_column2', etc. are string names of the columns with missing values. The answer should not contain any duplicates and should be sorted alphabetically for easy checking.",
+                  "collection_separator": ", "
+                }
+              }
+            },
+            "requirements": {
+              "predicates": [],
+              "dates": [],
+              "ratios": []
+            }
+          },
+          "final_sql": null,
+          "failure": null,
+          "trace": [
+            {
+              "step": 1,
+              "status": "error",
+              "error": "SemanticError",
+              "code": "semantic_contract",
+              "response_mode": "native_function",
+              "action_keys": [
+                "collect"
+              ],
+              "repair_type": "revise_plan_or_query",
+              "checks": [
+                "data_dependent_answer_required"
+              ]
+            },
+            {
+              "step": 2,
+              "tool": "complete_collection",
+              "status": "ok",
+              "result_hash": "43a9e904b6c4e99d7c6251c1e6e832aaaacfcf5ae16d605abaaaf152669b7155",
+              "response_mode": "native_function",
+              "action": {
+                "collect": {
+                  "sql": "SELECT DISTINCT 'author' AS name FROM data WHERE TRIM(author) IN ('NaN','na','null','') UNION SELECT DISTINCT 'description' FROM data WHERE description IS NULL OR TRIM(description) IN ('NaN','na','null','') UNION SELECT DISTINCT 'publishedAt' FROM data WHERE publishedAt IS NULL OR TRIM(publishedAt) IN ('NaN','na','null','') UNION SELECT DISTINCT 'source' FROM data WHERE source IS NULL OR TRIM(source) IN ('NaN','na','null','') UNION SELECT DISTINCT 'title' FROM data WHERE title IS NULL OR TRIM(title) IN ('NaN','na','null','') UNION SELECT DISTINCT 'url' FROM data WHERE url IS NULL OR TRIM(url) IN ('NaN','na','null','') UNION SELECT DISTINCT 'urlToImage' FROM data WHERE urlToImage IS NULL OR TRIM(urlToImage) IN ('NaN','na','null','') UNION SELECT DISTINCT 'text' FROM data WHERE text IS NULL OR TRIM(text) IN ('NaN','na','null','') ORDER BY name",
+                  "collection_kind": "set"
+                }
+              }
+            }
+          ],
+          "tokens": 13504,
+          "input_tokens": 12827,
+          "output_tokens": 677,
+          "usage_status": "complete",
+          "elapsed_seconds": 10.885718458997871,
+          "observed_cost_usd": 0.0,
+          "cost_usd": null,
+          "cost_status": "partial_or_unknown",
+          "agent_elapsed_seconds": 9.248471040998993,
+          "case_id": "207",
+          "asset": "fb_articles_20180822_20180829_df.csv",
+          "database_hash": "094c8bd59c8dcbbddc2edddb38c8c003e6f314a3bb3e313da4d9a215414e7aba",
+          "database_unchanged": true,
+          "passed": false,
+          "sub_hits": 0,
+          "sub_total": 1
+        },
+        {
+          "answers": {
+            "mean": "21144.08",
+            "median": "19711.00"
+          },
+          "raw_answers": {},
+          "answer_evidence": {
+            "mean": {
+              "step": 1,
+              "path": [
+                "statistics",
+                "Trips over the past 24-hours (midnight to 11:59pm)",
+                "mean"
+              ],
+              "raw_value": 21144.07608695652,
+              "submitted_value": "21144.08",
+              "raw_type": "float",
+              "submitted_type": "str",
+              "method_id": "describe",
+              "declared_public_unit": null,
+              "result_hash": "3e9067fa9c3234f41434c547802af95b46f9092b0df66221f406749bb896a566"
+            },
+            "median": {
+              "step": 1,
+              "path": [
+                "statistics",
+                "Trips over the past 24-hours (midnight to 11:59pm)",
+                "median"
+              ],
+              "raw_value": 19711.0,
+              "submitted_value": "19711.00",
+              "raw_type": "float",
+              "submitted_type": "str",
+              "method_id": "describe",
+              "declared_public_unit": null,
+              "result_hash": "3e9067fa9c3234f41434c547802af95b46f9092b0df66221f406749bb896a566"
+            }
+          },
+          "task_contract": {
+            "question": "1. Find the mean and median of the \"Trips over the past 24-hours (midnight to 11:59pm)\" column.",
+            "public_requirements": "Both mean and median should be calculated by the built-in Python function, not manually. The result should be rounded to two decimal places.\n@mean[mean_value] @median[median_value] where \"mean_value\" and \"median_value\" are numbers, rounded to two decimal places.",
+            "entity": null,
+            "grain": [],
+            "filters": [],
+            "time_range": null,
+            "formula": null,
+            "denominator": null,
+            "count_basis": "unspecified",
+            "order_by": null,
+            "order_direction": null,
+            "conflicts": [],
+            "answer": {
+              "columns": [
+                "mean",
+                "median"
+              ],
+              "shape": "rows",
+              "unit": null,
+              "decimals": 2,
+              "ties": "unspecified",
+              "empty": "allow",
+              "nullable": true,
+              "minimum": null,
+              "maximum": null,
+              "fields": {
+                "mean": {
+                  "kind": "number",
+                  "item_kind": null,
+                  "order": null,
+                  "minimum": null,
+                  "maximum": null,
+                  "choices": null,
+                  "nullable": null,
+                  "decimals": 2,
+                  "unit": null,
+                  "method": null,
+                  "source_excerpt": "where \"mean_value\" and \"median_value\" are numbers, rounded to two decimal places.",
+                  "collection_separator": null
+                },
+                "median": {
+                  "kind": "number",
+                  "item_kind": null,
+                  "order": null,
+                  "minimum": null,
+                  "maximum": null,
+                  "choices": null,
+                  "nullable": null,
+                  "decimals": 2,
+                  "unit": null,
+                  "method": null,
+                  "source_excerpt": "where \"mean_value\" and \"median_value\" are numbers, rounded to two decimal places.",
+                  "collection_separator": null
+                }
+              }
+            },
+            "requirements": {
+              "predicates": [],
+              "dates": [],
+              "ratios": []
+            }
+          },
+          "final_sql": null,
+          "failure": null,
+          "trace": [
+            {
+              "step": 1,
+              "tool": "fixed_analysis",
+              "status": "ok",
+              "result_hash": "3e9067fa9c3234f41434c547802af95b46f9092b0df66221f406749bb896a566",
+              "response_mode": "native_function",
+              "action": {
+                "analysis": {
+                  "table": "data",
+                  "columns": [
+                    "Trips over the past 24-hours (midnight to 11:59pm)"
+                  ],
+                  "operation": "describe"
+                }
+              }
+            }
+          ],
+          "tokens": 8363,
+          "input_tokens": 8139,
+          "output_tokens": 224,
+          "usage_status": "complete",
+          "elapsed_seconds": 7.285592541000369,
+          "observed_cost_usd": 0.0,
+          "cost_usd": null,
+          "cost_status": "partial_or_unknown",
+          "agent_elapsed_seconds": 5.672830624997005,
+          "case_id": "372",
+          "asset": "2014_q4.csv",
+          "database_hash": "3c44e5814f63e4b873428e8b1c4c892653dd2aeaf8fbede8abc404024ce5fffd",
+          "database_unchanged": true,
+          "passed": true,
+          "sub_hits": 1,
+          "sub_total": 1
+        },
+        {
+          "answers": {
+            "number_of_outliers": 111
+          },
+          "raw_answers": {},
+          "answer_evidence": {
+            "number_of_outliers": {
+              "step": 1,
+              "path": [
+                "iqr_statistics",
+                " BARO",
+                "outlier_count"
+              ],
+              "raw_value": 111,
+              "submitted_value": 111,
+              "raw_type": "int",
+              "submitted_type": "int",
+              "method_id": "describe",
+              "declared_public_unit": null,
+              "result_hash": "4585f3548fc10fd85c0e94fd89e9d67fdeda8c879e626fbdf0deee51a5e6f8fc"
+            }
+          },
+          "task_contract": {
+            "question": "2. Are there any outliers in the atmospheric pressure column (BARO)? If yes, how many outliers are there?",
+            "public_requirements": "An outlier is any value that is more than 1.5 times the interquartile range above the third quartile or below the first quartile. Ignore null values.\n@number_of_outliers[number_of_outliers], where \"number_of_outliers\" is an integer representing the total number of outliers detected under the conditions specified in the constraints.",
+            "entity": null,
+            "grain": [],
+            "filters": [],
+            "time_range": null,
+            "formula": null,
+            "denominator": null,
+            "count_basis": "unspecified",
+            "order_by": null,
+            "order_direction": null,
+            "conflicts": [],
+            "answer": {
+              "columns": [
+                "number_of_outliers"
+              ],
+              "shape": "rows",
+              "unit": null,
+              "decimals": null,
+              "ties": "unspecified",
+              "empty": "allow",
+              "nullable": true,
+              "minimum": null,
+              "maximum": null,
+              "fields": {
+                "number_of_outliers": {
+                  "kind": "integer",
+                  "item_kind": null,
+                  "order": null,
+                  "minimum": null,
+                  "maximum": null,
+                  "choices": null,
+                  "nullable": null,
+                  "decimals": null,
+                  "unit": null,
+                  "method": null,
+                  "source_excerpt": "where \"number_of_outliers\" is an integer representing the total number of outliers detected under the conditions specified in the constraints.",
+                  "collection_separator": null
+                }
+              }
+            },
+            "requirements": {
+              "predicates": [],
+              "dates": [],
+              "ratios": []
+            }
+          },
+          "final_sql": null,
+          "failure": null,
+          "trace": [
+            {
+              "step": 1,
+              "tool": "fixed_analysis",
+              "status": "ok",
+              "result_hash": "4585f3548fc10fd85c0e94fd89e9d67fdeda8c879e626fbdf0deee51a5e6f8fc",
+              "response_mode": "native_function",
+              "action": {
+                "analysis": {
+                  "table": "data",
+                  "columns": [
+                    " BARO"
+                  ],
+                  "operation": "describe"
+                }
+              }
+            }
+          ],
+          "tokens": 8199,
+          "input_tokens": 8054,
+          "output_tokens": 145,
+          "usage_status": "complete",
+          "elapsed_seconds": 6.745751582999219,
+          "observed_cost_usd": 0.0,
+          "cost_usd": null,
+          "cost_status": "partial_or_unknown",
+          "agent_elapsed_seconds": 5.160320083999977,
+          "case_id": "447",
+          "asset": "baro_2015.csv",
+          "database_hash": "bf6d64c2c04f374edb3fc761bc476f80d9e13dd60a885eafc19c9f40072940c5",
+          "database_unchanged": true,
+          "passed": true,
+          "sub_hits": 1,
+          "sub_total": 1
+        },
+        {
+          "answers": {
+            "mean": "3.73",
+            "standard_deviation": "1.54"
+          },
+          "raw_answers": {},
+          "answer_evidence": {
+            "mean": {
+              "step": 1,
+              "path": [
+                "iqr_statistics",
+                "MedInc",
+                "cleaned_statistics",
+                "mean"
+              ],
+              "raw_value": 3.7321748987854253,
+              "submitted_value": "3.73",
+              "raw_type": "float",
+              "submitted_type": "str",
+              "method_id": "describe",
+              "declared_public_unit": null,
+              "result_hash": "2d92db8d7d8fbf36776b21d979f679f9457cdc3ea39be75f19d1665cad98a717"
+            },
+            "standard_deviation": {
+              "step": 1,
+              "path": [
+                "iqr_statistics",
+                "MedInc",
+                "cleaned_statistics",
+                "sample_std"
+              ],
+              "raw_value": 1.5427878656746878,
+              "submitted_value": "1.54",
+              "raw_type": "float",
+              "submitted_type": "str",
+              "method_id": "describe",
+              "declared_public_unit": null,
+              "result_hash": "2d92db8d7d8fbf36776b21d979f679f9457cdc3ea39be75f19d1665cad98a717"
+            }
+          },
+          "task_contract": {
+            "question": "Identify and remove any outliers in the MedInc column of the provided dataset using the IQR method. Then calculate the mean and standard deviation of the cleaned MedInc column.",
+            "public_requirements": "Identify an outlier as any value that falls below Q1 - 1.5 * IQR or above Q3 + 1.5 * IQR, where Q1 and Q3 are the first and third quartiles, respectively, and IQR is the interquartile range (Q3 - Q1). Calculate the mean and standard deviation to two decimal places.\n@mean[mean_value] where \"mean_value\" is a float rounded to two decimal places. @standard_deviation[standard_deviation_value] where \"standard_deviation_value\" is a float rounded to two decimal places.",
+            "entity": null,
+            "grain": [],
+            "filters": [],
+            "time_range": null,
+            "formula": null,
+            "denominator": null,
+            "count_basis": "unspecified",
+            "order_by": null,
+            "order_direction": null,
+            "conflicts": [],
+            "answer": {
+              "columns": [
+                "mean",
+                "standard_deviation"
+              ],
+              "shape": "rows",
+              "unit": null,
+              "decimals": 2,
+              "ties": "unspecified",
+              "empty": "allow",
+              "nullable": true,
+              "minimum": null,
+              "maximum": null,
+              "fields": {
+                "mean": {
+                  "kind": "number",
+                  "item_kind": null,
+                  "order": null,
+                  "minimum": null,
+                  "maximum": null,
+                  "choices": null,
+                  "nullable": null,
+                  "decimals": 2,
+                  "unit": null,
+                  "method": null,
+                  "source_excerpt": "where \"mean_value\" is a float rounded to two decimal places. @standard_deviation[standard_deviation_value]",
+                  "collection_separator": null
+                },
+                "standard_deviation": {
+                  "kind": "number",
+                  "item_kind": null,
+                  "order": null,
+                  "minimum": null,
+                  "maximum": null,
+                  "choices": null,
+                  "nullable": null,
+                  "decimals": 2,
+                  "unit": null,
+                  "method": null,
+                  "source_excerpt": "where \"standard_deviation_value\" is a float rounded to two decimal places.",
+                  "collection_separator": null
+                }
+              }
+            },
+            "requirements": {
+              "predicates": [],
+              "dates": [],
+              "ratios": []
+            }
+          },
+          "final_sql": null,
+          "failure": null,
+          "trace": [
+            {
+              "step": 1,
+              "tool": "fixed_analysis",
+              "status": "ok",
+              "result_hash": "2d92db8d7d8fbf36776b21d979f679f9457cdc3ea39be75f19d1665cad98a717",
+              "response_mode": "native_function",
+              "action": {
+                "analysis": {
+                  "table": "data",
+                  "columns": [
+                    "MedInc"
+                  ],
+                  "operation": "describe"
+                }
+              }
+            }
+          ],
+          "tokens": 8615,
+          "input_tokens": 8430,
+          "output_tokens": 185,
+          "usage_status": "complete",
+          "elapsed_seconds": 7.005636000001687,
+          "observed_cost_usd": 0.0,
+          "cost_usd": null,
+          "cost_status": "partial_or_unknown",
+          "agent_elapsed_seconds": 5.397922000000108,
+          "case_id": "669",
+          "asset": "my_test_01.csv",
+          "database_hash": "9a4aaafad95893ceebef152f99e3107dc50f3b8b28e256b38bff8a5ecdb19e13",
+          "database_unchanged": true,
+          "passed": true,
+          "sub_hits": 2,
+          "sub_total": 2
+        }
+      ],
+      "production_accepted": false
+    },
+    "recomputed_evidence": {
+      "source_commit": "4c8d8be91881e632becc08695135ef1117e7b0b9",
+      "recomputed_from_frozen_commit": "4c8d8be91881e632becc08695135ef1117e7b0b9",
+      "step_hashes": [
+        {
+          "case_id": "207",
+          "step": 2,
+          "hash_equal": true
+        },
+        {
+          "case_id": "372",
+          "step": 1,
+          "hash_equal": true
+        },
+        {
+          "case_id": "447",
+          "step": 1,
+          "hash_equal": true
+        },
+        {
+          "case_id": "669",
+          "step": 1,
+          "hash_equal": true
+        }
+      ],
+      "raw_bindings": [
+        {
+          "case_id": "207",
+          "field": "missing_columns_in_object_type",
+          "raw_value_equal": true
+        },
+        {
+          "case_id": "372",
+          "field": "mean",
+          "raw_value_equal": true
+        },
+        {
+          "case_id": "372",
+          "field": "median",
+          "raw_value_equal": true
+        },
+        {
+          "case_id": "447",
+          "field": "number_of_outliers",
+          "raw_value_equal": true
+        },
+        {
+          "case_id": "669",
+          "field": "mean",
+          "raw_value_equal": true
+        },
+        {
+          "case_id": "669",
+          "field": "standard_deviation",
+          "raw_value_equal": true
+        }
+      ],
+      "receipt_errors": {
+        "207": [],
+        "372": [],
+        "447": [],
+        "669": []
+      },
+      "database_unchanged": true,
+      "independent_external_acceptance": false
+    },
+    "scope": "repeated development cases, one arm; not full qualification or unseen acceptance",
+    "strict_score_changed": false
+  },
+  "diagnostic_v74_pearson_magnitude": {
+    "report": {
+      "source_commit": "f0f76ea54fc1f69670a241014c9e73987413c1e5",
+      "model_route": {
+        "provider_id": "magpie",
+        "app_type": "magpie",
+        "model": "workbuddy/deepseek-v4.1-flash",
+        "transport": "openai-chat",
+        "thinking_mode": "default",
+        "json_mode": false,
+        "max_output_tokens": 3000,
+        "endpoint_hash": "fe8827a6b46979db5015036d380dd4e1f10eda5b76101c62a322240bf51a0573",
+        "wire_api": "chat_completions",
+        "gateway_adapter_hash": "163619e55b3ee9dd7eaeda7e9275a0cdc2a07972b6b67602016151f66632b8e6",
+        "gateway_headers_hash": "0a6dda900b2ea6b80cb4df4282bd2ec368d99d39ee00f707de87660edce6d440",
+        "route_hash": "ddcb6a5429c4f5365aa21351db2a358e378a5beb5c3b07ae80138dd444b8fbd4"
+      },
+      "scope": "three repeatedly developed cases; frozen source; not a full pair or unseen acceptance",
+      "results": [
+        {
+          "answers": {
+            "correlation_coefficient": "-0.58"
+          },
+          "raw_answers": {},
+          "answer_evidence": {
+            "correlation_coefficient": {
+              "step": 1,
+              "path": [
+                "correlation"
+              ],
+              "raw_value": -0.5771473123362405,
+              "submitted_value": "-0.58",
+              "raw_type": "float",
+              "submitted_type": "str",
+              "method_id": "pearson",
+              "declared_public_unit": null,
+              "result_hash": "7d3c222c0a6994c26e76c8879d4a4f4a4fe9ea14a3a86414611a145da48adc3c"
+            }
+          },
+          "task_contract": {
+            "question": "Is there a correlation between the passenger class and the fare paid?",
+            "public_requirements": "Calculate the Pearson correlation coefficient (r) to assess the strength and direction of the linear relationship between 'Pclass' and 'Fare'. Ignore rows with missing values in these two columns. Round the result to two decimal places.\n@correlation_coefficient[r_value] where 'r_value' is a number between -1 and 1, rounded to two decimal places. Example: @correlation_coefficient[-0.55].",
+            "entity": null,
+            "grain": [],
+            "filters": [],
+            "time_range": null,
+            "formula": null,
+            "denominator": null,
+            "count_basis": "unspecified",
+            "order_by": null,
+            "order_direction": null,
+            "conflicts": [],
+            "answer": {
+              "columns": [
+                "correlation_coefficient"
+              ],
+              "shape": "rows",
+              "unit": null,
+              "decimals": 2,
+              "ties": "unspecified",
+              "empty": "allow",
+              "nullable": true,
+              "minimum": null,
+              "maximum": null,
+              "fields": {}
+            },
+            "requirements": {
+              "predicates": [],
+              "dates": [],
+              "ratios": []
+            }
+          },
+          "final_sql": null,
+          "failure": null,
+          "trace": [
+            {
+              "step": 1,
+              "tool": "fixed_analysis",
+              "status": "ok",
+              "result_hash": "7d3c222c0a6994c26e76c8879d4a4f4a4fe9ea14a3a86414611a145da48adc3c",
+              "response_mode": "native_function",
+              "action": {
+                "analysis": {
+                  "table": "data",
+                  "columns": [
+                    "Pclass",
+                    "Fare"
+                  ],
+                  "operation": "pearson"
+                }
+              }
+            }
+          ],
+          "tokens": 8813,
+          "input_tokens": 8673,
+          "output_tokens": 140,
+          "usage_status": "complete",
+          "elapsed_seconds": 6.950570208002318,
+          "observed_cost_usd": 0.0,
+          "cost_usd": null,
+          "cost_status": "partial_or_unknown",
+          "agent_elapsed_seconds": 5.372272000000521,
+          "case_id": "526",
+          "asset": "titanic_test.csv",
+          "database_hash": "c7df5d7311d4e86c2f349c01b0dfd632a72e2322c06f0b00c4f86f4ff6c7e477",
+          "database_unchanged": true,
+          "passed": true,
+          "sub_hits": 1,
+          "sub_total": 1
+        },
+        {
+          "answers": {
+            "correlation_coefficient": "0.31",
+            "p_value": "0.0000",
+            "relationship_type": "nonlinear"
+          },
+          "raw_answers": {},
+          "answer_evidence": {
+            "correlation_coefficient": {
+              "step": 1,
+              "path": [
+                "correlation"
+              ],
+              "raw_value": 0.30689461547589963,
+              "submitted_value": "0.31",
+              "raw_type": "float",
+              "submitted_type": "str",
+              "method_id": "pearson_test",
+              "declared_public_unit": null,
+              "result_hash": "3a59e1e1b40ccc43d19855f7168c5eac8cabd3cfdfcbf7283f26a53109d7c177"
+            },
+            "p_value": {
+              "step": 1,
+              "path": [
+                "p_value"
+              ],
+              "raw_value": 1.4452857339488415e-10,
+              "submitted_value": "0.0000",
+              "raw_type": "float",
+              "submitted_type": "str",
+              "method_id": "pearson_test",
+              "declared_public_unit": null,
+              "result_hash": "3a59e1e1b40ccc43d19855f7168c5eac8cabd3cfdfcbf7283f26a53109d7c177"
+            },
+            "relationship_type": {
+              "step": 1,
+              "path": [
+                "public_rule_label"
+              ],
+              "raw_value": "nonlinear",
+              "submitted_value": "nonlinear",
+              "raw_type": "str",
+              "submitted_type": "str",
+              "method_id": "pearson_test",
+              "declared_public_unit": null,
+              "result_hash": "3a59e1e1b40ccc43d19855f7168c5eac8cabd3cfdfcbf7283f26a53109d7c177"
+            }
+          },
+          "task_contract": {
+            "question": "Can you identify any patterns or relationships between the number of siblings/spouses each passenger had aboard and the number of parents/children they had aboard?",
+            "public_requirements": "Calculate the Pearson correlation coefficient (r) to assess the strength and direction of the linear relationship between the number of siblings/spouses (SibSp) and the number of parents/children (Parch). Assess the significance of the correlation using a two-tailed test with a significance level (alpha) of 0.05. Report the p-value associated with the correlation test. Consider the relationship to be linear if the p-value is less than 0.05 and the absolute value of r is greater than or equal to 0.5. Consider the relationship to be nonlinear if the p-value is less than 0.05 and the absolute value of r is less than 0.5. If the p-value is greater than or equal to 0.05, report that there is no significant correlation.\n@correlation_coefficient[r_value], @p_value[p_value], @relationship_type[relationship_type]. Where \"r_value\" is a float number between -1 and 1, rounded to two decimal places. \"p_value\" is a float number between 0 and 1, rounded to four decimal places. \"relationship_type\" is a string that can either be \"linear\", \"nonlinear\", or \"none\".",
+            "entity": null,
+            "grain": [],
+            "filters": [],
+            "time_range": null,
+            "formula": null,
+            "denominator": null,
+            "count_basis": "unspecified",
+            "order_by": null,
+            "order_direction": null,
+            "conflicts": [],
+            "answer": {
+              "columns": [
+                "correlation_coefficient",
+                "p_value",
+                "relationship_type"
+              ],
+              "shape": "rows",
+              "unit": null,
+              "decimals": null,
+              "ties": "unspecified",
+              "empty": "allow",
+              "nullable": true,
+              "minimum": null,
+              "maximum": null,
+              "fields": {
+                "correlation_coefficient": {
+                  "kind": "number",
+                  "item_kind": null,
+                  "order": null,
+                  "minimum": -1.0,
+                  "maximum": 1.0,
+                  "choices": null,
+                  "nullable": null,
+                  "decimals": 2,
+                  "unit": null,
+                  "method": null,
+                  "source_excerpt": "Where \"r_value\" is a float number between -1 and 1, rounded to two decimal places.",
+                  "collection_separator": null
+                },
+                "p_value": {
+                  "kind": "number",
+                  "item_kind": null,
+                  "order": null,
+                  "minimum": 0.0,
+                  "maximum": 1.0,
+                  "choices": null,
+                  "nullable": null,
+                  "decimals": 4,
+                  "unit": null,
+                  "method": null,
+                  "source_excerpt": "\"p_value\" is a float number between 0 and 1, rounded to four decimal places.",
+                  "collection_separator": null
+                },
+                "relationship_type": {
+                  "kind": "string",
+                  "item_kind": null,
+                  "order": null,
+                  "minimum": null,
+                  "maximum": null,
+                  "choices": [
+                    "linear",
+                    "nonlinear",
+                    "none"
+                  ],
+                  "nullable": null,
+                  "decimals": null,
+                  "unit": null,
+                  "method": null,
+                  "source_excerpt": "\"relationship_type\" is a string that can either be \"linear\", \"nonlinear\", or \"none\".",
+                  "collection_separator": null
+                }
+              }
+            },
+            "requirements": {
+              "predicates": [],
+              "dates": [],
+              "ratios": []
+            }
+          },
+          "final_sql": null,
+          "failure": null,
+          "trace": [
+            {
+              "step": 1,
+              "tool": "fixed_analysis",
+              "status": "ok",
+              "result_hash": "3a59e1e1b40ccc43d19855f7168c5eac8cabd3cfdfcbf7283f26a53109d7c177",
+              "response_mode": "native_function",
+              "action": {
+                "analysis": {
+                  "table": "data",
+                  "columns": [
+                    "SibSp",
+                    "Parch"
+                  ],
+                  "operation": "pearson_test",
+                  "decision_rule": {
+                    "alpha": 0.05,
+                    "abs_r_threshold": 0.5,
+                    "significant_high_label": "linear",
+                    "significant_low_label": "nonlinear",
+                    "nonsignificant_label": "none"
+                  }
+                }
+              }
+            }
+          ],
+          "tokens": 9775,
+          "input_tokens": 9514,
+          "output_tokens": 261,
+          "usage_status": "complete",
+          "elapsed_seconds": 7.349820125000406,
+          "observed_cost_usd": 0.0,
+          "cost_usd": null,
+          "cost_status": "partial_or_unknown",
+          "agent_elapsed_seconds": 5.779255541001476,
+          "case_id": "529",
+          "asset": "titanic_test.csv",
+          "database_hash": "c7df5d7311d4e86c2f349c01b0dfd632a72e2322c06f0b00c4f86f4ff6c7e477",
+          "database_unchanged": true,
+          "passed": true,
+          "sub_hits": 3,
+          "sub_total": 3
+        },
+        {
+          "answers": {
+            "correlation_coefficient": "0.57",
+            "relationship_status": "correlate"
+          },
+          "raw_answers": {},
+          "answer_evidence": {
+            "correlation_coefficient": {
+              "step": 1,
+              "path": [
+                "correlation"
+              ],
+              "raw_value": 0.5746598513059195,
+              "submitted_value": "0.57",
+              "raw_type": "float",
+              "submitted_type": "str",
+              "method_id": "pearson_test",
+              "declared_public_unit": null,
+              "result_hash": "44d8b24f380ab580557f45ff0a22c7704e5fde22fb21e163e50e46382f3cfbe7"
+            },
+            "relationship_status": {
+              "step": 1,
+              "path": [
+                "public_rule_label"
+              ],
+              "raw_value": "correlate",
+              "submitted_value": "correlate",
+              "raw_type": "str",
+              "submitted_type": "str",
+              "method_id": "pearson_test",
+              "declared_public_unit": null,
+              "result_hash": "44d8b24f380ab580557f45ff0a22c7704e5fde22fb21e163e50e46382f3cfbe7"
+            }
+          },
+          "task_contract": {
+            "question": "Is there a correlation between the diameter and the number of rings of the abalone? If so, what is the correlation coefficient?",
+            "public_requirements": "Calculate the Pearson correlation coefficient (r) to assess the strength of the linear relationship between diameter and rings.\nConsider the relationship to correlate if the absolute value of r is greater than or equal to 0.1.\nIf the absolute value of r is less than 0.1, report that there is no significant correlation.\n@correlation_coefficient[r_value]\n@relationship_status[relation_status]\nwhere \"r_value\" is a number between -1 and 1, rounded to two decimal places.\nwhere \"relation_status\" is a string that can either be \"correlate\" or \"none\" based on the conditions specified in the constraints.",
+            "entity": null,
+            "grain": [],
+            "filters": [],
+            "time_range": null,
+            "formula": null,
+            "denominator": null,
+            "count_basis": "unspecified",
+            "order_by": null,
+            "order_direction": null,
+            "conflicts": [],
+            "answer": {
+              "columns": [
+                "correlation_coefficient",
+                "relationship_status"
+              ],
+              "shape": "rows",
+              "unit": null,
+              "decimals": 2,
+              "ties": "unspecified",
+              "empty": "allow",
+              "nullable": true,
+              "minimum": null,
+              "maximum": null,
+              "fields": {
+                "correlation_coefficient": {
+                  "kind": "number",
+                  "item_kind": null,
+                  "order": null,
+                  "minimum": -1.0,
+                  "maximum": 1.0,
+                  "choices": null,
+                  "nullable": null,
+                  "decimals": 2,
+                  "unit": null,
+                  "method": null,
+                  "source_excerpt": "where \"r_value\" is a number between -1 and 1, rounded to two decimal places.",
+                  "collection_separator": null
+                },
+                "relationship_status": {
+                  "kind": "string",
+                  "item_kind": null,
+                  "order": null,
+                  "minimum": null,
+                  "maximum": null,
+                  "choices": [
+                    "correlate",
+                    "none"
+                  ],
+                  "nullable": null,
+                  "decimals": null,
+                  "unit": null,
+                  "method": null,
+                  "source_excerpt": "where \"relation_status\" is a string that can either be \"correlate\" or \"none\" based on the conditions specified in the constraints.",
+                  "collection_separator": null
+                }
+              }
+            },
+            "requirements": {
+              "predicates": [],
+              "dates": [],
+              "ratios": []
+            }
+          },
+          "final_sql": null,
+          "failure": null,
+          "trace": [
+            {
+              "step": 1,
+              "tool": "fixed_analysis",
+              "status": "ok",
+              "result_hash": "44d8b24f380ab580557f45ff0a22c7704e5fde22fb21e163e50e46382f3cfbe7",
+              "response_mode": "native_function",
+              "action": {
+                "analysis": {
+                  "table": "data",
+                  "columns": [
+                    "Diameter",
+                    "Rings"
+                  ],
+                  "operation": "pearson_test",
+                  "magnitude_rule": {
+                    "abs_r_threshold": 0.1,
+                    "comparison": "ge",
+                    "above_label": "correlate",
+                    "below_label": "none"
+                  }
+                }
+              }
+            }
+          ],
+          "tokens": 9109,
+          "input_tokens": 8894,
+          "output_tokens": 215,
+          "usage_status": "complete",
+          "elapsed_seconds": 7.423319167002774,
+          "observed_cost_usd": 0.0,
+          "cost_usd": null,
+          "cost_status": "partial_or_unknown",
+          "agent_elapsed_seconds": 5.739003124999726,
+          "case_id": "543",
+          "asset": "abalone.csv",
+          "database_hash": "382b1d9f97729fb13fe6d2dc90d2b0e7885a9bf0296158acce2fac46dda8baec",
+          "database_unchanged": true,
+          "passed": true,
+          "sub_hits": 2,
+          "sub_total": 2
+        }
+      ],
+      "production_accepted": false
+    },
+    "recomputed_evidence": {
+      "source_commit": "f0f76ea54fc1f69670a241014c9e73987413c1e5",
+      "recomputed_from_frozen_commit": "f0f76ea54fc1f69670a241014c9e73987413c1e5",
+      "step_hashes": [
+        {
+          "case_id": "526",
+          "step": 1,
+          "hash_equal": true
+        },
+        {
+          "case_id": "529",
+          "step": 1,
+          "hash_equal": true
+        },
+        {
+          "case_id": "543",
+          "step": 1,
+          "hash_equal": true
+        }
+      ],
+      "raw_bindings": [
+        {
+          "case_id": "526",
+          "field": "correlation_coefficient",
+          "raw_value_equal": true
+        },
+        {
+          "case_id": "529",
+          "field": "correlation_coefficient",
+          "raw_value_equal": true
+        },
+        {
+          "case_id": "529",
+          "field": "p_value",
+          "raw_value_equal": true
+        },
+        {
+          "case_id": "529",
+          "field": "relationship_type",
+          "raw_value_equal": true
+        },
+        {
+          "case_id": "543",
+          "field": "correlation_coefficient",
+          "raw_value_equal": true
+        },
+        {
+          "case_id": "543",
+          "field": "relationship_status",
+          "raw_value_equal": true
+        }
+      ],
+      "receipt_errors": {
+        "526": [],
+        "529": [],
+        "543": []
+      },
+      "database_unchanged": true,
+      "independent_external_acceptance": false
+    },
+    "scope": "repeated development cases, one arm; not full qualification or unseen acceptance",
+    "strict_score_changed": false
+  },
+  "package_f0f76ea": {
+    "source_commit": "f0f76ea54fc1f69670a241014c9e73987413c1e5",
+    "python_modules": 166,
+    "wheel_and_sdist_bytes_equal_commit": true,
+    "wheel_zip_integrity": true,
+    "runtime_or_benchmark_data_in_sdist": false,
+    "published": false,
+    "sha256": {
+      "generaldataagent-0.1.0-py3-none-any.whl": "47753d437281b4eac2297757b4ef883449524cf3be54e871ec6eb9ee6ae618e1",
+      "generaldataagent-0.1.0.tar.gz": "d1c8739ea774862b3e146ca811489f1bdb577ffde8ff2fcbe760f3306e88d4cf"
+    }
+  },
+  "iteration_budget": {
+    "tokens": 48000,
+    "original_tokens": 24000,
+    "steps": 6,
+    "per_call_output": 3000,
+    "seconds": 120,
+    "hard_deadline_seconds": 125,
+    "authorization": "User allowed increasing token budget on 2026-10-22",
+    "paired_requirement": "same budget in both arms; original scores preserved"
   }
 }

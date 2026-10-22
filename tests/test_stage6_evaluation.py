@@ -382,3 +382,67 @@ def test_action_schema_errors_are_visible_for_repair(database):
     assert result["failure"] is None
     assert result["trace"][0]["action_keys"] == ["final_answer"]
     assert "allowed_actions" in str(model.messages)
+
+
+def test_expanded_token_budget_reaches_answer_blind_worker(database, monkeypatch, capsys):
+    import io
+    import subprocess
+    import sys
+
+    import generaldataagent.evaluation.stage_six_worker as worker
+    from generaldataagent.evaluation.stage_six import run_isolated
+
+    seen = {}
+
+    def fake_process(command, **kwargs):
+        seen.update(json.loads(kwargs["input"]))
+        return SimpleNamespace(stdout=json.dumps({"elapsed_seconds": 0, "failure": None}))
+
+    monkeypatch.setattr(subprocess, "run", fake_process)
+    run_isolated(
+        case("GOLD_SECRET").task, database, app_type="magpie", provider_id="p", max_tokens=48000
+    )
+    assert seen["max_tokens"] == 48000
+    assert "GOLD_SECRET" not in json.dumps(seen)
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(seen)))
+    monkeypatch.setattr(worker, "resolve_evaluation_model", lambda **kwargs: (None, {}))
+    monkeypatch.setattr(worker, "build_evaluation_model", lambda *args: None)
+    original = worker.BoundedSQLAgent
+
+    def factory(model, **kwargs):
+        agent = original(
+            Model(
+                {"sql": "SELECT AVG(value) AS mean FROM data"},
+                {"answers": {"mean": "2"}, "evidence_steps": [1]},
+            ),
+            **kwargs,
+        )
+        assert agent.max_tokens == 48000
+        return agent
+
+    monkeypatch.setattr(worker, "BoundedSQLAgent", factory)
+    worker.main()
+    result = json.loads(capsys.readouterr().out)
+    assert result["failure"] is None
+    assert result["answers"] == {"mean": "2"}
+
+
+def test_expanded_budget_allows_actual_consumption_above_original_cap(database):
+    class LargerUsageModel(Model):
+        def invoke(self, messages):
+            response = super().invoke(messages)
+            response.usage_metadata = {"total_tokens": 15000}
+            return response
+
+    def model():
+        return LargerUsageModel(
+            {"sql": "SELECT AVG(value) AS mean FROM data"},
+            {"answers": {"mean": "2"}, "evidence_steps": [1]},
+        )
+
+    old = BoundedSQLAgent(model(), max_tokens=24000).run(case().task, database)
+    expanded = BoundedSQLAgent(model(), max_tokens=48000).run(case().task, database)
+    assert old["failure"] == "token_budget"
+    assert expanded["failure"] is None
+    assert old["tokens"] == expanded["tokens"] == 30000
+    assert expanded["answers"] == {"mean": "2"}
