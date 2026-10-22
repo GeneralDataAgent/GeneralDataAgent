@@ -350,3 +350,82 @@ def test_singular_public_name_priority_does_not_truncate_nonplural_suffixes(name
     from generaldataagent.catalog.field_evidence import public_name_mentioned
 
     assert public_name_mentioned(name, text) is expected
+
+
+def test_public_literal_profiles_find_scoped_differently_named_field_without_mapping(tmp_path):
+    import sqlite3
+
+    from generaldataagent.catalog.semantic_context import semantic_context
+
+    path = tmp_path / "labels.sqlite"
+    with sqlite3.connect(path) as db:
+        db.executescript(
+            "CREATE TABLE data(Category TEXT, Offense TEXT);CREATE TABLE hidden(Offense TEXT);"
+        )
+        db.executemany(
+            "INSERT INTO data VALUES(?,?)",
+            [
+                ("A", "Simple Assault"),
+                ("B", "Aggravated Assault"),
+                ("A", "assault"),
+                ("C", "Other"),
+            ],
+        )
+        db.execute("INSERT INTO hidden VALUES('Assault')")
+    before = path.read_bytes()
+    ctx = semantic_context(
+        path, allowed_relations={"data"}, public_text="Count ages for 'Assault' category."
+    )
+    profile = next(p for p in ctx["public_literal_profiles"] if p["column"] == "Offense")
+    assert profile["exact_rows"] == 0 and profile["literal_contains_rows"] == 2
+    assert profile["table"] == "data" and not profile["verified_business_semantics"]
+    assert ctx["literal_profile_checks"] <= 3
+    assert "hidden" not in json.dumps(ctx)
+    assert len(json.dumps(ctx)) <= 4000 and path.read_bytes() == before
+
+
+def test_public_literal_profiles_treat_percent_literally_and_do_not_invent_public_values(tmp_path):
+    import sqlite3
+
+    from generaldataagent.catalog.semantic_context import semantic_context
+
+    path = tmp_path / "percent.sqlite"
+    with sqlite3.connect(path) as db:
+        db.executescript(
+            "CREATE TABLE observations(label TEXT);"
+            "INSERT INTO observations VALUES('20% share'),('20 percent'),('20% share more');"
+        )
+    ctx = semantic_context(
+        path, allowed_relations={"observations"}, public_text="Labels containing '20% share'."
+    )
+    assert ctx["public_literal_profiles"][0]["exact_rows"] == 1
+    assert ctx["public_literal_profiles"][0]["literal_contains_rows"] == 2
+    unquoted = semantic_context(
+        path, allowed_relations={"observations"}, public_text="List observations."
+    )
+    assert unquoted.get("literal_profile_checks", 0) == 0
+    assert not unquoted.get("public_literal_profiles", [])
+
+
+def test_public_literal_profiles_prioritize_whole_question_literal_not_single_letter_substring(
+    tmp_path,
+):
+    import sqlite3
+
+    from generaldataagent.catalog.semantic_context import semantic_context
+
+    path = tmp_path / "question.sqlite"
+    with sqlite3.connect(path) as db:
+        db.executescript(
+            "CREATE TABLE Patient(SEX TEXT, Diagnosis TEXT);INSERT INTO Patient VALUES('F','SLE');"
+        )
+    ctx = semantic_context(
+        path,
+        allowed_relations={"Patient"},
+        public_text=(
+            "Female patients diagnosed with SLE.\n"
+            "female refers to SEX='F'; diagnosed refers to Diagnosis='SLE'"
+        ),
+    )
+    assert ctx["public_literal_profiles"][0]["column"] == "Diagnosis"
+    assert ctx["public_literal_profiles"][0]["public_literal"] == "SLE"
