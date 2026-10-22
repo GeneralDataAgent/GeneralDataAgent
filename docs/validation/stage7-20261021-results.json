@@ -23654,7 +23654,7 @@
     ]
   },
   "pending": [
-    "Finish frozen full v62 with fresh paired baselines and original historical 61-case guard",
+    "Finish frozen v67 priority diagnostic; complete paired evaluation of latest code is still required",
     "BIRD >=36/60 and no fresh/historical regressions",
     "Independent instruction/label and scientific-method review",
     "Unseen, repeated and independent promotion validation"
@@ -45202,35 +45202,36 @@
     "validator_source_commit": "28e0ac5f05ac35e1a729ad5150a69d0df85543eb"
   },
   "latest_local_validation": {
-    "source_commit": "07b1bfb0cf5ccb5a139a740f2b857483337302ba",
+    "source_commit": "ca2a105ec55d4efd887c0e7bd08b97569c2a2360",
     "stage7_fingerprint": {
-      "contracts/analysis.py": "791ab027c0cad0bf7d7973bc631364b25b9dcc7be6be542c35984682e7ab412d",
+      "contracts/analysis.py": "4b9b8e234962f67b5f31b8006fda0fea225cffabf96b940098758dca4a502655",
       "contracts/answer_fields.py": "e6ecbd59912179bc23d1be8acb4c4a085e20169c53b43e1907175391d949095b",
       "contracts/statistical_rules.py": "3f63abe15c76c51965c65b20c92fc9ec25c43b03b19a99c4a176de39017aa6f9",
       "contracts/independent_test.py": "4d7460f13ab7585d3e32d996183ee0c3100fe5102e26abb68215e5b6f34d3ec9",
       "tools/independent_test.py": "245e7e678912d61213844cdd6e4b4fd0b46c382b66feb915d2bc9c116e17622f",
       "tools/analysis_scope.py": "aa764b78ddb57a419e9adad183a9257d8f987acfa57963490f9cc802c6743e69",
       "tools/pearson_test.py": "4be557bc5e122bdc1f21b7cbc530e3edef4034e434657c56f7b25aea589ad327",
-      "evaluation/stage_six_analysis.py": "ab52224d4f50b1a23dabdc5f58cbf0bd60f4358b7ccaa7e570ebb921ff29008b",
+      "tools/iqr.py": "35703f333de94707e434b07b6836a987d8b27554d4ef34c1254143e38f1a6813",
+      "evaluation/stage_six_analysis.py": "356cdc40cb226bca7f47862de5c8ba5a01d04d009d1749b0538f666496bbfa94",
       "tools/answer_fields.py": "a19b3bd9e3ff085b0155a05b171956631d39f31bfce49173ac8c709d6138f250",
       "contracts/semantic_requirements.py": "bc0683ead82ef284acbe9fe71b5af437ddce357db5b0c46027ae34622dfe867e",
       "tools/semantic_requirements.py": "bf25b5955a61b460375ebef86e3c50c9c55fe516f639fcb10256c67187550d31",
-      "tools/public_formulas.py": "d6422a853f9794d0798013caef9f0438def78976c405446eaf8fbdda6e6c5318",
+      "tools/public_formulas.py": "2d81de1d666f8b4cdd6403705954c54d54cad4881194603fd144407c0289d397",
       "orchestration/analysis_plan.py": "cb9704c3b3af020317e5204a56013c83e93a3d1065b6e5ed1e08feff97770687",
-      "catalog/semantic_context.py": "d1e15351e2cbe3ba01fc35f6979f27ad28662e61f025d4a8a5f7f867119809ca",
-      "catalog/field_evidence.py": "e3fa95a2c4bf71f291ea3134329c5b926f666aad72a511411f9eb95a8fd2e926",
+      "catalog/semantic_context.py": "9005741f7d664d5ca5f65e6e37c2dd39fb3ea9659c89b89e9af418366ff5940f",
+      "catalog/field_evidence.py": "aa026db57b4d721f67c6d6845f87fe79c17d2f98eed5e683bf4fa394fb1feb4a",
       "catalog/join_evidence.py": "cd5ae4218c11eba66a7a3b7166ed226ac37b81ed6229c64978d63be51de7205e",
-      "tools/sql_semantics.py": "3797b9b68c18e4f847f7866b6e2d4ec3ad0f6634a1ed0e9b35c20def83ffd259",
+      "tools/sql_semantics.py": "3376bbc50a68b411c8028c00eee3ea409b337469d353ea0132bec398708acaf7",
       "tools/sql_guard.py": "72ef5c19eb4080f3a75f745588eff76780684a0691c3ab141c79d17c6ca5db59",
       "tools/sqlite.py": "6cc32bffd2d0822f3a0805d63ab15624c0530d9e0b6e719053f2d0c869784251",
-      "evaluation/stage_six.py": "50292a750b8a3ba645590abbc7f86a9d44f09ca6e7647eb559fc33397bb0ca21",
+      "evaluation/stage_six.py": "93e45ccbbc5efbe87e2060a3a9be72e3137e94aa934bea6e8d8ea8d990c1b225",
       "evaluation/stage_six_sql_precision.py": "9636255157d5a6477972ff3dadd0d50454710dc3150b09b8c56841f8180d3fa6",
-      "evaluation/stage_six_repair.py": "b1ed1e92a7214b2601b4961c3eda25475269e5f2ef8d0f9c8998522d66cb105c",
-      "evaluation/stage_seven.py": "6c158705eb68ecc8ad1d83c595e44c0d2e14fe7e8c53d65c0eba28db77c6e18c",
+      "evaluation/stage_six_repair.py": "52de615d7752a26e6afc8f8a5f9ed204c3bbdd880cdb61e4ca5719b2ae27a1a8",
+      "evaluation/stage_seven.py": "82439f0054929d0bb70f755820d7e7550d3324408972d9f87ff37e12c2f28e01",
       "contracts/query_plan.py": "4b18902c4ee0a82f35b4776bde17713a18672f2ef87b45e903cae3c958c9ad9e",
       "tools/semantic_sql.py": "ae6c20f44c53eabbdd9a51d8f052b9d3b0f27c8c93c4a0ddd377d8525ba1cd47"
     },
-    "passed": 1126,
+    "passed": 1173,
     "skipped": 1,
     "coverage_percent": 89.33,
     "ruff_check": "passed",
@@ -231516,5 +231517,1459 @@
     "strict_baseline_total": 63,
     "strict_candidate_total": 72,
     "historical_retained": 56
+  },
+  "iqr_and_metadata_diagnostic_v63": {
+    "source_commit": "24a62ec8eb3fec2dd49ba61ab0bd69315b3bfcef",
+    "model_route": {
+      "provider_id": "magpie",
+      "app_type": "magpie",
+      "model": "workbuddy/deepseek-v4.1-flash",
+      "transport": "openai-chat",
+      "thinking_mode": "default",
+      "json_mode": false,
+      "max_output_tokens": 3000,
+      "endpoint_hash": "fe8827a6b46979db5015036d380dd4e1f10eda5b76101c62a322240bf51a0573",
+      "wire_api": "chat_completions",
+      "gateway_adapter_hash": "163619e55b3ee9dd7eaeda7e9275a0cdc2a07972b6b67602016151f66632b8e6",
+      "gateway_headers_hash": "0a6dda900b2ea6b80cb4df4282bd2ec368d99d39ee00f707de87660edce6d440",
+      "route_hash": "ddcb6a5429c4f5365aa21351db2a358e378a5beb5c3b07ae80138dd444b8fbd4"
+    },
+    "scope": "two repeatedly developed regression cases; not a full pair or unseen acceptance",
+    "results": [
+      {
+        "answers": {
+          "missing_columns_in_object_type": "author, urlToImage"
+        },
+        "raw_answers": {},
+        "answer_evidence": {
+          "missing_columns_in_object_type": {
+            "step": 3,
+            "path": [
+              "items"
+            ],
+            "raw_value": [
+              "author",
+              "urlToImage"
+            ],
+            "submitted_value": "author, urlToImage",
+            "raw_type": "list",
+            "submitted_type": "str",
+            "method_id": "complete_collection",
+            "declared_public_unit": null,
+            "result_hash": "1536961880547e2e35cf6e188c2052400346f49c79e6b1d3bf6b81295d5ccf55"
+          }
+        },
+        "task_contract": {
+          "question": "1. Which column(s) contain missing values in the dataset?",
+          "public_requirements": "This question requires a straightforward identification of columns with missing values in the dataset. Only count the missing values in columns where the data type is 'object' (i.e., strings). Do not include columns of other data types and consider a \"missing value\" as one that is recorded as 'NaN', 'na', 'null', or an empty string in the dataset.\n@missing_columns_in_object_type[missing_column1, missing_column2,…] whereby 'missing_column1', 'missing_column2', etc. are string names of the columns with missing values. The answer should not contain any duplicates and should be sorted alphabetically for easy checking.",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "missing_columns_in_object_type"
+            ],
+            "shape": "rows",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {
+              "missing_columns_in_object_type": {
+                "kind": "set",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": false,
+                "decimals": null,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "This question requires a straightforward identification of columns with missing values in the dataset. Only count the missing values in columns where the data type is 'object' (i.e., strings). Do not include columns of other data types and consider a \"missing value\" as one that is recorded as 'NaN', 'na', 'null', or an empty string in the dataset.\n@missing_columns_in_object_type[missing_column1, missing_column2,…] whereby 'missing_column1', 'missing_column2', etc. are string names of the columns with missing values. The answer should not contain any duplicates and should be sorted alphabetically for easy checking.",
+                "collection_separator": ", "
+              }
+            }
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": null,
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "status": "error",
+            "error": "SqlGuardError",
+            "code": "policy_rejection",
+            "response_mode": "native_function",
+            "action_keys": [
+              "collect"
+            ]
+          },
+          {
+            "step": 2,
+            "status": "error",
+            "error": "SemanticError",
+            "code": "semantic_contract",
+            "response_mode": "native_function",
+            "action_keys": [
+              "collect"
+            ],
+            "repair_type": "revise_plan_or_query"
+          },
+          {
+            "step": 3,
+            "tool": "complete_collection",
+            "status": "ok",
+            "result_hash": "1536961880547e2e35cf6e188c2052400346f49c79e6b1d3bf6b81295d5ccf55",
+            "response_mode": "native_function",
+            "action": {
+              "collect": {
+                "sql": "SELECT 'author' FROM data WHERE (author IS NULL OR author IN ('NaN','na','null','')) UNION SELECT 'description' FROM data WHERE (description IS NULL OR description IN ('NaN','na','null','')) UNION SELECT 'publishedAt' FROM data WHERE (publishedAt IS NULL OR publishedAt IN ('NaN','na','null','')) UNION SELECT 'source' FROM data WHERE (source IS NULL OR source IN ('NaN','na','null','')) UNION SELECT 'title' FROM data WHERE (title IS NULL OR title IN ('NaN','na','null','')) UNION SELECT 'url' FROM data WHERE (url IS NULL OR url IN ('NaN','na','null','')) UNION SELECT 'urlToImage' FROM data WHERE (urlToImage IS NULL OR urlToImage IN ('NaN','na','null','')) UNION SELECT 'text' FROM data WHERE (text IS NULL OR text IN ('NaN','na','null','')) ORDER BY 1",
+                "collection_kind": "set"
+              }
+            }
+          }
+        ],
+        "tokens": 16663,
+        "input_tokens": 15878,
+        "output_tokens": 785,
+        "usage_status": "complete",
+        "elapsed_seconds": 13.623363541999424,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 12.166423667000345,
+        "case_id": "207",
+        "asset": "fb_articles_20180822_20180829_df.csv",
+        "database_hash": "094c8bd59c8dcbbddc2edddb38c8c003e6f314a3bb3e313da4d9a215414e7aba",
+        "database_unchanged": true,
+        "passed": true,
+        "sub_hits": 1,
+        "sub_total": 1
+      },
+      {
+        "answers": {
+          "number_of_outliers": 111
+        },
+        "raw_answers": {},
+        "answer_evidence": {
+          "number_of_outliers": {
+            "step": 1,
+            "path": [
+              "iqr_statistics",
+              " BARO",
+              "outlier_count"
+            ],
+            "raw_value": 111,
+            "submitted_value": 111,
+            "raw_type": "int",
+            "submitted_type": "int",
+            "method_id": "describe",
+            "declared_public_unit": null,
+            "result_hash": "0bbbcb8ec8366609c5963f047d06bb1198823abe0315985952104c97404abf6b"
+          }
+        },
+        "task_contract": {
+          "question": "2. Are there any outliers in the atmospheric pressure column (BARO)? If yes, how many outliers are there?",
+          "public_requirements": "An outlier is any value that is more than 1.5 times the interquartile range above the third quartile or below the first quartile. Ignore null values.\n@number_of_outliers[number_of_outliers], where \"number_of_outliers\" is an integer representing the total number of outliers detected under the conditions specified in the constraints.",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "number_of_outliers"
+            ],
+            "shape": "rows",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {
+              "number_of_outliers": {
+                "kind": "integer",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": null,
+                "decimals": null,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "where \"number_of_outliers\" is an integer representing the total number of outliers detected under the conditions specified in the constraints.",
+                "collection_separator": null
+              }
+            }
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": null,
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "tool": "fixed_analysis",
+            "status": "ok",
+            "result_hash": "0bbbcb8ec8366609c5963f047d06bb1198823abe0315985952104c97404abf6b",
+            "response_mode": "native_function",
+            "action": {
+              "analysis": {
+                "table": "data",
+                "columns": [
+                  " BARO"
+                ],
+                "operation": "describe"
+              }
+            }
+          }
+        ],
+        "tokens": 7267,
+        "input_tokens": 7122,
+        "output_tokens": 145,
+        "usage_status": "complete",
+        "elapsed_seconds": 7.044008082999426,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 5.524334082999303,
+        "case_id": "447",
+        "asset": "baro_2015.csv",
+        "database_hash": "bf6d64c2c04f374edb3fc761bc476f80d9e13dd60a885eafc19c9f40072940c5",
+        "database_unchanged": true,
+        "passed": true,
+        "sub_hits": 1,
+        "sub_total": 1
+      }
+    ],
+    "production_accepted": false,
+    "source_audit": [
+      {
+        "case_id": "447",
+        "original_source_hash_matches": true
+      }
+    ],
+    "source_fidelity_note": "Primary working-tree edits overlapped diagnostic; original 24a62ec IQR kernel receipt recomputes identically. Not used as frozen-source qualification; frozen v64 rerun follows.",
+    "receipt_errors": []
+  },
+  "scoped_describe_diagnostic_v64": {
+    "source_commit": "6acaa4059e13b003f0e67aa6b5cecffa5f6eed9e",
+    "model_route": {
+      "provider_id": "magpie",
+      "app_type": "magpie",
+      "model": "workbuddy/deepseek-v4.1-flash",
+      "transport": "openai-chat",
+      "thinking_mode": "default",
+      "json_mode": false,
+      "max_output_tokens": 3000,
+      "endpoint_hash": "fe8827a6b46979db5015036d380dd4e1f10eda5b76101c62a322240bf51a0573",
+      "wire_api": "chat_completions",
+      "gateway_adapter_hash": "163619e55b3ee9dd7eaeda7e9275a0cdc2a07972b6b67602016151f66632b8e6",
+      "gateway_headers_hash": "0a6dda900b2ea6b80cb4df4282bd2ec368d99d39ee00f707de87660edce6d440",
+      "route_hash": "ddcb6a5429c4f5365aa21351db2a358e378a5beb5c3b07ae80138dd444b8fbd4"
+    },
+    "scope": "three repeatedly developed regression cases; frozen source; not a full pair or unseen acceptance",
+    "results": [
+      {
+        "answers": {
+          "missing_columns_in_object_type": ""
+        },
+        "raw_answers": {},
+        "answer_evidence": {
+          "missing_columns_in_object_type": {
+            "step": 1,
+            "path": [
+              "items"
+            ],
+            "raw_value": [],
+            "submitted_value": "",
+            "raw_type": "list",
+            "submitted_type": "str",
+            "method_id": "complete_collection",
+            "declared_public_unit": null,
+            "result_hash": "b6e0bc911c162292bb9edc9a4167709bd2cf7c83ce351f267fe91da83d21993e"
+          }
+        },
+        "task_contract": {
+          "question": "1. Which column(s) contain missing values in the dataset?",
+          "public_requirements": "This question requires a straightforward identification of columns with missing values in the dataset. Only count the missing values in columns where the data type is 'object' (i.e., strings). Do not include columns of other data types and consider a \"missing value\" as one that is recorded as 'NaN', 'na', 'null', or an empty string in the dataset.\n@missing_columns_in_object_type[missing_column1, missing_column2,…] whereby 'missing_column1', 'missing_column2', etc. are string names of the columns with missing values. The answer should not contain any duplicates and should be sorted alphabetically for easy checking.",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "missing_columns_in_object_type"
+            ],
+            "shape": "rows",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {
+              "missing_columns_in_object_type": {
+                "kind": "set",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": false,
+                "decimals": null,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "This question requires a straightforward identification of columns with missing values in the dataset. Only count the missing values in columns where the data type is 'object' (i.e., strings). Do not include columns of other data types and consider a \"missing value\" as one that is recorded as 'NaN', 'na', 'null', or an empty string in the dataset.\n@missing_columns_in_object_type[missing_column1, missing_column2,…] whereby 'missing_column1', 'missing_column2', etc. are string names of the columns with missing values. The answer should not contain any duplicates and should be sorted alphabetically for easy checking.",
+                "collection_separator": ", "
+              }
+            }
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": null,
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "tool": "complete_collection",
+            "status": "ok",
+            "result_hash": "b6e0bc911c162292bb9edc9a4167709bd2cf7c83ce351f267fe91da83d21993e",
+            "response_mode": "native_function",
+            "action": {
+              "collect": {
+                "sql": "SELECT column_name FROM (SELECT 'author' AS column_name FROM data WHERE author IN ('NaN','na','null','') OR TRIM(author) IN ('NaN','na','null','') UNION SELECT 'description' FROM data WHERE description IN ('NaN','na','null','') OR TRIM(description) IN ('NaN','na','null','') UNION SELECT 'publishedAt' FROM data WHERE publishedAt IN ('NaN','na','null','') OR TRIM(publishedAt) IN ('NaN','na','null','') UNION SELECT 'source' FROM data WHERE source IN ('NaN','na','null','') OR TRIM(source) IN ('NaN','na','null','') UNION SELECT 'title' FROM data WHERE title IN ('NaN','na','null','') OR TRIM(title) IN ('NaN','na','null','') UNION SELECT 'url' FROM data WHERE url IN ('NaN','na','null','') OR TRIM(url) IN ('NaN','na','null','') UNION SELECT 'urlToImage' FROM data WHERE urlToImage IN ('NaN','na','null','') OR TRIM(urlToImage) IN ('NaN','na','null','') UNION SELECT 'text' FROM data WHERE text IN ('NaN','na','null','') OR TRIM(text) IN ('NaN','na','null','')) t ORDER BY column_name",
+                "collection_kind": "set"
+              }
+            }
+          }
+        ],
+        "tokens": 8279,
+        "input_tokens": 7883,
+        "output_tokens": 396,
+        "usage_status": "complete",
+        "elapsed_seconds": 6.839835459000824,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 5.3233836670005985,
+        "case_id": "207",
+        "asset": "fb_articles_20180822_20180829_df.csv",
+        "database_hash": "094c8bd59c8dcbbddc2edddb38c8c003e6f314a3bb3e313da4d9a215414e7aba",
+        "database_unchanged": true,
+        "passed": false,
+        "sub_hits": 0,
+        "sub_total": 1
+      },
+      {
+        "answers": {
+          "number_of_outliers": 111
+        },
+        "raw_answers": {},
+        "answer_evidence": {
+          "number_of_outliers": {
+            "step": 1,
+            "path": [
+              "iqr_statistics",
+              " BARO",
+              "outlier_count"
+            ],
+            "raw_value": 111,
+            "submitted_value": 111,
+            "raw_type": "int",
+            "submitted_type": "int",
+            "method_id": "describe",
+            "declared_public_unit": null,
+            "result_hash": "5cf29b2d8e3f08aa16f6a26e6fd7f2d58086da30b7b2a629985c8091e4708401"
+          }
+        },
+        "task_contract": {
+          "question": "2. Are there any outliers in the atmospheric pressure column (BARO)? If yes, how many outliers are there?",
+          "public_requirements": "An outlier is any value that is more than 1.5 times the interquartile range above the third quartile or below the first quartile. Ignore null values.\n@number_of_outliers[number_of_outliers], where \"number_of_outliers\" is an integer representing the total number of outliers detected under the conditions specified in the constraints.",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "number_of_outliers"
+            ],
+            "shape": "rows",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {
+              "number_of_outliers": {
+                "kind": "integer",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": null,
+                "decimals": null,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "where \"number_of_outliers\" is an integer representing the total number of outliers detected under the conditions specified in the constraints.",
+                "collection_separator": null
+              }
+            }
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": null,
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "tool": "fixed_analysis",
+            "status": "ok",
+            "result_hash": "5cf29b2d8e3f08aa16f6a26e6fd7f2d58086da30b7b2a629985c8091e4708401",
+            "response_mode": "native_function",
+            "action": {
+              "analysis": {
+                "table": "data",
+                "columns": [
+                  " BARO"
+                ],
+                "operation": "describe"
+              }
+            }
+          }
+        ],
+        "tokens": 7659,
+        "input_tokens": 7514,
+        "output_tokens": 145,
+        "usage_status": "complete",
+        "elapsed_seconds": 7.137499250000474,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 5.700990416000423,
+        "case_id": "447",
+        "asset": "baro_2015.csv",
+        "database_hash": "bf6d64c2c04f374edb3fc761bc476f80d9e13dd60a885eafc19c9f40072940c5",
+        "database_unchanged": true,
+        "passed": true,
+        "sub_hits": 1,
+        "sub_total": 1
+      },
+      {
+        "answers": {
+          "number_of_outliers": 0
+        },
+        "raw_answers": {},
+        "answer_evidence": {
+          "number_of_outliers": {
+            "step": 4,
+            "path": [
+              "rows",
+              0,
+              0
+            ],
+            "raw_value": 0,
+            "submitted_value": 0,
+            "raw_type": "int",
+            "submitted_type": "int",
+            "method_id": "sql",
+            "declared_public_unit": null,
+            "result_hash": "1ad62e97afaff01fcfa6ac724d7ffaec107c527bacc04d1465a678be6faedeea"
+          }
+        },
+        "task_contract": {
+          "question": "2. Are there any outliers in the age distribution of offenders in 'Assault' category, according to the IQR method? If yes, report the number of outliers.",
+          "public_requirements": "You are to use the Interquartile Range (IQR) method for outlier detection. Calculate the IQR as Q3 (75th percentile) - Q1 (25th percentile) for the 'Assault' category. Outliers are considered as values lying below Q1 - 1.5 * IQR or above Q3 + 1.5 * IQR.\n@number_of_outliers[number] where \"number\" is a positive integer denoting the number of outliers",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "number_of_outliers"
+            ],
+            "shape": "rows",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {
+              "number_of_outliers": {
+                "kind": "integer",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": null,
+                "decimals": null,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "where \"number\" is a positive integer denoting the number of outliers",
+                "collection_separator": null
+              }
+            }
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": null,
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "a49d15818488b7ae7d111073a00db3fa2af73baa4f24945002704ae8df18fd46",
+            "response_mode": "native_function",
+            "sql": "SELECT 'Category' AS f, Category AS v, COUNT(*) FROM data WHERE Category LIKE '%Assault%' GROUP BY Category\nUNION ALL\nSELECT 'Offense', Offense, COUNT(*) FROM data WHERE Offense LIKE '%Assault%' GROUP BY Offense",
+            "row_count": 3,
+            "elapsed_ms": 2.949792000435991
+          },
+          {
+            "step": 2,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "98931a82b16739e741239fec1227661902a083fc080ab7058a2cb0c85b0b4dd5",
+            "response_mode": "native_function",
+            "sql": "WITH x AS (\n  SELECT Age FROM data WHERE Offense LIKE '%Assault%' AND Age IS NOT NULL\n),\nn AS (SELECT COUNT(*) AS cnt FROM x),\nranked AS (SELECT Age, ROW_NUMBER() OVER (ORDER BY Age) - 1 AS rn FROM x),\nq AS (\n  SELECT\n    (SELECT cnt FROM n) AS cnt,\n    (SELECT AVG(Age) FROM ranked WHERE rn IN (CAST((cnt-1)*0.25 AS INT), CAST((cnt-1)*0.25 AS INT)+1) )\n      AS dummy\n  FROM n\n)\nSELECT cnt, \n  (SELECT Age FROM ranked WHERE rn = CAST((cnt-1)*0.25 AS INT)) AS q1_lo,\n  (SELECT Age FROM ranked WHERE rn = CAST((cnt-1)*0.25 AS INT)+1) AS q1_hi,\n  (cnt-1)*0.25 AS q1_h,\n  (cnt-1)*0.75 AS q3_h\nFROM q",
+            "row_count": 1,
+            "elapsed_ms": 2.112166999722831
+          },
+          {
+            "step": 3,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "d1940e55031d87f7bee8474e9eba1dff92d3ddb67268080644d28883a9ca06b5",
+            "response_mode": "native_function",
+            "sql": "WITH x AS (\n  SELECT Age FROM data WHERE Offense LIKE '%Assault%' AND Age IS NOT NULL\n),\nn AS (SELECT COUNT(*) AS cnt FROM x),\nranked AS (SELECT Age, ROW_NUMBER() OVER (ORDER BY Age) - 1 AS rn FROM x),\nq AS (\n  SELECT\n    (SELECT Age FROM ranked r WHERE r.rn = CAST((cnt-1)*0.25 AS INT)) AS q1,\n    (SELECT Age FROM ranked r WHERE r.rn = CAST((cnt-1)*0.75 AS INT)) AS q3,\n    cnt\n  FROM n\n),\nf AS (SELECT q1, q3, q3-q1 AS iqr, q1-1.5*(q3-q1) AS lo, q3+1.5*(q3-q1) AS hi FROM q)\nSELECT f.q1, f.q3, f.iqr, f.lo, f.hi,\n  (SELECT COUNT(*) FROM x WHERE Age < f.lo OR Age > f.hi) AS outliers\nFROM f",
+            "row_count": 1,
+            "elapsed_ms": 63.13070899977902
+          },
+          {
+            "step": 4,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "1ad62e97afaff01fcfa6ac724d7ffaec107c527bacc04d1465a678be6faedeea",
+            "response_mode": "native_function",
+            "sql": "WITH x AS (\n  SELECT Age FROM data WHERE Offense LIKE '%Assault%' AND Age IS NOT NULL\n),\nn AS (SELECT COUNT(*) AS cnt FROM x),\nranked AS (SELECT Age, ROW_NUMBER() OVER (ORDER BY Age) - 1 AS rn FROM x),\nq AS (\n  SELECT\n    (SELECT Age FROM ranked r WHERE r.rn = CAST((cnt-1)*0.25 AS INT)) AS q1,\n    (SELECT Age FROM ranked r WHERE r.rn = CAST((cnt-1)*0.75 AS INT)) AS q3\n  FROM n\n),\nf AS (SELECT q1, q3, q1-1.5*(q3-q1) AS lo, q3+1.5*(q3-q1) AS hi FROM q)\nSELECT (SELECT COUNT(*) FROM x WHERE Age < f.lo OR Age > f.hi) AS number_of_outliers\nFROM f",
+            "row_count": 1,
+            "elapsed_ms": 64.0493749997404,
+            "auto_bound_public_keys": [
+              "number_of_outliers"
+            ]
+          }
+        ],
+        "tokens": 18028,
+        "input_tokens": 16925,
+        "output_tokens": 1103,
+        "usage_status": "complete",
+        "elapsed_seconds": 14.293945250000434,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 12.822766374999446,
+        "case_id": "468",
+        "asset": "arrest_expungibility.csv",
+        "database_hash": "eae5714828c7f61cc547a8dee053ad8405aafb16e3cc44b6d492d1137ca77767",
+        "database_unchanged": true,
+        "passed": true,
+        "sub_hits": 1,
+        "sub_total": 1
+      }
+    ],
+    "production_accepted": false,
+    "strict_passed_n": 2,
+    "attempts_completed": 3
+  },
+  "scoped_describe_diagnostic_v64_recomputed": {
+    "source_commit": "6acaa4059e13b003f0e67aa6b5cecffa5f6eed9e",
+    "step_hashes": [
+      {
+        "case_id": "207",
+        "step": 1,
+        "hash_equal": true
+      },
+      {
+        "case_id": "447",
+        "step": 1,
+        "hash_equal": true
+      },
+      {
+        "case_id": "468",
+        "step": 1,
+        "hash_equal": true
+      },
+      {
+        "case_id": "468",
+        "step": 2,
+        "hash_equal": true
+      },
+      {
+        "case_id": "468",
+        "step": 3,
+        "hash_equal": true
+      },
+      {
+        "case_id": "468",
+        "step": 4,
+        "hash_equal": true
+      }
+    ],
+    "all_raw_bindings_equal": true,
+    "receipt_errors": [],
+    "database_unchanged": true,
+    "independent_external_acceptance": false
+  },
+  "null_import_diagnostic_v65": {
+    "source_commit": "420b151dff7c2ec4518c35b1638e10a3f968837d",
+    "model_route": {
+      "provider_id": "magpie",
+      "app_type": "magpie",
+      "model": "workbuddy/deepseek-v4.1-flash",
+      "transport": "openai-chat",
+      "thinking_mode": "default",
+      "json_mode": false,
+      "max_output_tokens": 3000,
+      "endpoint_hash": "fe8827a6b46979db5015036d380dd4e1f10eda5b76101c62a322240bf51a0573",
+      "wire_api": "chat_completions",
+      "gateway_adapter_hash": "163619e55b3ee9dd7eaeda7e9275a0cdc2a07972b6b67602016151f66632b8e6",
+      "gateway_headers_hash": "0a6dda900b2ea6b80cb4df4282bd2ec368d99d39ee00f707de87660edce6d440",
+      "route_hash": "ddcb6a5429c4f5365aa21351db2a358e378a5beb5c3b07ae80138dd444b8fbd4"
+    },
+    "scope": "three repeatedly developed regression cases; frozen source; not a full pair or unseen acceptance",
+    "results": [
+      {
+        "answers": {
+          "missing_columns_in_object_type": "author, urlToImage"
+        },
+        "raw_answers": {},
+        "answer_evidence": {
+          "missing_columns_in_object_type": {
+            "step": 1,
+            "path": [
+              "items"
+            ],
+            "raw_value": [
+              "author",
+              "urlToImage"
+            ],
+            "submitted_value": "author, urlToImage",
+            "raw_type": "list",
+            "submitted_type": "str",
+            "method_id": "complete_collection",
+            "declared_public_unit": null,
+            "result_hash": "1536961880547e2e35cf6e188c2052400346f49c79e6b1d3bf6b81295d5ccf55"
+          }
+        },
+        "task_contract": {
+          "question": "1. Which column(s) contain missing values in the dataset?",
+          "public_requirements": "This question requires a straightforward identification of columns with missing values in the dataset. Only count the missing values in columns where the data type is 'object' (i.e., strings). Do not include columns of other data types and consider a \"missing value\" as one that is recorded as 'NaN', 'na', 'null', or an empty string in the dataset.\n@missing_columns_in_object_type[missing_column1, missing_column2,…] whereby 'missing_column1', 'missing_column2', etc. are string names of the columns with missing values. The answer should not contain any duplicates and should be sorted alphabetically for easy checking.",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "missing_columns_in_object_type"
+            ],
+            "shape": "rows",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {
+              "missing_columns_in_object_type": {
+                "kind": "set",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": false,
+                "decimals": null,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "This question requires a straightforward identification of columns with missing values in the dataset. Only count the missing values in columns where the data type is 'object' (i.e., strings). Do not include columns of other data types and consider a \"missing value\" as one that is recorded as 'NaN', 'na', 'null', or an empty string in the dataset.\n@missing_columns_in_object_type[missing_column1, missing_column2,…] whereby 'missing_column1', 'missing_column2', etc. are string names of the columns with missing values. The answer should not contain any duplicates and should be sorted alphabetically for easy checking.",
+                "collection_separator": ", "
+              }
+            }
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": null,
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "tool": "complete_collection",
+            "status": "ok",
+            "result_hash": "1536961880547e2e35cf6e188c2052400346f49c79e6b1d3bf6b81295d5ccf55",
+            "response_mode": "native_function",
+            "action": {
+              "collect": {
+                "sql": "SELECT DISTINCT 'author' FROM data WHERE author IS NULL OR TRIM(author) IN ('NaN','na','null','') UNION SELECT 'description' FROM data WHERE description IS NULL OR TRIM(description) IN ('NaN','na','null','') UNION SELECT 'publishedAt' FROM data WHERE publishedAt IS NULL OR TRIM(publishedAt) IN ('NaN','na','null','') UNION SELECT 'source' FROM data WHERE source IS NULL OR TRIM(source) IN ('NaN','na','null','') UNION SELECT 'title' FROM data WHERE title IS NULL OR TRIM(title) IN ('NaN','na','null','') UNION SELECT 'url' FROM data WHERE url IS NULL OR TRIM(url) IN ('NaN','na','null','') UNION SELECT 'urlToImage' FROM data WHERE urlToImage IS NULL OR TRIM(urlToImage) IN ('NaN','na','null','') UNION SELECT 'text' FROM data WHERE text IS NULL OR TRIM(text) IN ('NaN','na','null','')",
+                "collection_kind": "set"
+              }
+            }
+          }
+        ],
+        "tokens": 8308,
+        "input_tokens": 7979,
+        "output_tokens": 329,
+        "usage_status": "complete",
+        "elapsed_seconds": 7.074746833000063,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 5.4855999159999556,
+        "case_id": "207",
+        "asset": "fb_articles_20180822_20180829_df.csv",
+        "database_hash": "094c8bd59c8dcbbddc2edddb38c8c003e6f314a3bb3e313da4d9a215414e7aba",
+        "database_unchanged": true,
+        "passed": true,
+        "sub_hits": 1,
+        "sub_total": 1
+      },
+      {
+        "answers": {
+          "number_of_outliers": 111
+        },
+        "raw_answers": {},
+        "answer_evidence": {
+          "number_of_outliers": {
+            "step": 2,
+            "path": [
+              "iqr_statistics",
+              " BARO",
+              "outlier_count"
+            ],
+            "raw_value": 111,
+            "submitted_value": 111,
+            "raw_type": "int",
+            "submitted_type": "int",
+            "method_id": "describe",
+            "declared_public_unit": null,
+            "result_hash": "5cf29b2d8e3f08aa16f6a26e6fd7f2d58086da30b7b2a629985c8091e4708401"
+          }
+        },
+        "task_contract": {
+          "question": "2. Are there any outliers in the atmospheric pressure column (BARO)? If yes, how many outliers are there?",
+          "public_requirements": "An outlier is any value that is more than 1.5 times the interquartile range above the third quartile or below the first quartile. Ignore null values.\n@number_of_outliers[number_of_outliers], where \"number_of_outliers\" is an integer representing the total number of outliers detected under the conditions specified in the constraints.",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "number_of_outliers"
+            ],
+            "shape": "rows",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {
+              "number_of_outliers": {
+                "kind": "integer",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": null,
+                "decimals": null,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "where \"number_of_outliers\" is an integer representing the total number of outliers detected under the conditions specified in the constraints.",
+                "collection_separator": null
+              }
+            }
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": null,
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "status": "error",
+            "error": "AnalysisColumnError",
+            "code": "unknown_column",
+            "response_mode": "native_function",
+            "action_keys": [
+              "analysis"
+            ],
+            "repair_type": "revise_plan_or_query",
+            "field_candidates": [
+              " BARO"
+            ]
+          },
+          {
+            "step": 2,
+            "tool": "fixed_analysis",
+            "status": "ok",
+            "result_hash": "5cf29b2d8e3f08aa16f6a26e6fd7f2d58086da30b7b2a629985c8091e4708401",
+            "response_mode": "native_function",
+            "action": {
+              "analysis": {
+                "table": "data",
+                "columns": [
+                  " BARO"
+                ],
+                "operation": "describe"
+              }
+            }
+          }
+        ],
+        "tokens": 11925,
+        "input_tokens": 11694,
+        "output_tokens": 231,
+        "usage_status": "complete",
+        "elapsed_seconds": 10.918323416999556,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 9.36173591700026,
+        "case_id": "447",
+        "asset": "baro_2015.csv",
+        "database_hash": "bf6d64c2c04f374edb3fc761bc476f80d9e13dd60a885eafc19c9f40072940c5",
+        "database_unchanged": true,
+        "passed": true,
+        "sub_hits": 1,
+        "sub_total": 1
+      },
+      {
+        "answers": {},
+        "raw_answers": null,
+        "answer_evidence": {},
+        "task_contract": {
+          "question": "2. Are there any outliers in the age distribution of offenders in 'Assault' category, according to the IQR method? If yes, report the number of outliers.",
+          "public_requirements": "You are to use the Interquartile Range (IQR) method for outlier detection. Calculate the IQR as Q3 (75th percentile) - Q1 (25th percentile) for the 'Assault' category. Outliers are considered as values lying below Q1 - 1.5 * IQR or above Q3 + 1.5 * IQR.\n@number_of_outliers[number] where \"number\" is a positive integer denoting the number of outliers",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "number_of_outliers"
+            ],
+            "shape": "rows",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {
+              "number_of_outliers": {
+                "kind": "integer",
+                "item_kind": null,
+                "order": null,
+                "minimum": null,
+                "maximum": null,
+                "choices": null,
+                "nullable": null,
+                "decimals": null,
+                "unit": null,
+                "method": null,
+                "source_excerpt": "where \"number\" is a positive integer denoting the number of outliers",
+                "collection_separator": null
+              }
+            }
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": null,
+        "failure": "token_budget",
+        "trace": [
+          {
+            "step": 1,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "0df7e338e730dc5280d198a36df2a83920fb16c136bc3cadedca6a8f55b11ddc",
+            "response_mode": "native_function",
+            "sql": "SELECT DISTINCT Category FROM data",
+            "row_count": 4,
+            "elapsed_ms": 0.8582079999541747
+          },
+          {
+            "step": 2,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "133e777c84919512a73e4ebc06807ada2ec659641e01ca4c25a69849329e4a01",
+            "response_mode": "native_function",
+            "sql": "SELECT DISTINCT Offense FROM data WHERE Offense LIKE '%Assault%'",
+            "row_count": 3,
+            "elapsed_ms": 0.9105420003834297
+          },
+          {
+            "step": 3,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "50531a77fe349905f633a6247cead8858b5d36b10cb6f12cdcf141b91fa23759",
+            "response_mode": "native_function",
+            "sql": "SELECT COUNT(*) n, SUM(CASE WHEN Offense='Assault' THEN 1 ELSE 0 END) exact_assault, SUM(CASE WHEN Offense LIKE '%Assault%' THEN 1 ELSE 0 END) like_assault FROM data",
+            "row_count": 1,
+            "elapsed_ms": 1.1568749996513361
+          },
+          {
+            "step": 4,
+            "status": "error",
+            "error": "QueryExecutionError",
+            "code": "invalid_action",
+            "response_mode": "native_function",
+            "action_keys": [
+              "sql"
+            ]
+          },
+          {
+            "step": 5,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "df660015c9e215fb33ae1e6b54b042f3eeb36056acc73016328f0e69ec52e0e6",
+            "response_mode": "native_function",
+            "sql": "WITH a AS (SELECT Age, ROW_NUMBER() OVER (ORDER BY Age)-1 AS rn, COUNT(*) OVER () AS n FROM data WHERE Offense LIKE '%Assault%' AND Age IS NOT NULL),\nq AS (SELECT\n  (SELECT Age FROM a WHERE rn = CAST((n-1)*0.25 AS INT)) AS q1,\n  (SELECT Age FROM a WHERE rn = CAST((n-1)*0.75 AS INT)) AS q3)\nSELECT q1, q3, q1-1.5*(q3-q1) AS lo, q3+1.5*(q3-q1) AS hi,\n (SELECT COUNT(*) FROM data WHERE Offense LIKE '%Assault%' AND Age IS NOT NULL AND (Age < q1-1.5*(q3-q1) OR Age > q3+1.5*(q3-q1))) AS number_of_outliers\nFROM q",
+            "row_count": 1,
+            "elapsed_ms": 2.2670839998681913
+          }
+        ],
+        "tokens": 27197,
+        "input_tokens": 26344,
+        "output_tokens": 853,
+        "usage_status": "complete",
+        "elapsed_seconds": 20.86342945800061,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 19.13699629199982,
+        "case_id": "468",
+        "asset": "arrest_expungibility.csv",
+        "database_hash": "eae5714828c7f61cc547a8dee053ad8405aafb16e3cc44b6d492d1137ca77767",
+        "database_unchanged": true,
+        "passed": false,
+        "sub_hits": 0,
+        "sub_total": 1
+      }
+    ],
+    "production_accepted": false,
+    "strict_passed_n": 2,
+    "attempts_completed": 3
+  },
+  "population_diagnostic_v66": {
+    "source_commit": "d9cb406e3ce61d6adcdf7f7516dcf4990121d4a0",
+    "model_route": {
+      "provider_id": "magpie",
+      "app_type": "magpie",
+      "model": "workbuddy/deepseek-v4.1-flash",
+      "transport": "openai-chat",
+      "thinking_mode": "default",
+      "json_mode": false,
+      "max_output_tokens": 3000,
+      "endpoint_hash": "fe8827a6b46979db5015036d380dd4e1f10eda5b76101c62a322240bf51a0573",
+      "wire_api": "chat_completions",
+      "gateway_adapter_hash": "163619e55b3ee9dd7eaeda7e9275a0cdc2a07972b6b67602016151f66632b8e6",
+      "gateway_headers_hash": "0a6dda900b2ea6b80cb4df4282bd2ec368d99d39ee00f707de87660edce6d440",
+      "route_hash": "ddcb6a5429c4f5365aa21351db2a358e378a5beb5c3b07ae80138dd444b8fbd4"
+    },
+    "scope": "five repeatedly developed BIRD cases; frozen source; not a full pair or unseen acceptance",
+    "results": [
+      {
+        "answers": {},
+        "raw_answers": null,
+        "answer_evidence": {},
+        "task_contract": {
+          "question": "What is the average blood albumin level for female patients with a PLT greater than 400 who have been diagnosed with SLE?",
+          "public_requirements": "average blood albumin level refers to AVG(ALB); female refers to SEX = 'F'; PLT greater than 400 refers to PLT > 400; diagnosed with SLE refers to Diagnosis= 'SLE'",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "avg_alb"
+            ],
+            "shape": "scalar",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {}
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": "SELECT AVG(l.ALB) AS avg_alb FROM Laboratory l JOIN Examination e ON e.ID = l.ID JOIN Patient p ON p.ID = l.ID WHERE p.SEX = 'F' AND l.PLT > 400 AND e.Diagnosis = 'SLE'",
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "status": "error",
+            "error": "ColumnScopeError",
+            "code": "unknown_column",
+            "response_mode": "native_function",
+            "action_keys": [
+              "final_sql",
+              "task_spec"
+            ],
+            "repair_type": "revise_plan_or_query",
+            "field_candidates": []
+          },
+          {
+            "step": 2,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "3ea9344fecf3932dfef83b313a52aeb508de95265e25e92618b253d309cfe056",
+            "response_mode": "native_function",
+            "sql": "SELECT AVG(l.ALB) AS avg_alb FROM Laboratory l JOIN Examination e ON e.ID = l.ID JOIN Patient p ON p.ID = l.ID WHERE p.SEX = 'F' AND l.PLT > 400 AND e.Diagnosis = 'SLE'",
+            "row_count": 1,
+            "elapsed_ms": 0.7380420001936727
+          }
+        ],
+        "tokens": 6540,
+        "input_tokens": 6273,
+        "output_tokens": 267,
+        "usage_status": "complete",
+        "elapsed_seconds": 7.100168332999601,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 5.466375417000563,
+        "case_id": "1195",
+        "asset": "thrombosis_prediction",
+        "database_hash": "87583183c3dc472fba04de702965560a9d7c0a548836613f242317e0eeb83f00",
+        "database_unchanged": true,
+        "passed": false,
+        "sub_hits": 0,
+        "sub_total": 1
+      },
+      {
+        "answers": {},
+        "raw_answers": null,
+        "answer_evidence": {},
+        "task_contract": {
+          "question": "What is his number of the driver who finished 0:01:54 in the Q3 of qualifying race No.903?",
+          "public_requirements": "race number refers to raceId; finished 0:0M:SS in the Q3 refers to q3 LIKE 'M:SS%'",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "number"
+            ],
+            "shape": "rows",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {}
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": "SELECT drivers.number FROM qualifying JOIN drivers ON qualifying.driverId = drivers.driverId WHERE qualifying.raceId = 903 AND qualifying.q3 LIKE '0:01:54%'",
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "status": "error",
+            "error": "SemanticError",
+            "code": "semantic_contract",
+            "response_mode": "native_function",
+            "action_keys": [
+              "final_sql",
+              "task_spec"
+            ],
+            "repair_type": "revise_plan_or_query",
+            "checks": [
+              "scalar_cardinality"
+            ]
+          },
+          {
+            "step": 2,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "dcb370cb369b74cc0b01a304dc3a3399ed1a9fdc5b3677244fae72903dd1d77a",
+            "response_mode": "native_function",
+            "sql": "SELECT drivers.number FROM qualifying JOIN drivers ON qualifying.driverId = drivers.driverId WHERE qualifying.raceId = 903 AND qualifying.q3 LIKE '0:01:54%'",
+            "row_count": 0,
+            "elapsed_ms": 0.8875419998730649
+          }
+        ],
+        "tokens": 7920,
+        "input_tokens": 7697,
+        "output_tokens": 223,
+        "usage_status": "complete",
+        "elapsed_seconds": 7.477453667000191,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 5.25849879100042,
+        "case_id": "861",
+        "asset": "formula_1",
+        "database_hash": "79770caf966707e35516fa566e24b40ae515c74ec1ec4631235245645b87b24d",
+        "database_unchanged": true,
+        "passed": false,
+        "sub_hits": 0,
+        "sub_total": 1
+      },
+      {
+        "answers": {},
+        "raw_answers": null,
+        "answer_evidence": {},
+        "task_contract": {
+          "question": "How many accidents did the driver who had the highest number accidents in the Canadian Grand Prix have?",
+          "public_requirements": "number of accidents refers to the number where statusid = 3; Canadian Grand Prix refers to the race of name\n",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "accidents"
+            ],
+            "shape": "scalar",
+            "unit": null,
+            "decimals": null,
+            "ties": "single",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {}
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": "SELECT COUNT(*) AS accidents FROM results WHERE statusId = 3 AND driverId = (SELECT r.driverId FROM results r JOIN races ra ON r.raceId = ra.raceId WHERE ra.name = 'Canadian Grand Prix' AND r.statusId = 3 GROUP BY r.driverId ORDER BY COUNT(*) DESC, r.driverId ASC LIMIT 1)",
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "98c79191a0f346b67b29cf6f2851ce39e87e0f64f85484c321a94e5678a9abd4",
+            "response_mode": "native_function",
+            "sql": "SELECT COUNT(*) AS accidents FROM results WHERE statusId = 3 AND driverId = (SELECT r.driverId FROM results r JOIN races ra ON r.raceId = ra.raceId WHERE ra.name = 'Canadian Grand Prix' AND r.statusId = 3 GROUP BY r.driverId ORDER BY COUNT(*) DESC, r.driverId ASC LIMIT 1)",
+            "row_count": 1,
+            "elapsed_ms": 3.88862500039977
+          }
+        ],
+        "tokens": 3863,
+        "input_tokens": 3696,
+        "output_tokens": 167,
+        "usage_status": "complete",
+        "elapsed_seconds": 4.28674270800002,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 2.0567407080006888,
+        "case_id": "1003",
+        "asset": "formula_1",
+        "database_hash": "79770caf966707e35516fa566e24b40ae515c74ec1ec4631235245645b87b24d",
+        "database_unchanged": true,
+        "passed": false,
+        "sub_hits": 0,
+        "sub_total": 1
+      },
+      {
+        "answers": {},
+        "raw_answers": null,
+        "answer_evidence": {},
+        "task_contract": {
+          "question": "What is the percentage of incredibly powerful cards in the set Coldsnap?",
+          "public_requirements": "card set Coldsnap refers to name = 'Coldsnap'; foil is incredibly powerful refers to cardKingdomFoilId is not null AND cardKingdomId is not null; the percentage of incredibly powerful cards in the set refers to DIVIDE(SUM(incredibly powerful), SUM(name = 'Coldsnap'))*100",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "answer"
+            ],
+            "shape": "scalar",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {}
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": "SELECT 100.0 * SUM(CASE WHEN cardKingdomFoilId IS NOT NULL AND cardKingdomId IS NOT NULL THEN 1 ELSE 0 END) / COUNT(*) AS answer FROM cards WHERE setCode = (SELECT code FROM sets WHERE name = 'Coldsnap')",
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "5fc8de2d7c3f4303d292fa8efe445884fc4d61e24853b18e60ba60c2d67ca1d3",
+            "response_mode": "native_function",
+            "sql": "SELECT COUNT(*) AS n, SUM(cardKingdomFoilId IS NOT NULL AND cardKingdomId IS NOT NULL) AS powerful FROM cards WHERE setCode = (SELECT code FROM sets WHERE name='Coldsnap')",
+            "row_count": 1,
+            "elapsed_ms": 34.76445800060901
+          },
+          {
+            "step": 2,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "066b91070e4a502d986343be7b8652a69878116f15b2283dc6ce6ac5e615c127",
+            "response_mode": "native_function",
+            "sql": "SELECT 100.0 * SUM(CASE WHEN cardKingdomFoilId IS NOT NULL AND cardKingdomId IS NOT NULL THEN 1 ELSE 0 END) / COUNT(*) AS answer FROM cards WHERE setCode = (SELECT code FROM sets WHERE name = 'Coldsnap')",
+            "row_count": 1,
+            "elapsed_ms": 29.3322920006176
+          }
+        ],
+        "tokens": 9427,
+        "input_tokens": 9215,
+        "output_tokens": 212,
+        "usage_status": "complete",
+        "elapsed_seconds": 9.457081000000471,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 5.6355933340000774,
+        "case_id": "487",
+        "asset": "card_games",
+        "database_hash": "c98bdb57fe7474da798b407785544b9af0daaad5d61fd21e2a73309493bc1227",
+        "database_unchanged": true,
+        "passed": true,
+        "sub_hits": 1,
+        "sub_total": 1
+      },
+      {
+        "answers": {},
+        "raw_answers": null,
+        "answer_evidence": {},
+        "task_contract": {
+          "question": "Of the schools that offers a magnet program serving a grade span of Kindergarten to 8th grade, how many offers Multiple Provision Types? List the number of cities that offers a Kindergarten to 8th grade span and indicate how many schools are there serving such grade span for each city.",
+          "public_requirements": "Kindergarten to 8th grade refers to K-8; 'Offers a magnet program' means Magnet = 1; Multiple Provision Types refers to `NSLP Provision Status` = 'Multiple Provision Types'",
+          "entity": null,
+          "grain": [],
+          "filters": [],
+          "time_range": null,
+          "formula": null,
+          "denominator": null,
+          "count_basis": "unspecified",
+          "order_by": null,
+          "order_direction": null,
+          "conflicts": [],
+          "answer": {
+            "columns": [
+              "num_schools_k8_magnet_multiple_provision"
+            ],
+            "shape": "rows",
+            "unit": null,
+            "decimals": null,
+            "ties": "unspecified",
+            "empty": "allow",
+            "nullable": true,
+            "minimum": null,
+            "maximum": null,
+            "fields": {}
+          },
+          "requirements": {
+            "predicates": [],
+            "dates": [],
+            "ratios": []
+          }
+        },
+        "final_sql": "SELECT COUNT(*) AS num_schools_k8_magnet_multiple_provision\nFROM schools s\nJOIN frpm f ON f.CDSCode = s.CDSCode\nWHERE s.Magnet = 1\n  AND s.GSserved = 'K-8'\n  AND f.\"NSLP Provision Status\" = 'Multiple Provision Types'\nUNION ALL\nSELECT COUNT(DISTINCT s.City) FROM schools s WHERE s.GSserved='K-8'",
+        "failure": null,
+        "trace": [
+          {
+            "step": 1,
+            "tool": "sql",
+            "status": "ok",
+            "result_hash": "9123ca227633687a13547c82751f04d1991b50af02ad1bbd3252350dda86367b",
+            "response_mode": "native_function",
+            "sql": "SELECT COUNT(*) AS num_schools_k8_magnet_multiple_provision\nFROM schools s\nJOIN frpm f ON f.CDSCode = s.CDSCode\nWHERE s.Magnet = 1\n  AND s.GSserved = 'K-8'\n  AND f.\"NSLP Provision Status\" = 'Multiple Provision Types'\nUNION ALL\nSELECT COUNT(DISTINCT s.City) FROM schools s WHERE s.GSserved='K-8'",
+            "row_count": 2,
+            "elapsed_ms": 6.4779160002217395
+          }
+        ],
+        "tokens": 3737,
+        "input_tokens": 3551,
+        "output_tokens": 186,
+        "usage_status": "complete",
+        "elapsed_seconds": 3.422824791000494,
+        "observed_cost_usd": 0.0,
+        "cost_usd": null,
+        "cost_status": "partial_or_unknown",
+        "agent_elapsed_seconds": 1.7485470000001442,
+        "case_id": "83",
+        "asset": "california_schools",
+        "database_hash": "c0903eec662e63068fd1d14403d3d6c1d473287fc10c4356333ea58f878db983",
+        "database_unchanged": true,
+        "passed": false,
+        "sub_hits": 0,
+        "sub_total": 1
+      }
+    ],
+    "production_accepted": false,
+    "strict_passed_n": 1,
+    "attempts_completed": 5
+  },
+  "time_pattern_replay": {
+    "n": 118,
+    "new_checks": [
+      {
+        "arm": "candidate",
+        "case_id": "861",
+        "strict_passed": false,
+        "checks": [
+          "public_time_like_pattern"
+        ]
+      }
+    ],
+    "scope": "offline replay; strict scores unchanged"
   }
 }
