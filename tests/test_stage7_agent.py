@@ -2456,3 +2456,67 @@ def test_empty_analysis_population_feedback_reuses_scoped_literal_observations(t
     assert result["trace"][0]["code"] == "empty_analysis_population"
     assert result["answer_evidence"]["n"]["method_id"] == "describe"
     assert result["tokens"] == 30 and database.read_bytes() == before
+
+
+def test_only_latest_countdown_remains_while_native_errors_results_and_spend_are_preserved(
+    database,
+):
+    from langchain_core.messages import AIMessage, ToolMessage
+
+    observed = []
+    calls = iter(
+        [
+            {"name": "execute_sql", "args": {"sql": 123}, "id": "bad"},
+            {
+                "name": "execute_sql",
+                "args": {"sql": "SELECT COUNT(*) AS n FROM people"},
+                "id": "observe",
+            },
+            {
+                "name": "submit_sql",
+                "args": {"sql": "SELECT COUNT(*) AS n FROM people", "output_columns": ["n"]},
+                "id": "finish",
+            },
+        ]
+    )
+
+    class Model:
+        def bind(self, **kwargs):
+            return self
+
+        def invoke(self, messages):
+            countdowns = []
+            for message in messages:
+                if isinstance(message, tuple) and message[0] == "human":
+                    item = json.loads(message[1])
+                    if "remaining_actions" in item:
+                        countdowns.append(item)
+            assert len(countdowns) == 1
+            observed.append(countdowns[0]["remaining_observed_tokens"])
+            if len(observed) == 3:
+                assert {
+                    c["id"] for m in messages if isinstance(m, AIMessage) for c in m.tool_calls
+                } == {"bad", "observe"}
+                feedbacks = {
+                    m.tool_call_id: json.loads(m.content)
+                    for m in messages
+                    if isinstance(m, ToolMessage)
+                }
+                assert feedbacks["bad"]["code"] == "action_schema"
+                assert feedbacks["observe"]["rows"] == [[2]]
+            return SimpleNamespace(
+                content="",
+                tool_calls=[next(calls)],
+                usage_metadata={"total_tokens": 17},
+                response_metadata={},
+            )
+
+    before = database.read_bytes()
+    task = Task("bird-mini-dev-sqlite", "synthetic", "How many people?", "", "easy", "people")
+    result = BoundedSQLAgent(Model(), tool_profile="sql-semantic", max_steps=3, max_tokens=100).run(
+        task, database
+    )
+    assert result["failure"] is None and result["tokens"] == 51
+    assert observed == [100, 83, 66]
+    assert result["trace"][0]["code"] == "action_schema"
+    assert len(result["trace"]) == 3 and database.read_bytes() == before

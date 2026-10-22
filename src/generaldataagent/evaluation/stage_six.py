@@ -584,6 +584,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
         observed_cost = 0.0
         failure, final_sql = "step_budget", None
         raw_answers = None
+        previous_countdown = None
         for step in range(1, self.max_steps + 1):
             if time.monotonic() - started > self.max_seconds:
                 failure = "time_budget"
@@ -598,40 +599,44 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
             action = None
             calls = []
             if repair:
-                messages.append(
-                    (
-                        "human",
-                        json.dumps(
-                            {
-                                "remaining_actions": self.max_steps - step + 1,
-                                **(
-                                    {
-                                        "remaining_observed_tokens": max(
-                                            0, self.max_tokens - tokens
-                                        ),
-                                        "token_budget_scope": (
-                                            "future input plus output; no reset after errors"
-                                        ),
-                                        "submission_hint": (
-                                            "Computing evidence does not submit it. "
-                                            "Once sufficient, use an advertised final "
-                                            "submission tool. Avoid repeating successful "
-                                            "computations or spending the last turn "
-                                            "on observation."
-                                        ),
-                                    }
-                                    if semantic
-                                    else {}
-                                ),
-                                "finish_hint": (
-                                    "Return final_sql if ready."
-                                    if precision
-                                    else "Finish now if observed evidence is sufficient."
-                                ),
-                            }
-                        ),
-                    )
+                if semantic and previous_countdown is not None:
+                    # Remove only the exact runtime-created stale countdown object.
+                    # Model actions, tool results, errors and spent usage stay intact.
+                    for index, message in enumerate(messages):
+                        if message is previous_countdown:
+                            del messages[index]
+                            break
+                countdown = (
+                    "human",
+                    json.dumps(
+                        {
+                            "remaining_actions": self.max_steps - step + 1,
+                            **(
+                                {
+                                    "remaining_observed_tokens": max(0, self.max_tokens - tokens),
+                                    "token_budget_scope": (
+                                        "future input plus output; no reset after errors"
+                                    ),
+                                    "submission_hint": (
+                                        "Computing evidence does not submit it. Once sufficient, "
+                                        "use an advertised final submission tool. Avoid repeating "
+                                        "successful computations or spending the last turn "
+                                        "on observation."
+                                    ),
+                                }
+                                if semantic
+                                else {}
+                            ),
+                            "finish_hint": (
+                                "Return final_sql if ready."
+                                if precision
+                                else "Finish now if observed evidence is sufficient."
+                            ),
+                        }
+                    ),
                 )
+                messages.append(countdown)
+                previous_countdown = countdown
             try:
                 try:
                     active_model = (
