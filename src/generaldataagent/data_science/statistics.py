@@ -42,6 +42,8 @@ def derive_features(rows: list[dict], features: list[DerivedFeature]) -> list[di
                     groups[key].append(row[feature.columns[0]])
         for row in result:
             values = [row[c] for c in feature.columns]
+            if feature.constant is not None:
+                values.append(feature.constant)
             if feature.group_by:
                 key = tuple((type(row[c]).__name__, row[c]) for c in feature.group_by)
                 group = groups[key]
@@ -84,6 +86,8 @@ def derive_features(rows: list[dict], features: list[DerivedFeature]) -> list[di
                     value = getattr(parsed, feature.operation)
             elif not all(finite_number(v) for v in values):
                 value = None
+            elif feature.operation == "row_mean":
+                value = statistics.fmean(values)
             else:
                 functions = {
                     "add": operator.add,
@@ -136,7 +140,7 @@ def _summary(values, method):
     iqr = q3 - q1
     mean = statistics.fmean(values)
     low, high = q1 - method.iqr_multiplier * iqr, q3 + method.iqr_multiplier * iqr
-    return {
+    output = {
         "count": count,
         "sum": math.fsum(values),
         "mean": mean,
@@ -161,6 +165,16 @@ def _summary(values, method):
         else None,
         "status": "ok" if variable else "constant_column",
     }
+    for kind in ("iqr", "z"):
+        selected = [values[i] for i in output[kind + "_outlier_indices"]]
+        output.update(
+            {
+                kind + "_outlier_count": len(selected),
+                kind + "_outlier_mean": statistics.fmean(selected) if selected else None,
+                kind + "_outlier_median": statistics.median(selected) if selected else None,
+            }
+        )
+    return output
 
 
 def compute_statistics(rows: list[dict], request: StatisticsRequest, *, public_text="") -> dict:
@@ -224,7 +238,9 @@ def compute_statistics(rows: list[dict], request: StatisticsRequest, *, public_t
                 raise ValueError("Pearson requires >=2 pairs and nonconstant columns")
             from generaldataagent.tools.pearson_test import pearson_test
 
-            test = pearson_test([v for _, v in pairs])
+            test = pearson_test(
+                [v for _, v in pairs], rule=request.decision_rule, public_text=public_text
+            )
             group.update(
                 **test,
                 observations=len(pairs),

@@ -46,7 +46,7 @@ def standard_deviation_bindings(bindings, evidence, text):
         return (
             result.get("method_id") in {"summary", "outliers", "normality"}
             and result.get("method_spec", {}).get("ddof") == expected
-            and path[-1] == "std"
+            and (path[-1] == "std" or (not named and str(path[-1]).startswith("z_outlier_")))
         )
 
     return bool(candidates) and (

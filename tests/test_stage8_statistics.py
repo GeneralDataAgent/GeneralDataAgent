@@ -286,3 +286,50 @@ def test_numeric_text_coercion_is_explicit_and_keeps_group_keys():
     assert group["correlation"] == pytest.approx(-1)
     assert group["dropped_rows"] == 1 and group["group"] == {"group": "001"}
     assert rows[0]["x"] == "1"
+
+
+def test_row_means_and_constant_arithmetic_are_whitelisted_and_null_propagating():
+    rows = [{"x": 2, "y": 4, "z": 6}, {"x": None, "y": 4, "z": 5}]
+    features = [
+        DerivedFeature(name="sum", operation="add", columns=["x", "y"]),
+        DerivedFeature(name="half", operation="divide", columns=["sum"], constant=2.0),
+        DerivedFeature(name="avg", operation="row_mean", columns=["x", "y", "z"]),
+    ]
+    output = derive_features(rows, features)
+    assert output[0]["half"] == 3 and output[0]["avg"] == 4
+    assert output[1]["half"] is None and output[1]["avg"] is None
+    with pytest.raises(ValueError, match="constant operand"):
+        DerivedFeature(name="bad", operation="row_mean", columns=["x"], constant=2.0)
+
+
+def test_outlier_scalar_summaries_match_selected_values():
+    rows = [{"x": x} for x in [*range(20), 1000]]
+    result = compute_statistics(rows, StatisticsRequest(columns=["x"], operation="outliers"))
+    summary = result["groups"][0]["statistics"]["x"]
+    for prefix in ("iqr", "z"):
+        assert summary[prefix + "_outlier_count"] == 1
+        assert summary[prefix + "_outlier_mean"] == 1000
+        assert summary[prefix + "_outlier_median"] == 1000
+
+
+def test_derived_pearson_reuses_sourced_public_r_p_policy():
+    request = StatisticsRequest.model_validate(
+        {
+            "columns": ["avg", "target"],
+            "operation": "pearson",
+            "features": [{"name": "avg", "operation": "row_mean", "columns": ["x", "y"]}],
+            "decision_rule": {
+                "alpha": 0.05,
+                "abs_r_threshold": 0.5,
+                "significant_high_label": "linear",
+                "significant_low_label": "nonlinear",
+                "nonsignificant_label": "none",
+            },
+        }
+    )
+    text = 'alpha=0.05; threshold 0.5, labels "linear", "nonlinear", "none"'
+    result = compute_statistics(
+        [{"x": i, "y": 2 * i, "target": 3 * i} for i in range(10)], request, public_text=text
+    )
+    assert result["groups"][0]["public_rule_label"] == "linear"
+    assert result["groups"][0]["policy_interpretation_verified"] is False

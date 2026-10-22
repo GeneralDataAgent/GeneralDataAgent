@@ -16,12 +16,21 @@ Statistics operations: summary, outliers, normality, pearson (coefficient and tw
 Features whitelist: add/subtract/multiply/divide (two columns), year/month/day (one ISO date),
 hour/minute/second (ISO datetime or ISO/AM-PM clock time, converted to 24-hour wall-clock),
 group_mean/group_sum/group_median/group_count (one numeric column plus group_by).
+For a per-row average use row_mean with columns:["x","z","w"]. Arithmetic supports a right
+literal operand: {name:"average",operation:"divide",columns:["sum"],constant:3.0}.
+Row means require every operand finite; missing arithmetic propagates null before pairing.
 Expressions are ordered, cannot overwrite columns, null arithmetic propagates, division by
 zero becomes null. Optional where:[{column,operator:"gt",value:0.0}] filters AFTER derivation,
 BEFORE finite pairing. group_by:["category"] returns separate group statistics.
 method includes ddof:0 or 1, missing:"omit" or "raise", alpha:0.05, z_threshold:3.0,
 iqr_multiplier:1.5,normality:"auto"/"shapiro"/"dagostino". Summary exposes std, median,
 range, IQR, unbiased skewness/excess kurtosis and source row indices; do not infer from samples.
+For outliers use statistics.operation:"outliers". Each summary exposes iqr_outlier_count,
+iqr_outlier_mean, iqr_outlier_median and z_outlier_count/z_outlier_mean/z_outlier_median.
+Compute the explicitly requested IQR or Z-score method; do not hand-code approximate quartiles.
+Pearson statistics supports the existing public decision_rule with alpha,abs_r_threshold,
+significant_high_label,significant_low_label,nonsignificant_label. Quoted labels and thresholds
+must occur in public text; the label is a public policy, not verified scientific linearity.
 For real multivariate holdout use operation:"regression_evaluation", columns:["x","z","y"],
 experiment:{features:["x","z"],target:"y",random_seed:42,split:{strategy:"random",test_fraction:0.2},
 missing_features:"train_mean",standardize:true}. Group split requires group_column;

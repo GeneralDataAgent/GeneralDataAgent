@@ -104,3 +104,14 @@ and time quota; qualification uses 512 MB, 60 seconds and one BLAS thread. Noteb
 checked against the exact repository template before any cell is compiled. Public-method
 qualification reads only the public question file and source tables, without decoding reference answer values. Source-integrity checks may hash label files.
 It proves tool/method behavior, not agent answer accuracy or production acceptance.
+
+Row-local `row_mean` accepts up to 20 finite operands. Arithmetic operators also accept a
+single column with an explicit finite right-hand `constant`, such as division by 3. Missing
+operands propagate null. IQR and Z-score summaries return scalar count, mean and median for the
+selected outlier population, in addition to original source indices. Derived Pearson statistics
+can reuse the sourced r/p decision policy; its labels do not certify scientific linearity.
+
+In the research profile, a requested standard deviation requires a fixed-method receipt.
+The public default is ddof=1; explicit population/ddof=0 requirements use that convention.
+Manual SQL moment-subtraction formulas cannot substitute for a method receipt. Z-score outlier
+summaries carry the corresponding ddof receipt without requiring an unrequested std output.

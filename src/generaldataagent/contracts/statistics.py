@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from generaldataagent.contracts.data_science import SplitSpec
 from generaldataagent.contracts.independent_test import SignificanceRule
+from generaldataagent.contracts.statistical_rules import PearsonDecisionRule
 
 
 class Contract(BaseModel):
@@ -29,14 +30,20 @@ class DerivedFeature(Contract):
         "group_sum",
         "group_median",
         "group_count",
+        "row_mean",
     ]
-    columns: list[str] = Field(min_length=1, max_length=2)
+    columns: list[str] = Field(min_length=1, max_length=20)
     group_by: list[str] = Field(default_factory=list, max_length=4)
+    constant: float | None = Field(default=None, allow_inf_nan=False)
 
     @model_validator(mode="after")
     def arity(self):
         binary = self.operation in {"add", "subtract", "multiply", "divide"}
-        if len(self.columns) != (2 if binary else 1):
+        if self.constant is not None and (not binary or len(self.columns) != 1):
+            raise ValueError("constant operand requires one column and an arithmetic operator")
+        if self.operation != "row_mean" and len(self.columns) != (
+            2 if binary and self.constant is None else 1
+        ):
             raise ValueError("feature operator has incorrect arity")
         if bool(self.group_by) != self.operation.startswith("group_"):
             raise ValueError("group operators require group_by only")
@@ -78,9 +85,16 @@ class StatisticsRequest(Contract):
     group_by: list[str] = Field(default_factory=list, max_length=4)
     significance_rule: SignificanceRule | None = None
     direction_rule: PearsonDirectionRule | None = None
+    decision_rule: PearsonDecisionRule | None = None
 
     @model_validator(mode="after")
     def coherent(self):
+        if self.decision_rule is not None and (
+            self.operation != "pearson"
+            or self.decision_rule.alpha != self.method.alpha
+            or self.direction_rule is not None
+        ):
+            raise ValueError("choose one Pearson decision policy with matching alpha")
         if self.direction_rule is not None and (
             self.operation != "pearson" or self.direction_rule.alpha != self.method.alpha
         ):

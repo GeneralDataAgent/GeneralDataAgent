@@ -27,6 +27,12 @@ def test_sql_shortcut_cannot_certify_standard_deviation_method():
     bindings["standard_deviation"] = [2, ["groups", 0, "statistics", "x", "std"]]
     assert standard_deviation_bindings(bindings, summary, "population standard deviation")
     assert not standard_deviation_bindings(bindings, summary, text)
+    z_binding = {"outlier_count": [2, ["groups", 0, "statistics", "x", "z_outlier_count"]]}
+    assert standard_deviation_bindings(
+        z_binding,
+        {2: {"method_id": "outliers", "method_spec": {"ddof": 1}}},
+        "Use the standard deviation to calculate Z-score outliers",
+    )
 
 
 def test_agent_rejects_manual_population_sql_then_uses_default_sample_method(tmp_path):

@@ -43,7 +43,7 @@ def main():
         for q in questions
     }
     records = []
-    for key in ("5", "30", "69", "70", "255", "326", "644", "659"):
+    for key in ("5", "30", "69", "70", "255", "326", "644", "659", "27", "132", "575"):
         task = public_tasks[key]
         source = ROOT / "data/stage6/infi/da-dev-tables" / task.asset
         database = args.output / (key + ".sqlite")
@@ -138,6 +138,50 @@ def main():
                         pairs.append(pair)
                 independent = float(stats.pearsonr(*zip(*pairs, strict=True)).statistic)
                 path = ["groups", 0, "correlation"]
+            elif key in {"27", "132"}:
+                column = "charges" if key == "27" else "Fare"
+                values = [
+                    r[column]
+                    for r in rows
+                    if isinstance(r[column], (int, float)) and math.isfinite(r[column])
+                ]
+                request.update(columns=[column], operation="outliers")
+                if key == "27":
+                    q1, q3 = np.percentile(values, [25, 75], method="linear")
+                    independent = sum(
+                        v < q1 - 1.5 * (q3 - q1) or v > q3 + 1.5 * (q3 - q1) for v in values
+                    )
+                    suffix = "iqr_outlier_count"
+                else:
+                    independent = sum(
+                        abs((v - float(np.mean(values))) / float(np.std(values, ddof=1))) > 3
+                        for v in values
+                    )
+                    suffix = "z_outlier_count"
+                path = ["groups", 0, "statistics", column, suffix]
+            elif key == "575":
+                columns = ["AAPL.O", "MSFT.O", "AMZN.O"]
+                request.update(
+                    columns=["avg_price", ".SPX"],
+                    features=[{"name": "avg_price", "operation": "row_mean", "columns": columns}],
+                    decision_rule={
+                        "alpha": 0.05,
+                        "abs_r_threshold": 0.5,
+                        "significant_high_label": "linear",
+                        "significant_low_label": "nonlinear",
+                        "nonsignificant_label": "none",
+                    },
+                )
+                pairs = [
+                    (float(np.mean([r[c] for c in columns])), r[".SPX"])
+                    for r in rows
+                    if all(
+                        isinstance(r[c], (int, float)) and math.isfinite(r[c])
+                        for c in columns + [".SPX"]
+                    )
+                ]
+                independent = float(stats.pearsonr(*zip(*pairs, strict=True)).statistic)
+                path = ["groups", 0, "correlation"]
             elif key == "255":
                 request.update(columns=["gdpPercap_2007"], operation="summary")
                 independent = float(
@@ -193,6 +237,8 @@ def main():
         observed = result
         for part in path:
             observed = observed[part]
+        if isinstance(independent, np.generic):
+            independent = independent.item()
         records.append(
             {
                 "case_id": key,
