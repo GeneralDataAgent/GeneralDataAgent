@@ -57,6 +57,7 @@ class RuleQuestionError(ValueError):
             "rule_question_invalid_transaction_value",
             "rule_question_invalid_facet",
             "rule_question_unresolved_mcc",
+            "rule_question_unsupported_context_facets",
         }
     )
 
@@ -196,6 +197,19 @@ def parse_rule_question(
     ) is not None
     if not facet_question and (applies or rate_change) and merchant is None:
         raise RuleQuestionError("rule_question_missing_merchant")
+
+    if (
+        merchant is not None
+        and (applies or rate_change)
+        and re.search(
+            r"\b(?:account_type|account type|aci|card scheme|mcc description|transaction value|"
+            r"is_credit|intracountry|credit transactions?|debit transactions?)\b",
+            lowered,
+        )
+    ):
+        # Context execution uses observed merchant/payment records. Until explicit
+        # transaction-subset semantics exist, never drop a stated filter here.
+        raise RuleQuestionError("rule_question_unsupported_context_facets")
 
     if rate_change:
         rule_id = _rule_id(text)

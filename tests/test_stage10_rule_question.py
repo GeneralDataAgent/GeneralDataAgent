@@ -50,6 +50,35 @@ def test_rate_change_question_becomes_a_counterfactual():
     assert (request.merchant, request.year, request.month) == ("Belles_cookbook_store", 2023, 1)
 
 
+@pytest.mark.parametrize(
+    "condition",
+    [
+        "credit transactions",
+        "debit transactions",
+        "aci = B",
+        "account_type = R",
+        "card scheme Aurora",
+        "MCC description: Eating Places and Restaurants",
+        "transaction value of 25 EUR",
+        "is_credit = true",
+        "intracountry = true",
+    ],
+)
+@pytest.mark.parametrize("operation", ["applicable", "counterfactual"])
+def test_contextual_questions_never_discard_explicit_facets(condition, operation):
+    if operation == "applicable":
+        question = (
+            "Which fee IDs are applicable to Belles_cookbook_store in January 2023 "
+            f"for {condition}?"
+        )
+    else:
+        question = (
+            "What delta would Belles_cookbook_store pay in January 2023 "
+            f"for {condition} if fee ID=901 changed to 32?"
+        )
+    assert refusal(question) == "rule_question_unsupported_context_facets"
+
+
 def test_average_fee_reads_only_the_facets_the_question_states():
     request = parse(
         "For credit transactions, what would be the average fee that the card scheme "
