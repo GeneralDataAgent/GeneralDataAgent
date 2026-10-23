@@ -158,6 +158,15 @@ def assemble_answers(bindings: dict, evidence: dict[int, dict], answer: AnswerSp
                 value = value[part]
         except (KeyError, IndexError, TypeError) as exc:
             raise SemanticError("evidence path not found") from exc
+        if evidence[step].get("method_id") == "fee_rules":
+            allowed_paths = {"items"}
+            operation = evidence[step].get("operation")
+            if operation == "average_fee":
+                allowed_paths.add("average_fee")
+            elif operation == "counterfactual":
+                allowed_paths.add("delta")
+            if len(path) != 1 or path[0] not in allowed_paths:
+                raise SemanticError("rule_answer_requires_computed_output")
         dependencies = evidence[step].get("data_dependent_columns")
         if dependencies is not None and (
             len(path) != 3

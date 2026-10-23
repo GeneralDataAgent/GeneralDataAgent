@@ -102,6 +102,81 @@ LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false UV_CACHE_DIR=/tmp/deepagents-
 LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false UV_CACHE_DIR=/tmp/deepagents-uv-cache UV_PROJECT_ENVIRONMENT=/tmp/gda-stage6-py311 COVERAGE_FILE=.artifacts/stage6/py311.coverage uv run --frozen --python 3.11 pytest --cov=generaldataagent --cov-fail-under=85
 ```
 
+## Rule Supervisor diagnostics
+
+`evals/run_stage10_rule_supervisor.py` measures the four-role team over requests accepted by
+its deterministic parser. It is a development diagnostic, not a public benchmark score or
+production acceptance. Declare the annex empty-list interpretation explicitly; do not change
+that interpretation between paired runs. Parser refusals stay in the full denominator.
+
+```bash
+LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false UV_CACHE_DIR="$PWD/.cache/uv" TMPDIR="$PWD/.artifacts/stage10" uv run --frozen python evals/run_stage10_rule_supervisor.py --app-type magpie --provider-id magpie --model workbuddy/deepseek-v4.1-flash --limit 10 --empty-list-is-wildcard --output .artifacts/stage10/rule-supervisor-fresh/report.json
+```
+
+The temporary-directory parent must already exist. Output must be fresh and inside the
+implementation repository. Each case persists atomically; a `running` report with pending
+cases is incomplete. Model attempts, responses, errors and finite specialist role/status
+reports are recorded separately. Specialist declarations describe observed behavior and
+never authorize execution. Missing or failed-call token usage remains unknown even when
+known totals are zero. Costs remain null without independent billing telemetry.
+
+This runner reuses `ServiceCircuitBreaker`: HTTP 401/402/403/404 opens the circuit immediately;
+three consecutive other model-service failures also open it. Later parseable cases are
+`service_circuit_open`, `attempted=false` and remain in the denominator; parser refusals keep
+their own outcome. A service-blocked run saves all cases, sets `blocked_by_service` and exits
+2. A gateway `/v1/models` response alone does not establish model-service readiness.
+
+## Authored rule business qualification
+
+`evals/qualify_stage9_business.py` runs the versioned synthetic corpus in
+`evals/datasets/stage9-rule-business.json`. It checks exact natural-language request fields
+before executing the real checkpointed workflow. Arithmetic expectations come from raw records
+and Fraction-based oracles, never workflow output. All four operations and explicit refusal
+cases remain in the planned denominator; correctly expected refusals count as qualification
+passes, not successful business answers.
+
+```bash
+LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false UV_CACHE_DIR="$PWD/.cache/uv" TMPDIR="$PWD/.artifacts/stage10" uv run --frozen python evals/qualify_stage9_business.py --output .artifacts/stage9/business-fresh
+```
+
+Use a fresh output directory inside the implementation repository and an existing temporary
+parent. The run retains the original corpus bytes, corpus/parser/oracle/runner fingerprints,
+per-case request and answer comparisons, errors, and atomic progress reports. Exit status is
+1 if any case fails. Model calls are zero. This is an authored, inspected development corpus;
+independent human review and unseen evaluation remain `not_run`. It does not qualify model
+delegation or production release admission.
+
+Add `--governed` to execute the same corpus through `GovernedRuleRunner`, using a separate
+fresh output directory. Each accepted case checks the task-bound artifact reference, content
+hash and size, exact evidence/checkpoint equality, verification status, and the two ordered
+policy audit events against expected request fingerprints, actor, tenant, task and trace.
+`governance_checked_n` and `governance_passed_n` count these cases separately from parser
+refusals. Each case retains its own artifact and audit directory. This mode uses development
+local storage and JSONL audit; it does not qualify production source authorization, retention,
+release admission, or independent audit. Denial and outage fault injection is covered by
+`tests/test_stage9_governed.py` and evidence-tampering checks by
+`tests/test_stage9_business_qualification.py`.
+
+## Rule evidence recovery qualification
+
+`evals/qualify_stage9_recovery.py` injects an evidence-audit outage after the workflow has
+completed, closes and reopens the encrypted checkpoint database, then resumes through the
+same development gateway. It checks that changed requests and duplicate `run` calls are
+rejected without changing the checkpoint, and that `resume` writes task-bound, hash-verified
+evidence without replaying any of the five workflow nodes. Answers are checked against the
+raw-record Fraction oracles.
+
+```bash
+LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false UV_CACHE_DIR="$PWD/.cache/uv" TMPDIR="$PWD/.artifacts/stage10" uv run --frozen python evals/qualify_stage9_recovery.py --output .artifacts/stage9/recovery-fresh
+```
+
+The planned denominator is explicitly the ten accepted structured requests from the eighteen
+case authored corpus. Parser refusals are not recovery scenarios. The fresh run saves all
+cases, initial fault observations, per-node counts, artifacts, audit logs and atomic progress.
+Audit `allow` records for rejected duplicate/changed requests mean policy authorization only;
+the workflow binding checks still reject execution. This is database close/reopen in one
+process, not process-kill recovery, production audit qualification or unseen evaluation.
+
 ## Token policy and service preflight
 
 Current defaults for `--max-tokens` and `--max-output-tokens` are unset: there is no evaluator cumulative or per-call output token ceiling. Do not pass these options for uncapped evaluation. Provider context/output limits still apply. Finite limits remain optional for controlled comparisons and historical reproduction; per-call values must be at least 32. Explicit `--max-tokens 24000 --max-output-tokens 3000` records the old limits on the current runner, but exact historical replay additionally requires its pinned source/protocol. Both limits enter pairing fingerprints; output limits also enter the effective route.
@@ -140,6 +215,55 @@ LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false UV_CACHE_DIR=/tmp/deepagents-
 # Qualify actual product metric orchestration, not public benchmark performance.
 LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/qualify_stage6_supervisor.py --app-type magpie --provider-id magpie --model workbuddy/deepseek-v4.1-flash --limit 3 --output .artifacts/stage6/magpie-supervisor/report.json
 ```
+
+## Rule-enabled DABstep development evaluation
+
+`sql-rules` requires `--evaluation-protocol stage9-v1 --benchmark dabstep`. It adds
+`analyze_fee_rules` to the native function surface. The runtime validates the typed request,
+reads bounded existing tables in read-only mode, retains complete annex records with a source
+hash and exact formula passages in the case trace, and accepts answer bindings only to
+computed IDs, average fee, or rate delta. Unspecified facets in `select`/`average_fee` are not
+constraints; `applicable`/`counterfactual` derive merchant thresholds from the full natural
+month even for a day-scoped transaction set. Null and empty-list wildcard declarations remain
+separate and are recorded with the caller's exact document excerpt.
+
+Use native function calls without `--json-mode`. With the current OpenAI SDK, combining JSON
+object response formatting with these non-strict wire tools invokes auto-parsing and raises
+`Only strict function tools can be auto-parsed` before any provider request. Runtime Pydantic
+validation remains strict independently of provider wire formatting. A failed local invocation
+must remain recorded and must not be reported as exhausted service credits.
+
+```bash
+LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false UV_CACHE_DIR=.cache/uv uv run --frozen python evals/run_stage6.py --benchmark dabstep --limit 10 --workers 1 --app-type magpie --provider-id magpie --model workbuddy/deepseek-v4.1-flash --transport openai-chat --csv-importer identifier-v2 --request-interval-seconds 3.5 --tool-profile sql-rules --evaluation-protocol stage9-v1 --output .artifacts/stage9/dabstep-rules-fresh
+```
+
+This evaluator adapter does not establish production `ToolGateway` admission. Development
+results are not paired with historical protocols or official leaderboard results. General
+rule verifier helpers still require further hardening for arbitrary caller-built results;
+the adapter uses loaded rule records and operation-specific checks instead of accepting a
+model-built verification report.
+
+### Reviewed experience reuse (opt-in)
+
+`--experience-database` plus `--experience-actor` (JSON with `user_id`, `tenant_id`,
+`project_id`, `data_domains`) let a run attach reviewed experience to the recovery prompt.
+Both are required together. Only records in the `active` state are read; the prompt receives
+the failure class, applicability conditions and the repair, never the question, an expected
+answer, the counterexample or the owner. Hints are attached only after the deterministic
+repair budget has already allowed another attempt, so experience cannot widen the retry
+budget. An unusable store drops the hints and records `experience_unavailable` in the trace
+without changing the task outcome.
+
+Enabling reuse sets `experience_reuse` and `experience_store_hash` in the protocol, so a run
+with it and a run without it are **not** a paired comparison. Compare two arms only after
+re-running both with the same store snapshot and actor scope.
+
+```bash
+LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false UV_CACHE_DIR=.cache/uv uv run --frozen python evals/run_stage6.py --benchmark dabstep --limit 10 --workers 1 --app-type magpie --provider-id magpie --model workbuddy/deepseek-v4.1-flash --transport openai-chat --csv-importer identifier-v2 --request-interval-seconds 3.5 --tool-profile sql-rules --evaluation-protocol stage9-v1 --experience-database .state/stage10/experience.sqlite --experience-actor '{"user_id":"eval","tenant_id":"eval","project_id":"dabstep","data_domains":["payments"]}' --output .artifacts/stage10/dabstep-experience
+```
+
+The summary reports `experience_reuse` with the number of cases that received hints, the
+number of hints offered and their distribution by failure code.
 
 ## Historical v7 reproduction
 

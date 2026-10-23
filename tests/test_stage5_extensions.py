@@ -86,6 +86,16 @@ def test_reviewed_skill_is_applied_and_cannot_expand_tool_authority(tmp_path, mo
         version="v1",
         prompt_template="Use $domain definitions.",
         allowed_tools=("catalog",),
+        applicability=("certified metric lookup",),
+        inputs=("domain",),
+        outputs=("metric definition",),
+        budget=dict(max_tool_calls=3, max_tokens=1000, max_seconds=60),
+        verification=("cite the catalog entry",),
+        failure_handling=("report ambiguity instead of guessing",),
+        examples=(
+            dict(kind="positive", request="revenue", expected="the certified definition"),
+            dict(kind="negative", request="guessed metric", expected="explicit ambiguity"),
+        ),
     )
     registry = CapabilityRegistry(tmp_path / "admission", clock=lambda: datetime.now(UTC))
     admission = ExtensionAdmission(registry)
@@ -184,3 +194,27 @@ def test_agent_pin_detects_changed_prompt_and_wrong_kind(tmp_path, monkeypatch):
         admission.agents((replace(spec, system_prompt="Changed"),), ACTOR, {spec.name: "v1"})
     with pytest.raises(PermissionError):
         admission.require("skill", spec.name, "v1", admission.agent_hash(spec), ACTOR)
+
+
+def test_governed_profile_denies_every_filesystem_tool_including_delete(monkeypatch):
+    """A real-model run showed a specialist calling ``delete`` on a host path.
+
+    The harness profile is the only thing standing between a specialist and a
+    filesystem write, so the exclusion set is asserted against the harness's
+    full list of filesystem tools rather than against a hand-copied subset.
+    """
+    from deepagents.middleware.filesystem import _ALL_FS_TOOL_NAMES
+
+    from generaldataagent.agents import factory
+
+    registered = {}
+    monkeypatch.setattr(factory, "register_harness_profile", registered.__setitem__)
+    monkeypatch.setattr(factory, "_PROFILE_REGISTERED", False)
+    factory._register_governed_profiles()
+
+    assert set(registered) == {"anthropic", "openai"}
+    for profile in registered.values():
+        assert set(_ALL_FS_TOOL_NAMES) <= profile.excluded_tools
+        # Summarization would call the provider outside model-call governance.
+        assert "SummarizationMiddleware" in profile.excluded_middleware
+        assert profile.general_purpose_subagent.enabled is False

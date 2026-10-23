@@ -29,7 +29,7 @@ def public_precisions(text: str) -> set[int]:
         "fifteen": 15,
     }
     # Public formatting also uses "a float with two decimal places", without "round".
-    pattern = r"\b(\d+|" + "|".join(words) + r")\s+decimal\s+places?\b"
+    pattern = r"\b(\d+|" + "|".join(words) + r")\s+decimal(?:s\b|\s+places?\b)"
     digits = set()
     for match in re.finditer(pattern, text, re.I):
         prefix = text[max(0, match.start() - 60) : match.start()]
@@ -67,6 +67,8 @@ def public_precisions(text: str) -> set[int]:
 def public_collection_separator(text: str, key: str) -> str | None:
     if re.search(r"\b(?:JSON\s+array|Python\s+list|native\s+list)\b", text, re.I):
         return None
+    if key == "answer" and re.search(r"\bcomma[ -]separated\s+list\b", text, re.I):
+        return ", "
     values = re.findall(r"@" + re.escape(key) + r"\[([^]\n]{1,200})\]", text)
     separators = set()
     for value in values:
@@ -280,6 +282,17 @@ def infer_public_field_rules(instructions: str, columns: list[str]) -> dict[str,
             return {}
         placeholders[key] = value
     rules = {}
+    if list(columns) == ["answer"] and re.search(
+        r"\bAnswer must be a list of values in comma[ -]separated list\b", instructions, re.I
+    ):
+        return {
+            "answer": AnswerFieldSpec(
+                kind="list",
+                nullable=False,
+                source_excerpt=instructions.strip(),
+                collection_separator=", ",
+            )
+        }
     # Some public formats define each field inside its own brackets instead of
     # referring to a later "where" clause. Keep the bracket span as provenance;
     # never borrow another field's precision or infer a type from its key.

@@ -110,8 +110,19 @@ def test_native_deepagents_supervisor_and_specialist_share_budget(tmp_path, monk
         calls.append(kwargs)
         cap = "max_tokens" if provider == "anthropic" else "max_completion_tokens"
         assert kwargs[cap] == 128
-        names = {t.get("name") or t["function"]["name"] for t in kwargs["tools"]}
-        assert not names & {"ls", "read_file", "write_file", "edit_file", "glob", "grep", "execute"}
+        # With every filesystem tool excluded, a model provider may omit the
+        # parameter entirely rather than send an empty list.
+        names = {t.get("name") or t["function"]["name"] for t in kwargs.get("tools") or ()}
+        assert not names & {
+            "ls",
+            "read_file",
+            "write_file",
+            "edit_file",
+            "delete",
+            "glob",
+            "grep",
+            "execute",
+        }
         response = reply().result[0]
         if len(calls) == 1:
             response = response.model_copy(

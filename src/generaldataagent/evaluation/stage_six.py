@@ -22,6 +22,7 @@ from collections import Counter, defaultdict
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from generaldataagent.evaluation.repair_budget import RepairBudget
 from generaldataagent.tools.sql_guard import SqlGuard
 from generaldataagent.tools.sqlite import SQLiteReadOnlyExecutor
 
@@ -331,6 +332,10 @@ class BoundedSQLAgent:
         max_tokens=None,
         tool_profile="sql",
         max_cost_usd=0.02,
+        max_repairs=3,
+        max_identical_repairs=2,
+        experience=None,
+        max_experience=2,
     ):
         if (
             max_steps < 1
@@ -349,12 +354,26 @@ class BoundedSQLAgent:
                 "sql-semantic-plan",
                 "sql-semantic-json",
                 "sql-science",
+                "sql-rules",
             }
             or not math.isfinite(max_cost_usd)
             or max_cost_usd <= 0
         ):
             raise ValueError("invalid tool profile or cost budget")
+        if (
+            type(max_repairs) is not int
+            or max_repairs < 0
+            or type(max_identical_repairs) is not int
+            or max_identical_repairs < 1
+        ):
+            raise ValueError("invalid repair budget")
+        if experience is not None and not callable(experience):
+            raise ValueError("experience source must be callable")
+        if type(max_experience) is not int or max_experience < 0:
+            raise ValueError("invalid experience limit")
         self.tool_profile, self.max_cost_usd = tool_profile, max_cost_usd
+        self.max_repairs, self.max_identical_repairs = max_repairs, max_identical_repairs
+        self.experience, self.max_experience = experience, max_experience
         self.model, self.max_steps, self.max_seconds, self.max_tokens = (
             model,
             max_steps,
@@ -457,6 +476,7 @@ class BoundedSQLAgent:
         plan_mode = self.tool_profile == "sql-semantic-plan"
         semantic_json = self.tool_profile == "sql-semantic-json"
         science = self.tool_profile == "sql-science"
+        rules_enabled = self.tool_profile == "sql-rules"
         from generaldataagent.evaluation.stage_eight import needs_science_tools
 
         science_discovery = science and needs_science_tools(
@@ -468,11 +488,16 @@ class BoundedSQLAgent:
                 if c[1] == "TEXT"
             ],
         )
-        semantic = science or self.tool_profile in {
-            "sql-semantic",
-            "sql-semantic-plan",
-            "sql-semantic-json",
-        }
+        semantic = (
+            science
+            or rules_enabled
+            or self.tool_profile
+            in {
+                "sql-semantic",
+                "sql-semantic-plan",
+                "sql-semantic-json",
+            }
+        )
         if semantic_json and task.benchmark != "bird-mini-dev-sqlite":
             raise ValueError("JSON SQL mode requires SQL-output tasks")
         if plan_mode and task.benchmark != "bird-mini-dev-sqlite":
@@ -492,6 +517,7 @@ class BoundedSQLAgent:
             "sql-semantic-plan",
             "sql-semantic-json",
             "sql-science",
+            "sql-rules",
         }
         enhanced = self.tool_profile in {
             "sql-analysis",
@@ -500,6 +526,7 @@ class BoundedSQLAgent:
             "sql-semantic-plan",
             "sql-semantic-json",
             "sql-science",
+            "sql-rules",
         }
         extra = (
             """
@@ -601,6 +628,10 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
             from generaldataagent.evaluation.stage_eight import STAGE8_PROMPT
 
             messages[0] = ("system", messages[0][1] + STAGE8_PROMPT)
+        if rules_enabled:
+            from generaldataagent.evaluation.stage_nine import STAGE9_PROMPT
+
+            messages[0] = ("system", messages[0][1] + STAGE9_PROMPT)
         if precision or semantic_json:
             request = json.loads(messages[1][1])
             request.pop("answer_fields", None)
@@ -641,6 +672,11 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
         failure, final_sql = "step_budget", None
         raw_answers = None
         previous_countdown = None
+        repairs = RepairBudget(
+            max_repairs=self.max_repairs if repair else 0,
+            max_identical=self.max_identical_repairs,
+        )
+        experience_used: list[dict] = []
         for step in range(1, self.max_steps + 1):
             if time.monotonic() - started > self.max_seconds:
                 failure = "time_budget"
@@ -655,6 +691,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
             action = None
             result_data = None
             calls = []
+            tool = None
             if repair:
                 if semantic and previous_countdown is not None:
                     # Remove only the exact runtime-created stale countdown object.
@@ -710,6 +747,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                         bind_typed_tools(
                             self.model,
                             science_enabled=science_discovery,
+                            rules_enabled=rules_enabled,
                             sql_output=task.benchmark == "bird-mini-dev-sqlite",
                             planned=task_spec is not None,
                             plan_enabled=plan_mode,
@@ -805,6 +843,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                         "submit_sql": "final_sql",
                         "crosscheck_sql": "crosscheck",
                         "compute_sql": "sql",
+                        "analyze_fee_rules": "rules",
                         "fixed_analysis": "analysis",
                         "search_documents": "search",
                         "collect_values": "collect",
@@ -932,6 +971,8 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     allowed_actions.update({"collect", "crosscheck", "answer_sql", "mixed_sql"})
                 if enhanced:
                     allowed_actions.update({"search", "analysis"})
+                if rules_enabled:
+                    allowed_actions.add("rules")
                 if len(allowed_actions.intersection(action)) != 1:
                     trace.append(
                         {
@@ -1095,6 +1136,17 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                         collection_kind=action["collect"].get("collection_kind", "set"),
                     )
                     tool = "complete_collection"
+                elif rules_enabled and "rules" in action:
+                    from generaldataagent.evaluation.stage_nine import analyze_fee_rules
+
+                    # Record the action key before dispatch so a failure is
+                    # attributed to the rule tool rather than to an anonymous
+                    # action; successful runs use the canonical tool name below.
+                    tool = "rules"
+                    result_data = analyze_fee_rules(
+                        database, action["rules"], allowed_relations=relations, documents=documents
+                    )
+                    tool = "fee_rules"
                 elif enhanced and "search" in action:
                     result_data = retrieve_documents(documents, action["search"])
                     tool = "document_search"
@@ -1198,7 +1250,9 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                             sql, list(result.columns), allowed_relations=relations
                         )
                     result_data["method_id"] = (
-                        result_data["operation"]
+                        "fee_rules"
+                        if tool == "fee_rules"
+                        else result_data["operation"]
                         if tool == "fixed_analysis"
                         else "complete_collection"
                         if tool == "complete_collection"
@@ -1307,6 +1361,8 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     trace.append(event)
                     failure = "repeated_action"
                     break
+                if tool == "fee_rules":
+                    event["rule_evidence"] = result_data
                 trace.append(event)
                 automatic_spec = False
                 if semantic and tool != "document_search":
@@ -1323,6 +1379,14 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     final_sql, failure = sql, None
                     break
                 feedback = bounded_observation(result_data) if repair else result_data
+                if tool == "fee_rules":
+                    feedback = {
+                        key: value
+                        for key, value in result_data.items()
+                        if key not in {"rule_citations", "formula_citations"}
+                    }
+                    feedback["source_receipt"] = "Full cited records retained in runtime trace"
+                    feedback = bounded_observation(feedback)
                 if science and tool == "fixed_analysis":
                     from generaldataagent.evaluation.stage_eight import science_observation
 
@@ -1384,6 +1448,8 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     "invalid_action",
                 )
                 event = {"step": step, "status": "error", "error": kind, "code": code}
+                if tool is not None:
+                    event["tool"] = tool
                 if semantic:
                     event["response_mode"] = "native_function" if calls else "json"
                     if isinstance(action, dict):
@@ -1413,6 +1479,23 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                 if semantic and isinstance(exc, ColumnScopeError):
                     event.update(code="unknown_column", field_candidates=exc.candidates)
                 feedback = {"step": step, "error": kind, "code": event["code"]}
+                if rules_enabled:
+                    from generaldataagent.evaluation.stage_nine import (
+                        RuleToolError,
+                        rule_schema_repair_hints,
+                    )
+
+                    if isinstance(exc, ActionSchemaError):
+                        hints = rule_schema_repair_hints(exc.paths)
+                        if hints:
+                            feedback["rule_repair_hints"] = hints
+                    if isinstance(exc, RuleToolError):
+                        event.update(code=exc.code, repair_type="correct_rule_context")
+                        feedback.update(
+                            code=exc.code,
+                            repair_type="correct_rule_context",
+                            rule_repair_hint=exc.hint,
+                        )
                 if science:
                     from generaldataagent.evaluation.stage_eight import science_repair_hint
 
@@ -1477,6 +1560,57 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                             .replace(" or use a fixed analysis tool", "")
                             .replace(" or the fixed analysis tool", "")
                         )
+                # Bound how often the model may be told how to recover. The
+                # decision is made here, outside the model loop, and a refused
+                # repair ends the task instead of spending the remaining steps.
+                if repair:
+                    decision = repairs.request(event["code"], tool=str(event.get("tool", "")))
+                    if not decision.allowed:
+                        trace.append(
+                            {
+                                "step": step,
+                                "status": "repair_refused",
+                                "code": decision.reason,
+                                "failure_code": event["code"],
+                                "repairs_attempted": decision.attempt,
+                            }
+                        )
+                        failure = "repair_budget_exhausted"
+                        break
+                    feedback["repair_budget"] = {
+                        "attempt": decision.attempt,
+                        "remaining": repairs.max_repairs - decision.attempt,
+                    }
+                    # Reviewed experience, if any, is offered only after the
+                    # deterministic budget has already agreed to another try.
+                    # The hints are data: no question, answer or reference.
+                    if self.experience is not None and self.max_experience:
+                        try:
+                            briefs = tuple(self.experience(event["code"], tool or ""))
+                        except Exception as exc:
+                            # Advisory only: a broken store drops the hints and
+                            # says so in the trace. It must never substitute
+                            # unreviewed advice, and it must not fail a task
+                            # that does not depend on it.
+                            briefs = ()
+                            trace.append(
+                                {
+                                    "step": step,
+                                    "status": "experience_unavailable",
+                                    "error": type(exc).__name__,
+                                }
+                            )
+                        briefs = briefs[: self.max_experience]
+                        if briefs:
+                            feedback["reviewed_experience"] = list(briefs)
+                            experience_used.append(
+                                {
+                                    "step": step,
+                                    "failure_code": event["code"],
+                                    "tool": tool or "",
+                                    "n": len(briefs),
+                                }
+                            )
                 messages.append(("human", json.dumps(feedback)))
                 failure = "execution_or_model_error"
         return {
@@ -1495,6 +1629,8 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
             "observed_cost_usd": observed_cost,
             "cost_usd": observed_cost if cost_complete else None,
             "cost_status": "provider_reported" if cost_complete else "partial_or_unknown",
+            "repair_budget": repairs.report(),
+            "experience_used": experience_used,
         }
 
 
@@ -1539,6 +1675,28 @@ def summarize(results: list[dict]) -> dict:
         if all(x.get("cost_usd") is not None for x in results)
         else None,
     }
+    if any("repair_budget" in row for row in results):
+        reports = [row.get("repair_budget") or {} for row in results]
+        totals: Counter = Counter()
+        for item in reports:
+            totals.update(item.get("by_code") or {})
+        report["repair_budget"] = {
+            "attempted": sum(item.get("attempted", 0) for item in reports),
+            "exhausted_n": sum(1 for item in reports if item.get("exhausted")),
+            "by_code": dict(sorted(totals.items())),
+        }
+
+    if any("experience_used" in row for row in results):
+        usage = [row.get("experience_used") or [] for row in results]
+        by_code: Counter = Counter()
+        for item in usage:
+            for entry in item:
+                by_code[entry["failure_code"]] += entry["n"]
+        report["experience_reuse"] = {
+            "cases_with_hints": sum(1 for item in usage if item),
+            "hints_offered": sum(entry["n"] for item in usage for entry in item),
+            "by_failure_code": dict(sorted(by_code.items())),
+        }
 
     if any("attempted" in row for row in results):
         times = sorted(row["elapsed_seconds"] for row in results if row.get("attempted", True))
@@ -1596,10 +1754,18 @@ def run_isolated(
     max_tokens: int | None = None,
     request_interval_seconds: float = 0,
     pacing_database: Path | None = None,
+    max_steps: int = 6,
+    max_seconds: int = 120,
+    max_repairs: int = 3,
+    experience_database: Path | None = None,
+    experience_actor: dict | None = None,
+    max_experience: int = 2,
 ) -> dict:
     """Kill a stuck model/tool worker at the OS process boundary; send no golden data."""
     if max_tokens is not None and (type(max_tokens) is not int or max_tokens < 1):
         raise ValueError("invalid total observed token budget")
+    if (experience_database is None) != (experience_actor is None):
+        raise ValueError("experience reuse requires both a store and an actor scope")
     payload = {
         "task": asdict(task),
         "database": str(database.resolve()),
@@ -1616,6 +1782,12 @@ def run_isolated(
         "request_interval_seconds": request_interval_seconds,
         "pacing_database": str(pacing_database) if pacing_database else None,
         "documents": documents,
+        "max_steps": max_steps,
+        "max_seconds": max_seconds,
+        "max_repairs": max_repairs,
+        "experience_database": str(experience_database) if experience_database else None,
+        "experience_actor": experience_actor,
+        "max_experience": max_experience,
     }
     environment = {
         k: v for k, v in os.environ.items() if k not in {"LANGSMITH_API_KEY", "LANGCHAIN_API_KEY"}

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable, Mapping, Sequence
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 from generaldataagent.contracts.rules import (
     CaptureDelayMatch,
@@ -61,15 +61,12 @@ def parse_band(text: str | None, *, unit: str = "absolute") -> NumericBand | Non
     if match is None:
         raise RuleSourceError(f"unrecognized band {text!r}")
 
-    def number(token: str | None) -> float | None:
+    def number(token: str | None) -> Decimal | None:
         if token is None or token == "":
             return None
-        if is_percent:
-            return float(token) / 100
         suffix = token[-1].lower()
-        if suffix in _SCALE:
-            return float(token[:-1]) * _SCALE[suffix]
-        return float(token)
+        value = Decimal(token[:-1]) * _SCALE[suffix] if suffix in _SCALE else Decimal(token)
+        return value / 100 if is_percent else value
 
     operator = match.group("op")
     bound = number(match.group("low"))
@@ -109,6 +106,8 @@ def list_match(values: Iterable[object] | None, semantics: RuleSemantics) -> Lis
     """Build a list matcher; empty-list behavior comes from the declaration."""
     if values is None:
         return ListMatch(values=None, empty_is_wildcard=False)
+    if not isinstance(values, (list, tuple)):
+        raise RuleSourceError("list-valued predicates require a list or tuple")
     materialized = tuple(values)
     if not materialized and not semantics.empty_list_is_wildcard:
         return ListMatch(values=(), empty_is_wildcard=False)
@@ -131,10 +130,28 @@ def load_rule_set(
     if not semantics.null_is_wildcard:
         raise RuleSourceError("this rule engine requires null-as-wildcard semantics")
     fields = {"monthly_fraud_level": "ratio", "monthly_volume": "absolute"}
+    if set(numeric_fields or {}) - set(fields):
+        raise RuleSourceError("unknown numeric predicate")
     fields.update(numeric_fields or {})
     rules: list[FeeRule] = []
     seen: set[str] = set()
+    allowed = {
+        "ID",
+        "card_scheme",
+        "account_type",
+        "capture_delay",
+        "monthly_fraud_level",
+        "monthly_volume",
+        "merchant_category_code",
+        "is_credit",
+        "aci",
+        "intracountry",
+        "fixed_amount",
+        "rate",
+    }
     for entry in annex:
+        if set(entry) - allowed:
+            raise RuleSourceError("unsupported annex fields")
         rule_id = str(entry["ID"])
         if rule_id in seen:
             raise RuleSourceError(f"duplicate rule id {rule_id!r}")
@@ -182,7 +199,13 @@ def _bool_or_none(value: object) -> bool | None:
 def _decimal_text(value: object) -> str:
     if isinstance(value, bool) or value is None:
         raise RuleSourceError("amounts must be numeric, not boolean or null")
-    text = str(value)
+    try:
+        number = Decimal(str(value))
+    except InvalidOperation as exc:
+        raise RuleSourceError("amount must be a decimal") from exc
+    if not number.is_finite() or number < 0:
+        raise RuleSourceError("amount must be finite and non-negative")
+    text = format(number, "f")
     if not re.fullmatch(r"[0-9]+(\.[0-9]+)?", text):
         raise RuleSourceError(f"amount {value!r} is not a non-negative decimal")
     return text
@@ -255,7 +278,12 @@ def applicable_rules(
         verdicts = []
         for transaction in transactions:
             if rule.intracountry is not None and transaction.intracountry is None:
-                verdicts.append(None)
+                known_match = (
+                    rule.card_scheme == transaction.card_scheme
+                    and rule.aci.matches(transaction.aci)
+                    and rule.is_credit in (None, transaction.is_credit)
+                )
+                verdicts.append(None if known_match else False)
             else:
                 verdicts.append(transaction_matches(rule, transaction))
         if any(verdict is True for verdict in verdicts):
@@ -276,7 +304,7 @@ def applicable_rules(
 
 def compute_fee(rule: FeeRule, transaction_value: Decimal) -> Decimal:
     """``fixed_amount + rate * transaction_value / 10000`` in exact decimal."""
-    if transaction_value < 0:
+    if not transaction_value.is_finite() or transaction_value < 0:
         raise ValueError("transaction value must be non-negative")
     return Decimal(rule.fixed_amount) + Decimal(rule.rate) * transaction_value / Decimal(10000)
 
@@ -332,7 +360,7 @@ def monthly_totals(
     fraud_count = 0
     for row in rows:
         amount = Decimal(str(row[amount_field]))
-        if amount < 0:
+        if not amount.is_finite() or amount < 0:
             raise ValueError("amounts must be non-negative")
         volume += amount
         count += 1

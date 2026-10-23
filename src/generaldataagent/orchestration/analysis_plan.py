@@ -125,6 +125,7 @@ def normalize_protocol_action(action):
         "submit_sql": "final_sql",
         "crosscheck_sql": "crosscheck",
         "compute_sql": "sql",
+        "analyze_fee_rules": "rules",
         "fixed_analysis": "analysis",
         "compute_statistics": "analysis",
         "evaluate_regression": "analysis",

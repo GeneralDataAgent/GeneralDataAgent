@@ -2,6 +2,7 @@
 
 import json
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 from generaldataagent.evaluation.stage_six import BoundedSQLAgent, Task
@@ -37,10 +38,26 @@ def main():
                 interval_seconds=payload["request_interval_seconds"],
             ),
         )
+    experience = None
+    if payload.get("experience_database"):
+        from generaldataagent.business.experience import ExperienceStore, experience_hints
+        from generaldataagent.contracts import ActorContext
+
+        store = ExperienceStore(
+            Path(payload["experience_database"]),
+            clock=lambda: datetime.now(UTC),
+        )
+        actor = ActorContext.model_validate(payload["experience_actor"])
+        experience = experience_hints(store, actor)
     result = BoundedSQLAgent(
         model,
         tool_profile=payload.get("tool_profile", "sql"),
         max_tokens=payload.get("max_tokens"),
+        max_steps=payload.get("max_steps", 6),
+        max_seconds=payload.get("max_seconds", 120),
+        max_repairs=payload.get("max_repairs", 3),
+        experience=experience,
+        max_experience=payload.get("max_experience", 2),
     ).run(Task(**payload["task"]), Path(payload["database"]), documents=payload["documents"])
     print(json.dumps(result))
 

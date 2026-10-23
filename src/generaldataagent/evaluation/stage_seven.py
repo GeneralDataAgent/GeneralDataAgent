@@ -167,6 +167,7 @@ def bind_typed_tools(
     collection_first=False,
     collection_task=False,
     science_enabled=False,
+    rules_enabled=False,
     answer_contract=None,
     evidence_steps=None,
     collection_steps=None,
@@ -426,6 +427,19 @@ def bind_typed_tools(
                 ["fields"],
             ),
         ]
+        if rules_enabled:
+            from generaldataagent.contracts.rule_tools import RuleAnalysisRequest
+
+            rule_schema = _wire_contract_schema(RuleAnalysisRequest)
+            tools.insert(
+                0,
+                tool(
+                    "analyze_fee_rules",
+                    "Source-bound fee rule selection, average, monthly applicability or rate delta",
+                    rule_schema["properties"],
+                    rule_schema["required"],
+                ),
+            )
         if science_enabled and not python_statistics_requested:
             from generaldataagent.contracts.statistics import RegressionRequest, StatisticsRequest
 
