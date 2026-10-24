@@ -17,6 +17,7 @@ routing is a declared policy, not a measured improvement.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Literal
 
@@ -80,9 +81,28 @@ class Route:
         }
 
 
+def _pattern(marker: str) -> re.Pattern[str]:
+    """Match a marker as a whole phrase of prose, never as a fragment.
+
+    A bare substring test routes "coffee" and "feedback" to the rule lane
+    because both contain "fee". Markers are matched between non-word
+    boundaries instead. Underscored identifiers are excluded too: a column
+    name such as ``fee_rate`` is the parser's own vocabulary, not evidence
+    published by the question author, and it must not decide the lane.
+
+    A trailing plural ``s`` is allowed at the same word boundary, so
+    "standard deviations" matches the declared singular marker.
+    """
+    body = r"[\s_-]+".join(re.escape(part) for part in marker.split())
+    return re.compile(rf"(?<![\w.-]){body}s?(?![\w-])", re.IGNORECASE)
+
+
+_MARKER_PATTERNS = {marker: _pattern(marker) for marker in (*_RULE_MARKERS, *_ANALYSIS_MARKERS)}
+
+
 def _markers(text: str, markers: tuple[str, ...]) -> list[str]:
-    lowered = text.casefold()
-    return [marker for marker in markers if marker in lowered]
+    """The declared markers present in the text, in declaration order."""
+    return [marker for marker in markers if _MARKER_PATTERNS[marker].search(text)]
 
 
 def route_task(question: str, instructions: str = "", *, override: str | None = None) -> Route:

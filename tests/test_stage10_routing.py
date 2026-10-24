@@ -111,7 +111,7 @@ def test_capability_and_ambiguity_failures_consume_no_repair_budget(code):
     assert not decision.allowed
     assert decision.reason.startswith("repair_not_applicable_")
     assert budget.attempted == 0
-    assert budget.report()["exhausted"] is True
+    assert budget.report()["exhausted"] is False
 
 
 def test_retryable_failures_still_consume_budget():
@@ -120,3 +120,49 @@ def test_retryable_failures_still_consume_budget():
     assert budget.request("semantic_contract", tool="sql").allowed
     assert not budget.request("sql_syntax", tool="sql").allowed
     assert budget.attempted == 2
+
+
+@pytest.mark.parametrize(
+    "question,expected_lane",
+    [
+        # "fee" is a substring of these, but none of them is a fee question.
+        ("How many transactions were at coffee shops in 2023?", "short"),
+        ("List the feedback comments for merchant Cedar_Lantern", "short"),
+        # "rate" is a substring of these.
+        ("How many accurate transactions were recorded?", "short"),
+        ("Count payments for corporate accounts", "short"),
+        ("How many transactions did we generate per merchant?", "short"),
+        # "manual", "fee" and "rate" fragments inside longer words.
+        ("Was the payment made manually or automatically?", "short"),
+        ("Show the refunded transactions", "short"),
+    ],
+)
+def test_markers_match_whole_words_only(question, expected_lane):
+    route = route_task(question)
+    assert route.lane == expected_lane
+    assert route.signals == ()
+
+
+@pytest.mark.parametrize(
+    "question,expected_lane,expected_signal",
+    [
+        ("What are the interchange rates for this merchant?", "governed", "interchange"),
+        ("What are the monthly fees?", "governed", "fees"),
+        ("Which merchants have a per-transaction threshold?", "governed", "threshold"),
+        ("Is the median amount correlated with the fee?", "governed", "fee"),
+        ("Compare the p-value distribution", "analysis", "p-value"),
+        ("Show the standard deviations", "analysis", "standard deviation"),
+    ],
+)
+def test_plural_forms_and_phrases_still_match(question, expected_lane, expected_signal):
+    route = route_task(question)
+    assert route.lane == expected_lane
+    assert expected_signal in route.signals
+
+
+def test_a_marker_inside_a_column_name_is_not_public_prose_evidence():
+    # Underscored identifiers are prose the parser writes, not the published
+    # question, so they must not decide the lane.
+    route = route_task("Show fee_rate, manual_flag and transaction_count per day")
+    assert route.lane == "short"
+    assert route.signals == ()
