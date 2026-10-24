@@ -244,7 +244,74 @@ def test_runner_persists_refusal_and_exception_with_full_denominator(
         )
     assert "private exception details" not in output.read_text()
     assert "private provider details" not in output.read_text()
+    retained = output.parent / stored["retained_runtime"]["directory"]
+    assert retained.is_dir()
+    assert (retained / "state").is_file()
+    assert len((retained / "checkpoint.key").read_bytes()) == 32
+    assert (retained / "checkpoint.key").stat().st_mode & 0o777 == 0o600
+    attempted = [row for row in stored["results"] if row["outcome"] == "supervisor_error"]
+    assert all(row["rule_thread_id"] and row["supervisor_thread_id"] for row in attempted)
+    assert all(row["diagnostic_events"][0]["status"] == "started" for row in attempted)
+    assert all(row["request"]["operation"] == "select" for row in attempted)
     assert not list(output.parent.glob("work-*"))
+
+
+@pytest.mark.parametrize("fail_after_checkpoint", [False, True])
+def test_retained_runtime_can_reopen_encrypted_workflow_after_exit(tmp_path, fail_after_checkpoint):
+    from generaldataagent.contracts import ActorContext
+    from generaldataagent.contracts.rule_tools import RuleAnalysisRequest
+    from generaldataagent.orchestration.checkpoints import open_protected_checkpointer
+    from generaldataagent.orchestration.rule_workflow import (
+        RuleWorkflowRuntime,
+        RuleWorkflowServices,
+    )
+
+    runner = runner_module()
+    actor = ActorContext(user_id="u", tenant_id="t", project_id="p", data_domains=("payments",))
+    request = RuleAnalysisRequest(operation="select", semantics_excerpt="null means all")
+
+    def sources():
+        return {"annex": "sha256:" + "a" * 64}
+
+    services = RuleWorkflowServices(
+        monthly_context=lambda _: {"volume": "private-checkpoint-value"},
+        match_rules=lambda _: {"ids": []},
+        compute=lambda _: {},
+        verify=lambda _: {"passed": True, "failures": []},
+        deliver=lambda _: {},
+    )
+    output = tmp_path / "report.json"
+    try:
+        with runner._retained_runtime(output) as (folder, key):
+            (folder / "payments.sqlite").write_bytes(b"synthetic retained source")
+            with open_protected_checkpointer(folder / "state", encryption_key=key) as saver:
+                flow = RuleWorkflowRuntime(
+                    services=services,
+                    checkpointer=saver,
+                    source_hashes=sources,
+                    workflow_version="retention-test",
+                )
+                thread, _ = flow.run(request, actor, interrupt_after=("monthly_context",))
+            if fail_after_checkpoint:
+                raise RuntimeError("synthetic runner interruption")
+    except RuntimeError:
+        assert fail_after_checkpoint
+    key = (folder / "checkpoint.key").read_bytes()
+    assert (folder / "payments.sqlite").read_bytes() == b"synthetic retained source"
+    assert b"private-checkpoint-value" not in (folder / "state").read_bytes()
+    with open_protected_checkpointer(folder / "state", encryption_key=key) as saver:
+        flow = RuleWorkflowRuntime(
+            services=services,
+            checkpointer=saver,
+            source_hashes=sources,
+            workflow_version="retention-test",
+        )
+        assert flow.state_of(thread, request, actor)["monthly_context"]["volume"] == (
+            "private-checkpoint-value"
+        )
+        assert flow.resume(thread, request, actor)["status"] == "completed"
+    with pytest.raises(FileExistsError), runner._retained_runtime(output):
+        pytest.fail("existing runtime must not be overwritten")
 
 
 @pytest.mark.parametrize("limit", ["0", "-1", "11"])

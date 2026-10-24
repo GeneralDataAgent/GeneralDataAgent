@@ -20,10 +20,12 @@ import asyncio
 import csv
 import json
 import math
-import tempfile
+import os
 import time
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
+from secrets import token_bytes
 from uuid import uuid4
 
 from langchain_core.rate_limiters import InMemoryRateLimiter
@@ -118,6 +120,18 @@ def _matches(operation: str, delivery: dict, published: str) -> bool:
     return value is not None and _numeric_match(str(value), expected)
 
 
+@contextmanager
+def _retained_runtime(output: Path):
+    """Keep local development evidence after normal exit or an exception."""
+    folder = output.with_name(output.stem + "-runtime")
+    folder.mkdir(mode=0o700, exist_ok=False)
+    key = token_bytes(32)
+    descriptor = os.open(folder / "checkpoint.key", os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(descriptor, "wb") as stream:
+        stream.write(key)
+    yield folder, key
+
+
 async def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, required=True)
@@ -141,8 +155,8 @@ async def main() -> None:
     args.output = args.output.resolve()
     if not args.output.is_relative_to(ROOT):
         raise ValueError("evaluation output must stay inside the implementation repository")
-    if args.output.exists():
-        raise FileExistsError("evaluation output already exists")
+    if args.output.exists() or args.output.with_name(args.output.stem + "-runtime").exists():
+        raise FileExistsError("evaluation output or retained runtime already exists")
     if not 1 <= args.limit <= 10:
         raise ValueError("limit must be between one and ten")
     if not math.isfinite(args.max_runtime_seconds) or args.max_runtime_seconds <= 0:
@@ -208,6 +222,13 @@ async def main() -> None:
         "cost_usd": None,
         "started_at": datetime.now(UTC).isoformat(),
         "results": [],
+        "retained_runtime": {
+            "directory": args.output.stem + "-runtime",
+            "checkpoint": "state",
+            "payments": "payments.sqlite",
+            "key_management": "local_file_owner_only_development_not_production",
+            "supervisor_checkpoints": "in_memory_not_retained",
+        },
     }
 
     circuit = ServiceCircuitBreaker()
@@ -227,12 +248,14 @@ async def main() -> None:
                     "trace": row.get("model_errors", []),
                 }
             )
+        if row["outcome"] in {"model_run", "supervisor_error"}:
+            row["diagnostic_events"] = list(diagnostics.events)
         row["stop_diagnostic"] = stop_diagnostic(row)
         report["results"].append(row)
         persist()
 
     persist()
-    with tempfile.TemporaryDirectory(dir=args.output.parent, prefix="work-") as folder:
+    with _retained_runtime(args.output) as (folder, checkpoint_key):
         database = Path(folder) / "payments.sqlite"
         build_csv_database(
             {
@@ -254,7 +277,7 @@ async def main() -> None:
         )
         artifacts = LocalArtifactStore(args.output.parent / "artifacts")
         audit = JsonlAuditSink(args.output.parent / "audit.jsonl")
-        with open_protected_checkpointer(Path(folder) / "state", encryption_key=b"k" * 32) as saver:
+        with open_protected_checkpointer(folder / "state", encryption_key=checkpoint_key) as saver:
             flow = RuleWorkflowRuntime(
                 services=services.services(),
                 checkpointer=saver,
@@ -300,6 +323,9 @@ async def main() -> None:
                     continue
                 row["attempted"] = True
                 task_id = uuid4()
+                row["rule_thread_id"] = str(task_id)
+                row["supervisor_thread_id"] = f"stage10-{task_id}"
+                row["request"] = request.model_dump(mode="json")
                 delivery = RuleDeliveryRuntime(
                     workflow=flow,
                     artifacts=artifacts,
