@@ -26,9 +26,14 @@ def response(
     agent=None,
     finish_reason=None,
     run_id="run-1",
+    tool_choice=None,
 ):
     diagnostics.on_chat_model_start(
-        {}, [], run_id=run_id, metadata={"lc_agent_name": agent} if agent else None
+        {},
+        [],
+        run_id=run_id,
+        metadata={"lc_agent_name": agent} if agent else None,
+        invocation_params={"tool_choice": tool_choice} if tool_choice else {},
     )
     diagnostics.on_llm_end(
         LLMResult(
@@ -145,35 +150,15 @@ def test_response_shape_separates_empty_prose_and_malformed_calls():
         agent="supervisor",
         run_id="run-4",
     )
-    assert diagnostics.snapshot()["response_shape"] == [
-        {
-            "agent": "supervisor",
-            "tool_names": [],
-            "invalid_tool_names": [],
-            "text_chars": 0,
-            "finish_reason": None,
-        },
-        {
-            "agent": "supervisor",
-            "tool_names": [],
-            "invalid_tool_names": [],
-            "text_chars": len("I cannot proceed."),
-            "finish_reason": None,
-        },
-        {
-            "agent": "supervisor",
-            "tool_names": [],
-            "invalid_tool_names": ["execute_rule_analysis"],
-            "text_chars": 0,
-            "finish_reason": None,
-        },
-        {
-            "agent": "supervisor",
-            "tool_names": ["task"],
-            "invalid_tool_names": [],
-            "text_chars": 0,
-            "finish_reason": None,
-        },
+    shapes = diagnostics.snapshot()["response_shape"]
+    assert [
+        (shape["agent"], shape["tool_names"], shape["invalid_tool_names"], shape["text_chars"])
+        for shape in shapes
+    ] == [
+        ("supervisor", [], [], 0),
+        ("supervisor", [], [], len("I cannot proceed.")),
+        ("supervisor", [], ["execute_rule_analysis"], 0),
+        ("supervisor", ["task"], [], 0),
     ]
     # The prose itself is never retained; only its length.
     assert "cannot proceed" not in json.dumps(diagnostics.snapshot())
@@ -282,6 +267,82 @@ def test_a_malformed_final_call_is_not_reported_as_a_prose_stop():
     diagnostic = stop_diagnostic(row)
     assert diagnostic["code"] == "incomplete_sequence_reason_unknown"
     assert diagnostic["malformed_tool_call_names"] == ["execute_rule_analysis"]
+
+
+def test_a_reply_that_ignores_a_required_tool_is_named_as_such():
+    """The harness sent ``tool_choice=required``; the reply still had no call.
+
+    That is a different observation from a model that was free to answer and
+    chose prose, so it gets its own stop code. The semantic cause stays open.
+    """
+    diagnostics = RuleCallDiagnostics()
+    response(
+        diagnostics,
+        usage=TOKENS,
+        text="discovery prose",
+        agent="discovery",
+        tool_choice="required",
+        run_id="run-a",
+    )
+    row = dict(
+        outcome="model_run",
+        passed=False,
+        delegated_roles=["discovery"],
+        **diagnostics.snapshot(),
+    )
+    diagnostic = stop_diagnostic(row)
+    assert diagnostic["code"] == "required_tool_call_not_honoured"
+    assert diagnostic["responses_ignoring_required_tool"] == 1
+    assert diagnostic["semantic_root_cause"] == "not_established"
+    assert diagnostic["last_observed_role"] == "discovery"
+
+
+def test_an_optional_request_that_answers_in_prose_keeps_the_weaker_code():
+    diagnostics = RuleCallDiagnostics()
+    response(diagnostics, usage=TOKENS, text="prose", tool_choice="auto", run_id="run-a")
+    row = dict(
+        outcome="model_run",
+        passed=False,
+        delegated_roles=["discovery"],
+        **diagnostics.snapshot(),
+    )
+    diagnostic = stop_diagnostic(row)
+    assert diagnostic["code"] == "response_without_tool_call"
+    assert diagnostic["responses_ignoring_required_tool"] == 0
+
+
+def test_a_honoured_required_tool_call_is_not_flagged():
+    diagnostics = RuleCallDiagnostics()
+    response(
+        diagnostics,
+        usage=TOKENS,
+        calls=[{"name": "resolve_rule_request", "args": {}, "id": "c1"}],
+        tool_choice="required",
+        run_id="run-a",
+    )
+    row = dict(
+        outcome="model_run",
+        passed=False,
+        delegated_roles=["discovery"],
+        **diagnostics.snapshot(),
+    )
+    diagnostic = stop_diagnostic(row)
+    assert diagnostic["responses_ignoring_required_tool"] == 0
+    assert diagnostic["code"] == "incomplete_sequence_reason_unknown"
+
+
+def test_the_required_tool_name_is_kept_when_the_request_named_one():
+    diagnostics = RuleCallDiagnostics()
+    response(
+        diagnostics,
+        usage=TOKENS,
+        text="prose instead",
+        tool_choice={"function": {"name": "SpecialistResult"}},
+        run_id="run-a",
+    )
+    shape = diagnostics.snapshot()["response_shape"][0]
+    assert shape["tool_choice"] == "named"
+    assert shape["required_tool_names"] == ["SpecialistResult"]
 
 
 def test_exception_tokens_count_and_planned_denominator_survives_interruption():

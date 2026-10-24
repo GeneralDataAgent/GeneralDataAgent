@@ -16,6 +16,7 @@ class RuleCallDiagnostics(BaseCallbackHandler):
     def __init__(self) -> None:
         self.events: list[dict] = []
         self._agents: dict[str, str] = {}
+        self._tool_choice: dict[str, dict] = {}
 
     def on_chat_model_start(self, serialized, messages, **kwargs) -> None:
         # The emitting agent is an observation, not a decision: a subagent that
@@ -24,9 +25,14 @@ class RuleCallDiagnostics(BaseCallbackHandler):
         # tell them apart without this label.
         agent = _agent_name(kwargs.get("metadata"))
         run_id = str(kwargs.get("run_id") or "")
+        # Whether the request required a tool call is the difference between
+        # "the model chose prose" and "the endpoint ignored a constraint the
+        # harness sent". Record the requirement, not the tool arguments.
+        request = _tool_choice(kwargs.get("invocation_params"))
         if run_id:
             self._agents[run_id] = agent
-        self.events.append({"status": "started", "agent": agent})
+            self._tool_choice[run_id] = request
+        self.events.append({"status": "started", "agent": agent, **request})
 
     def on_llm_end(self, response, **kwargs) -> None:
         for batch in response.generations:
@@ -58,10 +64,11 @@ class RuleCallDiagnostics(BaseCallbackHandler):
                             else None
                         )
                     calls.append(entry)
+                run_id = str(kwargs.get("run_id") or "")
                 self.events.append(
                     {
                         "status": "response",
-                        "agent": self._agents.pop(str(kwargs.get("run_id") or ""), _MAIN_AGENT),
+                        "agent": self._agents.pop(run_id, _MAIN_AGENT),
                         "tool_calls": calls,
                         # A call that failed argument parsing is not a tool call
                         # by this point. Without counting it, "the model stopped
@@ -76,6 +83,10 @@ class RuleCallDiagnostics(BaseCallbackHandler):
                         # no tool calls; the length separates them without
                         # storing the prose.
                         "text_chars": len(message.text) if isinstance(message.text, str) else 0,
+                        # The request's requirement, carried onto its response so
+                        # a tool-free reply can be read as "chose prose" or as
+                        # "ignored a required call".
+                        **self._tool_choice.pop(run_id, {}),
                         "usage": getattr(message, "usage_metadata", None),
                         "finish_reason": message.response_metadata.get("finish_reason"),
                     }
@@ -83,7 +94,9 @@ class RuleCallDiagnostics(BaseCallbackHandler):
 
     def on_llm_error(self, error, **kwargs) -> None:
         status = getattr(error, "status_code", None)
-        self._agents.pop(str(kwargs.get("run_id") or ""), None)
+        run_id = str(kwargs.get("run_id") or "")
+        self._agents.pop(run_id, None)
+        self._tool_choice.pop(run_id, None)
         self.events.append(
             {
                 "status": "error",
@@ -137,6 +150,26 @@ class RuleCallDiagnostics(BaseCallbackHandler):
         }
 
 
+def _tool_choice(invocation_params) -> dict:
+    """Whether this request required a tool, and whether it named one.
+
+    ``tool_choice`` reaches the provider as ``required`` when the harness needs
+    a structured response. Keeping only that fact lets a later review separate
+    a model that chose prose from an endpoint that ignored the requirement,
+    without storing tool schemas or arguments.
+    """
+    if not isinstance(invocation_params, dict):
+        return {"tool_choice": None, "required_tool_names": []}
+    choice = invocation_params.get("tool_choice")
+    if isinstance(choice, str):
+        required = choice if choice in {"any", "required", "auto", "none"} else "named"
+        return {"tool_choice": required, "required_tool_names": []}
+    if isinstance(choice, dict):
+        name = (choice.get("function") or {}).get("name") if "function" in choice else None
+        return {"tool_choice": "named", "required_tool_names": [str(name)] if name else []}
+    return {"tool_choice": None, "required_tool_names": []}
+
+
 def _field(call, key: str):
     """Read one field from a dict- or object-shaped tool call."""
     return call.get(key) if isinstance(call, dict) else getattr(call, key, None)
@@ -169,6 +202,8 @@ def response_shape(event: dict) -> dict:
         "invalid_tool_names": list(event.get("invalid_tool_calls") or ()),
         "text_chars": event.get("text_chars", 0),
         "finish_reason": event.get("finish_reason"),
+        "tool_choice": event.get("tool_choice"),
+        "required_tool_names": list(event.get("required_tool_names") or ()),
     }
 
 
@@ -192,6 +227,8 @@ def stop_diagnostic(row: dict) -> dict:
         code = "specialist_stop_reported"
     elif row.get("status") == "completed":
         code = "delivery_check_failed"
+    elif _ignored_required_tool_call(row):
+        code = "required_tool_call_not_honoured"
     elif _stopped_with_prose(row):
         code = "response_without_tool_call"
     else:
@@ -208,6 +245,9 @@ def stop_diagnostic(row: dict) -> dict:
         "responses_without_tool_calls": sum(
             not shape["tool_names"] for shape in row.get("response_shape") or ()
         ),
+        "responses_ignoring_required_tool": sum(
+            1 for shape in row.get("response_shape") or () if _shape_ignored_required(shape)
+        ),
         "malformed_tool_call_names": sorted(
             {
                 name
@@ -218,6 +258,22 @@ def stop_diagnostic(row: dict) -> dict:
         ),
         "semantic_root_cause": "not_established" if code != "completed" else None,
     }
+
+
+def _shape_ignored_required(shape: dict) -> bool:
+    """A reply that called nothing although its request required a tool."""
+    return shape.get("tool_choice") in {"any", "required"} and not shape["tool_names"]
+
+
+def _ignored_required_tool_call(row: dict) -> bool:
+    """The model answered without a tool where the request required one.
+
+    This is stronger than "the reply had no tool call": the harness sent
+    ``tool_choice=required``, so the observation is that the endpoint returned
+    a normal message anyway. It still does not establish why, so the semantic
+    cause stays not_established.
+    """
+    return any(_shape_ignored_required(shape) for shape in row.get("response_shape") or ())
 
 
 def _stopped_with_prose(row: dict) -> bool:
