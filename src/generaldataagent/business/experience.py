@@ -110,17 +110,33 @@ class ExperienceStore:
     invisible to every other.
     """
 
-    def __init__(self, path: Path, *, clock):
-        self.path, self.clock = path, clock
-        path.parent.mkdir(parents=True, exist_ok=True)
+    def __init__(self, path: Path, *, clock, read_only: bool = False):
+        if type(read_only) is not bool:
+            raise ValueError("experience read_only must be boolean")
+        self.path, self.clock, self.read_only = path, clock, read_only
         self.scanner = TextDLPScanner(max_bytes=65536)
-        with closing(sqlite3.connect(path)) as db, db:
+        if read_only:
+            with closing(self._connect()) as db:
+                db.execute("SELECT id,scope,body,hash,state FROM experiences LIMIT 0")
+                db.execute("SELECT id,reviewer,accepted FROM experience_reviews LIMIT 0")
+            return
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with closing(self._connect()) as db, db:
             db.executescript(
                 "CREATE TABLE IF NOT EXISTS experiences "
                 "(id TEXT PRIMARY KEY, scope TEXT, body TEXT, hash TEXT, state TEXT);"
                 "CREATE TABLE IF NOT EXISTS experience_reviews "
                 "(id TEXT, reviewer TEXT, accepted INTEGER, PRIMARY KEY(id,reviewer));"
             )
+
+    def _connect(self):
+        if self.read_only:
+            return sqlite3.connect(self.path.resolve().as_uri() + "?mode=ro", uri=True, timeout=5)
+        return sqlite3.connect(self.path, timeout=5)
+
+    def _require_writable(self):
+        if self.read_only:
+            raise PermissionError("experience_store_read_only")
 
     @staticmethod
     def _scope(actor: ActorContext) -> str:
@@ -130,6 +146,7 @@ class ExperienceStore:
 
     def capture(self, record: ExperienceRecord, actor: ActorContext) -> str:
         """Store a candidate record; runtime search never returns it yet."""
+        self._require_writable()
         text = record.text()
         self.scanner.check(text.encode())
         # Inspect every free-text field, not only the rendered brief, so an
@@ -145,7 +162,7 @@ class ExperienceStore:
             for value in (*record.applies_when, *record.does_not_apply_when, *record.tool_scope)
         ):
             raise ExperienceError("experience_contains_answer_material")
-        with closing(sqlite3.connect(self.path, timeout=5)) as db, db:
+        with closing(self._connect()) as db, db:
             try:
                 db.execute(
                     "INSERT INTO experiences VALUES(?,?,?,?,'candidate')",
@@ -169,9 +186,10 @@ class ExperienceStore:
         actor: ActorContext,
     ) -> None:
         """Independent review; the capturing user may not review their own record."""
+        self._require_writable()
         if not reviewer_id.strip() or type(accepted) is not bool:
             raise ExperienceError("experience_review_denied")
-        with closing(sqlite3.connect(self.path, timeout=5)) as db, db:
+        with closing(self._connect()) as db, db:
             record = self._load(db, experience_id, actor)
             if reviewer_id == record.owner:
                 raise ExperienceError("experience_review_denied")
@@ -182,10 +200,18 @@ class ExperienceStore:
                 )
             except sqlite3.IntegrityError as exc:
                 raise ExperienceError("experience_review_denied") from exc
-            if accepted:
-                db.execute(
-                    "UPDATE experiences SET state='active' WHERE id=?", (str(experience_id),)
-                )
+            # The active state is derived from every review, not just this one.
+            # A single rejection withdraws the record for good; later approvals
+            # cannot silently revive material an independent reviewer refused.
+            verdicts = db.execute(
+                "SELECT COUNT(*), COALESCE(SUM(accepted), 0) FROM experience_reviews WHERE id=?",
+                (str(experience_id),),
+            ).fetchone()
+            active = verdicts[0] > 0 and verdicts[1] == verdicts[0]
+            db.execute(
+                "UPDATE experiences SET state=? WHERE id=?",
+                ("active" if active else "candidate", str(experience_id)),
+            )
 
     def _load(self, db, experience_id: UUID, actor: ActorContext) -> ExperienceRecord:
         row = db.execute(
@@ -216,26 +242,30 @@ class ExperienceStore:
         if type(limit) is not int or not 1 <= limit <= 50:
             raise ValueError("experience limit must be between 1 and 50")
         scope = self._scope(actor)
-        with closing(sqlite3.connect(self.path, timeout=5)) as db:
-            rows = db.execute(
-                "SELECT body,hash FROM experiences "
-                "WHERE scope=? AND state='active' ORDER BY rowid DESC LIMIT 200",
-                (scope,),
-            ).fetchall()
         selected = []
-        for body, digest in rows:
-            record = ExperienceRecord.model_validate_json(body)
-            if content_hash(record.model_dump(mode="json")) != digest:
-                raise ExperienceError("experience_integrity_failure")
-            if record.failure_class != failure_class or tool not in record.tool_scope:
-                continue
-            selected.append(record)
-            if len(selected) == limit:
-                break
+        with closing(self._connect()) as db:
+            cursor = db.execute(
+                "SELECT body,hash FROM experiences "
+                "WHERE scope=? AND state='active' ORDER BY rowid DESC",
+                (scope,),
+            )
+            # Bound each batch, not the candidate population: newer unrelated
+            # lessons must not hide an older match. Verify before filtering so
+            # corrupted metadata cannot silently turn a match into a nonmatch.
+            while rows := cursor.fetchmany(200):
+                for body, digest in rows:
+                    record = ExperienceRecord.model_validate_json(body)
+                    if content_hash(record.model_dump(mode="json")) != digest:
+                        raise ExperienceError("experience_integrity_failure")
+                    if record.failure_class != failure_class or tool not in record.tool_scope:
+                        continue
+                    selected.append(record)
+                    if len(selected) == limit:
+                        return tuple(selected)
         return tuple(selected)
 
     def state(self, experience_id: UUID, actor: ActorContext) -> str:
-        with closing(sqlite3.connect(self.path, timeout=5)) as db:
+        with closing(self._connect()) as db:
             self._load(db, experience_id, actor)
             row = db.execute(
                 "SELECT state FROM experiences WHERE id=?", (str(experience_id),)

@@ -69,6 +69,22 @@ def test_only_accepted_independent_review_activates_a_record(tmp_path):
     ] == [item.experience_id]
 
 
+def test_a_later_independent_rejection_withdraws_an_active_record(tmp_path):
+    service = store(tmp_path)
+    item = record()
+    service.capture(item, ACTOR)
+    service.review(item.experience_id, reviewer_id="reviewer-1", accepted=True, actor=ACTOR)
+    assert service.state(item.experience_id, ACTOR) == "active"
+    service.review(item.experience_id, reviewer_id="reviewer-2", accepted=False, actor=ACTOR)
+    # Fail closed: one rejection withdraws the record even after another
+    # reviewer accepted it, and a fresh acceptance cannot revive it silently.
+    assert service.state(item.experience_id, ACTOR) == "candidate"
+    assert service.retrieve(failure_class="rule_context_required", tool="rules", actor=ACTOR) == ()
+    service.review(item.experience_id, reviewer_id="reviewer-3", accepted=True, actor=ACTOR)
+    assert service.state(item.experience_id, ACTOR) == "candidate"
+    assert service.retrieve(failure_class="rule_context_required", tool="rules", actor=ACTOR) == ()
+
+
 def test_retrieval_is_scoped_by_failure_class_and_tool(tmp_path):
     service = store(tmp_path)
     item = record()
@@ -178,6 +194,49 @@ def test_capture_is_idempotent_by_id_and_detects_tampering(tmp_path):
     with pytest.raises(ExperienceError) as tampered:
         service.retrieve(failure_class="rule_context_required", tool="rules", actor=ACTOR)
     assert tampered.value.code == "experience_integrity_failure"
+
+
+@pytest.mark.parametrize("unrelated", ["failure_class", "tool_scope"])
+def test_newer_unrelated_records_do_not_hide_matching_experience(tmp_path, unrelated):
+    service = store(tmp_path)
+    oldest, newest = record(), record()
+    for item in (oldest, newest):
+        service.capture(item, ACTOR)
+        service.review(item.experience_id, reviewer_id="reviewer", accepted=True, actor=ACTOR)
+    changes = (
+        {"failure_class": "unknown_column"}
+        if unrelated == "failure_class"
+        else {"tool_scope": ("sql",)}
+    )
+    for _ in range(201):
+        item = record(**changes)
+        service.capture(item, ACTOR)
+        service.review(item.experience_id, reviewer_id="reviewer", accepted=True, actor=ACTOR)
+    found = service.retrieve(failure_class="rule_context_required", tool="rules", actor=ACTOR)
+    assert [item.experience_id for item in found] == [newest.experience_id, oldest.experience_id]
+    limited = service.retrieve(
+        failure_class="rule_context_required", tool="rules", actor=ACTOR, limit=1
+    )
+    assert [item.experience_id for item in limited] == [newest.experience_id]
+
+
+def test_integrity_checks_continue_beyond_the_first_retrieval_batch(tmp_path):
+    import sqlite3
+
+    service = store(tmp_path)
+    target = record()
+    service.capture(target, ACTOR)
+    service.review(target.experience_id, reviewer_id="reviewer", accepted=True, actor=ACTOR)
+    for _ in range(201):
+        item = record(failure_class="unknown_column")
+        service.capture(item, ACTOR)
+        service.review(item.experience_id, reviewer_id="reviewer", accepted=True, actor=ACTOR)
+    with sqlite3.connect(service.path) as db:
+        db.execute(
+            "UPDATE experiences SET hash=? WHERE id=?", ("tampered", str(target.experience_id))
+        )
+    with pytest.raises(ExperienceError, match="experience_integrity_failure"):
+        service.retrieve(failure_class="rule_context_required", tool="rules", actor=ACTOR)
 
 
 def test_brief_exposes_lessons_and_never_the_counterexample_text(tmp_path):
