@@ -13,10 +13,10 @@ Three invariants are enforced here rather than left to callers:
   returned, so feedback can only ever attach to a package that existed.
 
 Packaging runs through ``ToolGateway`` under the ``rules.deliver`` rule, so a
-delivery is authorized and audited exactly like rule execution. The artifact
-writes remain direct store calls: the gateway's ``artifact.write`` handler is
-owned by the governed runner, and registering a second handler for the same tool
-on a shared gateway would silently change its meaning.
+delivery is authorized and audited exactly like rule execution. Each delivery
+owns its gateway and registers one ``artifact.write`` handler. Every package
+artifact is separately authorized and audited before storage, using the caller's
+role and scope.
 
 This is a development adapter. It does not perform release admission, governed
 retention or production-mode checks, and it never reports production acceptance.
@@ -90,9 +90,9 @@ def answer_rows(delivery: dict, operation: str) -> list[tuple[object, ...]]:
     """
     if operation == "applicable":
         items = delivery.get("items")
-        if not isinstance(items, list) or not items:
+        if not isinstance(items, list):
             raise RuleDeliveryError("rule_delivery_evidence_missing")
-        return [("applicable_rules", ", ".join(str(item) for item in items))]
+        return [("applicable_rules", ", ".join(str(item) for item in items) if items else "[]")]
     if operation == "counterfactual":
         delta = delivery.get("delta")
         if delta is None:
@@ -143,13 +143,45 @@ class RuleDeliveryRuntime:
     ) -> dict[str, Any]:
         if (actor.user_id, actor.tenant_id, actor.project_id) == ("", "", ""):
             raise PermissionError("rule_delivery_actor_required")
+        if isinstance(self.artifacts, GovernedArtifactStore):
+            bound = self.artifacts.actor
+            if (bound.tenant_id, bound.project_id) != (
+                actor.tenant_id,
+                actor.project_id,
+            ) or not set(actor.data_domains) <= set(bound.data_domains):
+                raise PermissionError("artifact_store_actor_scope_mismatch")
         # A gateway per delivery, exactly as ``GovernedRuleRunner`` does: handlers
         # close over this call's actor and task so a shared gateway can never be
         # repointed at another tenant.
         gateway = ToolGateway(self.policy, self.audit)
+        trace = trace_id or f"rule-delivery-{task_id}"
+
+        def persist(arguments):
+            ref = self.artifacts.put_json(task_id=task_id, **arguments)
+            self.artifacts.read_bytes(ref)
+            return ref
+
+        def write_artifact(**arguments):
+            artifact_request = ToolRequest(
+                task_id=task_id,
+                user_id=actor.user_id,
+                tenant_id=actor.tenant_id,
+                project_id=actor.project_id,
+                agent_role=agent_role,
+                tool_name="artifact.write",
+                action="create",
+                resource=arguments["artifact_type"],
+                arguments=arguments,
+                data_domains=actor.data_domains,
+            )
+            return gateway.invoke(artifact_request, trace_id=trace)
+
+        gateway.register("artifact.write", persist)
         gateway.register(
             "rules.deliver",
-            lambda arguments: self._package(arguments, actor=actor, task_id=task_id),
+            lambda arguments: self._package(
+                arguments, actor=actor, task_id=task_id, write_artifact=write_artifact
+            ),
         )
         tool_request = ToolRequest(
             task_id=task_id,
@@ -166,10 +198,10 @@ class RuleDeliveryRuntime:
             },
             data_domains=actor.data_domains,
         )
-        return gateway.invoke(tool_request, trace_id=trace_id or f"rule-delivery-{task_id}")
+        return gateway.invoke(tool_request, trace_id=trace)
 
     def _package(
-        self, arguments: dict[str, Any], *, actor: ActorContext, task_id: UUID
+        self, arguments: dict[str, Any], *, actor: ActorContext, task_id: UUID, write_artifact
     ) -> dict[str, Any]:
         """Authorized handler: build and verify the package for one thread."""
         thread_id = arguments["thread_id"]
@@ -187,8 +219,7 @@ class RuleDeliveryRuntime:
         if self.feedback is not None and self.feedback.registered(task_id, actor):
             raise RuleDeliveryError("rule_delivery_already_packaged")
 
-        data = self.artifacts.put_json(
-            task_id=task_id,
+        data = write_artifact(
             artifact_type="rule_analysis_result",
             value={
                 "operation": operation,
@@ -211,8 +242,7 @@ class RuleDeliveryRuntime:
             title=f"rule analysis: {operation}",
             data_artifact_uri=data.uri,
         )
-        chart_artifact = self.artifacts.put_json(
-            task_id=task_id,
+        chart_artifact = write_artifact(
             artifact_type="chart_spec",
             value=chart.model_dump(mode="json"),
             created_by="deterministic-reporter",
@@ -224,8 +254,7 @@ class RuleDeliveryRuntime:
             text=self._claim_text(operation, rows, item_count=_item_count(delivery, operation)),
             evidence_uris=(data.uri,),
         )
-        claims_artifact = self.artifacts.put_json(
-            task_id=task_id,
+        claims_artifact = write_artifact(
             artifact_type="rule_claims",
             value=[claim.model_dump(mode="json")],
             created_by="verifier",

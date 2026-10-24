@@ -110,6 +110,7 @@ def test_unfinished_thread_cannot_be_packaged(tmp_path):
     "operation,delivery,expected",
     [
         ("applicable", {"items": ["A", "B"]}, ("applicable_rules", "A, B")),
+        ("applicable", {"items": []}, ("applicable_rules", "[]")),
         ("counterfactual", {"delta": "0.06"}, ("delta", "0.06")),
         ("average_fee", {"average_fee": "0.064"}, ("average_fee", "0.064")),
         ("select", {"items": []}, ("selected_rules", "")),
@@ -124,7 +125,9 @@ def test_each_operation_maps_to_one_deterministic_row(operation, delivery, expec
 @pytest.mark.parametrize(
     "operation,delivery",
     [
-        ("applicable", {"items": []}),
+        ("applicable", {}),
+        ("applicable", {"items": None}),
+        ("applicable", {"items": "[]"}),
         ("counterfactual", {}),
         ("average_fee", {"average_fee": None}),
         ("select", {}),
@@ -159,7 +162,8 @@ def test_delivery_requires_a_supported_artifact_store(tmp_path):
             RuleDeliveryRuntime(workflow=flow, artifacts=object())
 
 
-def test_context_delivery_states_the_month_threshold_limitation(tmp_path):
+@pytest.mark.parametrize("has_match", [True, False])
+def test_context_delivery_states_the_month_threshold_limitation(tmp_path, has_match):
     import sqlite3
 
     database = tmp_path / "payments.sqlite"
@@ -179,9 +183,11 @@ def test_context_delivery_states_the_month_threshold_limitation(tmp_path):
     from generaldataagent.business.rules.payments import SQLitePaymentsSource
 
     task_id = uuid4()
+    annex = ANNEX if has_match else [row | {"monthly_volume": ">1000"} for row in ANNEX]
+    feedback = FeedbackRegistry(tmp_path / "feedback.sqlite")
     with open_protected_checkpointer(tmp_path / "state", encryption_key=b"k" * 32) as saver:
         adapter = AnnexWorkflowServices(
-            ANNEX,
+            annex,
             documents=DOCUMENTS,
             payments=SQLitePaymentsSource(
                 database, allowed_relations={"merchant_data", "payments"}
@@ -194,15 +200,27 @@ def test_context_delivery_states_the_month_threshold_limitation(tmp_path):
             workflow_version="delivery-v1",
         )
         service = RuleDeliveryRuntime(
-            workflow=flow, artifacts=LocalArtifactStore(tmp_path / "artifacts")
+            workflow=flow, artifacts=LocalArtifactStore(tmp_path / "artifacts"), feedback=feedback
         )
         scoped = request(operation="applicable", merchant="Shop", year=2023, day_of_year=1)
         thread, state = flow.run(scoped, ACTOR)
         assert state["status"] == "completed", state.get("verification")
+        expected_items = ["A"] if has_match else []
+        assert state["delivery"]["items"] == expected_items
+        assert state["delivery"]["total_count"] == len(expected_items)
         result = service.deliver(thread, scoped, ACTOR, task_id=task_id)
     package = DeliveryPackage.model_validate(result["delivery"])
     assert any("whole natural month" in line for line in package.limitations)
-    assert package.rows[0][0] == "applicable_rules"
+    assert package.rows == (("applicable_rules", "A" if has_match else "[]"),)
+    assert feedback.registered(task_id, ACTOR)
+    data = next(ref for ref in package.evidence if ref.artifact_type == "rule_analysis_result")
+    stored = json.loads(service.artifacts.read_bytes(data))
+    assert stored["delivery"]["items"] == expected_items
+    assert stored["verification"]["passed"] is True
+    assert data.task_id == task_id
+    assert package.claims[0].evidence_uris == (data.uri,)
+    if not has_match:
+        assert "applicable_rules = []" in package.summary
 
 
 def test_delivery_is_idempotent_by_refusal_not_by_duplicate(tmp_path):
@@ -234,6 +252,15 @@ def test_delivery_does_not_run_a_new_task(tmp_path):
 
 
 def test_delivery_is_authorized_and_audited_by_the_gateway(tmp_path):
+    from generaldataagent.policy import PolicyEngine, request_fingerprint
+
+    requests = []
+
+    class RecordingPolicy(PolicyEngine):
+        def evaluate(self, proposal):
+            requests.append(proposal)
+            return super().evaluate(proposal)
+
     task_id = uuid4()
     audit = JsonlAuditSink(tmp_path / "audit.jsonl")
     with open_protected_checkpointer(tmp_path / "state", encryption_key=b"k" * 32) as saver:
@@ -242,17 +269,33 @@ def test_delivery_is_authorized_and_audited_by_the_gateway(tmp_path):
             workflow=flow,
             artifacts=LocalArtifactStore(tmp_path / "artifacts"),
             audit=audit,
+            policy=RecordingPolicy(),
         )
         thread, _ = flow.run(request(), ACTOR)
         service.deliver(thread, request(), ACTOR, task_id=task_id)
     rows = [json.loads(line) for line in (tmp_path / "audit.jsonl").read_text().splitlines()]
-    assert len(rows) == 1
-    row = rows[0]
-    assert row["task_id"] == str(task_id)
-    assert row["event_type"] == "policy.decision"
-    assert row["payload"]["decision"] == "allow"
-    assert row["payload"]["risk_level"] == "r1"
-    assert row["payload"]["request_fingerprint"].startswith("sha256:")
+    assert len(rows) == 4
+    assert [proposal.tool_name for proposal in requests] == ["rules.deliver"] + [
+        "artifact.write"
+    ] * 3
+    assert [proposal.resource for proposal in requests[1:]] == [
+        "rule_analysis_result",
+        "chart_spec",
+        "rule_claims",
+    ]
+    assert [row["payload"]["request_fingerprint"] for row in rows] == [
+        request_fingerprint(proposal) for proposal in requests
+    ]
+    assert all(proposal.agent_role == "data_analyst" for proposal in requests)
+    assert all(proposal.data_domains == ACTOR.data_domains for proposal in requests)
+    assert len({row["trace_id"] for row in rows}) == 1
+    assert len({row["payload"]["request_fingerprint"] for row in rows}) == 4
+    for row in rows:
+        assert row["task_id"] == str(task_id)
+        assert row["event_type"] == "policy.decision"
+        assert row["payload"]["decision"] == "allow"
+        assert row["payload"]["risk_level"] == "r1"
+        assert row["payload"]["request_fingerprint"].startswith("sha256:")
 
 
 @pytest.mark.parametrize("role", ["supervisor", "data_engineer"])
@@ -282,6 +325,57 @@ def test_unlisted_tool_is_denied_by_a_stricter_policy(tmp_path):
     assert not list((tmp_path / "artifacts").rglob("*.json"))
 
 
+@pytest.mark.parametrize("mode", ["missing", "role_denied"])
+def test_artifact_policy_denial_prevents_writes_and_feedback(tmp_path, mode):
+    from generaldataagent.policy import PolicyEngine
+    from generaldataagent.policy.engine import DEFAULT_RULES
+
+    task_id = uuid4()
+    with open_protected_checkpointer(tmp_path / "state", encryption_key=b"k" * 32) as saver:
+        flow, service = runtime(tmp_path, saver=saver)
+        thread, before = flow.run(request(), ACTOR)
+        rules = tuple(rule for rule in DEFAULT_RULES if rule.tool_name == "rules.deliver")
+        if mode == "role_denied":
+            artifact_rule = next(
+                rule for rule in DEFAULT_RULES if rule.tool_name == "artifact.write"
+            )
+            rules += (replace(artifact_rule, allowed_roles=frozenset({"reporter"})),)
+        service.policy = PolicyEngine(rules=rules)
+        service.audit = JsonlAuditSink(tmp_path / "audit.jsonl")
+        with pytest.raises(PolicyDeniedError):
+            service.deliver(thread, request(), ACTOR, task_id=task_id)
+        assert not service.feedback.registered(task_id, ACTOR)
+        assert flow.state_of(thread, request(), ACTOR) == before
+    assert not list((tmp_path / "artifacts").rglob("*.json"))
+    rows = [json.loads(line) for line in service.audit.path.read_text().splitlines()]
+    assert [row["payload"]["decision"] for row in rows] == ["allow", "deny"]
+
+
+@pytest.mark.parametrize("fail_at", [2, 3, 4])
+def test_artifact_audit_outage_stops_writes_before_feedback(tmp_path, fail_at):
+    class Audit:
+        def __init__(self):
+            self.calls = 0
+
+        def emit(self, event):
+            self.calls += 1
+            if self.calls == fail_at:
+                raise OSError("synthetic artifact audit outage")
+
+    task_id = uuid4()
+    audit = Audit()
+    with open_protected_checkpointer(tmp_path / "state", encryption_key=b"k" * 32) as saver:
+        flow, service = runtime(tmp_path, saver=saver)
+        service.audit = audit
+        thread, before = flow.run(request(), ACTOR)
+        with pytest.raises(OSError, match="synthetic artifact audit outage"):
+            service.deliver(thread, request(), ACTOR, task_id=task_id)
+        assert not service.feedback.registered(task_id, ACTOR)
+        assert flow.state_of(thread, request(), ACTOR) == before
+    assert audit.calls == fail_at
+    assert len(list((tmp_path / "artifacts").rglob("*.json"))) == fail_at - 2
+
+
 def test_a_long_id_list_is_counted_not_truncated(tmp_path):
     """A 416-ID answer overflows the 2000-character claim contract.
 
@@ -307,6 +401,63 @@ def test_a_long_id_list_is_counted_not_truncated(tmp_path):
     )
     # The full answer is still in the package rows, not only in the artifact.
     assert len(str(package.rows[0][1]).split(", ")) == 416
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"tenant_id": "outside"},
+        {"project_id": "outside"},
+        {"data_domains": ("sales",)},
+        {"data_domains": ()},
+    ],
+)
+def test_governed_store_scope_mismatch_prevents_delivery_writes(tmp_path, changes):
+    from generaldataagent.artifacts.governed import GovernedArtifactStore
+
+    task_id = uuid4()
+    with open_protected_checkpointer(tmp_path / "state", encryption_key=b"k" * 32) as saver:
+        flow, service = runtime(tmp_path, saver=saver)
+        thread, before = flow.run(request(), ACTOR)
+        service.artifacts = GovernedArtifactStore(
+            tmp_path / "governed-artifacts",
+            index_path=tmp_path / "artifact-index.sqlite",
+            actor=ACTOR.model_copy(update=changes),
+        )
+        service.audit = JsonlAuditSink(tmp_path / "delivery-audit.jsonl")
+        with pytest.raises(PermissionError, match="artifact_store_actor_scope_mismatch"):
+            service.deliver(thread, request(), ACTOR, task_id=task_id)
+        assert not list(service.artifacts.root.rglob("*.json"))
+        assert not service.feedback.registered(task_id, ACTOR)
+        assert not service.audit.path.exists()
+        assert flow.state_of(thread, request(), ACTOR) == before
+    import sqlite3
+
+    with sqlite3.connect(service.artifacts.index_path) as db:
+        assert db.execute("SELECT COUNT(*) FROM governed_artifacts").fetchone()[0] == 0
+
+
+@pytest.mark.parametrize("domains", [("payments",), ("payments", "sales")])
+def test_matching_governed_store_scope_preserves_verified_delivery(tmp_path, domains):
+    from generaldataagent.artifacts.governed import GovernedArtifactStore
+
+    task_id = uuid4()
+    with open_protected_checkpointer(tmp_path / "state", encryption_key=b"k" * 32) as saver:
+        flow, service = runtime(tmp_path, saver=saver)
+        thread, before = flow.run(request(), ACTOR)
+        service.artifacts = GovernedArtifactStore(
+            tmp_path / "governed-artifacts",
+            index_path=tmp_path / "artifact-index.sqlite",
+            actor=ACTOR.model_copy(update={"data_domains": domains}),
+        )
+        result = service.deliver(thread, request(), ACTOR, task_id=task_id)
+        package = DeliveryPackage.model_validate(result["delivery"])
+        assert package.rows == (("average_fee", "0.092"),)
+        assert all(ref.task_id == task_id for ref in package.evidence)
+        for ref in package.evidence:
+            assert service.artifacts.read_bytes(ref)
+        assert service.feedback.registered(task_id, ACTOR)
+        assert flow.state_of(thread, request(), ACTOR) == before
 
 
 def test_a_short_id_list_still_prints_in_full(tmp_path):
