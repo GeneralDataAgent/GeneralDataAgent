@@ -16,18 +16,39 @@ from generaldataagent.evaluation.rule_diagnostics import (
 )
 
 
-def response(diagnostics, *, usage=None, calls=()):
-    diagnostics.on_chat_model_start({}, [])
+def response(
+    diagnostics,
+    *,
+    usage=None,
+    calls=(),
+    text="",
+    invalid=(),
+    agent=None,
+    finish_reason=None,
+    run_id="run-1",
+):
+    diagnostics.on_chat_model_start(
+        {}, [], run_id=run_id, metadata={"lc_agent_name": agent} if agent else None
+    )
     diagnostics.on_llm_end(
         LLMResult(
             generations=[
                 [
                     ChatGeneration(
-                        message=AIMessage(content="", tool_calls=list(calls), usage_metadata=usage)
+                        message=AIMessage(
+                            content=text,
+                            tool_calls=list(calls),
+                            invalid_tool_calls=list(invalid),
+                            usage_metadata=usage,
+                            response_metadata=(
+                                {"finish_reason": finish_reason} if finish_reason else {}
+                            ),
+                        )
                     )
                 ]
             ]
-        )
+        ),
+        run_id=run_id,
     )
 
 
@@ -105,6 +126,104 @@ def test_reports_keep_enums_without_free_text_or_invented_roles():
 def test_absent_report_is_not_inferred_from_last_role():
     row = dict(outcome="model_run", passed=False, delegated_roles=["discovery"])
     assert stop_diagnostic(row)["code"] == "incomplete_sequence_reason_unknown"
+
+
+def test_response_shape_separates_empty_prose_and_malformed_calls():
+    diagnostics = RuleCallDiagnostics()
+    response(diagnostics, usage=TOKENS, run_id="run-1")
+    response(diagnostics, usage=TOKENS, text="I cannot proceed.", run_id="run-2")
+    response(
+        diagnostics,
+        usage=TOKENS,
+        invalid=[{"type": "invalid_tool_call", "name": "execute_rule_analysis", "args": "{"}],
+        run_id="run-3",
+    )
+    response(
+        diagnostics,
+        usage=TOKENS,
+        calls=[{"name": "task", "args": {"subagent_type": "discovery"}, "id": "c1"}],
+        agent="supervisor",
+        run_id="run-4",
+    )
+    assert diagnostics.snapshot()["response_shape"] == [
+        {
+            "agent": "supervisor",
+            "tool_names": [],
+            "invalid_tool_names": [],
+            "text_chars": 0,
+            "finish_reason": None,
+        },
+        {
+            "agent": "supervisor",
+            "tool_names": [],
+            "invalid_tool_names": [],
+            "text_chars": len("I cannot proceed."),
+            "finish_reason": None,
+        },
+        {
+            "agent": "supervisor",
+            "tool_names": [],
+            "invalid_tool_names": ["execute_rule_analysis"],
+            "text_chars": 0,
+            "finish_reason": None,
+        },
+        {
+            "agent": "supervisor",
+            "tool_names": ["task"],
+            "invalid_tool_names": [],
+            "text_chars": 0,
+            "finish_reason": None,
+        },
+    ]
+    # The prose itself is never retained; only its length.
+    assert "cannot proceed" not in json.dumps(diagnostics.snapshot())
+
+
+def test_stop_diagnostic_keeps_the_shape_but_does_not_name_a_cause():
+    diagnostics = RuleCallDiagnostics()
+    response(diagnostics, usage=TOKENS, text="private reasoning", run_id="run-1")
+    response(
+        diagnostics,
+        usage=TOKENS,
+        invalid=[
+            {"type": "invalid_tool_call", "name": "execute_rule_analysis", "args": "{"},
+        ],
+        run_id="run-2",
+    )
+    row = dict(
+        outcome="model_run",
+        passed=False,
+        delegated_roles=["discovery"],
+        **diagnostics.snapshot(),
+    )
+    diagnostic = stop_diagnostic(row)
+    assert diagnostic["code"] == "incomplete_sequence_reason_unknown"
+    assert diagnostic["responses_without_tool_calls"] == 2
+    assert diagnostic["malformed_tool_call_names"] == ["execute_rule_analysis"]
+    assert diagnostic["semantic_root_cause"] == "not_established"
+    assert "private reasoning" not in json.dumps(diagnostic)
+
+
+def test_subagent_responses_are_labelled_by_the_agent_that_emitted_them():
+    diagnostics = RuleCallDiagnostics()
+    response(diagnostics, usage=TOKENS, agent="discovery", run_id="run-a")
+    response(diagnostics, usage=TOKENS, run_id="run-b")
+    events = [event for event in diagnostics.events if event["status"] == "response"]
+    assert [event["agent"] for event in events] == ["discovery", "supervisor"]
+    assert [event["agent"] for event in diagnostics.events if event["status"] == "started"] == [
+        "discovery",
+        "supervisor",
+    ]
+
+
+def test_a_failed_call_does_not_label_the_next_response_with_a_stale_agent():
+    diagnostics = RuleCallDiagnostics()
+    diagnostics.on_chat_model_start({}, [], run_id="run-a", metadata={"lc_agent_name": "verifier"})
+    diagnostics.on_llm_error(TimeoutError("private provider details"), run_id="run-a")
+    response(diagnostics, usage=TOKENS, run_id="run-b")
+    assert [event["agent"] for event in diagnostics.events if event["status"] == "response"] == [
+        "supervisor"
+    ]
 
 
 def test_exception_tokens_count_and_planned_denominator_survives_interruption():

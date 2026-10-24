@@ -7,6 +7,7 @@ from langchain_core.callbacks import BaseCallbackHandler
 from generaldataagent.agents.rule_supervisor import RULE_ROLE_SEQUENCE
 
 _TOKEN_KEYS = ("input_tokens", "output_tokens", "total_tokens")
+_MAIN_AGENT = "supervisor"
 
 
 class RuleCallDiagnostics(BaseCallbackHandler):
@@ -14,9 +15,18 @@ class RuleCallDiagnostics(BaseCallbackHandler):
 
     def __init__(self) -> None:
         self.events: list[dict] = []
+        self._agents: dict[str, str] = {}
 
     def on_chat_model_start(self, serialized, messages, **kwargs) -> None:
-        self.events.append({"status": "started"})
+        # The emitting agent is an observation, not a decision: a subagent that
+        # answers without calling its tool is a different failure from the
+        # supervisor stopping between delegations, and the events alone cannot
+        # tell them apart without this label.
+        agent = _agent_name(kwargs.get("metadata"))
+        run_id = str(kwargs.get("run_id") or "")
+        if run_id:
+            self._agents[run_id] = agent
+        self.events.append({"status": "started", "agent": agent})
 
     def on_llm_end(self, response, **kwargs) -> None:
         for batch in response.generations:
@@ -51,7 +61,21 @@ class RuleCallDiagnostics(BaseCallbackHandler):
                 self.events.append(
                     {
                         "status": "response",
+                        "agent": self._agents.pop(str(kwargs.get("run_id") or ""), _MAIN_AGENT),
                         "tool_calls": calls,
+                        # A call that failed argument parsing is not a tool call
+                        # by this point. Without counting it, "the model stopped
+                        # calling tools" and "the model called with malformed
+                        # arguments" look identical. Only names are kept: an
+                        # invalid argument payload is model text.
+                        "invalid_tool_calls": [
+                            str(_field(call, "name") or "")
+                            for call in getattr(message, "invalid_tool_calls", ())
+                        ],
+                        # An empty response and a prose-only response both have
+                        # no tool calls; the length separates them without
+                        # storing the prose.
+                        "text_chars": len(message.text) if isinstance(message.text, str) else 0,
                         "usage": getattr(message, "usage_metadata", None),
                         "finish_reason": message.response_metadata.get("finish_reason"),
                     }
@@ -59,6 +83,7 @@ class RuleCallDiagnostics(BaseCallbackHandler):
 
     def on_llm_error(self, error, **kwargs) -> None:
         status = getattr(error, "status_code", None)
+        self._agents.pop(str(kwargs.get("run_id") or ""), None)
         self.events.append(
             {
                 "status": "error",
@@ -107,8 +132,44 @@ class RuleCallDiagnostics(BaseCallbackHandler):
             "finish_reasons": [
                 event["finish_reason"] for event in self.events if event["status"] == "response"
             ],
+            "response_shape": [response_shape(event) for event in self.events if _responded(event)],
             "delegations": [call["subagent_type"] for call in calls if call["name"] == "task"],
         }
+
+
+def _field(call, key: str):
+    """Read one field from a dict- or object-shaped tool call."""
+    return call.get(key) if isinstance(call, dict) else getattr(call, key, None)
+
+
+def _agent_name(metadata) -> str:
+    """The emitting agent, from tracing metadata set by the harness."""
+    if isinstance(metadata, dict):
+        name = metadata.get("lc_agent_name") or metadata.get("ls_agent_type")
+        if isinstance(name, str) and name:
+            return name[:64]
+    return _MAIN_AGENT
+
+
+def _responded(event: dict) -> bool:
+    return event.get("status") == "response"
+
+
+def response_shape(event: dict) -> dict:
+    """Classify one response without keeping its text.
+
+    ``no_tool_call`` is the shape that stops a governed role sequence; keeping
+    the agent and the two counters is what tells an empty reply, a prose-only
+    reply and a malformed tool call apart in a later review.
+    """
+    calls = event.get("tool_calls") or []
+    return {
+        "agent": event.get("agent", _MAIN_AGENT),
+        "tool_names": [call["name"] for call in calls],
+        "invalid_tool_names": list(event.get("invalid_tool_calls") or ()),
+        "text_chars": event.get("text_chars", 0),
+        "finish_reason": event.get("finish_reason"),
+    }
 
 
 def stop_diagnostic(row: dict) -> dict:
@@ -139,6 +200,20 @@ def stop_diagnostic(row: dict) -> dict:
         "reported_stops": [
             report for report in reports if report["status"] in {"failed", "needs_human"}
         ],
+        # Where the model stopped acting, as observed responses rather than an
+        # inferred reason. A malformed call is listed separately because it is
+        # a call the provider attempted, not a decision to stop.
+        "responses_without_tool_calls": sum(
+            not shape["tool_names"] for shape in row.get("response_shape") or ()
+        ),
+        "malformed_tool_call_names": sorted(
+            {
+                name
+                for shape in row.get("response_shape") or ()
+                for name in shape["invalid_tool_names"]
+                if name
+            }
+        ),
         "semantic_root_cause": "not_established" if code != "completed" else None,
     }
 
@@ -175,5 +250,17 @@ def summarize_rule_run(results: list[dict], *, planned_n: int) -> dict:
             else None
         ),
         "stop_diagnostics": dict(Counter(stop_diagnostic(row)["code"] for row in results)),
+        # Where responses stopped calling tools, aggregated. Still an observation:
+        # it does not claim why the model stopped.
+        "responses_without_tool_calls": sum(
+            not shape["tool_names"]
+            for row in model_runs
+            for shape in row.get("response_shape") or ()
+        ),
+        "malformed_tool_calls_n": sum(
+            bool(shape["invalid_tool_names"])
+            for row in model_runs
+            for shape in row.get("response_shape") or ()
+        ),
         "production_accepted": False,
     }

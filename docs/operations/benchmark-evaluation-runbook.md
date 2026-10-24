@@ -122,12 +122,16 @@ directory local and do not include its key in reports or shared evidence. Retent
 normal exit and exceptions; there is no automatic cleanup or production retention policy.
 
 Each attempted row records the bound request, rule thread ID, Supervisor thread ID and ordered
-diagnostic events without model prose or prompts. These events are observations, not a full
-model conversation or the Supervisor's in-memory checkpoint, which is not retained. Each case
-persists atomically; a `running` report with pending cases is incomplete. Model attempts,
-responses, errors and finite specialist role/status reports are recorded separately.
-Specialist declarations never authorize execution. Missing or failed-call token usage remains
-unknown even when known totals are zero. Costs remain null without independent billing telemetry.
+diagnostic events without model prose or prompts. Each response is reduced to a shape: the
+emitting agent (main Supervisor or the specialist that replied), tool names, invalid tool-call
+names, text length and finish reason. An empty reply, a prose-only reply and a call that failed
+argument parsing therefore stay distinguishable without storing the text. These events are
+observations, not a full model conversation or the Supervisor's in-memory checkpoint, which is not
+retained. Each case persists atomically; a `running` report with pending cases is incomplete.
+Model attempts, responses, errors and finite specialist role/status reports are recorded
+separately. Specialist declarations never authorize execution. Missing or failed-call token usage
+remains unknown even when known totals are zero. Costs remain null without independent billing
+telemetry.
 
 This runner reuses `ServiceCircuitBreaker`: HTTP 401/402/403/404 opens the circuit immediately;
 three consecutive other model-service failures also open it. Later parseable cases are
