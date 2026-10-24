@@ -124,13 +124,16 @@ normal exit and exceptions; there is no automatic cleanup or production retentio
 Each attempted row records the bound request, rule thread ID, Supervisor thread ID and ordered
 diagnostic events without model prose or prompts. Each response is reduced to a shape: the
 emitting agent (main Supervisor or the specialist that replied), tool names, invalid tool-call
-names, text length and finish reason. An empty reply, a prose-only reply and a call that failed
-argument parsing therefore stay distinguishable without storing the text. A row whose final reply
-carries text with no tool call is classified `response_without_tool_call`; empty and malformed
-final replies stay `incomplete_sequence_reason_unknown`, and every non-completed row keeps
-`semantic_root_cause: not_established`. These events are observations, not a full model conversation
-or the Supervisor's in-memory checkpoint, which is not retained. Each case persists atomically; a
-`running` report with pending cases is incomplete.
+names, text length, finish reason, and the request's `tool_choice` (with the named tool when one was
+required). An empty reply, a prose-only reply and a call that failed argument parsing therefore stay
+distinguishable without storing the text. A reply that calls nothing although its request required a
+tool is classified `required_tool_call_not_honoured`; a text reply with no such requirement is
+`response_without_tool_call`; empty and malformed final replies stay
+`incomplete_sequence_reason_unknown`, and every non-completed row keeps
+`semantic_root_cause: not_established`. The distinction matters because the first is an endpoint
+that did not honour a required call, while the second is a model that chose prose. These events are
+observations, not a full model conversation or the Supervisor's in-memory checkpoint, which is not
+retained. Each case persists atomically; a `running` report with pending cases is incomplete.
 Model attempts, responses, errors and finite specialist role/status reports are recorded
 separately. Specialist declarations never authorize execution. Missing or failed-call token usage
 remains unknown even when known totals are zero. Costs remain null without independent billing
