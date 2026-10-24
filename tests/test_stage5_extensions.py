@@ -8,6 +8,10 @@ from uuid import uuid4
 
 import pytest
 from admission_helpers import enroll
+from langchain_core.messages import AIMessage
+from langchain_core.outputs import ChatGeneration, ChatResult
+from langchain_core.tools import StructuredTool
+from langchain_openai import ChatOpenAI
 from test_data_engineering import BlockingConnector
 
 from generaldataagent.agents.factory import build_supervisor
@@ -218,3 +222,97 @@ def test_governed_profile_denies_every_filesystem_tool_including_delete(monkeypa
         # Summarization would call the provider outside model-call governance.
         assert "SummarizationMiddleware" in profile.excluded_middleware
         assert profile.general_purpose_subagent.enabled is False
+
+
+class _RecordingModel(ChatOpenAI):
+    """OpenAI-provider identity, so the governed profile resolves; no network."""
+
+    def __init__(self, script):
+        super().__init__(model="test-model", api_key="probe", base_url="http://localhost/v1")
+        object.__setattr__(self, "_script", iter(script))
+        object.__setattr__(self, "_bindings", [])
+
+    @property
+    def bindings(self):
+        return self._bindings
+
+    @property
+    def script(self):
+        return self._script
+
+    def bind_tools(self, tools, **kwargs):
+        self.bindings.append(
+            {
+                "tools": sorted(getattr(tool, "name", str(tool)) for tool in tools),
+                "tool_choice": kwargs.get("tool_choice"),
+            }
+        )
+        return self
+
+    def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+        return ChatResult(generations=[ChatGeneration(message=next(self.script))])
+
+    async def _agenerate(self, messages, stop=None, run_manager=None, **kwargs):
+        return self._generate(messages, stop=stop, run_manager=run_manager, **kwargs)
+
+
+def test_governed_profile_reaches_the_bound_tools_of_a_real_provider_model():
+    """The exclusion must hold for the tools actually sent, not just the registry.
+
+    A generic fake model reports its own provider, so the profile never
+    resolves for it and any binding assertion about it proves nothing. This
+    uses a model whose provider resolves to ``openai`` and records what the
+    harness binds on the supervisor turn and on both specialist turns.
+    """
+    from deepagents.middleware.filesystem import _ALL_FS_TOOL_NAMES
+
+    from generaldataagent.agents.contracts import SpecialistResult
+
+    specs = tuple(spec for spec in SPECIALIST_SPECS if spec.name == "discovery")
+    discovery_tool = StructuredTool.from_function(
+        lambda: {"operation": "average_fee"},
+        name="resolve_rule_request",
+        description="Describe the bound rule request.",
+    )
+    model = _RecordingModel(
+        [
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "task",
+                        "args": {"description": "discovery", "subagent_type": "discovery"},
+                        "id": "1",
+                    }
+                ],
+            ),
+            AIMessage(
+                content="",
+                tool_calls=[{"name": "resolve_rule_request", "args": {}, "id": "2"}],
+            ),
+            AIMessage(content="prose"),
+            AIMessage(content="prose"),
+        ]
+    )
+    graph = build_supervisor(
+        model=model,
+        tool_groups={"supervisor": [], "discovery": [discovery_tool]},
+        specialist_specs=specs,
+        response_formats={spec.name: SpecialistResult.model_json_schema() for spec in specs},
+    )
+    asyncio.run(
+        graph.ainvoke(
+            {"messages": [{"role": "user", "content": "go"}]},
+            {"configurable": {"thread_id": "profile-probe"}, "recursion_limit": 40},
+        )
+    )
+
+    filesystem = set(_ALL_FS_TOOL_NAMES)
+    assert model.bindings, "the model was never bound"
+    for binding in model.bindings:
+        assert not filesystem & set(binding["tools"]), binding
+    supervisor_turn, specialist_turn = model.bindings[0], model.bindings[1]
+    assert supervisor_turn["tools"] == ["task"]
+    assert supervisor_turn["tool_choice"] is None
+    assert specialist_turn["tools"] == ["SpecialistResult", "resolve_rule_request"]
+    assert specialist_turn["tool_choice"] == "any"
