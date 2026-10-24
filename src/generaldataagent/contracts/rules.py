@@ -186,8 +186,8 @@ class FeeRule(ContractModel):
         merchant_category_code: int | None,
         capture_delay_days: int | None,
         capture_delay_mode: str | None,
-        monthly_volume: float | None,
-        monthly_fraud_level: float | None,
+        monthly_volume: Decimal | float | None,
+        monthly_fraud_level: Decimal | float | None,
     ) -> bool:
         """Merchant-level facets; transaction facets are matched separately.
 

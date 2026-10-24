@@ -58,6 +58,7 @@ class RuleQuestionError(ValueError):
             "rule_question_invalid_facet",
             "rule_question_unresolved_mcc",
             "rule_question_unsupported_context_facets",
+            "rule_question_context_operation_required",
         }
     )
 
@@ -98,9 +99,13 @@ def _year(text: str) -> int | None:
     return int(match.group(0)) if match else None
 
 
-def _merchant(question: str, known: tuple[str, ...]) -> str | None:
+def _named_merchants(question: str, known: tuple[str, ...]) -> list[str]:
     lowered = question.casefold()
-    found = [name for name in known if name.casefold() in lowered]
+    return [name for name in known if name.casefold() in lowered]
+
+
+def _merchant(question: str, known: tuple[str, ...]) -> str | None:
+    found = _named_merchants(question, known)
     if len(found) != 1:
         return None
     return found[0]
@@ -173,6 +178,7 @@ def parse_rule_question(
         raise ValueError("empty_list_is_wildcard must be a boolean declaration")
     text = question
     lowered = text.casefold()
+    named_merchants = _named_merchants(text, known_merchants)
     merchant = _merchant(text, known_merchants)
     year = _year(text)
     months = [value for name, value in _MONTHS.items() if re.search(rf"\b{name}\b", lowered)]
@@ -248,6 +254,7 @@ def parse_rule_question(
     # A pure facet question asks which rules match declared values; it needs no
     # merchant context.
     if "fee id" in lowered or "fee ids" in lowered:
+        _refuse_uncarried_context(named_merchants, year, month, day)
         return RuleAnalysisRequest(
             operation="select",
             semantics_excerpt=semantics_excerpt,
@@ -256,6 +263,7 @@ def parse_rule_question(
         )
 
     if "average fee" in lowered:
+        _refuse_uncarried_context(named_merchants, year, month, day)
         return RuleAnalysisRequest(
             operation="average_fee",
             semantics_excerpt=semantics_excerpt,
@@ -267,6 +275,25 @@ def parse_rule_question(
         raise RuleQuestionError("rule_question_missing_merchant")
 
     raise RuleQuestionError("rule_question_unrecognised_operation")
+
+
+def _refuse_uncarried_context(
+    named_merchants: list[str], year: int | None, month: int | None, day: int | None
+) -> None:
+    """Refuse a facet question that names context the facet contract cannot carry.
+
+    ``select`` and ``average_fee`` requests have no merchant, year, month or
+    day-of-year field. A question that names one of them and still reaches this
+    path would have that condition silently dropped, and the answer would come
+    from matching the facet fields alone. The contract validator already refuses
+    such a request, so the parser must not build one behind its back.
+
+    The check accepts every name the question mentions, not the resolved one:
+    two named merchants yield no single merchant, but they are still declared
+    context that this request cannot carry.
+    """
+    if named_merchants or year is not None or month is not None or day is not None:
+        raise RuleQuestionError("rule_question_context_operation_required")
 
 
 def _scope(month: int | None, day: int | None) -> dict[str, int]:
@@ -315,6 +342,20 @@ def _mcc_code(text: str, descriptions: dict[str, int] | None) -> int | None:
     return codes.pop()
 
 
+def _boolean_facet(text: str, field: str) -> bool | None:
+    declarations = list(re.finditer(rf"\b{field}\b", text, re.IGNORECASE))
+    if not declarations:
+        return None
+    if len(declarations) != 1:
+        raise RuleQuestionError("rule_question_invalid_facet")
+    tail = text[declarations[0].end() :]
+    match = re.match(r"\s*[=:]\s*([^\s?]+)", tail)
+    token = match.group(1).removesuffix(".").casefold() if match else ""
+    if token not in {"true", "false"}:
+        raise RuleQuestionError("rule_question_invalid_facet")
+    return token == "true"
+
+
 def _facet_fields(text: str, descriptions: dict[str, int] | None) -> dict[str, object]:
     """Facets the question names explicitly; everything else stays unconstrained.
 
@@ -323,10 +364,18 @@ def _facet_fields(text: str, descriptions: dict[str, int] | None) -> dict[str, o
     """
     lowered = text.casefold()
     facets: dict[str, object] = {}
-    if re.search(r"\bcredit transactions?\b", lowered) or "is_credit = true" in lowered:
-        facets["is_credit"] = True
-    elif "debit transactions" in lowered or "is_credit = false" in lowered:
-        facets["is_credit"] = False
+    credit = _boolean_facet(text, "is_credit")
+    kinds = {
+        match.group(1) == "credit"
+        for match in re.finditer(r"\b(credit|debit) transactions?\b", lowered)
+    }
+    if len(kinds) > 1 or (credit is not None and kinds and credit not in kinds):
+        raise RuleQuestionError("rule_question_invalid_facet")
+    if credit is not None or kinds:
+        facets["is_credit"] = credit if credit is not None else kinds.pop()
+    domestic = _boolean_facet(text, "intracountry")
+    if domestic is not None:
+        facets["intracountry"] = domestic
     account_type = _value_for(text, ("account_type", "account type"), limit=64)
     if account_type is not None:
         if account_type.upper() not in _ACCOUNT_TYPES:

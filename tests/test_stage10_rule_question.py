@@ -329,6 +329,107 @@ def test_supported_day_scope_keeps_the_exact_calendar_day(scope, day):
     assert request.month is None
 
 
+@pytest.mark.parametrize("field", ["is_credit", "intracountry"])
+@pytest.mark.parametrize("value", [True, False])
+@pytest.mark.parametrize("separator", ["=", " = ", ": "])
+def test_explicit_boolean_facets_preserve_both_values(field, value, separator):
+    request = parse(f"What is the average fee for {field}{separator}{str(value).upper()}?")
+    assert getattr(request, field) is value
+
+
+@pytest.mark.parametrize(
+    "condition",
+    [
+        "credit transactions and debit transactions",
+        "credit transactions and is_credit=false",
+        "is_credit=true and is_credit=false",
+        "intracountry=true and intracountry=false",
+        "is_credit=yes",
+        "intracountry=unknown",
+        "is_credit=true/false",
+        "intracountry=trueish",
+        "is_credit=",
+        "intracountry=",
+    ],
+)
+def test_invalid_or_conflicting_boolean_facets_are_refused(condition):
+    assert refusal(f"What is the average fee for {condition}?") == "rule_question_invalid_facet"
+
+
+@pytest.mark.parametrize(
+    "phrase,value", [("credit transaction", True), ("debit transaction", False)]
+)
+def test_singular_transaction_kind_is_preserved(phrase, value):
+    assert parse(f"What is the average fee for a {phrase}?").is_credit is value
+
+
+@pytest.mark.parametrize("credit", [True, False])
+@pytest.mark.parametrize("domestic", [True, False])
+def test_boolean_question_filters_actual_workflow_rules(tmp_path, credit, domestic):
+    from generaldataagent.business.rules.workflow import AnnexWorkflowServices
+    from generaldataagent.contracts import ActorContext
+    from generaldataagent.orchestration.checkpoints import open_protected_checkpointer
+    from generaldataagent.orchestration.rule_workflow import RuleWorkflowRuntime
+
+    annex = [
+        dict(
+            ID=f"{c}-{d}",
+            card_scheme="Aurora",
+            is_credit=c,
+            intracountry=d,
+            fixed_amount="0.10",
+            rate="12",
+        )
+        for c in (True, False)
+        for d in (True, False)
+    ]
+    request = parse(
+        f"What is the average fee for is_credit={str(credit).lower()} "
+        f"and intracountry={str(domestic).lower()}?"
+    )
+    adapter = AnnexWorkflowServices(
+        annex, documents=EXCERPT + "\nfee = fixed_amount + rate * transaction_value / 10000"
+    )
+    actor = ActorContext(user_id="u", tenant_id="t", project_id="p", data_domains=("synthetic",))
+    with open_protected_checkpointer(tmp_path / "state", encryption_key=b"k" * 32) as saver:
+        flow = RuleWorkflowRuntime(
+            services=adapter.services(),
+            checkpointer=saver,
+            source_hashes=adapter.source_hashes,
+            workflow_version="boolean-qualification-v1",
+        )
+        _, state = flow.run(request, actor)
+    assert state["status"] == "completed"
+    assert state["delivery"]["items"] == [f"{credit}-{domestic}"]
+    assert state["delivery"]["average_fee"] == "0.112"
+
+
 def test_empty_list_semantics_must_be_a_boolean():
     with pytest.raises(ValueError, match="boolean declaration"):
         parse("anything", empty_list_is_wildcard="true")
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        # A select/average question that names a merchant is not answerable from
+        # the facet fields alone; the merchant filter would be silently dropped.
+        "What are the fee IDs for merchant Belles_cookbook_store?",
+        "What are the fee IDs for Belles_cookbook_store and Toms_Kitchen?",
+        "What is the average fee for Belles_cookbook_store?",
+        # Time phrases have no field on select/average requests either.
+        "What are the fee IDs for account_type = R in March 2023?",
+        "What is the average fee for card scheme Aurora in 2023?",
+        "What is the average fee for a transaction on day 10 of the year 2023?",
+    ],
+)
+def test_facet_questions_refuse_context_they_cannot_carry(question):
+    code = refusal(question)
+    assert code == "rule_question_context_operation_required"
+
+
+def test_context_free_facet_questions_still_parse():
+    # Sanity check that the refusal above is narrow: questions without a
+    # merchant or time declaration keep their existing request.
+    assert parse("What are the fee IDs that apply to account_type = R?").account_type == "R"
+    assert parse("What is the average fee for card scheme Aurora?").card_scheme == "Aurora"

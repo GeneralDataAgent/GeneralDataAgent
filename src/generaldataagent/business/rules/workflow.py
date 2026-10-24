@@ -12,7 +12,7 @@ Two execution scopes are supported and never mixed:
 import hashlib
 import json
 from datetime import date, timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from generaldataagent.business.rules.engine import (
     applicable_rules,
@@ -30,7 +30,12 @@ from generaldataagent.business.rules.payments import (
     transaction_facets,
 )
 from generaldataagent.contracts.rule_tools import RuleAnalysisRequest
-from generaldataagent.contracts.rules import RuleSemantics, TransactionFacets
+from generaldataagent.contracts.rules import (
+    CounterfactualResult,
+    FeeResult,
+    RuleSemantics,
+    TransactionFacets,
+)
 from generaldataagent.orchestration.rule_workflow import RuleWorkflowServices
 
 FACET_OPERATIONS = frozenset({"select", "average_fee"})
@@ -189,8 +194,8 @@ class AnnexWorkflowServices:
         merchant_level = match_rules(
             self._facet_matches(request, rules),
             merchant=source.merchant,
-            monthly_volume=float(Decimal(context["volume"])),
-            monthly_fraud_level=float(Decimal(context["fraud_ratio"])),
+            monthly_volume=Decimal(context["volume"]),
+            monthly_fraud_level=Decimal(context["fraud_ratio"]),
         )
         report = applicable_rules(merchant_level, self._transactions(state))
         if report.indeterminate:
@@ -246,6 +251,15 @@ class AnnexWorkflowServices:
         semantic oracle.
         """
         request = self._request(state)
+        expected_context = self._context(state)
+        if json.dumps(state.get("monthly_context"), sort_keys=True, allow_nan=False) != json.dumps(
+            expected_context, sort_keys=True, allow_nan=False
+        ):
+            return {
+                "passed": False,
+                "failures": ["rule_context_mismatch"],
+                "checks": ["authoritative_context"],
+            }
         failures = []
         if state["matched_rules"] != self._match(state):
             failures.append("rule_selection_mismatch")
@@ -263,6 +277,7 @@ class AnnexWorkflowServices:
             "passed": not failures,
             "failures": failures,
             "checks": [
+                "authoritative_context",
                 "selection_consistency",
                 "authoritative_fee_records",
                 "decimal_average",
@@ -272,7 +287,12 @@ class AnnexWorkflowServices:
     def _verify_fees(self, request, state):
         failures = []
         rules = self._selected(state)
-        results = state["computation"]["fees"]
+        computation = state["computation"]
+        if set(computation) != {"fees", "average_fee"}:
+            failures.append("rule_fee_computation_invalid")
+        results = computation.get("fees")
+        if not isinstance(results, list) or any(not isinstance(row, dict) for row in results):
+            return failures + ["rule_fee_records_invalid"]
         if [row.get("rule_id") for row in results] != [rule.rule_id for rule in rules]:
             failures.append("rule_result_ids_mismatch")
         value = Decimal(request.transaction_value)
@@ -282,21 +302,35 @@ class AnnexWorkflowServices:
         ]
         for rule, row, expected in zip(rules, results, expected_fees, strict=False):
             if (
-                row.get("fixed_amount") != rule.fixed_amount
+                set(row) != set(FeeResult.model_fields)
+                or row.get("schema_version") != FeeResult.model_fields["schema_version"].default
+                or row.get("fixed_amount") != rule.fixed_amount
                 or row.get("rate") != rule.rate
                 or row.get("source") != rule.source
-                or Decimal(row["fee"]) != expected
+                or not self._decimal_matches(row.get("fee"), expected)
             ):
                 failures.append("rule_fee_record_mismatch")
         expected_average = (
             sum(expected_fees, Decimal(0)) / len(expected_fees) if expected_fees else None
         )
-        average = state["computation"]["average_fee"]
-        if (average is None) != (expected_average is None) or (
-            average is not None and Decimal(average) != expected_average
+        average = computation.get("average_fee")
+        if (
+            average is not None
+            if expected_average is None
+            else not self._decimal_matches(average, expected_average)
         ):
             failures.append("rule_average_mismatch")
         return failures
+
+    @staticmethod
+    def _decimal_matches(value, expected):
+        if not isinstance(value, str):
+            return False
+        try:
+            actual = Decimal(value)
+        except InvalidOperation:
+            return False
+        return actual.is_finite() and actual == expected
 
     def _verify_counterfactual(self, request, state):
         failures = []
@@ -318,13 +352,23 @@ class AnnexWorkflowServices:
             amounts
         ) + alternate * total / Decimal(10000)
         computation = state["computation"]
-        if Decimal(computation.get("delta", "0")) != expected_alternate - baseline:
-            failures.append("rule_delta_mismatch")
-        if Decimal(computation.get("baseline_fee", "0")) != baseline:
-            failures.append("rule_baseline_mismatch")
-        if Decimal(computation.get("alternate_fee", "0")) != expected_alternate:
-            failures.append("rule_alternate_mismatch")
-        if computation.get("transaction_count") != len(amounts):
+        if (
+            set(computation) != set(CounterfactualResult.model_fields)
+            or computation.get("schema_version")
+            != CounterfactualResult.model_fields["schema_version"].default
+        ):
+            failures.append("rule_counterfactual_record_invalid")
+        if computation.get("rule_id") != rule.rule_id:
+            failures.append("rule_counterfactual_rule_mismatch")
+        for field, expected, code in (
+            ("delta", expected_alternate - baseline, "rule_delta_mismatch"),
+            ("baseline_fee", baseline, "rule_baseline_mismatch"),
+            ("alternate_fee", expected_alternate, "rule_alternate_mismatch"),
+        ):
+            if not self._decimal_matches(computation.get(field), expected):
+                failures.append(code)
+        count = computation.get("transaction_count")
+        if type(count) is not int or count != len(amounts):
             failures.append("rule_transaction_count_mismatch")
         return failures
 

@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 from uuid import uuid4
 
 import pytest
@@ -7,6 +8,7 @@ from generaldataagent.artifacts import LocalArtifactStore
 from generaldataagent.business.rules.governed import GovernedRuleRunner
 from generaldataagent.business.rules.workflow import AnnexWorkflowServices
 from generaldataagent.contracts import ActorContext, ArtifactRef, ToolRequest
+from generaldataagent.contracts.rule_tools import RuleAnalysisRequest
 from generaldataagent.observability import JsonlAuditSink
 from generaldataagent.orchestration.checkpoints import open_protected_checkpointer
 from generaldataagent.orchestration.rule_workflow import RuleWorkflowRuntime
@@ -125,6 +127,66 @@ def test_evidence_policy_denial_keeps_checkpoint_but_writes_no_artifact(tmp_path
         assert not list(service.artifacts.root.iterdir())
         events = [json.loads(line) for line in service.audit.path.read_text().splitlines()]
         assert [event["payload"]["decision"] for event in events] == ["allow", "deny"]
+
+
+@pytest.mark.parametrize("role", ["data_analyst", "verifier"])
+@pytest.mark.parametrize("allow_caller", [False, True])
+def test_evidence_write_uses_original_caller_role(tmp_path, role, allow_caller):
+    from generaldataagent.policy import request_fingerprint
+
+    policy = PolicyEngine(
+        rules=[
+            replace(rule, allowed_roles=frozenset({role if allow_caller else "reporter"}))
+            if rule.tool_name == "artifact.write"
+            else rule
+            for rule in DEFAULT_RULES
+        ]
+    )
+    with open_protected_checkpointer(tmp_path / "state", encryption_key=b"k" * 32) as saver:
+        service = runner(saver, tmp_path, policy=policy)
+        proposal = request(agent_role=role)
+        if allow_caller:
+            result = service.invoke(proposal, trace_id="caller-role")
+            ref = ArtifactRef.model_validate(result["evidence"])
+            evidence = json.loads(service.artifacts.read_bytes(ref))
+        else:
+            with pytest.raises(PolicyDeniedError):
+                service.invoke(proposal, trace_id="caller-role")
+            assert not list(service.artifacts.root.iterdir())
+            state = service.runtime.state_of(
+                str(proposal.task_id),
+                RuleAnalysisRequest.model_validate(proposal.arguments),
+                ACTOR,
+            )
+            assert state["status"] == "completed"
+            evidence = {
+                "task_id": str(proposal.task_id),
+                "thread_id": str(proposal.task_id),
+                "request": state["request"],
+                **{
+                    key: state.get(key)
+                    for key in (
+                        "source_hashes",
+                        "binding_hash",
+                        "status",
+                        "verification",
+                        "computation",
+                        "delivery",
+                    )
+                },
+            }
+        artifact_request = proposal.model_copy(
+            update=dict(
+                tool_name="artifact.write",
+                action="create",
+                resource="rule-workflow-evidence",
+                arguments=evidence,
+            )
+        )
+        events = [json.loads(line) for line in service.audit.path.read_text().splitlines()]
+        assert len(events) == 2
+        assert events[1]["payload"]["request_fingerprint"] == request_fingerprint(artifact_request)
+        assert events[1]["payload"]["decision"] == ("allow" if allow_caller else "deny")
 
 
 @pytest.mark.parametrize("field", ["user_id", "tenant_id", "project_id", "data_domains"])

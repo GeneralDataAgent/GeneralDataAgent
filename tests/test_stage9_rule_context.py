@@ -1,5 +1,6 @@
 import json
 import sqlite3
+from dataclasses import replace
 
 import pytest
 
@@ -73,13 +74,16 @@ def source(path):
     return SQLitePaymentsSource(path, allowed_relations={"merchant_data", "payments"})
 
 
-def run(tmp_path, request, *, payments=True, tamper=None):
+def run(tmp_path, request, *, payments=True, tamper=None, tamper_context=None):
     adapter = AnnexWorkflowServices(
         ANNEX,
         documents=DOCUMENTS,
         payments=source(tmp_path / "payments.sqlite") if payments else None,
     )
     ports = adapter.services()
+    if tamper_context is not None:
+        context = ports.monthly_context
+        ports = replace(ports, monthly_context=lambda state: tamper_context(context(state)))
     if tamper is not None:
         original = ports.compute
         ports = type(ports)(
@@ -212,6 +216,61 @@ def test_tampered_counterfactual_output_fails_verification(tmp_path, tamper):
     assert "delivery" not in result
 
 
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"rule_id": "B"},
+        {"transaction_count": True},
+        {"unverified_field": "injected"},
+        {"baseline_fee": "NaN"},
+        {"alternate_fee": "Infinity"},
+        {"delta": "not-a-number"},
+        {"schema_version": "unsupported"},
+        {"delta": True},
+    ],
+)
+def test_counterfactual_record_must_be_complete_and_bound_to_target(tmp_path, change):
+    database(tmp_path)
+    request = RuleAnalysisRequest(
+        operation="counterfactual",
+        semantics_excerpt=EXCERPT,
+        merchant="Shop",
+        year=2023,
+        day_of_year=1,
+        rule_id="A",
+        alternate_rate="20",
+    )
+    _, result = run(tmp_path, request, tamper=lambda output: output | change)
+    assert result["status"] == "failed"
+    assert result["verification"]["failures"]
+    assert "delivery" not in result
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["schema_version", "rule_id", "baseline_fee", "alternate_fee", "delta", "transaction_count"],
+)
+def test_counterfactual_missing_record_fields_never_deliver(tmp_path, field):
+    database(tmp_path)
+    request = RuleAnalysisRequest(
+        operation="counterfactual",
+        semantics_excerpt=EXCERPT,
+        merchant="Shop",
+        year=2023,
+        day_of_year=1,
+        rule_id="A",
+        alternate_rate="20",
+    )
+    _, result = run(
+        tmp_path,
+        request,
+        tamper=lambda output: {key: value for key, value in output.items() if key != field},
+    )
+    assert result["status"] == "failed"
+    assert result["verification"]["failures"]
+    assert "delivery" not in result
+
+
 def test_unknown_merchant_and_empty_month_are_stable_failures(tmp_path):
     database(tmp_path)
     scoped = source(tmp_path / "payments.sqlite")
@@ -223,6 +282,54 @@ def test_unknown_merchant_and_empty_month_are_stable_failures(tmp_path):
 
         scoped_month(scoped.merchant_year("Shop", 2023), 7)
     assert empty.value.code == "payments_month_empty"
+
+
+@pytest.mark.parametrize("operation", ["applicable", "counterfactual"])
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"volume": "401"},
+        {"fraud_volume": "99"},
+        {"fraud_ratio": "0.24"},
+        {"transaction_count": 99},
+        {"fraud_count": 0},
+        {"fraud_count": True},
+        {"scoped_transactions": 99},
+        {"year": 2022},
+        {"scope": "supplied_facets_only"},
+        {"formula": "incorrect formula"},
+        {"unverified_field": "injected"},
+    ],
+)
+def test_corrupt_month_context_never_delivers(tmp_path, operation, change):
+    database(tmp_path)
+    request = RuleAnalysisRequest(
+        operation=operation,
+        semantics_excerpt=EXCERPT,
+        merchant="Shop",
+        year=2023,
+        day_of_year=1,
+        **({"rule_id": "A", "alternate_rate": "20"} if operation == "counterfactual" else {}),
+    )
+    _, result = run(tmp_path, request, tamper_context=lambda context: context | change)
+    assert result["status"] == "failed"
+    assert result["verification"]["failures"] == ["rule_context_mismatch"]
+    assert "delivery" not in result
+
+
+@pytest.mark.parametrize("operation", ["select", "average_fee"])
+@pytest.mark.parametrize("field", ["formula", "semantics_excerpt", "scope"])
+def test_corrupt_facet_context_never_delivers(tmp_path, operation, field):
+    request = RuleAnalysisRequest(operation=operation, semantics_excerpt=EXCERPT)
+    _, result = run(
+        tmp_path,
+        request,
+        payments=False,
+        tamper_context=lambda context: context | {field: "incorrect"},
+    )
+    assert result["status"] == "failed"
+    assert result["verification"]["failures"] == ["rule_context_mismatch"]
+    assert "delivery" not in result
 
 
 def test_relation_allowlist_and_calendar_validation(tmp_path):

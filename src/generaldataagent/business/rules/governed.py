@@ -3,7 +3,7 @@
 from uuid import UUID
 
 from generaldataagent.artifacts import LocalArtifactStore
-from generaldataagent.contracts import ActorContext, AgentRole, ToolRequest
+from generaldataagent.contracts import ActorContext, ToolRequest
 from generaldataagent.observability import JsonlAuditSink
 from generaldataagent.orchestration.rule_workflow import RuleWorkflowRuntime
 from generaldataagent.policy import PolicyEngine
@@ -83,7 +83,7 @@ class GovernedRuleRunner:
                 user_id=request.user_id,
                 tenant_id=request.tenant_id,
                 project_id=request.project_id,
-                agent_role=AgentRole.REPORTER,
+                agent_role=request.agent_role,
                 tool_name="artifact.write",
                 action="create",
                 resource="rule-workflow-evidence",

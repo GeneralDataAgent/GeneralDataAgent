@@ -188,6 +188,105 @@ def test_real_annex_verifier_rejects_tampered_computation(tmp_path, tamper):
         assert "delivery" not in result
 
 
+@pytest.mark.parametrize("operation", ["select", "average_fee"])
+@pytest.mark.parametrize(
+    "change",
+    [
+        "missing_fees",
+        "null_fees",
+        "object_fees",
+        "null_row",
+        "missing_fee",
+        "invalid_fee",
+        "nan_fee",
+        "infinite_fee",
+        "numeric_fee",
+        "boolean_fee",
+        "extra_row_field",
+        "missing_version",
+        "wrong_version",
+        "extra_computation_field",
+        "missing_average",
+        "invalid_average",
+        "nan_average",
+        "numeric_average",
+    ],
+)
+def test_fee_evidence_malformed_records_fail_without_delivery(tmp_path, operation, change):
+    from generaldataagent.business.rules.workflow import AnnexWorkflowServices
+
+    adapter = AnnexWorkflowServices(
+        [dict(ID="A", card_scheme="Alpha", fixed_amount="0.05", rate="14")],
+        documents="null means all\nfee = fixed_amount + rate * transaction_value / 10000",
+    )
+    ports = adapter.services()
+
+    def compute(state):
+        result = ports.compute(state)
+        if change == "missing_fees":
+            result.pop("fees")
+        elif change == "null_fees":
+            result["fees"] = None
+        elif change == "object_fees":
+            result["fees"] = {}
+        elif change == "null_row":
+            result["fees"] = [None]
+        elif change == "missing_fee":
+            result["fees"][0].pop("fee")
+        elif change in {"invalid_fee", "nan_fee", "infinite_fee", "numeric_fee", "boolean_fee"}:
+            result["fees"][0]["fee"] = {
+                "invalid_fee": "bad",
+                "nan_fee": "NaN",
+                "infinite_fee": "Infinity",
+                "numeric_fee": 0.064,
+                "boolean_fee": True,
+            }[change]
+        elif change == "extra_row_field":
+            result["fees"][0]["unchecked"] = "injected"
+        elif change == "missing_version":
+            result["fees"][0].pop("schema_version")
+        elif change == "wrong_version":
+            result["fees"][0]["schema_version"] = "unsupported"
+        elif change == "extra_computation_field":
+            result["unchecked"] = "injected"
+        elif change == "missing_average":
+            result.pop("average_fee")
+        else:
+            result["average_fee"] = {
+                "invalid_average": "bad",
+                "nan_average": "NaN",
+                "numeric_average": 0.064,
+            }[change]
+        return result
+
+    with open_protected_checkpointer(tmp_path / "state", encryption_key=b"k" * 32) as saver:
+        flow = runtime(saver, replace(ports, compute=compute), sources=adapter.source_hashes)
+        request = RuleAnalysisRequest(operation=operation, semantics_excerpt="null means all")
+        _, result = flow.run(request, ACTOR)
+        assert result["status"] == "failed"
+        assert result["verification"]["failures"]
+        assert "delivery" not in result
+
+
+@pytest.mark.parametrize("operation", ["select", "average_fee"])
+def test_fee_verification_accepts_empty_selection_and_null_average(tmp_path, operation):
+    from generaldataagent.business.rules.workflow import AnnexWorkflowServices
+
+    adapter = AnnexWorkflowServices(
+        [dict(ID="A", card_scheme="Alpha", fixed_amount="0.05", rate="14")],
+        documents="null means all\nfee = fixed_amount + rate * transaction_value / 10000",
+    )
+    with open_protected_checkpointer(tmp_path / "state", encryption_key=b"k" * 32) as saver:
+        flow = runtime(saver, adapter.services(), sources=adapter.source_hashes)
+        request = RuleAnalysisRequest(
+            operation=operation, semantics_excerpt="null means all", card_scheme="Other"
+        )
+        _, result = flow.run(request, ACTOR)
+        assert result["status"] == "completed"
+        assert result["computation"] == {"fees": [], "average_fee": None}
+        assert result["delivery"]["items"] == []
+
+
 def test_node_cannot_mutate_checkpoint_request(tmp_path):
     def mutate_copy(state):
         state["request"]["account_type"] = "unexpected"

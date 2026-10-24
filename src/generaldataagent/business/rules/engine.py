@@ -215,8 +215,8 @@ def match_rules(
     rules: Sequence[FeeRule],
     *,
     merchant: Mapping[str, object],
-    monthly_volume: float | None,
-    monthly_fraud_level: float | None,
+    monthly_volume: Decimal | float | None,
+    monthly_fraud_level: Decimal | float | None,
 ) -> tuple[FeeRule, ...]:
     """Return merchant-level matches only; transaction facets are applied later."""
     account_type = merchant.get("account_type")
