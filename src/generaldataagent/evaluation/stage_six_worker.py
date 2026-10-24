@@ -46,6 +46,7 @@ def main():
         store = ExperienceStore(
             Path(payload["experience_database"]),
             clock=lambda: datetime.now(UTC),
+            read_only=True,
         )
         actor = ActorContext.model_validate(payload["experience_actor"])
         experience = experience_hints(store, actor)

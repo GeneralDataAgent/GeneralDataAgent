@@ -5,8 +5,10 @@ import hashlib
 import inspect
 import json
 import platform
+import sqlite3
 import subprocess
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
@@ -148,12 +150,17 @@ def main():
         if not args.experience_database.is_file():
             parser.error("experience database does not exist")
         try:
-            experience_actor = json.loads(args.experience_actor)
-            ActorContext.model_validate(experience_actor)
+            actor = ActorContext.model_validate(json.loads(args.experience_actor))
+            experience_actor = actor.model_dump(mode="json")
+            from generaldataagent.business.actions import content_hash
+            from generaldataagent.business.governance import actor_scope
+
+            experience_scope_hash = content_hash(json.loads(actor_scope(actor)))
         except (json.JSONDecodeError, ValueError) as exc:
             parser.error(f"invalid experience actor scope: {exc}")
     else:
         experience_actor = None
+        experience_scope_hash = None
     root = ROOT / "data/stage6"
     manifest = verify_sources(root)
     cases = (
@@ -211,8 +218,17 @@ def main():
     # Experience reuse changes the information the model receives, so it is part
     # of the protocol. Two runs that differ here are not a paired comparison.
     protocol["experience_reuse"] = args.experience_database is not None
+    experience_database = None
     if args.experience_database is not None:
-        protocol["experience_store_hash"] = digest(args.experience_database)
+        experience_database = args.output / "experience-snapshot.sqlite"
+        source_uri = args.experience_database.resolve().as_uri() + "?mode=ro"
+        with (
+            closing(sqlite3.connect(source_uri, uri=True, timeout=5)) as source,
+            closing(sqlite3.connect(experience_database)) as snapshot,
+        ):
+            source.backup(snapshot)
+        protocol["experience_store_hash"] = digest(experience_database)
+        protocol["experience_scope_hash"] = experience_scope_hash
     if args.preflight_report:
         preflight = json.loads(args.preflight_report.read_text())
         readiness = service_readiness(preflight)
@@ -257,9 +273,14 @@ def main():
         if args.routing
         else None
     )
+    active_profiles = (
+        {plan["tool_profile"] for plan in routing_manifest["per_case"].values()}
+        if routing_manifest is not None
+        else {args.tool_profile}
+    )
     system_fingerprint = {
-        "stage9_sources": stage9_fingerprint(ROOT) if args.tool_profile == "sql-rules" else None,
-        "stage8_sources": stage8_fingerprint(ROOT) if args.tool_profile == "sql-science" else None,
+        "stage9_sources": stage9_fingerprint(ROOT) if "sql-rules" in active_profiles else None,
+        "stage8_sources": stage8_fingerprint(ROOT) if "sql-science" in active_profiles else None,
         "prompt_hash": hashlib.sha256(SYSTEM_PROMPT.encode()).hexdigest(),
         "agent_hash": digest(ROOT / "src/generaldataagent/evaluation/stage_six.py"),
         "analysis_tools_hash": digest(
@@ -284,6 +305,13 @@ def main():
             ROOT / "src/generaldataagent/evaluation/stage_six_control.py"
         ),
         "repair_tools_hash": digest(ROOT / "src/generaldataagent/evaluation/stage_six_repair.py"),
+        "repair_budget_hash": digest(ROOT / "src/generaldataagent/evaluation/repair_budget.py"),
+        "retry_policy_hash": digest(ROOT / "src/generaldataagent/evaluation/routing.py"),
+        "experience_extraction_hash": digest(
+            ROOT / "src/generaldataagent/evaluation/experience_extraction.py"
+        )
+        if "sql-rules" in active_profiles
+        else None,
         "model_adapter_hash": digest(ROOT / "src/generaldataagent/evaluation/stage_six_models.py"),
         "worker_hash": digest(ROOT / "src/generaldataagent/evaluation/stage_six_worker.py"),
         "dependency_lock_hash": digest(ROOT / "uv.lock"),
@@ -291,13 +319,14 @@ def main():
         "routing": routing_manifest,
         "experience": {
             "enabled": args.experience_database is not None,
+            "scope_hash": experience_scope_hash,
             "source_hash": digest(ROOT / "src/generaldataagent/business/experience.py")
             if args.experience_database is not None
             else None,
         },
         "stage7_sources": stage7_fingerprint(ROOT)
-        if args.tool_profile
-        in {"sql-semantic", "sql-semantic-plan", "sql-semantic-json", "sql-science", "sql-rules"}
+        if active_profiles
+        & {"sql-semantic", "sql-semantic-plan", "sql-semantic-json", "sql-science", "sql-rules"}
         else None,
         "route_hash": route["route_hash"],
     }
@@ -394,7 +423,7 @@ def main():
                 max_steps=route_plan.max_steps if route_plan else 6,
                 max_seconds=route_plan.max_seconds if route_plan else 120,
                 max_repairs=route_plan.max_repairs if route_plan else 3,
-                experience_database=args.experience_database,
+                experience_database=experience_database,
                 experience_actor=experience_actor,
             )
             if route_plan is not None:
