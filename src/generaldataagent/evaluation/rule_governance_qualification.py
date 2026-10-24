@@ -59,7 +59,7 @@ def run_governed_case(
         user_id=actor.user_id,
         tenant_id=actor.tenant_id,
         project_id=actor.project_id,
-        agent_role="reporter",
+        agent_role=proposal.agent_role,
         tool_name="artifact.write",
         action="create",
         resource="rule-workflow-evidence",

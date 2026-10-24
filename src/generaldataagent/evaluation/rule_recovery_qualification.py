@@ -2,8 +2,10 @@
 
 import hashlib
 import json
+from contextlib import nullcontext
 from dataclasses import replace
 from pathlib import Path
+from unittest.mock import patch
 from uuid import uuid4
 
 from generaldataagent.artifacts import LocalArtifactStore
@@ -13,6 +15,7 @@ from generaldataagent.business.rules.workflow import AnnexWorkflowServices
 from generaldataagent.contracts import ActorContext, ArtifactRef, ToolRequest
 from generaldataagent.contracts.rule_tools import RuleAnalysisRequest
 from generaldataagent.evaluation.rule_business_qualification import _close
+from generaldataagent.evaluation.rule_fingerprint import rule_workflow_fingerprint
 from generaldataagent.evaluation.rule_qualification import (
     _context_database,
     independent_context_expected,
@@ -21,6 +24,7 @@ from generaldataagent.evaluation.rule_qualification import (
 from generaldataagent.observability import JsonlAuditSink
 from generaldataagent.orchestration.checkpoints import open_protected_checkpointer
 from generaldataagent.orchestration.rule_workflow import RuleWorkflowRuntime
+from generaldataagent.policy import request_fingerprint
 
 
 class _EvidenceAuditOutage(OSError):
@@ -35,7 +39,11 @@ class _FailEvidenceAudit(JsonlAuditSink):
         self.emitted = True
 
 
-def _recover_case(data, case, output):
+class _EvidenceWriteOutage(OSError):
+    pass
+
+
+def _recover_case(data, case, output, fault="audit"):
     output.mkdir()
     task_id = uuid4()
     actor = ActorContext(
@@ -101,18 +109,70 @@ def _recover_case(data, case, output):
         return flow, GovernedRuleRunner(runtime=flow, actor=actor, artifacts=store, audit=audit)
 
     with open_protected_checkpointer(checkpoint, encryption_key=key) as saver:
-        flow, runner = build(saver, _FailEvidenceAudit(output / "outage-audit.jsonl"))
-        try:
-            runner.invoke(proposal, trace_id="outage")
-        except _EvidenceAuditOutage:
-            checks["expected_outage"] = True
-        else:
-            checks["expected_outage"] = False
+        audit = (
+            _FailEvidenceAudit(output / "outage-audit.jsonl")
+            if fault == "audit"
+            else JsonlAuditSink(output / "outage-audit.jsonl")
+        )
+        flow, runner = build(saver, audit)
+        outage = _EvidenceAuditOutage if fault == "audit" else _EvidenceWriteOutage
+        injection = (
+            patch.object(store, "put_json", side_effect=outage("synthetic evidence write outage"))
+            if fault == "write"
+            else nullcontext()
+        )
+        with injection:
+            try:
+                runner.invoke(proposal, trace_id="outage")
+            except outage:
+                checks["expected_outage"] = True
+            else:
+                checks["expected_outage"] = False
+        outage_events = [json.loads(line) for line in audit.path.read_text().splitlines()]
+        checks["outage_audit"] = len(outage_events) == (2 if fault == "write" else 1) and all(
+            event["task_id"] == str(task_id)
+            and event["trace_id"] == "outage"
+            and event["payload"]["decision"] == "allow"
+            for event in outage_events
+        )
         before = flow.state_of(str(task_id), request, actor)
         checks["completed_checkpoint_without_artifact"] = before[
             "status"
         ] == "completed" and not list(store.root.iterdir())
         before_counts = dict(counts)
+        expected_fingerprints = [request_fingerprint(proposal)]
+        if fault == "write":
+            evidence_request = ToolRequest(
+                task_id=task_id,
+                user_id=actor.user_id,
+                tenant_id=actor.tenant_id,
+                project_id=actor.project_id,
+                agent_role=proposal.agent_role,
+                tool_name="artifact.write",
+                action="create",
+                resource="rule-workflow-evidence",
+                data_domains=actor.data_domains,
+                arguments={
+                    "task_id": str(task_id),
+                    "thread_id": str(task_id),
+                    **{
+                        name: before[name]
+                        for name in (
+                            "request",
+                            "source_hashes",
+                            "binding_hash",
+                            "status",
+                            "verification",
+                            "computation",
+                            "delivery",
+                        )
+                    },
+                },
+            )
+            expected_fingerprints.append(request_fingerprint(evidence_request))
+        checks["outage_audit_binding"] = [
+            event["payload"]["request_fingerprint"] for event in outage_events
+        ] == expected_fingerprints
 
     with open_protected_checkpointer(checkpoint, encryption_key=key) as saver:
         flow, runner = build(saver, JsonlAuditSink(output / "recovery-audit.jsonl"))
@@ -200,23 +260,29 @@ def _recover_case(data, case, output):
         evidence=ref.model_dump(mode="json"),
         observed_answer=answer,
         source_hashes=adapter.source_hashes(),
-        initial_failure="_EvidenceAuditOutage",
+        initial_failure=outage.__name__,
+        fault_mode=fault,
     )
 
 
-def qualify_recovery(corpus: Path, output: Path):
+def qualify_recovery(corpus: Path, output: Path, *, fault: str = "audit"):
+    if fault not in {"audit", "write"}:
+        raise ValueError("unknown recovery qualification fault")
     payload = corpus.read_bytes()
     data = json.loads(payload)
     cases = [case for case in data["cases"] if "request" in case]
     if not cases or len({case["case_id"] for case in cases}) != len(cases):
         raise ValueError("recovery qualification requires unique accepted business requests")
+    workflow_sources = rule_workflow_fingerprint(governed=True)
     output.mkdir(parents=True, exist_ok=False)
     (output / "corpus.json").write_bytes(payload)
     report = dict(
         suite="authored-rule-recovery-development-v1",
+        fault_mode=fault,
         parent_corpus_n=len(data["cases"]),
         corpus_sha256=hashlib.sha256(payload).hexdigest(),
         runner_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        workflow_source_sha256=workflow_sources,
         planned_case_ids=[case["case_id"] for case in cases],
         n=len(cases),
         results=[],
@@ -228,7 +294,8 @@ def qualify_recovery(corpus: Path, output: Path):
         unseen_evaluation="not_run",
         limitations=[
             "accepted structured requests only; parser refusals not recovery scenarios",
-            "synthetic development audit outage and in-process database close/reopen",
+            "synthetic development evidence outage and in-process database close/reopen",
+            "write fault is injected before put_json writes bytes; no partial-file qualification",
             "no model service, process-kill, production audit or release qualification",
         ],
     )
@@ -246,9 +313,14 @@ def qualify_recovery(corpus: Path, output: Path):
     persist()
     for index, case in enumerate(cases):
         try:
-            row = _recover_case(data, case, output / f"case-{index:04d}")
+            row = _recover_case(data, case, output / f"case-{index:04d}", fault)
         except Exception as exc:
-            row = dict(case_id=case["case_id"], passed=False, error_type=type(exc).__name__)
+            row = dict(
+                case_id=case["case_id"],
+                fault_mode=fault,
+                passed=False,
+                error_type=type(exc).__name__,
+            )
         report["results"].append(row)
         persist()
     report["run_status"] = "completed"

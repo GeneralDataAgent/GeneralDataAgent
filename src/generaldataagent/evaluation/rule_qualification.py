@@ -14,6 +14,7 @@ from pathlib import Path
 from generaldataagent.business.rules.workflow import AnnexWorkflowServices
 from generaldataagent.contracts import ActorContext
 from generaldataagent.contracts.rule_tools import RuleAnalysisRequest
+from generaldataagent.evaluation.rule_fingerprint import rule_workflow_fingerprint
 from generaldataagent.orchestration.checkpoints import open_protected_checkpointer
 from generaldataagent.orchestration.rule_workflow import RuleWorkflowRuntime
 
@@ -368,6 +369,7 @@ def qualify_context(output: Path, *, seed=91307, count=24):
     from generaldataagent.business.rules.payments import SQLitePaymentsSource
 
     cases = context_cases(seed, count)
+    workflow_sources = rule_workflow_fingerprint()
     output.mkdir(parents=True, exist_ok=False)
     (output / "cases.json").write_text(json.dumps(cases, indent=2) + "\n")
     actor = ActorContext(
@@ -466,6 +468,8 @@ def qualify_context(output: Path, *, seed=91307, count=24):
         passed=sum(row["passed"] for row in records),
         results=records,
         corpus_sha256=hashlib.sha256(json.dumps(cases, sort_keys=True).encode()).hexdigest(),
+        runner_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        workflow_source_sha256=workflow_sources,
         model_calls=0,
         benchmark_score=False,
         production_accepted=False,
@@ -482,6 +486,7 @@ def qualify_context(output: Path, *, seed=91307, count=24):
 
 def qualify_rules(output: Path, *, seed=91307, count=48):
     cases = synthetic_cases(seed, count)
+    workflow_sources = rule_workflow_fingerprint()
     output.mkdir(parents=True, exist_ok=False)
     (output / "cases.json").write_text(json.dumps(cases, indent=2) + "\n")
     actor = ActorContext(
@@ -550,6 +555,8 @@ def qualify_rules(output: Path, *, seed=91307, count=48):
         passed=sum(row["passed"] for row in records),
         results=records,
         corpus_sha256=hashlib.sha256(json.dumps(cases, sort_keys=True).encode()).hexdigest(),
+        runner_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        workflow_source_sha256=workflow_sources,
         model_calls=0,
         benchmark_score=False,
         production_accepted=False,

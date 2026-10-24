@@ -12,6 +12,7 @@ from generaldataagent.business.rules.workflow import AnnexWorkflowServices
 from generaldataagent.contracts import ActorContext
 from generaldataagent.contracts.rule_tools import RuleAnalysisRequest
 from generaldataagent.evaluation import rule_governance_qualification, rule_qualification
+from generaldataagent.evaluation.rule_fingerprint import rule_workflow_fingerprint
 from generaldataagent.evaluation.rule_governance_qualification import run_governed_case
 from generaldataagent.evaluation.rule_qualification import (
     _context_database,
@@ -43,6 +44,7 @@ def qualify_business(corpus: Path, output: Path, *, governed: bool = False) -> d
     for case in cases:
         if ("request" in case) == ("refusal" in case):
             raise ValueError("each case requires exactly one request or refusal expectation")
+    workflow_sources = rule_workflow_fingerprint(governed=governed)
     output.mkdir(parents=True, exist_ok=False)
     (output / "corpus.json").write_bytes(payload)
     report = dict(
@@ -55,6 +57,7 @@ def qualify_business(corpus: Path, output: Path, *, governed: bool = False) -> d
             "oracle": _digest(Path(rule_qualification.__file__)),
             "governance_qualification": _digest(Path(rule_governance_qualification.__file__)),
         },
+        workflow_source_sha256=workflow_sources,
         planned_case_ids=ids,
         n=len(cases),
         processed_n=0,
