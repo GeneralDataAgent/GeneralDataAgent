@@ -25,9 +25,9 @@ class RuleCallDiagnostics(BaseCallbackHandler):
         # tell them apart without this label.
         agent = _agent_name(kwargs.get("metadata"))
         run_id = str(kwargs.get("run_id") or "")
-        # Whether the request required a tool call is the difference between
-        # "the model chose prose" and "the endpoint ignored a constraint the
-        # harness sent". Record the requirement, not the tool arguments.
+        # Associate callback request settings with the response shape. These
+        # settings are not a wire capture or evidence of an endpoint cause.
+        # Record the requirement, not the tool arguments.
         request = _tool_choice(kwargs.get("invocation_params"))
         if run_id:
             self._agents[run_id] = agent
@@ -35,6 +35,9 @@ class RuleCallDiagnostics(BaseCallbackHandler):
         self.events.append({"status": "started", "agent": agent, **request})
 
     def on_llm_end(self, response, **kwargs) -> None:
+        run_id = str(kwargs.get("run_id") or "")
+        agent = self._agents.pop(run_id, _MAIN_AGENT)
+        request = self._tool_choice.pop(run_id, {})
         for batch in response.generations:
             for generation in batch:
                 message = getattr(generation, "message", None)
@@ -64,11 +67,10 @@ class RuleCallDiagnostics(BaseCallbackHandler):
                             else None
                         )
                     calls.append(entry)
-                run_id = str(kwargs.get("run_id") or "")
                 self.events.append(
                     {
                         "status": "response",
-                        "agent": self._agents.pop(run_id, _MAIN_AGENT),
+                        "agent": agent,
                         "tool_calls": calls,
                         # A call that failed argument parsing is not a tool call
                         # by this point. Without counting it, "the model stopped
@@ -86,7 +88,7 @@ class RuleCallDiagnostics(BaseCallbackHandler):
                         # The request's requirement, carried onto its response so
                         # a tool-free reply can be read as "chose prose" or as
                         # "ignored a required call".
-                        **self._tool_choice.pop(run_id, {}),
+                        **request,
                         "usage": getattr(message, "usage_metadata", None),
                         "finish_reason": message.response_metadata.get("finish_reason"),
                     }
@@ -153,20 +155,30 @@ class RuleCallDiagnostics(BaseCallbackHandler):
 def _tool_choice(invocation_params) -> dict:
     """Whether this request required a tool, and whether it named one.
 
-    ``tool_choice`` reaches the provider as ``required`` when the harness needs
-    a structured response. Keeping only that fact lets a later review separate
-    a model that chose prose from an endpoint that ignored the requirement,
-    without storing tool schemas or arguments.
+    Keep the callback's request setting without tool schemas or arguments.
+    Matching it to a response distinguishes optional prose from a missing
+    required call; it does not establish the transmitted payload or its cause.
     """
     if not isinstance(invocation_params, dict):
         return {"tool_choice": None, "required_tool_names": []}
     choice = invocation_params.get("tool_choice")
     if isinstance(choice, str):
-        required = choice if choice in {"any", "required", "auto", "none"} else "named"
-        return {"tool_choice": required, "required_tool_names": []}
-    if isinstance(choice, dict):
-        name = (choice.get("function") or {}).get("name") if "function" in choice else None
-        return {"tool_choice": "named", "required_tool_names": [str(name)] if name else []}
+        if choice in {"any", "required", "auto", "none"}:
+            return {"tool_choice": choice, "required_tool_names": []}
+        if choice:
+            return {"tool_choice": "named", "required_tool_names": [choice]}
+    elif isinstance(choice, dict):
+        kind = choice.get("type")
+        if kind in {"any", "auto", "none"}:
+            return {"tool_choice": kind, "required_tool_names": []}
+        name = None
+        if kind == "function":
+            function = choice.get("function")
+            name = function.get("name") if isinstance(function, dict) else choice.get("name")
+        elif kind == "tool":
+            name = choice.get("name")
+        if isinstance(name, str) and name:
+            return {"tool_choice": "named", "required_tool_names": [name]}
     return {"tool_choice": None, "required_tool_names": []}
 
 
@@ -261,24 +273,29 @@ def stop_diagnostic(row: dict) -> dict:
 
 
 def _shape_ignored_required(shape: dict) -> bool:
-    """A reply that called nothing although its request required a tool."""
-    return shape.get("tool_choice") in {"any", "required"} and not shape["tool_names"]
+    """Observe missing required calls separately from argument parsing failures."""
+    if shape.get("invalid_tool_names"):
+        return False
+    names = shape.get("tool_names") or ()
+    if shape.get("tool_choice") in {"any", "required"}:
+        return not names
+    if shape.get("tool_choice") == "named":
+        required = shape.get("required_tool_names") or ()
+        return bool(required) and not set(required) & set(names)
+    return False
 
 
 def _ignored_required_tool_call(row: dict) -> bool:
     """A reply ignored a required tool call and nothing afterwards resumed.
 
-    This is stronger than "the reply had no tool call": the harness sent
-    ``tool_choice=required``, so the observation is that the endpoint returned
-    a normal message anyway. It still does not establish why, so the semantic
-    cause stays not_established.
+    The associated callback setting required a tool, but the response did not
+    supply the expected parsed call. This is an observed mismatch, not a wire
+    capture or a semantic cause.
 
-    The classification looks past the final response. In an observed run the
-    subagent ignored a required call and the supervisor then replied in prose
-    without any requirement of its own; the stopping event is the ignored
-    requirement, not the supervisor's free-form reply. A requirement that was
-    later honoured by a real tool call did not stop anything and does not
-    qualify: the sequence kept moving after it.
+    Look past a final optional prose response to an earlier mismatch. Any later
+    parsed tool call suppresses that earlier mismatch as the stop category.
+    This ordered-response rule does not establish causal recovery across
+    concurrent agents.
     """
     shapes = row.get("response_shape") or ()
     for index, shape in enumerate(shapes):

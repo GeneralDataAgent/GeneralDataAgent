@@ -127,13 +127,19 @@ emitting agent (main Supervisor or the specialist that replied), tool names, inv
 names, text length, finish reason, and the request's `tool_choice` (with the named tool when one was
 required). An empty reply, a prose-only reply and a call that failed argument parsing therefore stay
 distinguishable without storing the text. A reply that calls nothing although its request required a
-tool is classified `required_tool_call_not_honoured`; a text reply with no such requirement is
+tool is classified `required_tool_call_not_honoured` if no later tool call resumes the sequence.
+Named requirements also check the requested name; calling a different tool does not satisfy them.
+Malformed tool arguments are recorded separately and do not count as an absent required call.
+Without an unmet requirement or a higher-priority stop, a final text reply with no tool call is
 `response_without_tool_call`; empty and malformed final replies stay
-`incomplete_sequence_reason_unknown`, and every non-completed row keeps
-`semantic_root_cause: not_established`. The distinction matters because the first is an endpoint
-that did not honour a required call, while the second is a model that chose prose. These events are
-observations, not a full model conversation or the Supervisor's in-memory checkpoint, which is not
-retained. Each case persists atomically; a `running` report with pending cases is incomplete.
+`incomplete_sequence_reason_unknown`. Every non-completed row keeps
+`semantic_root_cause: not_established`. These classifications describe associated callback evidence,
+not a verified wire capture or an endpoint root cause. A local payload simulation cannot establish
+what an earlier live run sent; old reports without request metadata remain unqualified. A later
+parsed tool call suppresses an earlier mismatch as the stop category; this ordered-response rule
+does not establish causal recovery across concurrent agents. All generations from one request keep
+its callback settings. These events are observations, not a full model conversation or the
+Supervisor's in-memory checkpoint, which is not retained. Each case persists atomically; a `running` report with pending cases is incomplete.
 Model attempts, responses, errors and finite specialist role/status reports are recorded
 separately. Specialist declarations never authorize execution. Missing or failed-call token usage
 remains unknown even when known totals are zero. Costs remain null without independent billing

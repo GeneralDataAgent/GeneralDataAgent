@@ -337,7 +337,7 @@ def test_the_required_tool_name_is_kept_when_the_request_named_one():
         diagnostics,
         usage=TOKENS,
         text="prose instead",
-        tool_choice={"function": {"name": "SpecialistResult"}},
+        tool_choice={"type": "function", "function": {"name": "SpecialistResult"}},
         run_id="run-a",
     )
     shape = diagnostics.snapshot()["response_shape"][0]
@@ -409,6 +409,95 @@ def test_a_requirement_the_model_later_honoured_is_not_the_stop():
     assert diagnostic["code"] == "response_without_tool_call"
     # The count still reports what was observed, even though it is not the stop.
     assert diagnostic["responses_ignoring_required_tool"] == 1
+
+
+@pytest.mark.parametrize(
+    "choice",
+    [
+        "SpecialistResult",
+        {"type": "function", "function": {"name": "SpecialistResult"}},
+        {"type": "function", "name": "SpecialistResult"},
+        {"type": "tool", "name": "SpecialistResult"},
+    ],
+)
+@pytest.mark.parametrize("called", [None, "resolve_rule_request", "SpecialistResult"])
+def test_named_requirement_checks_the_actual_requested_tool(choice, called):
+    diagnostics = RuleCallDiagnostics()
+    calls = [{"name": called, "args": {}, "id": "c1"}] if called else []
+    response(diagnostics, usage=TOKENS, tool_choice=choice, calls=calls, text="private prose")
+    snapshot = diagnostics.snapshot()
+    assert snapshot["response_shape"][0]["required_tool_names"] == ["SpecialistResult"]
+    row = dict(outcome="model_run", passed=False, delegated_roles=[], **snapshot)
+    expected = called != "SpecialistResult"
+    assert stop_diagnostic(row)["responses_ignoring_required_tool"] == int(expected)
+    assert (stop_diagnostic(row)["code"] == "required_tool_call_not_honoured") is expected
+    assert "private prose" not in json.dumps(snapshot)
+
+
+@pytest.mark.parametrize("choice", ["required", "SpecialistResult"])
+def test_required_call_with_unparseable_arguments_is_not_an_absent_call(choice):
+    diagnostics = RuleCallDiagnostics()
+    response(
+        diagnostics,
+        usage=TOKENS,
+        tool_choice=choice,
+        invalid=[{"type": "invalid_tool_call", "name": "SpecialistResult", "args": "{"}],
+    )
+    row = dict(outcome="model_run", passed=False, delegated_roles=[], **diagnostics.snapshot())
+    diagnostic = stop_diagnostic(row)
+    assert diagnostic["responses_ignoring_required_tool"] == 0
+    assert diagnostic["malformed_tool_call_names"] == ["SpecialistResult"]
+    assert diagnostic["code"] == "incomplete_sequence_reason_unknown"
+
+
+@pytest.mark.parametrize(
+    "choice",
+    [{"type": "auto"}, {"type": "none"}, {"type": "function", "function": "private"}, {}],
+)
+def test_optional_or_malformed_choice_does_not_create_a_named_requirement(choice):
+    diagnostics = RuleCallDiagnostics()
+    response(diagnostics, usage=TOKENS, tool_choice=choice, text="prose")
+    row = dict(outcome="model_run", passed=False, delegated_roles=[], **diagnostics.snapshot())
+    assert stop_diagnostic(row)["code"] == "response_without_tool_call"
+    assert diagnostics.snapshot()["response_shape"][0]["required_tool_names"] == []
+    assert "private" not in json.dumps(diagnostics.snapshot())
+
+
+def test_all_generations_keep_their_request_metadata_after_interleaved_starts():
+    diagnostics = RuleCallDiagnostics()
+    diagnostics.on_chat_model_start(
+        {},
+        [],
+        run_id="a",
+        metadata={"lc_agent_name": "discovery"},
+        invocation_params={"tool_choice": "required"},
+    )
+    diagnostics.on_chat_model_start(
+        {},
+        [],
+        run_id="b",
+        metadata={"lc_agent_name": "verifier"},
+        invocation_params={"tool_choice": "SpecialistResult"},
+    )
+    batch = LLMResult(
+        generations=[
+            [
+                ChatGeneration(message=AIMessage(content="first")),
+                ChatGeneration(message=AIMessage(content="second")),
+            ]
+        ]
+    )
+    diagnostics.on_llm_end(batch, run_id="a")
+    diagnostics.on_llm_end(batch, run_id="b")
+    shapes = diagnostics.snapshot()["response_shape"]
+    assert [(shape["agent"], shape["tool_choice"]) for shape in shapes] == [
+        ("discovery", "required"),
+        ("discovery", "required"),
+        ("verifier", "named"),
+        ("verifier", "named"),
+    ]
+    assert diagnostics._agents == {}
+    assert diagnostics._tool_choice == {}
 
 
 def test_exception_tokens_count_and_planned_denominator_survives_interruption():
