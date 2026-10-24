@@ -345,6 +345,72 @@ def test_the_required_tool_name_is_kept_when_the_request_named_one():
     assert shape["required_tool_names"] == ["SpecialistResult"]
 
 
+def test_a_supervisor_prose_reply_after_an_ignored_requirement_keeps_the_strong_code():
+    """The observed live shape: the subagent ignored ``required``, then the
+    supervisor answered in prose with no requirement of its own.
+
+    Reading only the final response would downgrade this to a free-form prose
+    stop and lose the actual stopping event.
+    """
+    diagnostics = RuleCallDiagnostics()
+    response(
+        diagnostics,
+        usage=TOKENS,
+        calls=[{"name": "task", "args": {"subagent_type": "discovery"}, "id": "c1"}],
+        run_id="run-a",
+    )
+    response(
+        diagnostics,
+        usage=TOKENS,
+        calls=[{"name": "resolve_rule_request", "args": {}, "id": "c2"}],
+        tool_choice="required",
+        agent="discovery",
+        run_id="run-b",
+    )
+    response(
+        diagnostics,
+        usage=TOKENS,
+        text="discovery prose",
+        tool_choice="required",
+        agent="discovery",
+        run_id="run-c",
+    )
+    response(diagnostics, usage=TOKENS, text="supervisor prose", run_id="run-d")
+    row = dict(
+        outcome="model_run",
+        passed=False,
+        delegated_roles=["discovery"],
+        **diagnostics.snapshot(),
+    )
+    diagnostic = stop_diagnostic(row)
+    assert diagnostic["code"] == "required_tool_call_not_honoured"
+    assert diagnostic["responses_ignoring_required_tool"] == 1
+
+
+def test_a_requirement_the_model_later_honoured_is_not_the_stop():
+    """An ignored requirement followed by a real tool call did not stop anything."""
+    diagnostics = RuleCallDiagnostics()
+    response(diagnostics, usage=TOKENS, text="thinking", tool_choice="required", run_id="run-a")
+    response(
+        diagnostics,
+        usage=TOKENS,
+        calls=[{"name": "resolve_rule_request", "args": {}, "id": "c1"}],
+        tool_choice="required",
+        run_id="run-b",
+    )
+    response(diagnostics, usage=TOKENS, text="then I stopped", run_id="run-c")
+    row = dict(
+        outcome="model_run",
+        passed=False,
+        delegated_roles=["discovery"],
+        **diagnostics.snapshot(),
+    )
+    diagnostic = stop_diagnostic(row)
+    assert diagnostic["code"] == "response_without_tool_call"
+    # The count still reports what was observed, even though it is not the stop.
+    assert diagnostic["responses_ignoring_required_tool"] == 1
+
+
 def test_exception_tokens_count_and_planned_denominator_survives_interruption():
     diagnostics = RuleCallDiagnostics()
     response(diagnostics, usage=TOKENS)

@@ -266,14 +266,27 @@ def _shape_ignored_required(shape: dict) -> bool:
 
 
 def _ignored_required_tool_call(row: dict) -> bool:
-    """The model answered without a tool where the request required one.
+    """A reply ignored a required tool call and nothing afterwards resumed.
 
     This is stronger than "the reply had no tool call": the harness sent
     ``tool_choice=required``, so the observation is that the endpoint returned
     a normal message anyway. It still does not establish why, so the semantic
     cause stays not_established.
+
+    The classification looks past the final response. In an observed run the
+    subagent ignored a required call and the supervisor then replied in prose
+    without any requirement of its own; the stopping event is the ignored
+    requirement, not the supervisor's free-form reply. A requirement that was
+    later honoured by a real tool call did not stop anything and does not
+    qualify: the sequence kept moving after it.
     """
-    return any(_shape_ignored_required(shape) for shape in row.get("response_shape") or ())
+    shapes = row.get("response_shape") or ()
+    for index, shape in enumerate(shapes):
+        if _shape_ignored_required(shape) and not any(
+            later.get("tool_names") for later in shapes[index + 1 :]
+        ):
+            return True
+    return False
 
 
 def _stopped_with_prose(row: dict) -> bool:
