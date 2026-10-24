@@ -226,6 +226,64 @@ def test_a_failed_call_does_not_label_the_next_response_with_a_stale_agent():
     ]
 
 
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("I stopped after discovery.", "response_without_tool_call"),
+        ("", "incomplete_sequence_reason_unknown"),
+    ],
+)
+def test_a_prose_only_final_response_is_named_without_claiming_a_cause(text, expected):
+    diagnostics = RuleCallDiagnostics()
+    response(diagnostics, usage=TOKENS, text=text, run_id="run-a")
+    row = dict(
+        outcome="model_run",
+        passed=False,
+        delegated_roles=["discovery"],
+        **diagnostics.snapshot(),
+    )
+    diagnostic = stop_diagnostic(row)
+    assert diagnostic["code"] == expected
+    assert diagnostic["semantic_root_cause"] == "not_established"
+
+
+def test_a_trailing_tool_call_is_not_reported_as_a_prose_stop():
+    diagnostics = RuleCallDiagnostics()
+    response(diagnostics, usage=TOKENS, text="prose then a call", run_id="run-a")
+    response(
+        diagnostics,
+        usage=TOKENS,
+        calls=[{"name": "task", "args": {"subagent_type": "data-analyst"}, "id": "c2"}],
+        run_id="run-b",
+    )
+    row = dict(
+        outcome="model_run",
+        passed=False,
+        delegated_roles=["discovery"],
+        **diagnostics.snapshot(),
+    )
+    assert stop_diagnostic(row)["code"] == "incomplete_sequence_reason_unknown"
+
+
+def test_a_malformed_final_call_is_not_reported_as_a_prose_stop():
+    diagnostics = RuleCallDiagnostics()
+    response(
+        diagnostics,
+        usage=TOKENS,
+        invalid=[{"type": "invalid_tool_call", "name": "execute_rule_analysis", "args": "{"}],
+        run_id="run-a",
+    )
+    row = dict(
+        outcome="model_run",
+        passed=False,
+        delegated_roles=["discovery"],
+        **diagnostics.snapshot(),
+    )
+    diagnostic = stop_diagnostic(row)
+    assert diagnostic["code"] == "incomplete_sequence_reason_unknown"
+    assert diagnostic["malformed_tool_call_names"] == ["execute_rule_analysis"]
+
+
 def test_exception_tokens_count_and_planned_denominator_survives_interruption():
     diagnostics = RuleCallDiagnostics()
     response(diagnostics, usage=TOKENS)

@@ -192,6 +192,8 @@ def stop_diagnostic(row: dict) -> dict:
         code = "specialist_stop_reported"
     elif row.get("status") == "completed":
         code = "delivery_check_failed"
+    elif _stopped_with_prose(row):
+        code = "response_without_tool_call"
     else:
         code = "incomplete_sequence_reason_unknown"
     return {
@@ -216,6 +218,21 @@ def stop_diagnostic(row: dict) -> dict:
         ),
         "semantic_root_cause": "not_established" if code != "completed" else None,
     }
+
+
+def _stopped_with_prose(row: dict) -> bool:
+    """True when the last response called no tool but did produce text.
+
+    This names an observed shape, not a reason: the provider returned a
+    normal message instead of a tool call, so the governed sequence could not
+    advance. An empty last response is left as reason-unknown because it can
+    also mean a truncated or filtered reply.
+    """
+    shapes = row.get("response_shape") or ()
+    if not shapes:
+        return False
+    last = shapes[-1]
+    return not last["tool_names"] and not last["invalid_tool_names"] and last["text_chars"] > 0
 
 
 def summarize_rule_run(results: list[dict], *, planned_n: int) -> dict:
