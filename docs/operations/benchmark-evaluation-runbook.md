@@ -113,12 +113,21 @@ that interpretation between paired runs. Parser refusals stay in the full denomi
 LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false UV_CACHE_DIR="$PWD/.cache/uv" TMPDIR="$PWD/.artifacts/stage10" uv run --frozen python evals/run_stage10_rule_supervisor.py --app-type magpie --provider-id magpie --model workbuddy/deepseek-v4.1-flash --limit 10 --empty-list-is-wildcard --output .artifacts/stage10/rule-supervisor-fresh/report.json
 ```
 
-The temporary-directory parent must already exist. Output must be fresh and inside the
-implementation repository. Each case persists atomically; a `running` report with pending
-cases is incomplete. Model attempts, responses, errors and finite specialist role/status
-reports are recorded separately. Specialist declarations describe observed behavior and
-never authorize execution. Missing or failed-call token usage remains unknown even when
-known totals are zero. Costs remain null without independent billing telemetry.
+Output and its sibling `<report-stem>-runtime` directory must be fresh and inside the
+implementation repository. The runtime directory retains `payments.sqlite`, the encrypted
+rule checkpoint `state`, and a random 32-byte `checkpoint.key` written with owner-only file
+permissions inside an owner-only directory. This local development key is stored alongside
+the ciphertext for reproducible diagnosis; it is not production key management. Keep that
+directory local and do not include its key in reports or shared evidence. Retention survives
+normal exit and exceptions; there is no automatic cleanup or production retention policy.
+
+Each attempted row records the bound request, rule thread ID, Supervisor thread ID and ordered
+diagnostic events without model prose or prompts. These events are observations, not a full
+model conversation or the Supervisor's in-memory checkpoint, which is not retained. Each case
+persists atomically; a `running` report with pending cases is incomplete. Model attempts,
+responses, errors and finite specialist role/status reports are recorded separately.
+Specialist declarations never authorize execution. Missing or failed-call token usage remains
+unknown even when known totals are zero. Costs remain null without independent billing telemetry.
 
 This runner reuses `ServiceCircuitBreaker`: HTTP 401/402/403/404 opens the circuit immediately;
 three consecutive other model-service failures also open it. Later parseable cases are
@@ -134,6 +143,20 @@ before executing the real checkpointed workflow. Arithmetic expectations come fr
 and Fraction-based oracles, never workflow output. All four operations and explicit refusal
 cases remain in the planned denominator; correctly expected refusals count as qualification
 passes, not successful business answers.
+
+Counterfactual verification requires the complete serialized `CounterfactualResult` field set
+and current schema version, the requested rule ID, a genuine integer transaction count, and
+finite decimal text for all three amounts. Missing or extra fields, a different rule, malformed
+amounts and boolean counts fail verification without delivery. Previously completed checkpoints
+are not automatically reverified after a code change; use a fresh thread or an explicitly
+updated workflow version when qualifying the new verifier.
+
+For `select` and `average_fee`, the computation must contain exactly `fees` and `average_fee`.
+Each fee row must contain the complete serialized `FeeResult` fields and current schema
+version, match the selected rule's coefficients and source, and carry finite decimal fee text.
+The average must also be finite decimal text when rules match. An empty selection remains a
+valid workflow result with an empty fee list and null average. Malformed records fail
+verification without delivery; they are not converted into successful empty results.
 
 ```bash
 LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false UV_CACHE_DIR="$PWD/.cache/uv" TMPDIR="$PWD/.artifacts/stage10" uv run --frozen python evals/qualify_stage9_business.py --output .artifacts/stage9/business-fresh
@@ -155,13 +178,19 @@ refusals. Each case retains its own artifact and audit directory. This mode uses
 local storage and JSONL audit; it does not qualify production source authorization, retention,
 release admission, or independent audit. Denial and outage fault injection is covered by
 `tests/test_stage9_governed.py` and evidence-tampering checks by
-`tests/test_stage9_business_qualification.py`.
+`tests/test_stage9_business_qualification.py`. Evidence writes use the original caller's role,
+identity and data domains; the adapter does not substitute the reporter role. A policy allowing
+execution but denying that caller's artifact write keeps the completed checkpoint and returns
+no evidence reference. Recovery still requires authorization for the caller's `resume` and
+`artifact.write` requests.
 
 ## Rule evidence recovery qualification
 
-`evals/qualify_stage9_recovery.py` injects an evidence-audit outage after the workflow has
+`evals/qualify_stage9_recovery.py` injects an evidence outage after the workflow has
 completed, closes and reopens the encrypted checkpoint database, then resumes through the
-same development gateway. It checks that changed requests and duplicate `run` calls are
+same development gateway. `--fault audit` (the default) fails the evidence authorization audit;
+`--fault write` fails `put_json` after its authorization was audited but before any bytes are
+written. Run each mode in its own fresh directory; their ten-case results remain separate. It checks that changed requests and duplicate `run` calls are
 rejected without changing the checkpoint, and that `resume` writes task-bound, hash-verified
 evidence without replaying any of the five workflow nodes. Answers are checked against the
 raw-record Fraction oracles.
@@ -174,8 +203,10 @@ The planned denominator is explicitly the ten accepted structured requests from 
 case authored corpus. Parser refusals are not recovery scenarios. The fresh run saves all
 cases, initial fault observations, per-node counts, artifacts, audit logs and atomic progress.
 Audit `allow` records for rejected duplicate/changed requests mean policy authorization only;
-the workflow binding checks still reject execution. This is database close/reopen in one
-process, not process-kill recovery, production audit qualification or unseen evaluation.
+the workflow binding checks still reject execution. An `artifact.write` allow event also
+records authorization only; in write-fault mode its handler fails and returns no artifact.
+This is database close/reopen in one process. It does not qualify partial-file writes,
+process-kill recovery, production audit or unseen evaluation.
 
 ## Token policy and service preflight
 
@@ -218,6 +249,49 @@ LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false UV_CACHE_DIR=/tmp/deepagents-
 
 ## Rule-enabled DABstep development evaluation
 
+### Route selection with `--routing`
+
+`--routing` replaces a fixed `--tool-profile` with a per-case lane chosen from public text
+before any model call. Lanes are `short` (5 steps, 2 repairs), `analysis` (7/3) and `governed`
+(8/3). Markers are matched as whole words, with an optional plural `s`; `coffee`, `feedback`,
+`accurate` and `corporate` therefore do not match `fee` or `rate`, and an underscored identifier
+such as `fee_rate` is not treated as published prose. The chosen lane, its reasons and a source
+hash are written to the run manifest, so a misroute is auditable after the fact. A question
+matching no marker takes `short`, whose smallest budget makes a misroute visible as a budget
+failure rather than silent extra spend.
+
+A repair refusal does not always mean its allowance was exhausted. For nonretryable causes,
+including policy denial, the case retains the original failure code and the trace records
+`repair_not_applicable_<cause>`; no experience hints are requested. The repair report's
+`exhausted` flag (and summary `exhausted_n`) counts refusals caused by the total repair ceiling
+or identical-failure ceiling. Other refusals remain in `refused` without setting that flag.
+Historical reports retain their original diagnostic fields and must not be silently rewritten.
+
+The system fingerprint includes Stage 7/8/9 sources according to the profiles selected for
+this cohort, including when routing replaces the fixed profile. A mixed cohort records the
+union of those dependencies. Repair-budget and retry-classification source hashes are also
+recorded for fixed-profile runs. These identify the system under evaluation; they do not alter
+the scoring protocol or establish model performance. Older manifests with missing dependency
+hashes must retain that limitation rather than receive hashes from a later checkout.
+
+### Qualification implementation fingerprints
+
+The synthetic facet/context, business-language and recovery qualification reports now include
+`workflow_source_sha256`, captured before execution from an explicit package-source inventory.
+It covers the workflow, matcher, payment source, boundary contracts, checkpoint implementation
+and SQLite guard. Governed business/recovery runs additionally include the gateway, policy,
+approval/budget code, local artifact store and development audit. Synthetic reports also record
+the qualification runner hash. Existing parser/oracle and recovery runner fields are retained.
+An unreadable required source fails before creating the run output directory.
+
+This inventory is not a full transitive dependency lock, a signature, or proof that files could
+not change after hashing. It excludes product delivery, which these qualification runners do
+not execute. Preserve missing-fingerprint limitations on historical reports; do not backfill
+them from a newer checkout. Matching source hashes do not establish unseen-task generalization,
+independent review or production acceptance.
+
+### Protocol
+
 `sql-rules` requires `--evaluation-protocol stage9-v1 --benchmark dabstep`. It adds
 `analyze_fee_rules` to the native function surface. The runtime validates the typed request,
 reads bounded existing tables in read-only mode, retains complete annex records with a source
@@ -226,6 +300,37 @@ computed IDs, average fee, or rate delta. Unspecified facets in `select`/`averag
 constraints; `applicable`/`counterfactual` derive merchant thresholds from the full natural
 month even for a day-scoped transaction set. Null and empty-list wildcard declarations remain
 separate and are recorded with the caller's exact document excerpt.
+
+The development rule workflow retains `Decimal` values when passing monthly volume and
+fraud amount ratio from its context checkpoint to threshold matching. Converting them to
+binary floats can move a value across a strict boundary while the shared verifier repeats
+the same error. Regression cases compare both workflow delivery and the direct evaluation
+tool against raw-record `Fraction` expectations on both sides of the threshold. This avoids
+an extra conversion; it cannot recover precision already lost in source REAL columns or
+remove the existing decimal arithmetic context limits.
+
+Before checking selection or fees, the workflow verifier rebuilds its full context from
+the bound request and authoritative sources. The saved context must match exactly, including
+field types, scope, formula, counts and monthly aggregates. A mismatch yields
+`rule_context_mismatch` and no delivery; extra fields are also refused. This is a fresh
+source re-derivation through the same application code, not an independent semantic oracle.
+Existing completed checkpoints are not retroactively reverified; use a fresh run or an
+explicitly changed workflow version when qualifying this verifier change.
+
+Product packaging accepts a verified `applicable` result with an empty `items` list as a
+valid no-match answer, rendered explicitly as `applicable_rules = []`. The cited task
+artifact retains the actual empty array and its verification. Missing, null or non-list
+`items` remain invalid; an undefined `average_fee` remains a refusal. Packaging still requires
+a completed, verified workflow and uses the existing policy, audit and feedback path.
+
+Each product delivery registers one `artifact.write` handler on its own gateway. The result,
+chart and claim artifacts each require a separate policy decision using the original caller's
+role, actor scope, task and trace. With an audit sink configured, successful packaging emits
+four decisions: `rules.deliver` followed by three `artifact.write` requests whose fingerprints
+bind the content and lineage. A denied write or audit outage stops packaging before feedback
+registration. Earlier artifacts may remain after a later failure; this is not a transactional
+rollback across artifacts. Optional audit remains a development configuration and does not
+establish production admission.
 
 Use native function calls without `--json-mode`. With the current OpenAI SDK, combining JSON
 object response formatting with these non-strict wire tools invokes auto-parsing and raises
@@ -254,9 +359,24 @@ repair budget has already allowed another attempt, so experience cannot widen th
 budget. An unusable store drops the hints and records `experience_unavailable` in the trace
 without changing the task outcome.
 
-Enabling reuse sets `experience_reuse` and `experience_store_hash` in the protocol, so a run
-with it and a run without it are **not** a paired comparison. Compare two arms only after
-re-running both with the same store snapshot and actor scope.
+Before running cases, SQLite's backup API creates `experience-snapshot.sqlite` in the fresh
+output directory, including committed WAL contents. Every worker reads this copy; changes to
+the source store during the run do not change its hints. `experience_store_hash` describes the
+saved snapshot, not the live source file. An unreadable or invalid SQLite source fails before
+any case worker starts. Workers open `ExperienceStore(..., read_only=True)`: SQLite `mode=ro`
+connections validate required tables/columns without schema creation, and capture/review are
+refused. Missing or incomplete stores are never silently initialized by the evaluation worker.
+This does not protect the saved copy from external modification.
+
+Enabling reuse sets `experience_reuse`, `experience_store_hash` and `experience_scope_hash`
+in the protocol, so the general pairing gate rejects an off/on pair. The dedicated treatment
+diagnostic below preserves those distinct protocols. The scope hash covers the validated actor,
+with data domains sorted and deduplicated exactly as retrieval scopes are. Different users,
+tenants, projects or domain sets therefore change the protocol even when the store file is
+identical. Only the hash is included in the report, not raw actor identifiers. For comparisons
+between two enabled runs, use the same store snapshot and actor scope. Historical reports
+missing this hash cannot establish scope equality and must not be backfilled with a later
+configuration.
 
 ```bash
 LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false UV_CACHE_DIR=.cache/uv uv run --frozen python evals/run_stage6.py --benchmark dabstep --limit 10 --workers 1 --app-type magpie --provider-id magpie --model workbuddy/deepseek-v4.1-flash --transport openai-chat --csv-importer identifier-v2 --request-interval-seconds 3.5 --tool-profile sql-rules --evaluation-protocol stage9-v1 --experience-database .state/stage10/experience.sqlite --experience-actor '{"user_id":"eval","tenant_id":"eval","project_id":"dabstep","data_domains":["payments"]}' --output .artifacts/stage10/dabstep-experience
@@ -264,6 +384,53 @@ LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false UV_CACHE_DIR=.cache/uv uv run
 
 The summary reports `experience_reuse` with the number of cases that received hints, the
 number of hints offered and their distribution by failure code.
+
+### Experience off/on treatment diagnostics
+
+```bash
+UV_CACHE_DIR=.cache/uv uv run --frozen python evals/compare_stage10_experience.py --baseline .artifacts/stage10/off/report.json --candidate .artifacts/stage10/on/report.json --output .artifacts/stage10/experience-comparison-fresh.json
+```
+
+Both inputs must be completed runs with the full planned denominator, identical ordered case
+IDs and database hashes, and matching model, route, runner, sources and non-experience system
+fingerprints. The baseline must have reuse disabled; the candidate must have it enabled with
+store and actor-scope hashes. Only the three declared experience protocol fields and the
+validated experience fingerprint may differ. Each original protocol hash is checked and kept;
+input reports are never rewritten. The output must be new and inside this repository.
+
+The diagnostic reports per-case improvements and regressions, failure transitions, tokens,
+latency and available cost. Unknown cost stays unknown. Service failures, unattempted cases
+and severe incidents stay in the denominator and add attribution blockers. Report hashes
+identify supplied evidence; they do not authenticate the inputs. An empty blocker list is not
+proof of benefit. Statistical inference, three repeated pairs, unseen-task evaluation,
+independent review and production qualification remain separate and are marked `not_run`.
+The general pairing gate continues to reject unequal protocols.
+
+### Offline candidate extraction
+
+`evals/extract_stage10_experience.py --trace <trace-array.json> --documents <manual.txt>
+--actor '<ActorContext JSON>' --output <fresh-directory>` creates a separate
+`candidates.sqlite` and provenance report. The output must be new and inside this repository;
+there is no automatic review or merge into a runtime experience store.
+
+The first template supports only `rule_semantics_excerpt_missing` followed immediately by a
+successful `fee_rules` call at the next step. The failure trace must contain the hash of all
+call parameters except `semantics_excerpt`; those parameters must remain unchanged. The
+extractor checks the successful result hash, required rule checks, and verbatim null excerpt
+against the supplied documents. Old traces lacking the parameter binding produce no candidate.
+Rule profiles include the extraction module in their system fingerprint because it computes
+this binding. Only repository-owned generic prose enters the lesson; trace content is not
+copied into its repair or counterexample. The report records input hashes and step provenance.
+The CLI reads each input once as bytes, decodes UTF-8 for extraction and hashes those same
+bytes for provenance. Replacement or deletion after reading cannot change the reported input
+hashes. This is a per-file memory snapshot, not an atomic snapshot across both files; it does
+not authenticate their origin or persist a copy of potentially sensitive raw inputs.
+
+This is development evidence from caller-supplied traces, not authenticated production proof.
+A successful tool call establishes neither answer correctness nor the correctness of the
+chosen semantic interpretation. Independent review remains `not_run`, and retrieval cannot
+see the candidate until the existing review gate accepts it. Other failure classes, automatic
+batch report ingestion, unseen-task benefit and production qualification remain unimplemented.
 
 ## Historical v7 reproduction
 
