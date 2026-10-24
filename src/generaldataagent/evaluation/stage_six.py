@@ -1490,6 +1490,14 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                         if hints:
                             feedback["rule_repair_hints"] = hints
                     if isinstance(exc, RuleToolError):
+                        if exc.code == "rule_semantics_excerpt_missing":
+                            from generaldataagent.evaluation.experience_extraction import (
+                                rule_repair_context_hash,
+                            )
+
+                            event["rule_repair_context_hash"] = rule_repair_context_hash(
+                                action["rules"]
+                            )
                         event.update(code=exc.code, repair_type="correct_rule_context")
                         feedback.update(
                             code=exc.code,
@@ -1575,7 +1583,11 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                                 "repairs_attempted": decision.attempt,
                             }
                         )
-                        failure = "repair_budget_exhausted"
+                        failure = (
+                            event["code"]
+                            if decision.reason.startswith("repair_not_applicable_")
+                            else "repair_budget_exhausted"
+                        )
                         break
                     feedback["repair_budget"] = {
                         "attempt": decision.attempt,

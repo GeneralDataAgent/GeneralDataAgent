@@ -152,6 +152,74 @@ def test_non_repair_profile_reports_an_empty_budget(tmp_path):
     }
 
 
+@pytest.mark.parametrize("code", ["policy_rejection", "multiple_applicable_rules", "time_budget"])
+def test_nonrepairable_failure_does_not_claim_repair_budget_exhaustion(code):
+    budget = RepairBudget(max_repairs=3)
+    decision = budget.request(code, tool="rules")
+    assert not decision.allowed
+    assert decision.reason.startswith("repair_not_applicable_")
+    assert budget.report()["attempted"] == 0
+    assert budget.report()["exhausted"] is False
+    assert budget.report()["refused"] == [f"{code}::rules"]
+
+
+def test_agent_policy_rejection_preserves_cause_and_stops_before_experience(tmp_path, monkeypatch):
+    from generaldataagent.evaluation import stage_nine
+
+    database = rule_database(tmp_path)
+    hints_requested = []
+
+    def deny(*args, **kwargs):
+        raise PermissionError("synthetic operation not allowed")
+
+    def experience(*args):
+        hints_requested.append(args)
+        return ()
+
+    monkeypatch.setattr(stage_nine, "analyze_fee_rules", deny)
+    model = ScriptedModel(
+        [
+            {
+                "name": "analyze_fee_rules",
+                "args": {"operation": "select", "semantics_excerpt": "null"},
+            }
+        ]
+    )
+    result = BoundedSQLAgent(
+        model, tool_profile="sql-rules", max_steps=6, experience=experience
+    ).run(task(database), database, documents="null means all")
+    assert result["failure"] == "policy_rejection"
+    assert result["repair_budget"]["attempted"] == 0
+    assert result["repair_budget"]["exhausted"] is False
+    assert model.calls == 1
+    assert hints_requested == []
+    assert result["experience_used"] == []
+    assert result["answers"] == {}
+    assert result["tokens"] == 2
+    refused = [row for row in result["trace"] if row.get("status") == "repair_refused"]
+    assert refused[0]["code"] == "repair_not_applicable_capability"
+    assert refused[0]["failure_code"] == "policy_rejection"
+    from generaldataagent.evaluation.stage_six import summarize
+
+    summary = summarize(
+        [result | dict(case_id="denied", passed=False, difficulty="easy", sub_hits=0, sub_total=1)]
+    )
+    assert summary["failures"] == {"policy_rejection": 1}
+    assert summary["repair_budget"]["exhausted_n"] == 0
+    assert summary["repair_budget"]["attempted"] == 0
+
+
+def test_nonrepairable_refusal_does_not_erase_an_earlier_ceiling_refusal():
+    budget = RepairBudget(max_repairs=1)
+    assert budget.request("unknown_column", tool="sql").allowed
+    assert budget.request("unknown_table", tool="sql").reason == "repair_budget_exhausted"
+    assert (
+        budget.request("policy_rejection", tool="sql").reason == "repair_not_applicable_capability"
+    )
+    assert budget.report()["exhausted"] is True
+    assert budget.attempted == 1
+
+
 def test_run_summary_aggregates_repair_budgets():
     from generaldataagent.evaluation.stage_six import summarize
 

@@ -75,12 +75,17 @@ class RepairBudget:
         return RepairDecision(True, "repair_allowed", self.attempted, signature)
 
     def report(self) -> dict:
-        """Bounded telemetry for the run record; carries no task content."""
+        """Bounded telemetry; exhaustion means a retry ceiling refused repair.
+
+        Nonrepairable causes also stop the agent, but do not spend this budget.
+        """
         return {
             "attempted": self.attempted,
             "max_repairs": self.max_repairs,
             "max_identical": self.max_identical,
             "by_code": dict(sorted(self.by_code.items())),
             "refused": list(self.refused),
-            "exhausted": bool(self.refused),
+            "exhausted": any(
+                should_retry(signature.split("::", 1)[0]) for signature in self.refused
+            ),
         }
