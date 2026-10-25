@@ -17,7 +17,7 @@ from generaldataagent.contracts import (
     SubgroupEvaluation,
     ToolRequest,
 )
-from generaldataagent.data_science.checks import split_indices, validate_experiment_data
+from generaldataagent.data_science.experiment import prepare_experiment, run_prepared_experiment
 from generaldataagent.data_science.sandbox import FixedTemplateSandbox, OCIContainerSandbox
 from generaldataagent.data_science.snapshot import load_snapshot_rows
 from generaldataagent.data_science.tracking import SQLiteExperimentTracker
@@ -125,9 +125,11 @@ class DataScienceWorkbench:
         if decision.decision != "allow":
             raise PermissionError(f"experiment denied by policy: {decision.reason_code}")
         rows = load_snapshot_rows(snapshot, self.artifact_store)
-        train, test = split_indices(rows, spec)
-        checks = validate_experiment_data(rows, spec, train, test)
-        if any(not check.passed and check.severity == "error" for check in checks):
+        # One shared preparation path: the regression adapter splits and checks
+        # the same way, so a control added here reaches both callers.
+        prepared = prepare_experiment(rows, spec)
+        checks = prepared.checks
+        if prepared.blocked:
             self._audit(
                 event_type="science.validation_failed",
                 task_id=spec.task_id,
@@ -140,12 +142,7 @@ class DataScienceWorkbench:
                 },
             )
             raise ScienceGateError(checks)
-        result = self.sandbox.run(
-            rows=rows,
-            spec=spec,
-            train_indices=train,
-            test_indices=test,
-        )
+        result = run_prepared_experiment(prepared, sandbox=self.sandbox)
         result_artifact = self.artifact_store.put_json(
             task_id=spec.task_id,
             artifact_type="experiment_result",
