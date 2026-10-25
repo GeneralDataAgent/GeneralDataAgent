@@ -8,24 +8,130 @@ matched rules and the cited passages, and reports stable failure codes.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from decimal import Decimal
+from collections.abc import Mapping, Sequence
+from decimal import Decimal, InvalidOperation
+from typing import Any
 
 from generaldataagent.business.rules.engine import (
     RuleSourceError,
     compute_fee,
     monthly_totals,
     parse_band,
+    transaction_matches,
 )
 from generaldataagent.business.rules.payments import PaymentsSourceError, moment_of
 from generaldataagent.business.rules.retrieval import RuleCitation
 from generaldataagent.contracts.rules import (
+    CounterfactualResult,
     FeeResult,
+    FeeRule,
     RuleMatchReport,
     RuleVerification,
+    TransactionFacets,
 )
 
 TOLERANCE = Decimal("0.000001")
+
+
+def _exact_decimal(value: object) -> Decimal | None:
+    """Parse exact decimal text, rejecting numbers, booleans and non-finite values."""
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = Decimal(value)
+    except InvalidOperation:
+        return None
+    return parsed if parsed.is_finite() else None
+
+
+def verify_authoritative_fee_summary(
+    rules: Sequence[FeeRule],
+    transaction_value: Decimal,
+    claim: Mapping[str, Any],
+) -> tuple[str, ...]:
+    """Re-derive a fee-summary claim from authoritative rules.
+
+    This deliberately does not call ``fee_results``, ``average_fee`` or
+    ``compute_fee``. A defect or monkeypatch in the production calculation
+    therefore cannot make the verifier repeat the same answer. The returned
+    issue names are transport-neutral; each consumer maps them to its stable
+    public failure codes.
+    """
+    if not isinstance(claim, Mapping) or set(claim) != {"fees", "average_fee"}:
+        return ("computation_invalid",)
+    rows = claim.get("fees")
+    if not isinstance(rows, list) or any(not isinstance(row, Mapping) for row in rows):
+        return ("records_invalid",)
+
+    issues = []
+    if [row.get("rule_id") for row in rows] != [rule.rule_id for rule in rules]:
+        issues.append("result_ids_mismatch")
+    expected_fees = [
+        Decimal(rule.fixed_amount) + Decimal(rule.rate) * transaction_value / Decimal(10000)
+        for rule in rules
+    ]
+    for rule, row, expected in zip(rules, rows, expected_fees, strict=False):
+        if (
+            set(row) != set(FeeResult.model_fields)
+            or row.get("schema_version") != FeeResult.model_fields["schema_version"].default
+            or row.get("rule_id") != rule.rule_id
+            or row.get("fixed_amount") != rule.fixed_amount
+            or row.get("rate") != rule.rate
+            or row.get("source") != rule.source
+            or _exact_decimal(row.get("fee")) != expected
+        ):
+            issues.append("record_mismatch")
+
+    expected_average = (
+        sum(expected_fees, Decimal(0)) / Decimal(len(expected_fees)) if expected_fees else None
+    )
+    average = claim.get("average_fee")
+    if (
+        average is not None
+        if expected_average is None
+        else _exact_decimal(average) != expected_average
+    ):
+        issues.append("average_mismatch")
+    return tuple(dict.fromkeys(issues))
+
+
+def verify_authoritative_counterfactual(
+    rule: FeeRule,
+    transactions: Sequence[TransactionFacets],
+    *,
+    alternate_rate: Decimal,
+    claim: Mapping[str, Any],
+) -> tuple[str, ...]:
+    """Re-derive every counterfactual field without calling the producer."""
+    if not isinstance(claim, Mapping) or set(claim) != set(CounterfactualResult.model_fields):
+        return ("record_invalid",)
+    if claim.get("schema_version") != CounterfactualResult.model_fields["schema_version"].default:
+        return ("record_invalid",)
+
+    amounts = [
+        Decimal(transaction.amount)
+        for transaction in transactions
+        if transaction_matches(rule, transaction)
+    ]
+    total = sum(amounts, Decimal(0))
+    fixed_total = Decimal(rule.fixed_amount) * Decimal(len(amounts))
+    baseline = fixed_total + Decimal(rule.rate) * total / Decimal(10000)
+    alternate = fixed_total + alternate_rate * total / Decimal(10000)
+    expected = {
+        "baseline_fee": baseline,
+        "alternate_fee": alternate,
+        "delta": alternate - baseline,
+    }
+    issues = []
+    if claim.get("rule_id") != rule.rule_id:
+        issues.append("rule_mismatch")
+    for field, value in expected.items():
+        if _exact_decimal(claim.get(field)) != value:
+            issues.append(field.removesuffix("_fee") + "_mismatch")
+    count = claim.get("transaction_count")
+    if type(count) is not int or count != len(amounts):
+        issues.append("transaction_count_mismatch")
+    return tuple(issues)
 
 
 def verify_fee_arithmetic(
@@ -223,6 +329,8 @@ __all__ = [
     "compute_fee",
     "ensure_rule_source_known",
     "verify_answer",
+    "verify_authoritative_counterfactual",
+    "verify_authoritative_fee_summary",
     "verify_band_round_trip",
     "verify_citations",
     "verify_fee_arithmetic",

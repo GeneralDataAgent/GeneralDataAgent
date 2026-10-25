@@ -27,6 +27,8 @@ from generaldataagent.business.rules.retrieval import (
 from generaldataagent.business.rules.verification import (
     ensure_rule_source_known,
     verify_answer,
+    verify_authoritative_counterfactual,
+    verify_authoritative_fee_summary,
     verify_band_round_trip,
     verify_citations,
     verify_fee_arithmetic,
@@ -59,6 +61,8 @@ __all__ = [
     "volume_ratio",
     "ensure_rule_source_known",
     "verify_answer",
+    "verify_authoritative_counterfactual",
+    "verify_authoritative_fee_summary",
     "verify_band_round_trip",
     "verify_citations",
     "verify_fee_arithmetic",

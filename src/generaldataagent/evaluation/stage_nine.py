@@ -22,7 +22,8 @@ from generaldataagent.business.rules.payments import (
 )
 from generaldataagent.business.rules.retrieval import citation, select_passages, split_passages
 from generaldataagent.business.rules.verification import (
-    verify_fee_arithmetic,
+    verify_authoritative_counterfactual,
+    verify_authoritative_fee_summary,
     verify_month_boundary,
 )
 from generaldataagent.contracts.rule_tools import RuleAnalysisRequest
@@ -267,7 +268,11 @@ def analyze_fee_rules(database, arguments, *, allowed_relations, documents):
     if request.operation == "average_fee":
         value = Decimal(request.transaction_value)
         computation = compute_fee_summary(selected, transaction_value=value)
-        if verify_fee_arithmetic(computation.fees, value):
+        claim = {
+            "fees": [fee.model_dump(mode="json") for fee in computation.fees],
+            "average_fee": str(computation.average) if computation.average is not None else None,
+        }
+        if verify_authoritative_fee_summary(selected, value, claim):
             raise ValueError("fee arithmetic verification failed")
         result["average_fee"] = (
             float(computation.average) if computation.average is not None else None
@@ -282,12 +287,12 @@ def analyze_fee_rules(database, arguments, *, allowed_relations, documents):
         change = counterfactual_delta(
             rule, affected, alternate_rate=Decimal(request.alternate_rate)
         )
-        expected = (
-            (Decimal(request.alternate_rate) - Decimal(rule.rate))
-            * sum(affected, Decimal(0))
-            / Decimal(10000)
-        )
-        if Decimal(change.delta) != expected:
+        if verify_authoritative_counterfactual(
+            rule,
+            transactions,
+            alternate_rate=Decimal(request.alternate_rate),
+            claim=change.model_dump(mode="json"),
+        ):
             raise ValueError("counterfactual independent delta verification failed")
         result.update(change.model_dump())
         result["delta"] = float(change.delta)
