@@ -47,6 +47,10 @@ from generaldataagent.evaluation.stage_six_protocol import evaluation_protocol
 from generaldataagent.tools import SQLiteReadOnlyExecutor
 
 ROOT = Path(__file__).resolve().parents[1]
+# Prepared public snapshots are local inputs, never committed. Keeping the
+# location as one module constant lets an orchestration test supply synthetic
+# cases and documents without a prepared snapshot present.
+DATA_ROOT = ROOT / "data/stage6"
 
 
 def main():
@@ -188,7 +192,7 @@ def main():
         experience_actor = None
         experience_scope_hash = None
         experience_audit = None
-    root = ROOT / "data/stage6"
+    root = DATA_ROOT
     manifest = verify_sources(root)
     cases = (
         load_infi(root / "infi")
