@@ -29,6 +29,8 @@ def repeated_evidence(
             "cohort_hash",
             "protocol_hash",
             "source_manifest_hash",
+            "runner_hash",
+            "model",
             "system_fingerprint",
             "model_route",
         ]:
@@ -59,6 +61,17 @@ def repeated_evidence(
         for report in reports
     ]
     blockers = []
+    if any(report.get("run_status") != "completed" for report in reports):
+        blockers.append("incomplete_run_status")
+    if any(
+        type(report.get("requested_n")) is not int
+        or report["requested_n"] < 1
+        or type(report.get("population_n")) is not int
+        or report["population_n"] < 1
+        or len(report["results"]) != min(report["requested_n"], report["population_n"])
+        for report in reports
+    ):
+        blockers.append("incomplete_planned_cohort")
     if repeats < 3:
         blockers.append("fewer_than_three_runs")
     if n < REQUIRED_TRACKS.get(first["benchmark"], 10**9):
@@ -69,6 +82,8 @@ def repeated_evidence(
         blockers.append("service_unreliable")
     if any(not row.get("attempted", True) for r in reports for row in r["results"]):
         blockers.append("unattempted_tasks")
+    if any(row.get("severe_incident") for r in reports for row in r["results"]):
+        blockers.append("severe_incident")
     return {
         "benchmark": first["benchmark"],
         "cohort_hash": first["cohort_hash"],

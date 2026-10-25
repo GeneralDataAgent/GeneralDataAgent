@@ -17,6 +17,55 @@ def test_protocol_is_reproducible_and_resource_sensitive():
     assert "scorer_source_hash" in evaluation_protocol(workers=2)
 
 
+@pytest.mark.parametrize("deadline", [120, 100, 0, -5])
+def test_protocol_refuses_a_deadline_a_budget_timeout_would_exceed(deadline):
+    with pytest.raises(ValueError, match="hard case deadline must exceed"):
+        evaluation_protocol(workers=1, hard_case_deadline=deadline)
+
+
+def test_protocol_records_the_declared_deadline_and_changes_the_hash():
+    standard = evaluation_protocol(workers=1)
+    routed = evaluation_protocol(workers=1, hard_case_deadline=185)
+    assert standard["hard_case_deadline_seconds"] == 125
+    assert routed["hard_case_deadline_seconds"] == 185
+    # The deadline is part of what a reader is asked to trust, so two runs that
+    # differ here are not the same protocol.
+    assert protocol_hash(standard) != protocol_hash(routed)
+
+
+@pytest.mark.parametrize("seconds", [0, -1, True, 180.0])
+def test_protocol_refuses_an_invalid_declared_time_budget(seconds):
+    with pytest.raises(ValueError, match="invalid declared time budget"):
+        evaluation_protocol(workers=1, seconds=seconds)
+
+
+def test_protocol_checks_deadline_against_the_declared_time_budget():
+    with pytest.raises(ValueError, match="hard case deadline must exceed"):
+        evaluation_protocol(workers=1, seconds=180, hard_case_deadline=180)
+    routed = evaluation_protocol(workers=1, seconds=180, hard_case_deadline=185)
+    assert routed["seconds"] == 180
+    assert protocol_hash(routed) != protocol_hash(
+        evaluation_protocol(workers=1, hard_case_deadline=185)
+    )
+    short = evaluation_protocol(workers=1, seconds=90, hard_case_deadline=95)
+    assert short["seconds"] == 90
+    assert short["hard_case_deadline_seconds"] == 95
+
+
+@pytest.mark.parametrize("steps", [0, -1, True, 6.0])
+def test_protocol_refuses_an_invalid_declared_step_budget(steps):
+    with pytest.raises(ValueError, match="invalid declared step budget"):
+        evaluation_protocol(workers=1, steps=steps)
+
+
+def test_declared_step_budget_is_recorded_and_changes_the_hash():
+    standard = evaluation_protocol(workers=1)
+    routed = evaluation_protocol(workers=1, steps=8)
+    assert standard["steps"] == 6
+    assert routed["steps"] == 8
+    assert protocol_hash(standard) != protocol_hash(routed)
+
+
 def test_paired_allows_subject_change_and_blocks_data_or_duplicates():
     before = {
         "cohort_hash": "c",

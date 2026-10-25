@@ -148,6 +148,20 @@ DEFAULT_RULES = (
         obligations=("audit", "approval", "draft_only", "no_deployment"),
     ),
     PolicyRule(
+        tool_name="rules.execute",
+        risk_level=RiskLevel.R1,
+        allowed_actions=frozenset({"run", "resume"}),
+        allowed_roles=frozenset({"data_analyst", "verifier"}),
+        obligations=("audit", "read_only", "content_hash", "evidence_bound"),
+    ),
+    PolicyRule(
+        tool_name="rules.deliver",
+        risk_level=RiskLevel.R1,
+        allowed_actions=frozenset({"deliver"}),
+        allowed_roles=frozenset({"data_analyst", "reporter", "verifier"}),
+        obligations=("audit", "read_only", "content_hash", "evidence_bound"),
+    ),
+    PolicyRule(
         tool_name="artifact.write",
         risk_level=RiskLevel.R1,
         allowed_actions=frozenset({"create"}),
@@ -222,6 +236,8 @@ class PolicyEngine:
             "dbt.test",
             "development.write",
             "python.experiment",
+            "rules.execute",
+            "rules.deliver",
             "model.registry",
             "dataset.export",
         }:

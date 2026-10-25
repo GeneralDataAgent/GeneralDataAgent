@@ -88,6 +88,14 @@ class FeedbackRegistry:
                 (str(task_id), scope, result_hash),
             )
 
+    def registered(self, task_id: UUID, actor: ActorContext) -> bool:
+        """True when this exact task was already registered for this actor scope."""
+        with closing(sqlite3.connect(self.path, timeout=5)) as db:
+            row = db.execute(
+                "SELECT scope FROM feedback_tasks WHERE task=?", (str(task_id),)
+            ).fetchone()
+        return row is not None and row[0] == actor_scope(actor)
+
     def submit(self, feedback: Feedback, actor: ActorContext) -> str:
         self.scanner.check(feedback.model_dump_json().encode())
         scope, body = actor_scope(actor), feedback.model_dump(mode="json")

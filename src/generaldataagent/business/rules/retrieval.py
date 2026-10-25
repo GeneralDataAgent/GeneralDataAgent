@@ -27,7 +27,9 @@ def split_passages(text: str, *, source: str) -> tuple[DocumentPassage, ...]:
     """Split a Markdown-like document into heading-delimited passages.
 
     Text before the first heading becomes its own passage so nothing is
-    silently dropped. Line numbers are one-based and inclusive.
+    silently dropped. Line numbers are one-based and inclusive. Blank lines
+    at passage boundaries are excluded; all whitespace within the cited slice
+    is preserved.
     """
     if not source.strip():
         raise PassageError("source identifier must not be blank")
@@ -37,21 +39,26 @@ def split_passages(text: str, *, source: str) -> tuple[DocumentPassage, ...]:
     buffer: list[str] = []
     start = 1
 
-    def flush(end: int) -> None:
-        nonlocal buffer, start
-        body = "\n".join(buffer).strip()
-        if body:
+    def flush() -> None:
+        nonlocal buffer
+        first = 0
+        stop = len(buffer)
+        while first < stop and not buffer[first].strip():
+            first += 1
+        while stop > first and not buffer[stop - 1].strip():
+            stop -= 1
+        if first < stop:
+            body = "\n".join(buffer[first:stop])
             if len(body) > _MAX_PASSAGE_CHARS:
                 raise PassageError(
-                    f"passage at {source}:{start} exceeds {_MAX_PASSAGE_CHARS} characters"
+                    f"passage at {source}:{start + first} exceeds {_MAX_PASSAGE_CHARS} characters"
                 )
-            last_content = len(buffer) - len(list(filter(None, buffer)))
             passages.append(
                 DocumentPassage(
                     source=source,
                     heading=heading or "",
-                    start_line=start,
-                    end_line=max(start, end - last_content),
+                    start_line=start + first,
+                    end_line=start + stop - 1,
                     text=body,
                 )
             )
@@ -60,7 +67,7 @@ def split_passages(text: str, *, source: str) -> tuple[DocumentPassage, ...]:
     for number, line in enumerate(lines, start=1):
         match = _HEADING.match(line)
         if match is not None:
-            flush(number - 1)
+            flush()
             # A new heading starts a new passage, excluding the heading line
             # itself from the previous body.
             heading = match.group(2).strip()
@@ -68,7 +75,7 @@ def split_passages(text: str, *, source: str) -> tuple[DocumentPassage, ...]:
             buffer = []
             continue
         buffer.append(line)
-    flush(len(lines))
+    flush()
     return tuple(passages)
 
 

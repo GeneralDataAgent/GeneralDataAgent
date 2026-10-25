@@ -5,13 +5,21 @@ import hashlib
 import inspect
 import json
 import platform
+import sqlite3
 import subprocess
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
 
+from generaldataagent.contracts import ActorContext
+from generaldataagent.evaluation.routing import route_task
 from generaldataagent.evaluation.stage_six import (
+    DEADLINE_MARGIN_SECONDS,
+    DEFAULT_WORKER_REPAIRS,
+    DEFAULT_WORKER_SECONDS,
+    DEFAULT_WORKER_STEPS,
     SYSTEM_PROMPT,
     add_json_tables,
     build_csv_database,
@@ -47,7 +55,7 @@ def main():
     parser.add_argument("--limit", type=int, default=60)
     parser.add_argument(
         "--evaluation-protocol",
-        choices=["stage6-v7", "stage7-v1", "stage8-v1", "stage8-v2"],
+        choices=["stage6-v7", "stage7-v1", "stage8-v1", "stage8-v2", "stage9-v1"],
         default="stage6-v7",
     )
     parser.add_argument("--seed", type=int, default=20261020)
@@ -79,8 +87,30 @@ def main():
             "sql-semantic-plan",
             "sql-semantic-json",
             "sql-science",
+            "sql-rules",
         ],
         default="sql",
+    )
+    parser.add_argument(
+        "--routing",
+        action="store_true",
+        help=(
+            "Choose the lane per case from public question text. Off by default so "
+            "existing paired baselines keep a single fixed profile."
+        ),
+    )
+    parser.add_argument(
+        "--experience-database",
+        type=Path,
+        help=(
+            "Reviewed experience store. Off by default; only active records are "
+            "retrieved, and the hints never contain questions, answers or references."
+        ),
+    )
+    parser.add_argument(
+        "--experience-actor",
+        help="Actor scope for experience retrieval, as JSON with user_id/tenant_id/"
+        "project_id/data_domains. Required with --experience-database.",
     )
     parser.add_argument(
         "--model",
@@ -98,6 +128,10 @@ def main():
         "sql-semantic-json",
     } and args.evaluation_protocol not in {"stage7-v1", "stage8-v1", "stage8-v2"}:
         parser.error("sql-semantic requires stage7-v1; rerun both comparison arms")
+    if args.tool_profile == "sql-rules" and (
+        args.evaluation_protocol != "stage9-v1" or args.benchmark != "dabstep"
+    ):
+        parser.error("sql-rules requires stage9-v1 and dabstep")
     if args.tool_profile == "sql-science" and args.evaluation_protocol != "stage8-v2":
         parser.error("sql-science requires stage8-v2; rerun both comparison arms")
     if args.tool_profile == "sql-semantic-plan" and args.benchmark != "bird":
@@ -110,6 +144,50 @@ def main():
         parser.error("request interval must be finite and between zero and sixty seconds")
     if args.output.exists():
         parser.error("output exists; choose a new run directory")
+    if args.routing and args.tool_profile != "sql":
+        parser.error("--routing selects the profile per case; drop --tool-profile")
+    if args.routing and args.benchmark != "dabstep":
+        parser.error("routing lanes are only qualified for the fee-rule benchmark")
+    if (args.experience_database is None) != (args.experience_actor is None):
+        parser.error("experience reuse requires both --experience-database and --experience-actor")
+    if args.experience_database is not None:
+        if not args.experience_database.is_file():
+            parser.error("experience database does not exist")
+        try:
+            actor = ActorContext.model_validate(json.loads(args.experience_actor))
+            experience_actor = actor.model_dump(mode="json")
+            from generaldataagent.business.actions import content_hash
+            from generaldataagent.business.governance import actor_scope
+
+            experience_scope_hash = content_hash(json.loads(actor_scope(actor)))
+        except (json.JSONDecodeError, ValueError) as exc:
+            parser.error(f"invalid experience actor scope: {exc}")
+        # A misconfigured store would otherwise fail every case as a worker
+        # error while still spending a full run. Require the store shape and
+        # internal consistency up front; the audit is read-only.
+        from generaldataagent.business.experience import ExperienceError, ExperienceStore
+
+        try:
+            experience_audit = ExperienceStore(
+                args.experience_database, clock=lambda: None, read_only=True
+            ).audit()
+        except sqlite3.OperationalError as exc:
+            # A readable SQLite file without the experience schema.
+            parser.error(f"experience database is not an experience store: {exc}")
+        except sqlite3.DatabaseError as exc:
+            # An unreadable file is an environment failure, not a bad argument.
+            raise exc
+        except (ExperienceError, FileNotFoundError) as exc:
+            parser.error(f"experience database is not a usable experience store: {exc}")
+        if not experience_audit["consistent"]:
+            parser.error(
+                "experience database failed its consistency audit: "
+                f"{len(experience_audit['findings'])} finding(s)"
+            )
+    else:
+        experience_actor = None
+        experience_scope_hash = None
+        experience_audit = None
     root = ROOT / "data/stage6"
     manifest = verify_sources(root)
     cases = (
@@ -148,11 +226,44 @@ def main():
     )
     args.output.mkdir(parents=True)
     code_hash = digest(Path(__file__).resolve())
+    # The protocol must state the deadline that will actually apply. Routed
+    # runs pick the lane per case, so the reported ceiling is the largest lane
+    # budget plus the same margin the worker process gets.
+    lane_budgets = {
+        lane: route_task("x", override=lane).max_seconds
+        for lane in ("short", "analysis", "governed")
+    }
+    lane_steps = {
+        lane: route_task("x", override=lane).max_steps for lane in ("short", "analysis", "governed")
+    }
+    lane_repairs = {
+        lane: route_task("x", override=lane).max_repairs
+        for lane in ("short", "analysis", "governed")
+    }
+    mode_deadline = (
+        max(lane_budgets.values()) + DEADLINE_MARGIN_SECONDS
+        if args.routing
+        else DEFAULT_WORKER_SECONDS + DEADLINE_MARGIN_SECONDS
+    )
     protocol = evaluation_protocol(
-        workers=args.workers, max_output_tokens=args.max_output_tokens, max_tokens=args.max_tokens
+        workers=args.workers,
+        max_output_tokens=args.max_output_tokens,
+        max_tokens=args.max_tokens,
+        hard_case_deadline=mode_deadline,
+        steps=max(lane_steps.values()) if args.routing else DEFAULT_WORKER_STEPS,
+        seconds=max(lane_budgets.values()) if args.routing else DEFAULT_WORKER_SECONDS,
     )
     protocol["version"] = args.evaluation_protocol
     protocol["request_interval_seconds"] = args.request_interval_seconds
+    protocol["hard_case_deadline_mode"] = "per_lane" if args.routing else "fixed"
+    protocol["max_repairs_per_case"] = (
+        max(lane_repairs.values()) if args.routing else DEFAULT_WORKER_REPAIRS
+    )
+    if args.routing:
+        # Recorded so a reader can recompute each case's limits from its lane.
+        protocol["lane_time_budgets"] = lane_budgets
+        protocol["lane_step_budgets"] = lane_steps
+        protocol["lane_repair_budgets"] = lane_repairs
     if args.csv_importer == "identifier-v2":
         protocol["csv_importer"] = args.csv_importer
         protocol["numeric_import"] = (
@@ -164,6 +275,33 @@ def main():
                 + inspect.getsource(add_json_tables)
             ).encode()
         ).hexdigest()
+    # Experience reuse changes the information the model receives, so it is part
+    # of the protocol. Two runs that differ here are not a paired comparison.
+    protocol["experience_reuse"] = args.experience_database is not None
+    experience_database = None
+    if args.experience_database is not None:
+        experience_database = args.output / "experience-snapshot.sqlite"
+        source_uri = args.experience_database.resolve().as_uri() + "?mode=ro"
+        with (
+            closing(sqlite3.connect(source_uri, uri=True, timeout=5)) as source,
+            closing(sqlite3.connect(experience_database)) as snapshot,
+        ):
+            source.backup(snapshot)
+        # The source can change after the early audit. Audit the frozen copy
+        # that workers actually read, and report evidence from that copy.
+        try:
+            experience_audit = ExperienceStore(
+                experience_database, clock=lambda: None, read_only=True
+            ).audit()
+        except (sqlite3.OperationalError, ExperienceError, FileNotFoundError) as exc:
+            parser.error(f"experience snapshot is not a usable experience store: {exc}")
+        if not experience_audit["consistent"]:
+            parser.error(
+                "experience snapshot failed its consistency audit: "
+                f"{len(experience_audit['findings'])} finding(s)"
+            )
+        protocol["experience_store_hash"] = digest(experience_database)
+        protocol["experience_scope_hash"] = experience_scope_hash
     if args.preflight_report:
         preflight = json.loads(args.preflight_report.read_text())
         readiness = service_readiness(preflight)
@@ -189,10 +327,35 @@ def main():
             print(json.dumps(readiness, indent=2), flush=True)
             raise SystemExit(2)
     from generaldataagent.evaluation.stage_eight import stage8_fingerprint
+    from generaldataagent.evaluation.stage_nine import stage9_fingerprint
     from generaldataagent.evaluation.stage_seven import stage7_fingerprint
 
+    case_routes = (
+        {c.task.case_id: route_task(c.task.question, c.task.instructions) for c in selected}
+        if args.routing
+        else None
+    )
+    routing_manifest = (
+        {
+            "mode": "public-text-marker",
+            "source_hash": digest(ROOT / "src/generaldataagent/evaluation/routing.py"),
+            "lanes": {
+                lane: route_task("x", override=lane).as_dict()
+                for lane in ("short", "analysis", "governed")
+            },
+            "per_case": {case_id: plan.as_dict() for case_id, plan in case_routes.items()},
+        }
+        if args.routing
+        else None
+    )
+    active_profiles = (
+        {plan["tool_profile"] for plan in routing_manifest["per_case"].values()}
+        if routing_manifest is not None
+        else {args.tool_profile}
+    )
     system_fingerprint = {
-        "stage8_sources": stage8_fingerprint(ROOT) if args.tool_profile == "sql-science" else None,
+        "stage9_sources": stage9_fingerprint(ROOT) if "sql-rules" in active_profiles else None,
+        "stage8_sources": stage8_fingerprint(ROOT) if "sql-science" in active_profiles else None,
         "prompt_hash": hashlib.sha256(SYSTEM_PROMPT.encode()).hexdigest(),
         "agent_hash": digest(ROOT / "src/generaldataagent/evaluation/stage_six.py"),
         "analysis_tools_hash": digest(
@@ -217,13 +380,28 @@ def main():
             ROOT / "src/generaldataagent/evaluation/stage_six_control.py"
         ),
         "repair_tools_hash": digest(ROOT / "src/generaldataagent/evaluation/stage_six_repair.py"),
+        "repair_budget_hash": digest(ROOT / "src/generaldataagent/evaluation/repair_budget.py"),
+        "retry_policy_hash": digest(ROOT / "src/generaldataagent/evaluation/routing.py"),
+        "experience_extraction_hash": digest(
+            ROOT / "src/generaldataagent/evaluation/experience_extraction.py"
+        )
+        if "sql-rules" in active_profiles
+        else None,
         "model_adapter_hash": digest(ROOT / "src/generaldataagent/evaluation/stage_six_models.py"),
         "worker_hash": digest(ROOT / "src/generaldataagent/evaluation/stage_six_worker.py"),
         "dependency_lock_hash": digest(ROOT / "uv.lock"),
-        "tool_profile": args.tool_profile,
+        "tool_profile": "routed" if args.routing else args.tool_profile,
+        "routing": routing_manifest,
+        "experience": {
+            "enabled": args.experience_database is not None,
+            "scope_hash": experience_scope_hash,
+            "source_hash": digest(ROOT / "src/generaldataagent/business/experience.py")
+            if args.experience_database is not None
+            else None,
+        },
         "stage7_sources": stage7_fingerprint(ROOT)
-        if args.tool_profile
-        in {"sql-semantic", "sql-semantic-plan", "sql-semantic-json", "sql-science"}
+        if active_profiles
+        & {"sql-semantic", "sql-semantic-plan", "sql-semantic-json", "sql-science", "sql-rules"}
         else None,
         "route_hash": route["route_hash"],
     }
@@ -249,13 +427,21 @@ def main():
         ).strip(),
         "model": provider.model,
         "model_route": route,
-        "tool_profile": args.tool_profile,
+        "tool_profile": "routed" if args.routing else args.tool_profile,
         "provider_id": provider.provider_id,
         "results": [],
         "scope": "bounded SQL evaluation baseline; not production Supervisor or Python DS agent",
         "contamination": "public development data; no training-contamination guarantee",
         "production_accepted": False,
     }
+    if experience_audit is not None:
+        # Recorded with the run so a later reader can see the store passed only
+        # an internal consistency check, not source qualification.
+        report["experience_preflight"] = {
+            "records": experience_audit["records"],
+            "consistent": experience_audit["consistent"],
+            "findings": len(experience_audit["findings"]),
+        }
     databases = {}
     docs = ""
     if args.benchmark == "dabstep":
@@ -298,6 +484,7 @@ def main():
         if circuit.reason:
             result = not_attempted_result(circuit.reason)
         else:
+            route_plan = case_routes[case.task.case_id] if case_routes is not None else None
             result = run_isolated(
                 case.task,
                 database,
@@ -307,14 +494,22 @@ def main():
                 model_override=args.model,
                 transport=args.transport,
                 route_hash=route["route_hash"],
-                tool_profile=args.tool_profile,
+                tool_profile=route_plan.tool_profile if route_plan else args.tool_profile,
                 thinking_mode=args.thinking,
                 json_mode=args.json_mode,
                 max_output_tokens=args.max_output_tokens,
                 max_tokens=args.max_tokens,
                 request_interval_seconds=args.request_interval_seconds,
                 pacing_database=ROOT / ".state/stage6/request-pacing.sqlite",
+                max_steps=route_plan.max_steps if route_plan else DEFAULT_WORKER_STEPS,
+                max_seconds=route_plan.max_seconds if route_plan else DEFAULT_WORKER_SECONDS,
+                max_repairs=route_plan.max_repairs if route_plan else DEFAULT_WORKER_REPAIRS,
+                experience_database=experience_database,
+                experience_actor=experience_actor,
+                experience_store_hash=protocol.get("experience_store_hash"),
             )
+            if route_plan is not None:
+                result["route"] = route_plan.as_dict()
             result["attempted"] = True
             circuit.observe(result)
         if case.reference_sql:

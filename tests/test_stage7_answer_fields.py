@@ -11,6 +11,23 @@ from generaldataagent.tools.answer_fields import (
 )
 
 
+def test_public_decimal_plural_preserves_precision_and_negation():
+    assert public_precisions("Answer rounded to 6 decimals") == {6}
+    assert public_precisions("Answer not rounded to 6 decimals") == set()
+    assert public_precisions("value_in_two_decimals") == set()
+
+
+def test_single_public_comma_list_gets_exact_presentation():
+    from generaldataagent.tools.answer_fields import infer_public_field_rules
+
+    text = "Answer must be a list of values in comma separated list, eg: A, B, C."
+    fields = infer_public_field_rules(text, ["answer"])
+    assert fields["answer"].kind == "list"
+    assert fields["answer"].collection_separator == ", "
+    validate_field_sources(fields, ["answer"], "Return IDs", text)
+    assert infer_public_field_rules(text, ["first", "second"]) == {}
+
+
 def test_inline_descriptions_bind_each_precision_to_its_own_field():
     from generaldataagent.orchestration.analysis_plan import accept_contract
 

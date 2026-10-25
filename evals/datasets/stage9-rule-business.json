@@ -1,0 +1,39 @@
+{
+  "suite": "authored-rule-business-development-v1",
+  "provenance": "Authored synthetic development cases; no public benchmark assets or labels. Not an unseen holdout; independent human review not_run.",
+  "documents": "A null predicate accepts all values. Empty lists accept no values unless empty_list_is_wildcard is explicitly enabled. fee = fixed_amount + rate * transaction_value / 10000",
+  "semantics_excerpt": "A null predicate accepts all values.",
+  "merchant": {"merchant": "Cedar_Lantern", "account_type": "R", "merchant_category_code": 5411, "capture_delay": "1"},
+  "mcc_descriptions": {"Grocery Stores": 5411},
+  "annex": [
+    {"ID": "901", "card_scheme": "Aurora", "account_type": ["R"], "aci": ["B"], "is_credit": true, "fixed_amount": "0.12", "rate": "16"},
+    {"ID": "902", "card_scheme": "Aurora", "account_type": null, "aci": null, "is_credit": false, "fixed_amount": "0.08", "rate": "24"},
+    {"ID": "903", "card_scheme": "Boreal", "account_type": ["H"], "aci": ["A"], "fixed_amount": "0.20", "rate": "8"},
+    {"ID": "904", "card_scheme": "Aurora", "account_type": [], "aci": null, "monthly_volume": ">300", "fixed_amount": "0.04", "rate": "10"}
+  ],
+  "payments": [
+    {"merchant": "Cedar_Lantern", "year": 2024, "day_of_year": 1, "eur_amount": 100, "has_fraudulent_dispute": true, "card_scheme": "Aurora", "aci": "B", "is_credit": true, "issuing_country": "NL", "acquirer_country": "NL"},
+    {"merchant": "Cedar_Lantern", "year": 2024, "day_of_year": 12, "eur_amount": 300, "has_fraudulent_dispute": false, "card_scheme": "Aurora", "aci": "B", "is_credit": false, "issuing_country": "NL", "acquirer_country": "BE"},
+    {"merchant": "Cedar_Lantern", "year": 2024, "day_of_year": 32, "eur_amount": 900, "has_fraudulent_dispute": false, "card_scheme": "Boreal", "aci": "A", "is_credit": true, "issuing_country": "NL", "acquirer_country": "NL"}
+  ],
+  "cases": [
+    {"case_id": "select-retail", "question": "Which fee IDs apply to account_type = R and aci = B?", "request": {"operation": "select", "account_type": "R", "aci": "B"}},
+    {"case_id": "select-empty-open", "question": "Which fee IDs apply to account_type = R and aci = B?", "empty_list_is_wildcard": true, "request": {"operation": "select", "account_type": "R", "aci": "B"}},
+    {"case_id": "average-credit-25", "question": "For credit transactions, what is the average fee for card scheme Aurora for a transaction value of 25 EUR?", "request": {"operation": "average_fee", "card_scheme": "Aurora", "is_credit": true, "transaction_value": "25"}},
+    {"case_id": "average-debit-decimal", "question": "For debit transactions, what is the average fee for card scheme Aurora for a transaction value of 12.50 EUR?", "request": {"operation": "average_fee", "card_scheme": "Aurora", "is_credit": false, "transaction_value": "12.50"}},
+    {"case_id": "average-default", "question": "What is the average fee for card scheme Boreal?", "request": {"operation": "average_fee", "card_scheme": "Boreal"}},
+    {"case_id": "average-mcc", "question": "For account type R and MCC description: Grocery Stores, what is the average fee for card scheme Aurora?", "request": {"operation": "average_fee", "account_type": "R", "merchant_category_code": 5411, "card_scheme": "Aurora"}},
+    {"case_id": "applicable-month", "question": "Which fee IDs are applicable to Cedar_Lantern in January 2024?", "request": {"operation": "applicable", "merchant": "Cedar_Lantern", "year": 2024, "month": 1}},
+    {"case_id": "applicable-day-month-context", "question": "Which fee IDs are applicable to Cedar_Lantern on day 1 of 2024?", "empty_list_is_wildcard": true, "request": {"operation": "applicable", "merchant": "Cedar_Lantern", "year": 2024, "day_of_year": 1}},
+    {"case_id": "counterfactual-month", "question": "What delta would Cedar_Lantern pay in January 2024 if fee ID=901 changed to 32?", "request": {"operation": "counterfactual", "merchant": "Cedar_Lantern", "year": 2024, "month": 1, "rule_id": "901", "alternate_rate": "32"}},
+    {"case_id": "counterfactual-day", "question": "What delta would Cedar_Lantern pay on day 1 of 2024 if fee ID=901 changed to 8?", "request": {"operation": "counterfactual", "merchant": "Cedar_Lantern", "year": 2024, "day_of_year": 1, "rule_id": "901", "alternate_rate": "8"}},
+    {"case_id": "unsupported-operation", "question": "Which country has the highest sales?", "refusal": "rule_question_unrecognised_operation"},
+    {"case_id": "unknown-merchant", "question": "Which fee IDs are applicable to Missing_Shop in January 2024?", "refusal": "rule_question_missing_merchant"},
+    {"case_id": "missing-time", "question": "Which fee IDs are applicable to Cedar_Lantern?", "refusal": "rule_question_missing_time_scope"},
+    {"case_id": "two-months", "question": "Which fee IDs are applicable to Cedar_Lantern in January and February 2024?", "refusal": "rule_question_ambiguous_time_scope"},
+    {"case_id": "two-years", "question": "Which fee IDs are applicable to Cedar_Lantern in January 2023 and 2024?", "refusal": "rule_question_ambiguous_time_scope"},
+    {"case_id": "negative-value", "question": "What is the average fee for card scheme Aurora for a transaction value of -25 EUR?", "refusal": "rule_question_invalid_transaction_value"},
+    {"case_id": "unsupported-currency", "question": "What is the average fee for card scheme Aurora for a transaction value of 25 USD?", "refusal": "rule_question_invalid_transaction_value"},
+    {"case_id": "two-values", "question": "What is the average fee for card scheme Aurora for a transaction value of 25 EUR and transaction value of 50 EUR?", "refusal": "rule_question_invalid_transaction_value"}
+  ]
+}

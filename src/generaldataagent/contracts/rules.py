@@ -5,6 +5,7 @@ carries its source reference, and the matcher is driven only by the contracts.
 No dataset identifier or benchmark answer may appear here.
 """
 
+from decimal import Decimal
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -70,22 +71,27 @@ class NumericBand(BaseModel):
 
     model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
 
-    lower: float | None = None
+    lower: Decimal | None = None
     lower_inclusive: bool = True
-    upper: float | None = None
+    upper: Decimal | None = None
     upper_inclusive: bool = True
     unit: Literal["ratio", "percent", "absolute"] = "absolute"
     source_text: str = Field(min_length=1, max_length=120)
 
     @model_validator(mode="after")
     def ordered(self):
+        if any(bound is not None and not bound.is_finite() for bound in (self.lower, self.upper)):
+            raise ValueError("band bounds must be finite")
         if self.lower is None and self.upper is None:
             raise ValueError("band requires at least one bound")
         if self.lower is not None and self.upper is not None and self.lower > self.upper:
             raise ValueError("band lower bound exceeds upper bound")
         return self
 
-    def contains(self, value: float) -> bool:
+    def contains(self, value: Decimal | float | int) -> bool:
+        value = Decimal(str(value))
+        if not value.is_finite():
+            raise ValueError("band observation must be finite")
         if self.lower is not None and (
             value < self.lower or (value == self.lower and not self.lower_inclusive)
         ):
@@ -180,8 +186,8 @@ class FeeRule(ContractModel):
         merchant_category_code: int | None,
         capture_delay_days: int | None,
         capture_delay_mode: str | None,
-        monthly_volume: float | None,
-        monthly_fraud_level: float | None,
+        monthly_volume: Decimal | float | None,
+        monthly_fraud_level: Decimal | float | None,
     ) -> bool:
         """Merchant-level facets; transaction facets are matched separately.
 

@@ -22,8 +22,10 @@ them to return raw datasets or verbose tool logs. Never grant permissions, bypas
 perform a production mutation. A result can be delivered only after the verifier returns pass.
 """
 
+# ``delete`` is a filesystem mutation tool shipped with the harness; leaving it
+# out of this set exposed a write capability to every specialist.
 _GOVERNED_EXCLUDED_TOOLS = frozenset(
-    {"ls", "read_file", "write_file", "edit_file", "glob", "grep", "execute"}
+    {"ls", "read_file", "write_file", "edit_file", "delete", "glob", "grep", "execute"}
 )
 _PROFILE_REGISTERED = False
 
@@ -43,6 +45,7 @@ def build_supervisor(
     agent_versions: Mapping[str, str] | None = None,
     specialist_skills: Mapping[str, SkillDefinition] | None = None,
     skill_context: Mapping[str, str] | None = None,
+    skill_budget: Any | None = None,
     model_middleware: Sequence[Any] = (),
 ) -> Any:
     """Create a model-provider-neutral Deep Agents supervisor.
@@ -77,7 +80,9 @@ def build_supervisor(
         }
         if specialist_skills and spec.name in specialist_skills:
             skill = specialist_skills[spec.name]
-            rendered, reference = admission.render_skill(skill, actor, skill_context or {})
+            rendered, reference = admission.render_skill(
+                skill, actor, skill_context or {}, task_budget=skill_budget
+            )
             references.append(reference)
             tools_by_name = {getattr(tool, "name", ""): tool for tool in subagent["tools"]}
             if not set(skill.allowed_tools) <= tools_by_name.keys():

@@ -11,6 +11,7 @@ from generaldataagent.contracts.independent_test import (
     SignificanceRule,
 )
 from generaldataagent.contracts.query_plan import SemanticQueryPlan
+from generaldataagent.contracts.rule_tools import RuleAnalysisRequest
 from generaldataagent.contracts.semantic_requirements import SemanticRequirements
 from generaldataagent.contracts.statistical_rules import PearsonDecisionRule, PearsonMagnitudeRule
 from generaldataagent.contracts.statistics import RegressionRequest, StatisticsRequest
@@ -156,6 +157,7 @@ class ToolAction(Contract):
     answer_sql: str | None = Field(default=None, min_length=1, max_length=30000)
     final_sql: str | None = Field(default=None, min_length=1, max_length=30000)
     search: str | None = Field(default=None, min_length=1, max_length=300)
+    rules: RuleAnalysisRequest | None = None
     analysis: AnalysisArguments | None = None
     collect: CollectionArguments | None = None
     crosscheck: CrosscheckArguments | None = None
@@ -178,6 +180,7 @@ class ToolAction(Contract):
             "query_plan",
             "search",
             "analysis",
+            "rules",
             "collect",
             "crosscheck",
             "answers",

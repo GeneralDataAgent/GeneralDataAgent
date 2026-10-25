@@ -1,7 +1,6 @@
 """Retrieval citations and fail-closed answer verification for stage 9."""
 
 from decimal import Decimal
-from pathlib import Path
 
 import pytest
 
@@ -28,9 +27,6 @@ from generaldataagent.contracts.rules import (
     RuleVerification,
     TransactionFacets,
 )
-
-ROOT = Path(__file__).resolve().parents[1]
-MANUAL = ROOT / "data/stage6/dabstep/manual.md"
 
 DOCUMENT = """\
 Intro text before any heading.
@@ -78,9 +74,35 @@ def test_passages_are_heading_delimited_and_cite_exact_lines():
     ]
     assert passages[0].text == "Intro text before any heading."
     assert passages[0].start_line == 1
-    assert passages[2].start_line == 8
-    assert passages[2].end_line == 8
-    assert citation(passages[2]) == "policy.md#Section Two:8-8"
+    assert passages[2].start_line == 9
+    assert passages[2].end_line == 9
+    assert citation(passages[2]) == "policy.md#Section Two:9-9"
+    for passage in passages:
+        assert passage.text == "\n".join(
+            DOCUMENT.splitlines()[passage.start_line - 1 : passage.end_line]
+        )
+
+
+@pytest.mark.parametrize(
+    "document,start_line,end_line,body",
+    [
+        ("# Rules\nfirst\n\nlast\n", 2, 4, "first\n\nlast"),
+        ("# Rules\n\n \t\nfirst\n", 4, 4, "first"),
+        ("# Rules\nfirst\n\n \t\n", 2, 2, "first"),
+        ("# Rules\n\n  first  \n \t\nlast\t\n\n", 3, 5, "  first  \n \t\nlast\t"),
+        ("\n \t\nintro\n\n# Empty\n\n", 3, 3, "intro"),
+    ],
+)
+def test_passage_spans_reconstruct_exact_source_slice(document, start_line, end_line, body):
+    (passage,) = split_passages(document, source="policy.md")
+    assert (passage.start_line, passage.end_line) == (start_line, end_line)
+    assert passage.text == body
+    assert passage.text == "\n".join(document.splitlines()[start_line - 1 : end_line])
+
+
+@pytest.mark.parametrize("document", ["", "\n \t\n", "# Empty\n\n## Also empty\n \t\n"])
+def test_blank_passage_bodies_are_omitted(document):
+    assert split_passages(document, source="policy.md") == ()
 
 
 def test_blank_source_and_oversized_passage_are_rejected():
@@ -107,20 +129,40 @@ def test_selection_requires_terms_and_never_falls_back_to_whole_document():
         select_passages(passages, required_terms=["credit"], limit=0)
 
 
-def test_selection_ranks_by_optional_terms_and_stays_bounded():
-    passages = split_passages(MANUAL.read_text(encoding="utf-8"), source="manual.md")
+@pytest.fixture
+def ranking_document():
+    return """\
+# Overview
+The fee is charged on each transaction.
+# Fixed component
+The fee includes fixed_amount.
+# Rate component
+The fee includes a rate component.
+# Formula
+The fee equals fixed_amount plus rate times transaction value divided by 10000.
+# Unrelated
+Settlement occurs daily.
+"""
+
+
+def test_selection_ranks_by_optional_terms_and_stays_bounded(ranking_document):
+    passages = split_passages(ranking_document, source="synthetic-policy.md")
     selection = select_passages(
         passages, required_terms=["fee"], optional_terms=["fixed_amount", "rate"], limit=3
     )
-    assert len(selection.selected) <= 3
-    assert selection.hit_count >= len(selection.selected)
-    assert "fixed_amount" in selection.selected[0].text
+    assert len(selection.selected) == 3
+    assert selection.hit_count == 4
+    assert [passage.heading for passage in selection.selected] == [
+        "Formula",
+        "Fixed component",
+        "Rate component",
+    ]
 
 
 def test_rule_citations_bind_ids_and_reject_uncited_rules():
     passages = split_passages(DOCUMENT, source="policy.md")
     citations = resolve_rule_citations(passages, ["384"])
-    assert citations[0].reference == "policy.md#Section Two:8-8"
+    assert citations[0].reference == "policy.md#Section Two:9-9"
     with pytest.raises(PassageError, match="no citing passage"):
         resolve_rule_citations(passages, ["999"])
 

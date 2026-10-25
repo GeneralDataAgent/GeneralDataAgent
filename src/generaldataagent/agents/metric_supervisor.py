@@ -9,12 +9,12 @@ from typing import Any
 from deepagents.backends import StateBackend
 from langchain_core.tools import StructuredTool
 from langgraph.checkpoint.memory import InMemorySaver
-from pydantic import BaseModel, ConfigDict
 
 from generaldataagent.agents.completion import await_validated_completion
 from generaldataagent.agents.contracts import SpecialistResult, SupervisorResult
 from generaldataagent.agents.factory import build_supervisor
 from generaldataagent.agents.specs import SPECIALIST_SPECS
+from generaldataagent.agents.supervision import NoToolArguments, record_role
 from generaldataagent.business.actions import content_hash
 from generaldataagent.catalog import InMemoryMetricCatalog
 from generaldataagent.contracts import ActorContext, MetricQuery
@@ -38,8 +38,7 @@ passes; a completed answer without reporter is invalid.
 _REQUIRED_ROLE_SEQUENCE = ("discovery", "data-analyst", "verifier", "reporter")
 
 
-class _NoToolArguments(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+_NoToolArguments = NoToolArguments
 
 
 class _BoundRequestTool(StructuredTool):
@@ -235,7 +234,7 @@ class MetricSupervisorRuntime:
             metric_version: str,
             dimensions: list[str],
         ) -> dict[str, Any]:
-            _record_role(events, "discovery")
+            record_role(events, "discovery", _REQUIRED_ROLE_SEQUENCE)
             if bound_query is not None and (metric_name, metric_version, tuple(dimensions)) != (
                 bound_query.metric_name,
                 bound_query.metric_version,
@@ -271,7 +270,7 @@ class MetricSupervisorRuntime:
             start_time: datetime | None = None,
             end_time: datetime | None = None,
         ) -> dict[str, Any]:
-            _record_role(events, "data-analyst")
+            record_role(events, "data-analyst", _REQUIRED_ROLE_SEQUENCE)
             proposed_query = MetricQuery(
                 metric_name=metric_name,
                 metric_version=metric_version,
@@ -298,7 +297,7 @@ class MetricSupervisorRuntime:
             return tool_result
 
         def verify_candidate() -> dict[str, Any]:
-            _record_role(events, "verifier")
+            record_role(events, "verifier", _REQUIRED_ROLE_SEQUENCE)
             candidate = _candidate(candidates)
             validation = candidate["validation_result"]
             evidence = candidate["delivery_package"]["evidence"]
@@ -310,7 +309,7 @@ class MetricSupervisorRuntime:
             }
 
         def read_validated_delivery() -> dict[str, Any]:
-            _record_role(events, "reporter")
+            record_role(events, "reporter", _REQUIRED_ROLE_SEQUENCE)
             candidate = _candidate(candidates)
             if candidate["validation_result"]["status"] != "pass":
                 raise PermissionError("candidate has not passed validation")
@@ -416,17 +415,6 @@ def _candidate(candidates: dict[str, dict[str, Any]]) -> dict[str, Any]:
         return candidates["current"]["analysis"]
     except KeyError as exc:
         raise ValueError("no analysis candidate exists for this request") from exc
-
-
-def _record_role(events: list[str], role: str) -> None:
-    if events and events[-1] == role:
-        return
-    expected = (
-        _REQUIRED_ROLE_SEQUENCE[len(events)] if len(events) < len(_REQUIRED_ROLE_SEQUENCE) else None
-    )
-    if role != expected:
-        raise PermissionError(f"role {role!r} cannot run; expected {expected!r}")
-    events.append(role)
 
 
 def _candidate_passed(candidates: dict[str, dict[str, Any]]) -> bool:
