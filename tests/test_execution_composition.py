@@ -839,3 +839,58 @@ def test_metric_resume_refuses_a_task_outside_the_composition(tmp_path):
         # A different actor is refused earlier, by the checkpoint's own scope.
         with pytest.raises(PermissionError, match="checkpoint_access_denied"):
             runtime.resume(result["task_id"], ACTOR.model_copy(update={"data_domains": ("other",)}))
+
+
+def test_identity_distinguishes_a_covering_actor_from_the_same_principal(tmp_path):
+    from generaldataagent.orchestration import ExecutionIdentity
+
+    identity = ExecutionIdentity(actor=ACTOR)
+    # Science admits a narrower actor inside the bound scope; delivery does not.
+    broad = ExecutionIdentity(
+        actor=ACTOR.model_copy(update={"data_domains": ("payments", "extra")})
+    )
+    narrow = ACTOR.model_copy(update={"data_domains": ("payments",)})
+    broad.require_covering_actor(narrow, "covering_refused")
+    with pytest.raises(PermissionError, match="equal_refused"):
+        broad.require_equal_actor(narrow, "equal_refused")
+    for change in (
+        {"tenant_id": "other"},
+        {"project_id": "other"},
+        {"user_id": "other"},
+        {"data_domains": ("payments", "extra")},
+    ):
+        wider = ACTOR.model_copy(update=change)
+        with pytest.raises(PermissionError, match="covering_refused"):
+            identity.require_covering_actor(wider, "covering_refused")
+
+
+def test_identity_resolves_the_composed_task_and_trace_or_keeps_the_callers():
+    from generaldataagent.orchestration import ExecutionIdentity
+
+    # An identity that owns neither leaves the caller's choice alone.
+    loose = ExecutionIdentity(actor=ACTOR)
+    assert loose.resolve_task(None, code="task_refused") is None
+    assert loose.resolve_task(TASK, code="task_refused") == TASK
+    assert loose.resolve_trace("caller-trace") == "caller-trace"
+    # A composed one is not the caller's to override, and fills in what they omit.
+    bound = ExecutionIdentity(actor=ACTOR, task_id=TASK, trace_id="composed")
+    assert bound.resolve_task(None, code="task_refused") == TASK
+    assert bound.resolve_task(TASK, code="task_refused") == TASK
+    with pytest.raises(PermissionError, match="task_refused"):
+        bound.resolve_task(uuid4(), code="task_refused")
+    assert bound.resolve_trace("caller-trace") == "composed"
+
+
+@pytest.mark.parametrize(
+    "change,code",
+    [
+        ({"actor": "not-an-actor"}, "identity_actor_required"),
+        ({"task_id": "not-a-uuid"}, "identity_task_id_invalid"),
+        ({"trace_id": "  "}, "identity_trace_id_invalid"),
+    ],
+)
+def test_identity_validates_its_own_fields(change, code):
+    from generaldataagent.orchestration import ExecutionIdentity
+
+    with pytest.raises(ValueError, match=code):
+        ExecutionIdentity(**({"actor": ACTOR} | change))

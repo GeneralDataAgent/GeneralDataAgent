@@ -159,10 +159,9 @@ class RuleDeliveryRuntime:
         if (actor.user_id, actor.tenant_id, actor.project_id) == ("", "", ""):
             raise PermissionError("rule_delivery_actor_required")
         if self.composition is not None:
-            if self.composition.actor != actor:
-                raise PermissionError("rule_delivery_composition_actor_mismatch")
-            if self.composition.task_id is not None and task_id != self.composition.task_id:
-                raise PermissionError("rule_delivery_task_scope_mismatch")
+            identity = self.composition.identity
+            identity.require_equal_actor(actor, "rule_delivery_composition_actor_mismatch")
+            identity.resolve_task(task_id, code="rule_delivery_task_scope_mismatch")
         require_artifact_scope(self.artifacts, actor)
         # A gateway per delivery, exactly as ``GovernedRuleRunner`` does: handlers
         # close over this call's actor and task so a shared gateway can never be
@@ -174,8 +173,8 @@ class RuleDeliveryRuntime:
             budgets=self.composition.budgets if self.composition is not None else None,
         )
         trace = (
-            self.composition.trace_id
-            if self.composition is not None and self.composition.trace_id is not None
+            self.composition.identity.resolve_trace(trace_id or f"rule-delivery-{task_id}")
+            if self.composition is not None
             else trace_id or f"rule-delivery-{task_id}"
         )
 

@@ -138,26 +138,26 @@ class MetricAnalysisRuntime:
         thread_id: str | None = None,
     ) -> dict[str, Any]:
         require_artifact_scope(self.artifacts, actor)
-        composed_task = None
+        composed = None
         if self.composition is not None:
-            if self.composition.actor != actor:
-                raise PermissionError("analysis_composition_actor_mismatch")
-            composed_task = self.composition.task_id
-        task_id = str(composed_task or uuid4())
+            identity = self.composition.identity
+            identity.require_equal_actor(actor, "analysis_composition_actor_mismatch")
+            composed = identity.task_id
+        task_id = str(composed or uuid4())
         if self.budgets is not None:
-            if composed_task is not None:
+            if composed is not None:
                 # A composed task owns its budget. An unregistered or expired
                 # task is refused here rather than handed a fresh default that
                 # would silently cover usage the operator never authorized.
-                self.budgets.ensure_active(composed_task, actor)
+                self.budgets.ensure_active(composed, actor)
             else:
                 self.budgets.register(UUID(task_id), actor, Budget())
         actual_thread_id = thread_id or task_id
         if self.checkpointer is not None:
             self.checkpointer.register_thread(actual_thread_id, actor)
         trace_id = (
-            self.composition.trace_id
-            if self.composition is not None and self.composition.trace_id is not None
+            self.composition.identity.resolve_trace(str(uuid4()))
+            if self.composition is not None
             else str(uuid4())
         )
         state: PhaseOneState = {
@@ -217,9 +217,10 @@ class MetricAnalysisRuntime:
                 raise PermissionError("checkpoint_access_denied")
             # ``execution`` already bound the actor to this thread; what it cannot
             # know is whether the thread is the work the operator composed.
-            composed_task = self.composition.task_id if self.composition is not None else None
-            if composed_task is not None and UUID(snapshot.values["task_id"]) != composed_task:
-                raise PermissionError("analysis_composition_task_mismatch")
+            if self.composition is not None:
+                self.composition.identity.resolve_task(
+                    UUID(snapshot.values["task_id"]), code="analysis_composition_task_mismatch"
+                )
             if self.budgets is not None:
                 self.budgets.ensure_active(UUID(snapshot.values["task_id"]), actor)
             if not snapshot.next:
