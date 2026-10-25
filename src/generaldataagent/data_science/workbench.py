@@ -23,6 +23,7 @@ from generaldataagent.data_science.snapshot import load_snapshot_rows
 from generaldataagent.data_science.tracking import SQLiteExperimentTracker
 from generaldataagent.observability import JsonlAuditSink
 from generaldataagent.observability.verified_audit import VerifiedAuditSink
+from generaldataagent.orchestration.composition import ExecutionComposition
 from generaldataagent.policy import PolicyEngine
 
 
@@ -45,7 +46,17 @@ class DataScienceWorkbench:
         audit: JsonlAuditSink | VerifiedAuditSink | None = None,
         tracker: SQLiteExperimentTracker | None = None,
         production_mode: bool = False,
+        composition: ExecutionComposition | None = None,
     ) -> None:
+        if composition is not None:
+            if composition.artifacts is not artifact_store or (
+                audit is not None and composition.audit is not audit
+            ):
+                raise ValueError("science_composition_ports_disagree")
+            if production_mode and composition.mode != "product":
+                raise ValueError("science_production_mode_requires_a_product_composition")
+            production_mode = composition.mode == "product"
+            audit = composition.audit
         if production_mode and (
             not isinstance(artifact_store, GovernedArtifactStore)
             or not isinstance(audit, VerifiedAuditSink)
@@ -55,6 +66,7 @@ class DataScienceWorkbench:
                 "production science requires governed artifacts, independent audit and OCI sandbox"
             )
         self.production_mode = production_mode
+        self.composition = composition
         self.artifact_store = artifact_store
         self.policy = policy or PolicyEngine()
         self.sandbox = sandbox or FixedTemplateSandbox()
@@ -74,6 +86,18 @@ class DataScienceWorkbench:
     ) -> ExperimentReport:
         if self.production_mode and spec.duplicate_policy != "reject":
             raise PermissionError("production science requires duplicate rejection")
+        if self.composition is not None:
+            bound = self.composition.actor
+            if (bound.user_id, bound.tenant_id, bound.project_id) != (
+                user_id,
+                tenant_id,
+                project_id,
+            ) or data_domain not in bound.data_domains:
+                raise PermissionError("science_composition_actor_mismatch")
+            if self.composition.budgets is not None:
+                # The task owns its budget; an unregistered or expired task is
+                # refused here, before any policy decision is recorded.
+                self.composition.budgets.ensure_active(spec.task_id, bound)
         if isinstance(self.artifact_store, GovernedArtifactStore):
             actor = self.artifact_store.actor
             if (actor.tenant_id, actor.project_id) != (
@@ -124,6 +148,8 @@ class DataScienceWorkbench:
         )
         if decision.decision != "allow":
             raise PermissionError(f"experiment denied by policy: {decision.reason_code}")
+        if self.composition is not None and self.composition.budgets is not None:
+            self.composition.budgets.reserve(spec.task_id, self.composition.actor)
         rows = load_snapshot_rows(snapshot, self.artifact_store)
         # One shared preparation path: the regression adapter splits and checks
         # the same way, so a control added here reaches both callers.
