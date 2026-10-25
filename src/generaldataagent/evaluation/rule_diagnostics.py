@@ -38,61 +38,77 @@ class RuleCallDiagnostics(BaseCallbackHandler):
         run_id = str(kwargs.get("run_id") or "")
         agent = self._agents.pop(run_id, _MAIN_AGENT)
         request = self._tool_choice.pop(run_id, {})
-        for batch in response.generations:
-            for generation in batch:
-                message = getattr(generation, "message", None)
-                if message is None:
-                    continue
-                calls = []
-                for call in getattr(message, "tool_calls", []):
-                    arguments = call["args"]
-                    entry = {
-                        "name": call["name"],
-                        "argument_keys": sorted(arguments),
-                        "subagent_type": arguments.get("subagent_type")
-                        if arguments.get("subagent_type") in RULE_ROLE_SEQUENCE
-                        else None,
-                    }
-                    # Keep only finite enums. In particular, a model's summary,
-                    # limitations and task ids never enter this diagnostic log.
-                    if call["name"] == "SpecialistResult":
-                        entry["reported_role"] = (
-                            arguments.get("role")
-                            if arguments.get("role") in RULE_ROLE_SEQUENCE
-                            else None
-                        )
-                        entry["reported_status"] = (
-                            arguments.get("status")
-                            if arguments.get("status") in {"completed", "failed", "needs_human"}
-                            else None
-                        )
-                    calls.append(entry)
-                self.events.append(
-                    {
-                        "status": "response",
-                        "agent": agent,
-                        "tool_calls": calls,
-                        # A call that failed argument parsing is not a tool call
-                        # by this point. Without counting it, "the model stopped
-                        # calling tools" and "the model called with malformed
-                        # arguments" look identical. Only names are kept: an
-                        # invalid argument payload is model text.
-                        "invalid_tool_calls": [
-                            str(_field(call, "name") or "")
-                            for call in getattr(message, "invalid_tool_calls", ())
-                        ],
-                        # An empty response and a prose-only response both have
-                        # no tool calls; the length separates them without
-                        # storing the prose.
-                        "text_chars": len(message.text) if isinstance(message.text, str) else 0,
-                        # The request's requirement, carried onto its response so
-                        # a tool-free reply can be read as "chose prose" or as
-                        # "ignored a required call".
-                        **request,
-                        "usage": getattr(message, "usage_metadata", None),
-                        "finish_reason": message.response_metadata.get("finish_reason"),
-                    }
-                )
+        generations = [generation for batch in response.generations for generation in batch]
+        # Candidate generations are alternative replies to one request. Their
+        # usage figures may each repeat the request totals, so only a single
+        # candidate's figure is admissible as this call's usage; anything else
+        # is recorded as unknown rather than summed or guessed.
+        usage = (
+            getattr(getattr(generations[0], "message", None), "usage_metadata", None)
+            if len(generations) == 1
+            else None
+        )
+        self.events.append(
+            {
+                "status": "call_completed",
+                "candidate_count": len(generations),
+                "usage": usage,
+            }
+        )
+        for generation in generations:
+            message = getattr(generation, "message", None)
+            if message is None:
+                continue
+            calls = []
+            for call in getattr(message, "tool_calls", []):
+                arguments = call["args"]
+                entry = {
+                    "name": call["name"],
+                    "argument_keys": sorted(arguments),
+                    "subagent_type": arguments.get("subagent_type")
+                    if arguments.get("subagent_type") in RULE_ROLE_SEQUENCE
+                    else None,
+                }
+                # Keep only finite enums. In particular, a model's summary,
+                # limitations and task ids never enter this diagnostic log.
+                if call["name"] == "SpecialistResult":
+                    entry["reported_role"] = (
+                        arguments.get("role")
+                        if arguments.get("role") in RULE_ROLE_SEQUENCE
+                        else None
+                    )
+                    entry["reported_status"] = (
+                        arguments.get("status")
+                        if arguments.get("status") in {"completed", "failed", "needs_human"}
+                        else None
+                    )
+                calls.append(entry)
+            self.events.append(
+                {
+                    "status": "response",
+                    "agent": agent,
+                    "tool_calls": calls,
+                    # A call that failed argument parsing is not a tool call
+                    # by this point. Without counting it, "the model stopped
+                    # calling tools" and "the model called with malformed
+                    # arguments" look identical. Only names are kept: an
+                    # invalid argument payload is model text.
+                    "invalid_tool_calls": [
+                        str(_field(call, "name") or "")
+                        for call in getattr(message, "invalid_tool_calls", ())
+                    ],
+                    # An empty response and a prose-only response both have
+                    # no tool calls; the length separates them without
+                    # storing the prose.
+                    "text_chars": len(message.text) if isinstance(message.text, str) else 0,
+                    # The request's requirement, carried onto its response so
+                    # a tool-free reply can be read as "chose prose" or as
+                    # "ignored a required call".
+                    **request,
+                    "usage": getattr(message, "usage_metadata", None),
+                    "finish_reason": message.response_metadata.get("finish_reason"),
+                }
+            )
 
     def on_llm_error(self, error, **kwargs) -> None:
         status = getattr(error, "status_code", None)
@@ -112,21 +128,22 @@ class RuleCallDiagnostics(BaseCallbackHandler):
 
     def usage(self) -> dict:
         totals = dict.fromkeys(_TOKEN_KEYS, 0)
-        responses = [event for event in self.events if event["status"] == "response"]
-        complete = bool(responses)
-        for event in responses:
+        completed = [event for event in self.events if event["status"] == "call_completed"]
+        errors = sum(event["status"] == "error" for event in self.events)
+        complete = bool(completed)
+        for event in completed:
             usage = event.get("usage")
-            if not isinstance(usage, dict):
+            if event.get("candidate_count") != 1 or not isinstance(usage, dict):
                 complete = False
                 continue
-            for key in totals:
-                value = usage.get(key)
-                if type(value) is int and value >= 0:
-                    totals[key] += value
-                else:
-                    complete = False
+            values = [usage.get(key) for key in _TOKEN_KEYS]
+            if any(type(value) is not int or value < 0 for value in values):
+                complete = False
+                continue
+            for key, value in zip(_TOKEN_KEYS, values, strict=True):
+                totals[key] += value
         attempts = sum(event["status"] == "started" for event in self.events)
-        if attempts != len(responses) or any(event["status"] == "error" for event in self.events):
+        if attempts != len(completed) + errors or errors:
             complete = False
         return {**totals, "telemetry_complete": complete, "known_tokens_only": not complete}
 
@@ -134,7 +151,9 @@ class RuleCallDiagnostics(BaseCallbackHandler):
         calls = [call for event in self.events for call in event.get("tool_calls", [])]
         return {
             "model_attempts": sum(event["status"] == "started" for event in self.events),
-            "model_calls": sum(event["status"] == "response" for event in self.events),
+            # One request can return several candidate generations. Counting the
+            # candidates would inflate calls; an empty completion is still a call.
+            "model_calls": sum(event["status"] == "call_completed" for event in self.events),
             "model_errors": [event for event in self.events if event["status"] == "error"],
             "tool_errors": [event for event in self.events if event["status"] == "tool_error"],
             "usage": self.usage(),

@@ -91,6 +91,64 @@ def test_failed_and_cancelled_calls_keep_known_usage_but_mark_it_incomplete():
     assert "private provider details" not in json.dumps(snapshot)
 
 
+@pytest.mark.parametrize("pending", [False, True])
+def test_multiple_candidates_count_one_call_without_claiming_complete_usage(pending):
+    diagnostics = RuleCallDiagnostics()
+    diagnostics.on_chat_model_start({}, [], run_id="completed")
+    if pending:
+        diagnostics.on_chat_model_start({}, [], run_id="pending")
+    diagnostics.on_llm_end(
+        LLMResult(
+            generations=[
+                [
+                    ChatGeneration(message=AIMessage(content="first", usage_metadata=TOKENS)),
+                    ChatGeneration(message=AIMessage(content="second", usage_metadata=TOKENS)),
+                ]
+            ]
+        ),
+        run_id="completed",
+    )
+    snapshot = diagnostics.snapshot()
+    assert snapshot["model_attempts"] == (2 if pending else 1)
+    assert snapshot["model_calls"] == 1
+    assert len(snapshot["response_shape"]) == 2
+    assert snapshot["usage"]["telemetry_complete"] is False
+    assert snapshot["usage"]["known_tokens_only"] is True
+    # Candidate usage may duplicate request totals; neither sum nor first is authoritative.
+    assert snapshot["usage"]["total_tokens"] == 0
+
+
+def test_empty_completion_is_one_call_with_unknown_usage():
+    diagnostics = RuleCallDiagnostics()
+    diagnostics.on_chat_model_start({}, [], run_id="empty")
+    diagnostics.on_llm_end(LLMResult(generations=[[]]), run_id="empty")
+    snapshot = diagnostics.snapshot()
+    assert snapshot["model_calls"] == 1
+    assert snapshot["response_shape"] == []
+    assert snapshot["usage"]["telemetry_complete"] is False
+
+
+def test_ambiguous_candidate_usage_preserves_known_single_response_tokens():
+    diagnostics = RuleCallDiagnostics()
+    response(diagnostics, usage=TOKENS, run_id="known")
+    diagnostics.on_chat_model_start({}, [], run_id="ambiguous")
+    diagnostics.on_llm_end(
+        LLMResult(
+            generations=[
+                [
+                    ChatGeneration(message=AIMessage(content="first", usage_metadata=TOKENS)),
+                    ChatGeneration(message=AIMessage(content="second", usage_metadata=TOKENS)),
+                ]
+            ]
+        ),
+        run_id="ambiguous",
+    )
+    snapshot = diagnostics.snapshot()
+    assert snapshot["model_calls"] == 2
+    assert snapshot["usage"]["total_tokens"] == 15
+    assert snapshot["usage"]["telemetry_complete"] is False
+
+
 def test_reports_keep_enums_without_free_text_or_invented_roles():
     diagnostics = RuleCallDiagnostics()
     response(
