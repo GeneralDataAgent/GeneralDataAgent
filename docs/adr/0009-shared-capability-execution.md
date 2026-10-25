@@ -126,6 +126,18 @@ The first implemented slice now shares facet selection through
 example. Context construction, computation and execution composition remain migration work; this
 slice does not complete the proposed service or establish live quality/generalization gains.
 
+The second implemented slice adds `orchestration/composition.py::ExecutionComposition`, an
+immutable value that binds one task's actor, artifact store, audit sink and optional budget under
+either a `research` or a `product` mode. `product` refuses at construction unless the ports are a
+`GovernedArtifactStore`, a `VerifiedAuditSink` and a `TaskBudgetLedger`; `research` admits the local
+development ports. The rule entry point consumes it: `GovernedRuleRunner` and `RuleDeliveryRuntime`
+accept an optional composition, check that the wired ports are the composition's own, and switch
+the gateway's `production_mode` and budget ledger from it, so a product run is refused when the
+audit service is down or the task budget was never registered. A composition is a statement about
+wiring, not an authorization: it does not admit an actor, a release or a data source, and its
+`production_ready` property reports wiring completeness only. Science workbench reuse, a shared
+task/actor/trace context object and the receipt milestone remain open.
+
 ## Supporting consolidation
 
 As these slices migrate, move extraction provenance contracts and pure validation below both
