@@ -9,15 +9,14 @@ from pathlib import Path
 
 from generaldataagent.business.rules import (
     applicable_rules,
-    average_fee,
     counterfactual_delta,
-    fee_results,
     load_rule_set,
     match_rules,
-    transaction_matches,
 )
 from generaldataagent.business.rules.application import (
+    compute_fee_summary,
     resolve_target_month,
+    rule_affected_amounts,
     scope_rule_month,
     select_rule_facets,
 )
@@ -271,13 +270,11 @@ def analyze_fee_rules(database, arguments, *, allowed_relations, documents):
     )
     if request.operation == "average_fee":
         value = Decimal(request.transaction_value)
-        fees = fee_results(selected, transaction_value=value, rounding="none")
-        if verify_fee_arithmetic(fees, value):
+        computation = compute_fee_summary(selected, transaction_value=value)
+        if verify_fee_arithmetic(computation.fees, value):
             raise ValueError("fee arithmetic verification failed")
         result["average_fee"] = (
-            float(average_fee(selected, transaction_value=value, rounding="none"))
-            if selected
-            else None
+            float(computation.average) if computation.average is not None else None
         )
         result["checks"].append("unrounded_fee_arithmetic")
     elif request.operation == "counterfactual":
@@ -285,7 +282,7 @@ def analyze_fee_rules(database, arguments, *, allowed_relations, documents):
         if len(targets) != 1:
             raise RuleToolError("rule_counterfactual_not_applicable")
         rule = targets[0]
-        affected = [Decimal(t.amount) for t in transactions if transaction_matches(rule, t)]
+        affected = rule_affected_amounts(rule, transactions)
         change = counterfactual_delta(
             rule, affected, alternate_rate=Decimal(request.alternate_rate)
         )

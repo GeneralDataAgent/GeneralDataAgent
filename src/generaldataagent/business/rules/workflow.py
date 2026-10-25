@@ -14,18 +14,17 @@ import json
 from decimal import Decimal, InvalidOperation
 
 from generaldataagent.business.rules.application import (
+    compute_fee_summary,
     resolve_target_month,
+    rule_affected_amounts,
     scope_rule_month,
     select_rule_facets,
 )
 from generaldataagent.business.rules.engine import (
     applicable_rules,
-    average_fee,
     counterfactual_delta,
-    fee_results,
     load_rule_set,
     match_rules,
-    transaction_matches,
 )
 from generaldataagent.business.rules.payments import (
     PaymentsSourceError,
@@ -194,11 +193,10 @@ class AnnexWorkflowServices:
             return self._compute_counterfactual(request, state)
         selected = self._selected(state)
         value = Decimal(request.transaction_value)
-        fees = fee_results(selected, transaction_value=value, rounding="none")
-        average = average_fee(selected, transaction_value=value, rounding="none")
+        computation = compute_fee_summary(selected, transaction_value=value)
         return {
-            "fees": [fee.model_dump(mode="json") for fee in fees],
-            "average_fee": str(average) if average is not None else None,
+            "fees": [fee.model_dump(mode="json") for fee in computation.fees],
+            "average_fee": str(computation.average) if computation.average is not None else None,
         }
 
     def _compute_counterfactual(self, request, state):
@@ -206,11 +204,7 @@ class AnnexWorkflowServices:
         if len(targets) != 1:
             raise ValueError("annex_workflow_counterfactual_not_applicable")
         rule = targets[0]
-        affected = [
-            Decimal(transaction.amount)
-            for transaction in self._transactions(state)
-            if transaction_matches(rule, transaction)
-        ]
+        affected = rule_affected_amounts(rule, self._transactions(state))
         change = counterfactual_delta(
             rule, affected, alternate_rate=Decimal(request.alternate_rate)
         )
@@ -333,11 +327,7 @@ class AnnexWorkflowServices:
         if len(targets) != 1:
             return ["rule_counterfactual_target_missing"]
         rule = targets[0]
-        amounts = [
-            Decimal(transaction.amount)
-            for transaction in self._transactions(state)
-            if transaction_matches(rule, transaction)
-        ]
+        amounts = rule_affected_amounts(rule, self._transactions(state))
         total = sum(amounts, Decimal(0))
         alternate = Decimal(request.alternate_rate)
         baseline = Decimal(rule.fixed_amount) * len(amounts) + Decimal(rule.rate) * total / Decimal(
