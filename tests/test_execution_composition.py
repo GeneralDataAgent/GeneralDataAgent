@@ -660,3 +660,182 @@ def test_composed_identity_fields_are_validated(tmp_path, change, code):
     )
     with pytest.raises(CompositionError, match=code):
         ExecutionComposition(**values)
+
+
+def _metric_fixture(
+    tmp_path,
+    *,
+    artifacts,
+    audit,
+    budgets,
+    checkpointer=None,
+    composition=None,
+    production_mode=False,
+):
+    import sqlite3
+
+    from generaldataagent.catalog import InMemoryMetricCatalog, MetricDefinition
+    from generaldataagent.orchestration import MetricAnalysisRuntime
+    from generaldataagent.tools import SQLiteReadOnlyExecutor
+
+    database = tmp_path / "orders.db"
+    with sqlite3.connect(database) as connection:
+        connection.execute("CREATE TABLE IF NOT EXISTS orders (created_at TEXT, channel TEXT)")
+        connection.executemany(
+            "INSERT INTO orders VALUES (?, ?)",
+            [("2026-10-01", "web"), ("2026-10-02", "store")],
+        )
+    metric = MetricDefinition(
+        name="order_count",
+        version="v1",
+        description="orders",
+        data_domain="payments",
+        relation="orders",
+        expression="COUNT(*)",
+        time_column="created_at",
+        owner="data",
+    )
+    return MetricAnalysisRuntime(
+        catalog=InMemoryMetricCatalog([metric]),
+        executor=SQLiteReadOnlyExecutor(database),
+        artifacts=artifacts,
+        audit=audit,
+        budgets=budgets,
+        checkpointer=checkpointer,
+        composition=composition,
+        production_mode=production_mode,
+    )
+
+
+def _metric_query():
+    from generaldataagent.contracts import MetricQuery
+
+    return MetricQuery(metric_name="order_count", metric_version="v1")
+
+
+def test_metric_runtime_refuses_ports_that_disagree_with_its_composition(tmp_path):
+    composition = product_composition(tmp_path)
+    with pytest.raises(ValueError, match="analysis_composition_ports_disagree"):
+        _metric_fixture(
+            tmp_path,
+            artifacts=LocalArtifactStore(tmp_path / "other"),
+            audit=composition.audit,
+            budgets=composition.budgets,
+            composition=composition,
+        )
+    # A research composition cannot be relabelled as a production runtime.
+    research = ExecutionComposition(
+        mode="research",
+        actor=ACTOR,
+        artifacts=composition.artifacts,
+        audit=JsonlAuditSink(tmp_path / "research.jsonl"),
+    )
+    with pytest.raises(ValueError, match="analysis_production_mode_requires_a_product"):
+        _metric_fixture(
+            tmp_path,
+            artifacts=composition.artifacts,
+            audit=research.audit,
+            budgets=None,
+            composition=research,
+            production_mode=True,
+        )
+    # Two ledgers would meter one task twice.
+    with pytest.raises(ValueError, match="analysis_composition_budgets_disagree"):
+        _metric_fixture(
+            tmp_path,
+            artifacts=composition.artifacts,
+            audit=composition.audit,
+            budgets=TaskBudgetLedger(tmp_path / "second.sqlite"),
+            composition=composition,
+        )
+
+
+def test_metric_runtime_refuses_a_composition_for_another_actor(tmp_path):
+    composition = ExecutionComposition(
+        mode="research",
+        actor=OTHER,
+        artifacts=LocalArtifactStore(tmp_path / "artifacts"),
+        audit=JsonlAuditSink(tmp_path / "audit.jsonl"),
+    )
+    runtime = _metric_fixture(
+        tmp_path,
+        artifacts=composition.artifacts,
+        audit=composition.audit,
+        budgets=None,
+        composition=composition,
+    )
+    with pytest.raises(PermissionError, match="analysis_composition_actor_mismatch"):
+        runtime.run(_metric_query(), ACTOR)
+
+
+def test_metric_runtime_runs_only_under_the_composed_task_and_trace(tmp_path):
+    budgets = TaskBudgetLedger(tmp_path / "budgets.sqlite")
+    composition = ExecutionComposition(
+        mode="research",
+        actor=ACTOR,
+        artifacts=LocalArtifactStore(tmp_path / "artifacts"),
+        audit=JsonlAuditSink(tmp_path / "audit.jsonl"),
+        budgets=budgets,
+        task_id=TASK,
+        trace_id="trace-metric",
+    )
+    runtime = _metric_fixture(
+        tmp_path,
+        artifacts=composition.artifacts,
+        audit=composition.audit,
+        budgets=budgets,
+        composition=composition,
+    )
+    # The composed task owns its budget; nothing registers a default for it.
+    with pytest.raises(BudgetExceededError, match="task_budget_access_denied"):
+        runtime.run(_metric_query(), ACTOR)
+    budgets.register(TASK, ACTOR, Budget())
+    result = runtime.run(_metric_query(), ACTOR)
+    assert result["task_id"] == str(TASK)
+    events = [
+        json.loads(line)
+        for line in (tmp_path / "audit.jsonl").read_text().splitlines()
+        if line.strip()
+    ]
+    assert {event["trace_id"] for event in events} == {"trace-metric"}
+    assert {event["task_id"] for event in events} == {str(TASK)}
+    # Evidence lands in the composed task, not an anonymous one.
+    assert [path.name for path in (tmp_path / "artifacts").iterdir()] == [str(TASK)]
+
+
+def test_metric_resume_refuses_a_task_outside_the_composition(tmp_path):
+    composition = ExecutionComposition(
+        mode="research",
+        actor=ACTOR,
+        artifacts=LocalArtifactStore(tmp_path / "artifacts"),
+        audit=JsonlAuditSink(tmp_path / "audit.jsonl"),
+        task_id=TASK,
+    )
+    with open_protected_checkpointer(tmp_path / "state", encryption_key=b"k" * 32) as saver:
+        runtime = _metric_fixture(
+            tmp_path,
+            artifacts=composition.artifacts,
+            audit=composition.audit,
+            budgets=None,
+            checkpointer=saver,
+            composition=composition,
+        )
+        result = runtime.run(_metric_query(), ACTOR)
+        assert result["task_id"] == str(TASK)
+        assert runtime.resume(result["task_id"], ACTOR)["task_id"] == str(TASK)
+        # The same actor's thread for another task is not this composition's
+        # work to finish, even though the checkpoint scope would allow it.
+        plain = _metric_fixture(
+            tmp_path,
+            artifacts=composition.artifacts,
+            audit=composition.audit,
+            budgets=None,
+            checkpointer=saver,
+        )
+        foreign = plain.run(_metric_query(), ACTOR)["task_id"]
+        assert foreign != str(TASK)
+        with pytest.raises(PermissionError, match="analysis_composition_task_mismatch"):
+            runtime.resume(foreign, ACTOR)
+        # A different actor is refused earlier, by the checkpoint's own scope.
+        with pytest.raises(PermissionError, match="checkpoint_access_denied"):
+            runtime.resume(result["task_id"], ACTOR.model_copy(update={"data_domains": ("other",)}))
