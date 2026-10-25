@@ -6,8 +6,8 @@ from fastapi.testclient import TestClient
 
 from generaldataagent.api.app import create_app
 from generaldataagent.contracts import ActorContext, HumanReview
-from generaldataagent.evaluation.reviews import DuplicateReviewError
-from generaldataagent.evaluation.scoped_reviews import ScopedHumanReviewStore
+from generaldataagent.review.local import DuplicateReviewError
+from generaldataagent.review.scoped import ScopedHumanReviewStore
 from generaldataagent.security.identity import SessionBroker
 
 

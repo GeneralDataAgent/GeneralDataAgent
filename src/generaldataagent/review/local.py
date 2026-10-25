@@ -1,4 +1,9 @@
-"""Append-only local human review ledger for development and offline acceptance."""
+"""Append-only local human review ledger for development and offline acceptance.
+
+This is a runtime port: the API accepts reviewed results through it in local
+pilot deployments. It records what a reviewer stated and computes the summary
+contract; it does not decide whether a release is accepted.
+"""
 
 from pathlib import Path
 from threading import Lock

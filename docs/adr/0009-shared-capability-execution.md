@@ -147,8 +147,16 @@ them rather than minting their own, and each refuses work outside the composed t
 under a composition no longer registers a default budget, so an uncomposed caller keeps today's
 behaviour while a composed one must have its task registered first.
 
-Still open in this milestone: one shared task/actor/trace value object instead of four consumers
-reading the composition's fields directly, and the receipt milestone.
+Still open in this milestone: the receipt milestone.
+
+`ExecutionIdentity` (in the same module) now owns the two questions every consumer was asking
+separately: whether a caller's actor is inside the bound scope, and whether its task is the composed
+one. The two answers are deliberately different checks — `require_covering_actor` admits a narrower
+actor (same tenant and project, domains a subset), `require_equal_actor` requires the same principal
+— because science compares a partial actor while rule delivery requires the identical one. Naming
+them made an existing divergence explicit instead of leaving each caller to inherit whichever rule
+its neighbour happened to encode. `resolve_task`/`resolve_trace` carry the "composed value wins"
+rule, and the composition validates through it while keeping its public failure codes.
 
 ## Supporting consolidation
 
