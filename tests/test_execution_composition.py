@@ -30,6 +30,7 @@ from generaldataagent.policy.budgets import BudgetExceededError, TaskBudgetLedge
 
 ACTOR = ActorContext(user_id="u", tenant_id="t", project_id="p", data_domains=("payments",))
 OTHER = ACTOR.model_copy(update={"tenant_id": "other"})
+TASK = uuid4()
 DOCUMENTS = "null means all\nfee = fixed_amount + rate * transaction_value / 10000"
 ANNEX = [dict(ID="A", card_scheme="Alpha", fixed_amount="0.05", rate="14")]
 
@@ -42,11 +43,13 @@ class ReceiptTransport:
         self.now = datetime.now(UTC)
         self.sequence = 0
         self.fail = False
+        self.events: list[dict] = []
 
     def __call__(self, content: bytes) -> AuditReceipt:
         if self.fail:
             raise RuntimeError("audit service down")
         self.sequence += 1
+        self.events.append(json.loads(content))
         receipt = AuditReceipt(
             event_id=json.loads(content)["event_id"],
             event_sha256=hashlib.sha256(content).hexdigest(),
@@ -85,7 +88,7 @@ def research_composition(tmp_path, *, budgets=None):
     )
 
 
-def product_composition(tmp_path, *, artifacts=None, audit=None, budgets=None):
+def product_composition(tmp_path, *, artifacts=None, audit=None, budgets=None, **identity):
     transport = ReceiptTransport()
     return ExecutionComposition(
         mode="product",
@@ -93,6 +96,7 @@ def product_composition(tmp_path, *, artifacts=None, audit=None, budgets=None):
         artifacts=artifacts or governed_store(tmp_path),
         audit=audit or transport.sink(),
         budgets=budgets or TaskBudgetLedger(tmp_path / "budgets.sqlite"),
+        **identity,
     )
 
 
@@ -558,3 +562,101 @@ def test_one_artifact_authorization_boundary_serves_every_writer(tmp_path):
     wider = ACTOR.model_copy(update={"data_domains": ("payments", "extra")})
     with pytest.raises(ArtifactScopeError, match="artifact_store_actor_scope_mismatch"):
         require_artifact_scope(governed, wider)
+
+
+def pseudonym(sink, value: str) -> str:
+    """The independent audit service sees only the keyed pseudonym of a trace."""
+    import hmac
+
+    return hmac.new(sink.pseudonym_key, value.encode(), hashlib.sha256).hexdigest()
+
+
+def test_composed_task_and_trace_are_not_the_callers_to_choose(tmp_path):
+    composition = product_composition(tmp_path, task_id=TASK, trace_id="trace-composed")
+    with open_protected_checkpointer(tmp_path / "state", encryption_key=b"k" * 32) as saver:
+        runner = GovernedRuleRunner(
+            runtime=runtime(tmp_path, saver),
+            actor=ACTOR,
+            artifacts=composition.artifacts,
+            audit=composition.audit,
+            composition=composition,
+        )
+        # Someone else's task id cannot borrow this composition's ports.
+        with pytest.raises(PermissionError, match="rule_runner_task_scope_mismatch"):
+            runner.invoke(proposal(), trace_id="trace-caller")
+        composed = proposal(task_id=TASK)
+        composition.budgets.register(TASK, ACTOR, Budget())
+        result = runner.invoke(composed, trace_id="trace-caller")
+        assert result["status"] == "completed"
+        # Every audited decision carries the composed trace, not the caller's.
+        traces = {event["trace_id"] for event in composition.audit.transport.events}
+        assert traces == {pseudonym(composition.audit, "trace-composed")}
+        assert pseudonym(composition.audit, "trace-caller") not in traces
+
+
+def test_delivery_refuses_a_task_outside_the_composition(tmp_path):
+    composition = product_composition(tmp_path, task_id=TASK, trace_id="trace-delivery")
+    with open_protected_checkpointer(tmp_path / "state", encryption_key=b"k" * 32) as saver:
+        flow = runtime(tmp_path, saver)
+        request = RuleAnalysisRequest(operation="average_fee", semantics_excerpt="null means all")
+        thread, _ = flow.run(request, ACTOR, thread_id=str(TASK))
+        composition.budgets.register(TASK, ACTOR, Budget())
+        service = RuleDeliveryRuntime(
+            workflow=flow,
+            artifacts=composition.artifacts,
+            audit=composition.audit,
+            composition=composition,
+        )
+        with pytest.raises(PermissionError, match="rule_delivery_task_scope_mismatch"):
+            service.deliver(thread, request, ACTOR, task_id=uuid4())
+        result = service.deliver(thread, request, ACTOR, task_id=TASK)
+        assert result["task_id"] == str(TASK)
+        traces = {event["trace_id"] for event in composition.audit.transport.events}
+        assert traces == {pseudonym(composition.audit, "trace-delivery")}
+
+
+def test_science_refuses_a_task_outside_the_composition(tmp_path):
+    from generaldataagent.data_science import DataScienceWorkbench
+
+    store, snapshot, spec = _science_fixture(tmp_path)
+    composition = ExecutionComposition(
+        mode="research",
+        actor=ACTOR,
+        artifacts=store,
+        audit=JsonlAuditSink(tmp_path / "science-audit.jsonl"),
+        task_id=uuid4(),
+        trace_id="trace-science",
+    )
+    workbench = DataScienceWorkbench(artifact_store=store, composition=composition)
+    with pytest.raises(PermissionError, match="science_composition_task_mismatch"):
+        workbench.run_experiment(
+            snapshot=snapshot,
+            spec=spec,
+            user_id=ACTOR.user_id,
+            tenant_id=ACTOR.tenant_id,
+            project_id=ACTOR.project_id,
+            data_domain="payments",
+        )
+
+
+@pytest.mark.parametrize(
+    "change,code",
+    [
+        ({"task_id": "not-a-uuid"}, "composition_task_id_invalid"),
+        ({"trace_id": ""}, "composition_trace_id_invalid"),
+        ({"trace_id": "   "}, "composition_trace_id_invalid"),
+        ({"trace_id": 7}, "composition_trace_id_invalid"),
+    ],
+)
+def test_composed_identity_fields_are_validated(tmp_path, change, code):
+    values = (
+        dict(
+            mode="research",
+            actor=ACTOR,
+            artifacts=LocalArtifactStore(tmp_path / "artifacts"),
+            audit=JsonlAuditSink(tmp_path / "audit.jsonl"),
+        )
+        | change
+    )
+    with pytest.raises(CompositionError, match=code):
+        ExecutionComposition(**values)
