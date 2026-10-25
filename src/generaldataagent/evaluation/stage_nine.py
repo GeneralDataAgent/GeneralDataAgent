@@ -14,12 +14,15 @@ from generaldataagent.business.rules import (
     fee_results,
     load_rule_set,
     match_rules,
-    monthly_totals,
     transaction_matches,
+)
+from generaldataagent.business.rules.application import (
+    resolve_target_month,
+    scope_rule_month,
+    select_rule_facets,
 )
 from generaldataagent.business.rules.payments import (
     PaymentsSourceError,
-    moment_of,
     transaction_facets,
 )
 from generaldataagent.business.rules.retrieval import citation, select_passages, split_passages
@@ -58,6 +61,7 @@ def stage9_fingerprint(root: Path) -> dict:
         "contracts/rule_tools.py",
         "contracts/rules.py",
         "business/rules/engine.py",
+        "business/rules/application.py",
         "business/rules/payments.py",
         "business/rules/retrieval.py",
         "business/rules/verification.py",
@@ -184,21 +188,7 @@ def analyze_fee_rules(database, arguments, *, allowed_relations, documents):
         # into the same stable code as malformed payloads, without echoing a
         # specific record value back to the model.
         raise RuleToolError("rule_source_record_invalid") from exc
-    selected = tuple(
-        rule
-        for rule in rules
-        if (
-            (request.card_scheme is None or rule.card_scheme == request.card_scheme)
-            and (request.account_type is None or rule.account_type.matches(request.account_type))
-            and (
-                request.merchant_category_code is None
-                or rule.merchant_category_code.matches(request.merchant_category_code)
-            )
-            and (request.aci is None or rule.aci.matches(request.aci))
-            and (request.is_credit is None or rule.is_credit in (None, request.is_credit))
-            and (request.intracountry is None or rule.intracountry in (None, request.intracountry))
-        )
-    )
+    selected = select_rule_facets(rules, request)
     context = None
     transactions = []
     if request.operation in {"applicable", "counterfactual"}:
@@ -220,38 +210,30 @@ def analyze_fee_rules(database, arguments, *, allowed_relations, documents):
         )
 
         try:
-            row_moments = [moment_of(row) for row in rows]
+            target_month = resolve_target_month(
+                year=request.year, month=request.month, day_of_year=request.day_of_year
+            )
+            scope = scope_rule_month(rows, month=target_month, day_of_year=request.day_of_year)
         except PaymentsSourceError as exc:
-            raise RuleToolError(exc.code) from exc
-
-        target_month = request.month
-        if request.day_of_year is not None:
-            target = moment_of({"year": request.year, "day_of_year": request.day_of_year})
-            target_month = target.month
-        monthly = [
-            row
-            for row, moment in zip(rows, row_moments, strict=True)
-            if moment.month == target_month
-        ]
-        if not monthly:
-            raise RuleToolError("rule_month_empty")
-        if verify_month_boundary(monthly, request.year, target_month):
+            # The evaluation transport keeps its own stable code for an empty
+            # month; every other source code is already the public failure name.
+            raise RuleToolError(
+                "rule_month_empty" if exc.code == "payments_month_empty" else exc.code
+            ) from exc
+        if verify_month_boundary(scope.monthly_rows, request.year, target_month):
             raise ValueError("month verification failed")
-        volume, fraud, count, fraud_count = monthly_totals(monthly)
-        if not volume:
+        if not scope.volume:
             raise RuleToolError("rule_zero_monthly_volume")
-        ratio = fraud / volume
         selected = match_rules(
-            selected, merchant=merchant, monthly_volume=volume, monthly_fraud_level=ratio
+            selected,
+            merchant=merchant,
+            monthly_volume=scope.volume,
+            monthly_fraud_level=scope.fraud_ratio,
         )
-        scoped = [
-            row
-            for row, moment in zip(rows, row_moments, strict=True)
-            if moment.month == target_month
-            and (request.day_of_year is None or moment.timetuple().tm_yday == request.day_of_year)
-        ]
         try:
-            transactions = [TransactionFacets(**facet) for facet in transaction_facets(scoped)]
+            transactions = [
+                TransactionFacets(**facet) for facet in transaction_facets(scope.scoped_rows)
+            ]
         except PaymentsSourceError as exc:
             raise RuleToolError(exc.code) from exc
         report = applicable_rules(selected, transactions)
@@ -261,12 +243,12 @@ def analyze_fee_rules(database, arguments, *, allowed_relations, documents):
         context = dict(
             year=request.year,
             month=target_month,
-            volume=str(volume),
-            fraud_volume=str(fraud),
-            fraud_ratio=str(ratio),
-            transaction_count=count,
-            fraud_count=fraud_count,
-            scoped_transactions=len(scoped),
+            volume=str(scope.volume),
+            fraud_volume=str(scope.fraud_volume),
+            fraud_ratio=str(scope.fraud_ratio),
+            transaction_count=scope.transaction_count,
+            fraud_count=scope.fraud_count,
+            scoped_transactions=len(scope.scoped_rows),
         )
     items = [int(rule.rule_id) if rule.rule_id.isdigit() else rule.rule_id for rule in selected]
     result = dict(

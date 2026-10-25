@@ -242,14 +242,14 @@ def test_routed_fingerprint_covers_executed_profiles(run_manifest, questions, pr
 
 
 @pytest.mark.parametrize("routing", [False, True])
-def test_rule_runner_fingerprint_includes_the_shared_payment_parser(run_manifest, routing):
+@pytest.mark.parametrize("source", ["business/rules/payments.py", "business/rules/application.py"])
+def test_rule_runner_fingerprint_includes_shared_rule_services(run_manifest, routing, source):
     import hashlib
 
     _, run = run_manifest
     report, _ = run(
         ["What is the fee?"], routing=routing, profile="sql" if routing else "sql-rules"
     )
-    source = "business/rules/payments.py"
     expected = hashlib.sha256((ROOT / "src/generaldataagent" / source).read_bytes()).hexdigest()
     assert report["system_fingerprint"]["stage9_sources"][source] == expected
 
