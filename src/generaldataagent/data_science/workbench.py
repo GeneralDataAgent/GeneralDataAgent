@@ -89,14 +89,19 @@ class DataScienceWorkbench:
             raise PermissionError("production science requires duplicate rejection")
         if self.composition is not None:
             bound = self.composition.actor
-            if (bound.user_id, bound.tenant_id, bound.project_id) != (
-                user_id,
-                tenant_id,
-                project_id,
-            ) or data_domain not in bound.data_domains:
-                raise PermissionError("science_composition_actor_mismatch")
-            if self.composition.task_id is not None and spec.task_id != self.composition.task_id:
-                raise PermissionError("science_composition_task_mismatch")
+            identity = self.composition.identity
+            # A workbench run names its actor as scalars plus one domain; the
+            # composition must cover exactly that, and the task must be its own.
+            identity.require_covering_actor(
+                ActorContext(
+                    user_id=user_id,
+                    tenant_id=tenant_id,
+                    project_id=project_id,
+                    data_domains=(data_domain,),
+                ),
+                "science_composition_actor_mismatch",
+            )
+            identity.resolve_task(spec.task_id, code="science_composition_task_mismatch")
             if self.composition.budgets is not None:
                 # The task owns its budget; an unregistered or expired task is
                 # refused here, before any policy decision is recorded.
@@ -138,8 +143,8 @@ class DataScienceWorkbench:
         )
         decision = self.policy.evaluate(request)
         active_trace_id = (
-            self.composition.trace_id
-            if self.composition is not None and self.composition.trace_id is not None
+            self.composition.identity.resolve_trace(trace_id or f"experiment-{spec.experiment_id}")
+            if self.composition is not None
             else trace_id or f"experiment-{spec.experiment_id}"
         )
         self._audit(
