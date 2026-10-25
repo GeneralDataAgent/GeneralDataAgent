@@ -4,8 +4,8 @@ import sqlite3
 
 import pytest
 
+from generaldataagent.catalog.schema_relationships import schema_relationships
 from generaldataagent.evaluation.stage_six import digest
-from generaldataagent.evaluation.stage_six_sql_precision import schema_relationships
 
 
 @pytest.fixture
@@ -56,3 +56,23 @@ def test_foreign_key_targets_do_not_merge_distinct_unicode_relations(tmp_path):
     assert [row["references_table"] for row in result["foreign_keys"]] == ["Ä"]
     assert not schema_relationships(database, allowed_relations={"child", "ä"})["foreign_keys"]
     assert digest(database) == before
+
+
+def test_production_catalog_does_not_import_the_offline_evaluation_package():
+    """A production module must not pull the evaluation suite in behind it.
+
+    ``catalog`` is imported by the API at startup; ``evaluation`` is offline
+    tooling. The declared-key helper they share lives in ``catalog`` so the
+    dependency points one way.
+    """
+    import subprocess
+    import sys
+
+    code = (
+        "import sys, generaldataagent.catalog.semantic_context;"
+        "print(sorted(m for m in sys.modules if m.startswith('generaldataagent.evaluation')))"
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, check=True
+    )
+    assert completed.stdout.strip() == "[]"

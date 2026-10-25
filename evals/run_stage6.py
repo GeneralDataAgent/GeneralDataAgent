@@ -380,6 +380,9 @@ def main():
         "precision_tools_hash": digest(
             ROOT / "src/generaldataagent/evaluation/stage_six_sql_precision.py"
         ),
+        "schema_relationships_hash": digest(
+            ROOT / "src/generaldataagent/catalog/schema_relationships.py"
+        ),
         "service_control_hash": digest(
             ROOT / "src/generaldataagent/evaluation/stage_six_control.py"
         ),

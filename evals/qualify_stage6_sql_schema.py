@@ -5,8 +5,8 @@ import json
 import sqlite3
 from pathlib import Path
 
+from generaldataagent.catalog.schema_relationships import schema_relationships
 from generaldataagent.evaluation.stage_six import digest, verify_sources
-from generaldataagent.evaluation.stage_six_sql_precision import schema_relationships
 
 
 def main():
