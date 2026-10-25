@@ -39,6 +39,23 @@ def test_runtime_entry_points_import_no_evaluation_protocols():
         assert _evaluation_modules_after_import(statement) == [], statement
 
 
+def test_offline_evaluation_does_not_import_the_llm_stack():
+    """The offline package is tooling; loading the model stack to read it is a regression.
+
+    This held until ``orchestration/__init__`` began importing ``workflow`` and
+    ``metric_analysis`` eagerly for the composition value, which put LangGraph
+    and LangChain on ``evaluation``'s import path.
+    """
+    code = (
+        "import sys, generaldataagent.evaluation;"
+        "print(any(m.startswith(('langchain', 'langgraph')) for m in sys.modules))"
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, check=True
+    )
+    assert completed.stdout.strip() == "False"
+
+
 def test_the_package_exports_everything_it_defines():
     # A second ``__all__`` assignment dropped the stage-one/two/review exports
     # while leaving the names importable, so nothing failed loudly.
