@@ -331,3 +331,40 @@ def test_applicability_keeps_source_order_and_returns_no_match_for_other_scheme(
     )
     assert [rule.rule_id for rule in result.matched] == ["other"]
     assert result.indeterminate is False
+
+
+def test_local_demo_reuses_shared_operations_without_evaluation():
+    """The non-benchmark caller must import no evaluation, model, or graph code.
+
+    A clean interpreter is required: this test session has already imported
+    those packages for other tests, so only a subprocess can show what the demo
+    itself pulls in.
+    """
+    import subprocess
+    import sys
+
+    root = Path(__file__).resolve().parents[1]
+    program = (
+        "import runpy, sys\n"
+        f"runpy.run_path({str(root / 'examples/rule_selection_demo.py')!r}, run_name='__main__')\n"
+        "banned = sorted(\n"
+        "    name\n"
+        "    for name in sys.modules\n"
+        "    if name.startswith(('generaldataagent.evaluation', 'langchain', 'langgraph'))\n"
+        ")\n"
+        "print('BANNED', banned)\n"
+        "raise SystemExit(1 if banned else 0)\n"
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", program], capture_output=True, text=True, cwd=root, timeout=120
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    lines = completed.stdout.splitlines()
+    assert lines[0] == "selected: ['demo-retail', 'demo-foreign']"
+    assert "month: 1" in lines[1]
+    assert "scoped_transactions: 1" in lines[2]
+    assert lines[3] == "matched: ['demo-retail', 'demo-foreign']"
+    assert lines[4] == "indeterminate: False"
+    assert lines[5] == "average_fee: 0.18"
+    assert lines[6] == "affected_by_demo_foreign: (Decimal('1200.00'),)"
+    assert lines[-1] == "BANNED []"
