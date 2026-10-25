@@ -32,6 +32,15 @@ bound `resolve_rule_request` discovery tool rather than `search_documents`, and 
 entry point. Any future adapter must explicitly select and fingerprint the Skill/knowledge inputs,
 use existing admission checks, and preserve the baseline configuration as a separate run.
 
+`examples/payment_document_skill_demo.py` shows the local wiring path without a live model:
+it loads this JSON, enrolls a synthetic custom specialist and the Skill through the normal
+`CapabilityRegistry` propose/review/activate flow, and passes a real `search_documents`
+`StructuredTool` built on `split_passages` / `select_passages` / `citation` into
+`build_supervisor`. A scripted offline model delegates to the specialist and calls the tool, and
+the test checks an exact source-line citation. The enrolled evidence hashes, reviewers, manual,
+and model output are synthetic fixtures; the demo is not benchmark integration, live-model
+evidence, or production acceptance, and it is not connected to any evaluation runner.
+
 The current document facility is heading-based `split_passages` / `select_passages`, with exact
 line-span citations. Start with versioned source files and these retrieval primitives; add an
 index only when corpus size or retrieval evidence warrants it. A knowledge corpus is not an
