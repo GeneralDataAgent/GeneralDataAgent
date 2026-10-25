@@ -112,6 +112,20 @@ Subsequent receipt/composition milestones require cross-task reference rejection
 rejection, audit outage rejection, and resource/verification scope preservation across adapters.
 A local pass or a merged PR never implies production acceptance.
 
+## Dataset extension boundary
+
+Dataset-specific vocabulary, public manuals, field dictionaries and procedures should first use
+replaceable, versioned Skills and knowledge inputs through existing admission/retrieval interfaces.
+Dataset import and answer presentation stay in adapters. Missing source semantics remain explicit
+gaps or assumptions; expected answers are not runtime knowledge. Shared execution bugs, identity,
+budgets, authorization and duplicated authoritative behavior are core implementation work.
+See `docs/guides/dataset-extensions.md` for the current integration limits and example Skill.
+
+The first implemented slice now shares facet selection through
+`business/rules/application.py::select_rule_facets` in both adapters, with a non-benchmark local
+example. Context construction, computation and execution composition remain migration work; this
+slice does not complete the proposed service or establish live quality/generalization gains.
+
 ## Supporting consolidation
 
 As these slices migrate, move extraction provenance contracts and pure validation below both

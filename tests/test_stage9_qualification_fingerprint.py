@@ -15,6 +15,7 @@ PACKAGE = ROOT / "src/generaldataagent"
 COMMON = {
     "business/rules/workflow.py",
     "business/rules/engine.py",
+    "business/rules/application.py",
     "business/rules/payments.py",
     "business/rules/retrieval.py",
     "business/rules/verification.py",
@@ -55,7 +56,14 @@ def test_qualification_reports_hash_the_executed_workflow_sources(tmp_path, suit
     assert report["production_accepted"] is False
 
 
-@pytest.mark.parametrize("source", ["business/rules/workflow.py", "business/rules/verification.py"])
+@pytest.mark.parametrize(
+    "source",
+    [
+        "business/rules/workflow.py",
+        "business/rules/verification.py",
+        "business/rules/application.py",
+    ],
+)
 @pytest.mark.parametrize("governed", [False, True])
 def test_workflow_source_change_is_visible_without_changing_other_hashes(
     monkeypatch, governed, source
@@ -74,7 +82,14 @@ def test_workflow_source_change_is_visible_without_changing_other_hashes(
     assert {key for key in before if before[key] != after[key]} == {source}
 
 
-@pytest.mark.parametrize("source", ["business/rules/workflow.py", "business/rules/verification.py"])
+@pytest.mark.parametrize(
+    "source",
+    [
+        "business/rules/workflow.py",
+        "business/rules/verification.py",
+        "business/rules/application.py",
+    ],
+)
 @pytest.mark.parametrize("suite", ["facets", "context", "business", "recovery"])
 def test_missing_source_fails_before_creating_qualification_output(
     tmp_path, monkeypatch, suite, source

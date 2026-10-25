@@ -11,6 +11,7 @@ _WORKFLOW_SOURCES = (
     "evaluation/rule_fingerprint.py",
     "business/rules/workflow.py",
     "business/rules/engine.py",
+    "business/rules/application.py",
     "business/rules/payments.py",
     "business/rules/retrieval.py",
     "business/rules/verification.py",

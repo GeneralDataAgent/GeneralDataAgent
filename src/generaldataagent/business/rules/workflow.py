@@ -14,6 +14,7 @@ import json
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 
+from generaldataagent.business.rules.application import select_rule_facets
 from generaldataagent.business.rules.engine import (
     applicable_rules,
     average_fee,
@@ -150,26 +151,7 @@ class AnnexWorkflowServices:
         )
 
     def _facet_matches(self, request, rules):
-        return [
-            rule
-            for rule in rules
-            if (
-                (request.card_scheme is None or request.card_scheme == rule.card_scheme)
-                and (
-                    request.account_type is None or rule.account_type.matches(request.account_type)
-                )
-                and (
-                    request.merchant_category_code is None
-                    or rule.merchant_category_code.matches(request.merchant_category_code)
-                )
-                and (request.aci is None or rule.aci.matches(request.aci))
-                and (request.is_credit is None or rule.is_credit in (None, request.is_credit))
-                and (
-                    request.intracountry is None
-                    or rule.intracountry in (None, request.intracountry)
-                )
-            )
-        ]
+        return list(select_rule_facets(rules, request))
 
     def _transactions(self, state) -> tuple[TransactionFacets, ...]:
         request = self._request(state)
