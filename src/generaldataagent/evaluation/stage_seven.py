@@ -61,6 +61,7 @@ def stage7_fingerprint(root: Path) -> dict:
         "tools/public_formulas.py",
         "orchestration/analysis_plan.py",
         "catalog/semantic_context.py",
+        "catalog/schema_relationships.py",
         "catalog/field_evidence.py",
         "catalog/join_evidence.py",
         "tools/sql_semantics.py",

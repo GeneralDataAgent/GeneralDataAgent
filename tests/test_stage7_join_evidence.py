@@ -3,7 +3,7 @@
 import sqlite3
 
 from generaldataagent.catalog.join_evidence import observed_join_candidates
-from generaldataagent.evaluation.stage_six_sql_precision import schema_relationships
+from generaldataagent.catalog.schema_relationships import schema_relationships
 
 
 def probe(path, schema, *, question="items", target="groups"):

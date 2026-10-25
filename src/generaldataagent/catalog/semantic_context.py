@@ -12,7 +12,7 @@ from generaldataagent.catalog.field_evidence import (
     public_quoted_labels,
 )
 from generaldataagent.catalog.join_evidence import observed_join_candidates
-from generaldataagent.evaluation.stage_six_sql_precision import schema_relationships
+from generaldataagent.catalog.schema_relationships import schema_relationships
 from generaldataagent.tools.sql_guard import SqlGuard
 from generaldataagent.tools.sqlite import QueryExecutionError, SQLiteReadOnlyExecutor
 
