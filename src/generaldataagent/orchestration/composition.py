@@ -79,10 +79,14 @@ class ExecutionIdentity:
     evidence belongs to the task the operator composed and audit records and
     artifacts join on one trace.
 
-    The actor checks are two distinct questions and stay separate. A *covering*
-    actor may act within the bound scope (same tenant and project, data domains
-    a subset); an *equal* actor is the same principal entirely. A consumer
-    picks the one its contract promises rather than inheriting the strictest.
+    The actor checks are two distinct questions and stay separate. Both pin the
+    principal (``user_id``, ``tenant_id``, ``project_id``); they differ only on
+    data domains. A *covering* actor may act within the bound domain set — the
+    caller's domains must be a subset of the bound ones — which is what the
+    science workbench needs, because a run names one domain out of the actor's
+    several. An *equal* actor is the same actor value with the same domains. A
+    consumer picks the one its contract promises rather than inheriting the
+    strictest.
     """
 
     actor: ActorContext

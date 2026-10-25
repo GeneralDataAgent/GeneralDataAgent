@@ -6,10 +6,14 @@ These tests pin the direction, and also pin the package's export surface, which
 regressed once when two ``__all__`` assignments silently replaced each other.
 """
 
+import ast
 import subprocess
 import sys
+from pathlib import Path
 
 import generaldataagent.evaluation as evaluation
+
+PACKAGE_ROOT = Path(__file__).resolve().parents[1] / "src/generaldataagent"
 
 
 def _evaluation_modules_after_import(statement: str) -> list[str]:
@@ -33,6 +37,23 @@ def test_runtime_entry_points_import_no_evaluation_protocols():
         "import generaldataagent.review",
     ):
         assert _evaluation_modules_after_import(statement) == [], statement
+
+
+def test_offline_evaluation_does_not_import_the_llm_stack():
+    """The offline package is tooling; loading the model stack to read it is a regression.
+
+    This held until ``orchestration/__init__`` began importing ``workflow`` and
+    ``metric_analysis`` eagerly for the composition value, which put LangGraph
+    and LangChain on ``evaluation``'s import path.
+    """
+    code = (
+        "import sys, generaldataagent.evaluation;"
+        "print(any(m.startswith(('langchain', 'langgraph')) for m in sys.modules))"
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, check=True
+    )
+    assert completed.stdout.strip() == "False"
 
 
 def test_the_package_exports_everything_it_defines():
@@ -61,3 +82,50 @@ def test_stage_five_external_remains_importable_where_it_is_pinned():
     )
 
     assert LegacyBundle is SecurityBundle
+
+
+def _reaches_evaluation(node: ast.AST) -> bool:
+    if isinstance(node, ast.ImportFrom):
+        module = node.module or ""
+        if module.startswith("generaldataagent.evaluation"):
+            return True
+        # ``from generaldataagent import evaluation`` imports the same package.
+        return module == "generaldataagent" and any(
+            alias.name == "evaluation" for alias in node.names
+        )
+    if isinstance(node, ast.Import):
+        return any(alias.name.startswith("generaldataagent.evaluation") for alias in node.names)
+    return False
+
+
+def _module_level_imports(node: ast.AST):
+    """Every import that executes when the module is imported.
+
+    Function bodies are skipped: an import inside one runs only when that
+    function is called, which is the sanctioned form. ``if``/``try``/class
+    bodies are descended into, because they do run at import time.
+    """
+    if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+        return
+    if _reaches_evaluation(node):
+        yield node
+    for child in ast.iter_child_nodes(node):
+        yield from _module_level_imports(child)
+
+
+def test_runtime_modules_do_not_import_evaluation_at_module_level():
+    """Evaluation may be reached from a function body, never from an import block.
+
+    ``business.experience`` re-runs a template extractor that lives in the
+    offline package, and importing it at module level would put the whole
+    evaluation package on the import path of the API's experience store. The
+    function-local import keeps that crossing explicit and one call wide.
+    """
+    offenders: list[str] = []
+    for path in PACKAGE_ROOT.rglob("*.py"):
+        relative = path.relative_to(PACKAGE_ROOT).as_posix()
+        if relative.startswith("evaluation/"):
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        offenders.extend(f"{relative}:{node.lineno}" for node in _module_level_imports(tree))
+    assert offenders == []

@@ -139,6 +139,10 @@ class RuleDeliveryRuntime:
                 audit is not None and composition.audit is not audit
             ):
                 raise ValueError("rule_delivery_composition_ports_disagree")
+            # Adopt the composition's sink. Leaving ``audit`` at its ``None``
+            # default while a composition declares one would silently disable
+            # policy audit for every decision this runtime makes.
+            audit = composition.audit
         self.workflow = workflow
         self.artifacts = artifacts
         self.feedback = feedback

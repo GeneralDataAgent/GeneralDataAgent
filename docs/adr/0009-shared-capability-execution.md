@@ -145,17 +145,27 @@ each writer re-deriving the tenant/project/domain comparison. A composition may 
 `trace_id`; when it does, the rule runner, rule delivery, science workbench and metric runtime use
 them rather than minting their own, and each refuses work outside the composed task. Metric analysis
 under a composition no longer registers a default budget, so an uncomposed caller keeps today's
-behaviour while a composed one must have its task registered first.
+behaviour while a composed one must have its task registered first — and a composition that carries
+a ledger without a `task_id` is refused when a runtime is built from it, because a ledger that
+meters per-run minted tasks would silently authorize usage the operator never composed.
+
+A composition must be the whole of a runtime's control wiring, not an addendum to it. The rule
+delivery runtime took a composition and still defaulted to no audit sink, which would have
+suppressed policy audit for every decision it made; it now adopts the composition's sink instead of
+requiring callers to pass it twice. Metric analysis `resume` checked that the thread belonged to the
+composed task but not that the caller was the composed actor, so a runtime composed for one actor
+could finish another actor's thread and record it through its own ports; the actor check now runs
+with the task check. Both were reproduced before being fixed and are pinned by regression tests.
 
 Still open in this milestone: the receipt milestone.
 
 `ExecutionIdentity` (in the same module) now owns the two questions every consumer was asking
 separately: whether a caller's actor is inside the bound scope, and whether its task is the composed
 one. The two answers are deliberately different checks — `require_covering_actor` admits a narrower
-actor (same tenant and project, domains a subset), `require_equal_actor` requires the same principal
-— because science compares a partial actor while rule delivery requires the identical one. Naming
-them made an existing divergence explicit instead of leaving each caller to inherit whichever rule
-its neighbour happened to encode. `resolve_task`/`resolve_trace` carry the "composed value wins"
+actor (same user, tenant and project, domains a subset), `require_equal_actor` requires the same
+principal — because science compares a partial actor while rule delivery requires the identical one.
+Naming them made an existing divergence explicit instead of leaving each caller to inherit whichever
+rule its neighbour happened to encode. `resolve_task`/`resolve_trace` carry the "composed value wins"
 rule, and the composition validates through it while keeping its public failure codes.
 
 ## Supporting consolidation
@@ -181,6 +191,38 @@ pinned evaluation path named it. Two facts made this worth doing beyond import c
 is offline tooling, so a runtime module importing it is a layering inversion whatever the timing,
 and the same file had been assigning `__all__` twice, silently discarding the stage-one/two/review
 exports. Both directions are now asserted by tests that run in a fresh interpreter.
+
+Moving those ports was not enough on its own: `orchestration/__init__.py` still imported
+`workflow` (LangGraph) and `metric_analysis` (the LLM stack) eagerly, so any module importing
+`orchestration.composition` — the science workbench, for one — paid for both. Importing
+`generaldataagent.evaluation` went from 146 ms with no LangChain loaded to 1102 ms with it loaded,
+which is a regression the offline acceptance tooling would have carried. Only the composition
+values are eager now; the rest resolve through a caching `__getattr__`. A test imports the offline
+package in a fresh interpreter and fails if any `langchain`/`langgraph` module appears. The
+complementary direction is asserted by parsing every runtime module and rejecting a
+module-level `generaldataagent.evaluation` import: a function-local import is the sanctioned form
+(`business/experience.py` reaches one extractor that way), and moving it to the top of the file
+would put the whole offline package back on the API's import path.
+
+A later adversarial review of the milestone found four defects worth fixing and one claim that
+did not hold. `RuleDeliveryRuntime` accepted a composition but kept its own `audit=None` default,
+so policy decisions for that runtime were unaudited even though the composition declared a sink;
+it now adopts the composition's sink. `MetricAnalysisRuntime.resume` checked the composed task but
+not the composed actor, so a runtime composed for one actor could finish another actor's thread and
+write it through its own ports; `require_equal_actor` now runs alongside the task check. A
+composition carrying a budget ledger but no `task_id` was accepted, which would have metered each
+run against a freshly minted default task — exactly what the composition exists to prevent — and is
+now refused at construction. The review also reported a `user_id` regression in the science
+workbench actor check; `git show` of the pre-slice file shows the inline check never compared
+`user_id` either, so it is pre-existing rather than introduced, and it is recorded below as an open
+question rather than folded into this milestone's fix.
+
+Open, deliberately not changed: `GovernedArtifactStore._authorized_record` compares tenant,
+project and domains but not `user_id`. Widening it is a policy decision, not a bug fix, because the
+store is described everywhere as tenant/project/domain-bound, and `business/report_refresh.py`
+already applies a stricter owner check on the same read path. Until that decision is made, artifact
+reads are scoped to the tenant/project/domain, and per-user artifact confidentiality rests on the
+callers that add the owner check.
 
 ## Alternatives and boundaries
 
