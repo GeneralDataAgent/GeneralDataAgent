@@ -86,7 +86,13 @@ def test_stage_five_external_remains_importable_where_it_is_pinned():
 
 def _reaches_evaluation(node: ast.AST) -> bool:
     if isinstance(node, ast.ImportFrom):
-        return (node.module or "").startswith("generaldataagent.evaluation")
+        module = node.module or ""
+        if module.startswith("generaldataagent.evaluation"):
+            return True
+        # ``from generaldataagent import evaluation`` imports the same package.
+        return module == "generaldataagent" and any(
+            alias.name == "evaluation" for alias in node.names
+        )
     if isinstance(node, ast.Import):
         return any(alias.name.startswith("generaldataagent.evaluation") for alias in node.names)
     return False
