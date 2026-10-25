@@ -381,13 +381,15 @@ def volume_ratio(volume: Decimal, fraud_volume: Decimal, *, by_count: bool = Fal
 
 def _truthy(value: object) -> bool:
     if value is None:
-        return False
+        raise ValueError("fraud indicator required")
     if isinstance(value, bool):
         return value
     text = str(value).strip().lower()
+    if not text:
+        raise ValueError("fraud indicator required")
     if text in {"true", "1", "yes"}:
         return True
-    if text in {"false", "0", "no", ""}:
+    if text in {"false", "0", "no"}:
         return False
     raise ValueError(f"unrecognized boolean literal {value!r}")
 

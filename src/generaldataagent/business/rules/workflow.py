@@ -261,13 +261,32 @@ class AnnexWorkflowServices:
                 "checks": ["authoritative_context"],
             }
         failures = []
-        if state["matched_rules"] != self._match(state):
-            failures.append("rule_selection_mismatch")
+        selection = state["matched_rules"]
+        if (
+            selection.get("complete") is not True
+            or type(selection.get("total_count")) is not int
+            or selection != self._match(state)
+        ):
+            return {
+                "passed": False,
+                "failures": ["rule_selection_mismatch"],
+                "checks": ["authoritative_context", "selection_consistency"],
+            }
         if request.operation == "applicable":
             expected = state["matched_rules"]["ids"]
-            if state["computation"].get("items") != expected:
+            computation = state["computation"]
+            items = computation.get("items")
+            if (
+                set(computation) != {"items", "total_count"}
+                or not isinstance(items, list)
+                or any(not isinstance(item, str) for item in items)
+            ):
+                failures.append("rule_applicable_record_invalid")
+            if items != expected:
                 failures.append("rule_items_mismatch")
-            if state["computation"].get("total_count") != len(expected):
+            if type(computation.get("total_count")) is not int or computation["total_count"] != len(
+                expected
+            ):
                 failures.append("rule_count_mismatch")
         elif request.operation == "counterfactual":
             failures.extend(self._verify_counterfactual(request, state))

@@ -83,6 +83,8 @@ def test_route_serialises_for_the_run_record():
         ("missing_evidence", "evidence", True),
         ("unsupported_capability", "capability", False),
         ("policy_rejection", "capability", False),
+        ("rule_source_record_invalid", "source", False),
+        ("payments_invalid_row", "source", False),
         ("multiple_applicable_rules", "ambiguity", False),
         ("time_budget", "resource", False),
         ("repair_budget_exhausted", "resource", False),

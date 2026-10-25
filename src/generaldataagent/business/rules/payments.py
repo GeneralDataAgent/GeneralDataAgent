@@ -54,8 +54,14 @@ class MerchantYear:
 def moment_of(row: Mapping[str, Any]) -> date:
     """Resolve a row's calendar date from ``year`` and one-based ``day_of_year``."""
     try:
-        year = int(row["year"])
-        day = int(row["day_of_year"])
+        values = [row["year"], row["day_of_year"]]
+        if any(
+            type(value) is not int
+            and not (isinstance(value, str) and value.isascii() and value.isdecimal())
+            for value in values
+        ):
+            raise PaymentsSourceError("payments_invalid_row")
+        year, day = (int(value) for value in values)
     except (KeyError, TypeError, ValueError) as exc:
         raise PaymentsSourceError("payments_invalid_row") from exc
     if day < 1:
@@ -73,9 +79,10 @@ class SQLitePaymentsSource:
     """Scoped reads over a fixed read-only SQLite database.
 
     The content hash covers both relation snapshots so a changed source is
-    visible to the workflow binding. It is cached on the database file's stat
-    signature, which is sound for a local, quiescent development database and
-    is explicitly not a production freshness guarantee.
+    visible to the workflow binding. Its cache tracks the main database and
+    WAL file identities, sizes and change times separately, including missing
+    WAL files. This is a local development change detector, not an atomic
+    database snapshot or a production freshness guarantee.
     """
 
     def __init__(
@@ -96,16 +103,19 @@ class SQLitePaymentsSource:
         self.merchant_table = merchant_table
         self.payments_table = payments_table
         self.max_rows = max_rows
-        self._cached: tuple[tuple[int, int], str] | None = None
+        self._cached: tuple[tuple, str] | None = None
 
-    def _signature(self) -> tuple[int, int]:
-        stat = self.database.stat()
-        total = stat.st_size
-        for suffix in ("-wal", "-shm"):
-            companion = self.database.with_name(self.database.name + suffix)
-            if companion.exists():
-                total += companion.stat().st_size
-        return stat.st_mtime_ns, total
+    def _signature(self) -> tuple:
+        def signature(path):
+            stat = path.stat()
+            return stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns
+
+        main = signature(self.database)
+        try:
+            wal = signature(self.database.with_name(self.database.name + "-wal"))
+        except FileNotFoundError:
+            wal = None
+        return main, wal
 
     def _rows(self, table: str, *, where: str = "", parameters: tuple[Any, ...] = ()) -> list[dict]:
         if table not in self.allowed_relations:
@@ -121,9 +131,12 @@ class SQLitePaymentsSource:
 
     def _merchant_records(self) -> list[dict[str, Any]]:
         try:
-            return [json.loads(row["payload"]) for row in self._rows(self.merchant_table)]
+            records = [json.loads(row["payload"]) for row in self._rows(self.merchant_table)]
         except (KeyError, TypeError, json.JSONDecodeError) as exc:
             raise PaymentsSourceError("payments_invalid_row") from exc
+        if any(not isinstance(record, dict) for record in records):
+            raise PaymentsSourceError("payments_invalid_row")
+        return records
 
     def snapshot_hash(self) -> str:
         """Stable content hash over both relation snapshots."""

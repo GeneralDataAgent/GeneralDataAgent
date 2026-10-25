@@ -16,6 +16,9 @@ COMMON = {
     "business/rules/workflow.py",
     "business/rules/engine.py",
     "business/rules/payments.py",
+    "business/rules/retrieval.py",
+    "business/rules/verification.py",
+    "evaluation/stage_nine.py",
     "contracts/rules.py",
     "contracts/rule_tools.py",
     "orchestration/rule_workflow.py",
@@ -52,8 +55,11 @@ def test_qualification_reports_hash_the_executed_workflow_sources(tmp_path, suit
     assert report["production_accepted"] is False
 
 
+@pytest.mark.parametrize("source", ["business/rules/workflow.py", "business/rules/verification.py"])
 @pytest.mark.parametrize("governed", [False, True])
-def test_workflow_source_change_is_visible_without_changing_other_hashes(monkeypatch, governed):
+def test_workflow_source_change_is_visible_without_changing_other_hashes(
+    monkeypatch, governed, source
+):
     from generaldataagent.evaluation.rule_fingerprint import rule_workflow_fingerprint
 
     before = rule_workflow_fingerprint(governed=governed)
@@ -61,23 +67,22 @@ def test_workflow_source_change_is_visible_without_changing_other_hashes(monkeyp
 
     def changed(path):
         content = original(path)
-        return (
-            content + b"\n# synthetic change\n"
-            if path == PACKAGE / "business/rules/workflow.py"
-            else content
-        )
+        return content + b"\n# synthetic change\n" if path == PACKAGE / source else content
 
     monkeypatch.setattr(Path, "read_bytes", changed)
     after = rule_workflow_fingerprint(governed=governed)
-    assert {key for key in before if before[key] != after[key]} == {"business/rules/workflow.py"}
+    assert {key for key in before if before[key] != after[key]} == {source}
 
 
+@pytest.mark.parametrize("source", ["business/rules/workflow.py", "business/rules/verification.py"])
 @pytest.mark.parametrize("suite", ["facets", "context", "business", "recovery"])
-def test_missing_source_fails_before_creating_qualification_output(tmp_path, monkeypatch, suite):
+def test_missing_source_fails_before_creating_qualification_output(
+    tmp_path, monkeypatch, suite, source
+):
     original = Path.read_bytes
 
     def missing(path):
-        if path == PACKAGE / "business/rules/workflow.py":
+        if path == PACKAGE / source:
             raise FileNotFoundError("synthetic missing source")
         return original(path)
 

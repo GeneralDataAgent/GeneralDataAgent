@@ -17,6 +17,7 @@ from generaldataagent.business.rules.engine import (
     monthly_totals,
     parse_band,
 )
+from generaldataagent.business.rules.payments import PaymentsSourceError, moment_of
 from generaldataagent.business.rules.retrieval import RuleCitation
 from generaldataagent.contracts.rules import (
     FeeResult,
@@ -56,12 +57,20 @@ def verify_unique_match(report: RuleMatchReport, *, allow_multiple: bool) -> tup
 def verify_month_boundary(
     rows: Sequence[dict], expected_year: int, expected_month: int
 ) -> tuple[str, ...]:
-    """Every row counted in a monthly result must fall in that natural month."""
-    from datetime import date, timedelta
+    """Every row counted in a monthly result must fall in that natural month.
 
+    A row that cannot be placed on an exact calendar date is a verification
+    failure, not an exception: this check must reject, not crash. The date is
+    resolved with the same strict parser the payments source uses, so a
+    fractional or boolean day cannot be silently truncated into the month.
+    """
     failures = []
     for index, row in enumerate(rows):
-        moment = date(int(row["year"]), 1, 1) + timedelta(days=int(row["day_of_year"]) - 1)
+        try:
+            moment = moment_of(row)
+        except (PaymentsSourceError, KeyError, TypeError):
+            failures.append(f"invalid_month_row:{index}")
+            continue
         if (moment.year, moment.month) != (expected_year, expected_month):
             failures.append(f"row_outside_month:{index}")
             break
@@ -72,6 +81,12 @@ def verify_monthly_ratio(
     rows: Sequence[dict], *, reported_ratio: float, by_count: bool
 ) -> tuple[str, ...]:
     """The reported ratio must match the declared denominator convention."""
+    if type(by_count) is not bool:
+        return ("ratio_mode_invalid",)
+    # Fractions are in [0, 1]; the ordered comparison also rejects NaN and
+    # infinities. Exclude bool explicitly so it cannot stand in for 0 or 1.
+    if type(reported_ratio) not in (int, float) or not 0 <= reported_ratio <= 1:
+        return ("ratio_value_invalid",)
     volume, fraud_volume, count, fraud_count = monthly_totals(rows)
     if by_count:
         expected = fraud_count / count if count else None
@@ -138,11 +153,16 @@ def verify_answer(
         else:
             failures.extend(verify_month_boundary(monthly_rows, *expected_month))
         if reported_ratio is not None:
-            failures.extend(
-                verify_monthly_ratio(
-                    monthly_rows, reported_ratio=reported_ratio, by_count=ratio_by_count
+            try:
+                failures.extend(
+                    verify_monthly_ratio(
+                        monthly_rows, reported_ratio=reported_ratio, by_count=ratio_by_count
+                    )
                 )
-            )
+            except (KeyError, TypeError, ValueError):
+                # A row that cannot be totalled is a verification failure, not an
+                # exception: fail closed and name the check that could not run.
+                failures.append("month_ratio_unverifiable")
     elif reported_ratio is not None:
         failures.append("ratio_without_month_context")
     return RuleVerification(

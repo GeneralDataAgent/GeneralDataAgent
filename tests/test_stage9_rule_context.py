@@ -74,7 +74,7 @@ def source(path):
     return SQLitePaymentsSource(path, allowed_relations={"merchant_data", "payments"})
 
 
-def run(tmp_path, request, *, payments=True, tamper=None, tamper_context=None):
+def run(tmp_path, request, *, payments=True, tamper=None, tamper_context=None, tamper_match=None):
     adapter = AnnexWorkflowServices(
         ANNEX,
         documents=DOCUMENTS,
@@ -84,6 +84,9 @@ def run(tmp_path, request, *, payments=True, tamper=None, tamper_context=None):
     if tamper_context is not None:
         context = ports.monthly_context
         ports = replace(ports, monthly_context=lambda state: tamper_context(context(state)))
+    if tamper_match is not None:
+        match = ports.match_rules
+        ports = replace(ports, match_rules=lambda state: tamper_match(match(state)))
     if tamper is not None:
         original = ports.compute
         ports = type(ports)(
@@ -189,6 +192,52 @@ def test_tampered_applicable_output_fails_verification(tmp_path, tamper):
         month=1,
     )
     _, result = run(tmp_path, request, tamper=tamper)
+    assert result["status"] == "failed"
+    assert "delivery" not in result
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"total_count": True},
+        {"total_count": 1.0},
+        {"unverified_field": "injected"},
+        {"items": None},
+        {"items": "A"},
+        {"items": [True]},
+        {"total_count": None},
+    ],
+)
+def test_applicable_record_requires_exact_fields_and_types(tmp_path, change):
+    database(tmp_path)
+    request = RuleAnalysisRequest(
+        operation="applicable",
+        semantics_excerpt=EXCERPT,
+        merchant="Shop",
+        year=2023,
+        month=1,
+    )
+    _, result = run(tmp_path, request, tamper=lambda output: output | change)
+    assert result["status"] == "failed"
+    assert result["verification"]["failures"]
+    assert "delivery" not in result
+
+
+@pytest.mark.parametrize("field", ["items", "total_count"])
+def test_applicable_missing_fields_never_deliver(tmp_path, field):
+    database(tmp_path)
+    request = RuleAnalysisRequest(
+        operation="applicable",
+        semantics_excerpt=EXCERPT,
+        merchant="Shop",
+        year=2023,
+        month=1,
+    )
+    _, result = run(
+        tmp_path,
+        request,
+        tamper=lambda output: {key: value for key, value in output.items() if key != field},
+    )
     assert result["status"] == "failed"
     assert "delivery" not in result
 
@@ -329,6 +378,34 @@ def test_corrupt_facet_context_never_delivers(tmp_path, operation, field):
     )
     assert result["status"] == "failed"
     assert result["verification"]["failures"] == ["rule_context_mismatch"]
+    assert "delivery" not in result
+
+
+@pytest.mark.parametrize("operation", ["select", "average_fee", "applicable", "counterfactual"])
+@pytest.mark.parametrize(
+    "change", [{"complete": 1}, {"complete": 1.0}, {"total_count": True}, {"total_count": 1.0}]
+)
+def test_rule_selection_metadata_types_cannot_be_hidden_by_equal_values(
+    tmp_path, operation, change
+):
+    database(tmp_path)
+    contextual = operation in {"applicable", "counterfactual"}
+    request = RuleAnalysisRequest(
+        operation=operation,
+        semantics_excerpt=EXCERPT,
+        **(
+            dict(merchant="Shop", year=2023, day_of_year=1)
+            if contextual
+            else dict(card_scheme="Alpha")
+        ),
+        **({"rule_id": "A", "alternate_rate": "20"} if operation == "counterfactual" else {}),
+    )
+    # Facet operations select two rules, so a float count must equal two.
+    if type(change.get("total_count")) is float and not contextual:
+        change = {"total_count": 2.0}
+    _, result = run(tmp_path, request, tamper_match=lambda output: output | change)
+    assert result["status"] == "failed"
+    assert "rule_selection_mismatch" in result["verification"]["failures"]
     assert "delivery" not in result
 
 

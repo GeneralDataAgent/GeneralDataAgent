@@ -209,6 +209,72 @@ def test_agent_policy_rejection_preserves_cause_and_stops_before_experience(tmp_
     assert summary["repair_budget"]["attempted"] == 0
 
 
+@pytest.mark.parametrize("code", ["rule_source_record_invalid", "payments_invalid_row"])
+def test_source_failures_stop_without_spending_repair_budget(code):
+    budget = RepairBudget(max_repairs=3)
+    decision = budget.request(code, tool="rules")
+    assert not decision.allowed
+    assert decision.reason == "repair_not_applicable_source"
+    assert budget.report()["attempted"] == 0
+    assert budget.report()["exhausted"] is False
+    assert budget.report()["refused"] == [f"{code}::rules"]
+
+
+def test_agent_corrupt_rule_source_preserves_cause_and_skips_experience(tmp_path):
+    database = rule_database(tmp_path)
+    # The stored annex has only ID: the remaining required fields are missing.
+    model = ScriptedModel(
+        [
+            {
+                "name": "analyze_fee_rules",
+                "args": {"operation": "select", "semantics_excerpt": "null"},
+            }
+        ]
+    )
+    hints_requested = []
+
+    def experience(*args):
+        hints_requested.append(args)
+        return ()
+
+    result = BoundedSQLAgent(
+        model, tool_profile="sql-rules", max_steps=6, experience=experience
+    ).run(
+        task(database),
+        database,
+        documents="null means all\nfee = fixed_amount + rate * transaction_value / 10000",
+    )
+    assert result["failure"] == "rule_source_record_invalid"
+    assert model.calls == 1
+    assert result["tokens"] == 2
+    assert result["answers"] == {}
+    assert hints_requested == []
+    assert result["experience_used"] == []
+    assert result["repair_budget"]["attempted"] == 0
+    assert result["repair_budget"]["exhausted"] is False
+    refused = [row for row in result["trace"] if row.get("status") == "repair_refused"]
+    assert refused[0]["code"] == "repair_not_applicable_source"
+    assert refused[0]["failure_code"] == "rule_source_record_invalid"
+
+    from generaldataagent.evaluation.stage_six import summarize
+
+    summary = summarize(
+        [
+            result
+            | dict(
+                case_id="source-invalid",
+                passed=False,
+                difficulty="easy",
+                sub_hits=0,
+                sub_total=1,
+            )
+        ]
+    )
+    assert summary["failures"] == {"rule_source_record_invalid": 1}
+    assert summary["repair_budget"]["attempted"] == 0
+    assert summary["repair_budget"]["exhausted_n"] == 0
+
+
 def test_nonrepairable_refusal_does_not_erase_an_earlier_ceiling_refusal():
     budget = RepairBudget(max_repairs=1)
     assert budget.request("unknown_column", tool="sql").allowed

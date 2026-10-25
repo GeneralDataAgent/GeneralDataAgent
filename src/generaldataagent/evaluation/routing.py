@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 Lane = Literal["short", "analysis", "governed"]
-Cause = Literal["parse", "compute", "evidence", "capability", "ambiguity", "resource"]
+Cause = Literal["parse", "compute", "evidence", "capability", "ambiguity", "resource", "source"]
 
 # Public markers, matched case-insensitively against the question and the
 # published guidelines only. Order matters: governed outranks analysis, and
@@ -178,6 +178,7 @@ _COMPUTE_CODES = frozenset(
     }
 )
 _CAPABILITY_CODES = frozenset({"unsupported_capability", "policy_rejection"})
+_SOURCE_CODES = frozenset({"rule_source_record_invalid", "payments_invalid_row"})
 # A timeout or a row/cell cap is a signal to narrow the query, not evidence the
 # task is impossible. Only a spent budget means retrying cannot help.
 _RESOURCE_CODES = frozenset({"time_budget", "cost_budget", "repair_budget_exhausted"})
@@ -190,6 +191,7 @@ _RETRYABLE: dict[Cause, bool] = {
     "parse": True,
     "compute": True,
     "evidence": True,
+    "source": False,
     "capability": False,
     "ambiguity": False,
     "resource": False,
@@ -209,6 +211,8 @@ def failure_cause(code: str) -> Cause:
         return "evidence"
     if code in _CAPABILITY_CODES:
         return "capability"
+    if code in _SOURCE_CODES:
+        return "source"
     if code in _RESOURCE_CODES:
         return "resource"
     if code in _AMBIGUITY_CODES:

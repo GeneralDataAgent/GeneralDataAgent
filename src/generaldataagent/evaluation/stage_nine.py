@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
 
@@ -17,6 +16,11 @@ from generaldataagent.business.rules import (
     match_rules,
     monthly_totals,
     transaction_matches,
+)
+from generaldataagent.business.rules.payments import (
+    PaymentsSourceError,
+    moment_of,
+    transaction_facets,
 )
 from generaldataagent.business.rules.retrieval import citation, select_passages, split_passages
 from generaldataagent.business.rules.verification import (
@@ -54,6 +58,7 @@ def stage9_fingerprint(root: Path) -> dict:
         "contracts/rule_tools.py",
         "contracts/rules.py",
         "business/rules/engine.py",
+        "business/rules/payments.py",
         "business/rules/retrieval.py",
         "business/rules/verification.py",
     ]
@@ -82,11 +87,23 @@ class RuleToolError(ValueError):
             "Resolve the exact merchant name from merchant_data before retrying."
         ),
         "rule_month_empty": ("Check merchant, year and natural month against actual payment rows."),
+        "payments_invalid_row": (
+            "Payment source rows need valid dates, amounts and explicit fraud indicators. "
+            "Correct the source data before retrying; do not infer missing values."
+        ),
         "rule_zero_monthly_volume": (
             "Monthly fraud amount ratio is undefined for zero volume; do not invent a ratio."
         ),
         "rule_counterfactual_not_applicable": (
             "The changed rule must match merchant, monthly thresholds and actual transactions."
+        ),
+        "rule_transaction_facets_indeterminate": (
+            "Payment rows must identify both issuing and acquiring countries when a rule "
+            "depends on domesticity. Correct the source data before retrying."
+        ),
+        "rule_source_record_invalid": (
+            "Rule and merchant source records must be JSON objects with the documented fields. "
+            "Correct the source data before retrying; do not guess missing values."
         ),
     }
 
@@ -131,7 +148,16 @@ def _rows(database, table, relations, *, where="", parameters=(), limit=250000):
 
 
 def _payloads(database, table, relations):
-    return [json.loads(row["payload"]) for row in _rows(database, table, relations, limit=10000)]
+    """Decode JSON object records, refusing anything that is not one."""
+    try:
+        records = [
+            json.loads(row["payload"]) for row in _rows(database, table, relations, limit=10000)
+        ]
+    except (KeyError, TypeError, json.JSONDecodeError) as exc:
+        raise RuleToolError("rule_source_record_invalid") from exc
+    if any(not isinstance(record, dict) for record in records):
+        raise RuleToolError("rule_source_record_invalid")
+    return records
 
 
 def analyze_fee_rules(database, arguments, *, allowed_relations, documents):
@@ -151,7 +177,13 @@ def analyze_fee_rules(database, arguments, *, allowed_relations, documents):
         empty_list_is_wildcard=request.empty_list_is_wildcard,
         source=citation(selection.selected[0]),
     )
-    rules = load_rule_set(annex, source=source, semantics=semantics)
+    try:
+        rules = load_rule_set(annex, source=source, semantics=semantics)
+    except (KeyError, TypeError, ValueError) as exc:
+        # The annex contract belongs to the source data here; parse the rule set
+        # into the same stable code as malformed payloads, without echoing a
+        # specific record value back to the model.
+        raise RuleToolError("rule_source_record_invalid") from exc
     selected = tuple(
         rule
         for rule in rules
@@ -171,6 +203,10 @@ def analyze_fee_rules(database, arguments, *, allowed_relations, documents):
     transactions = []
     if request.operation in {"applicable", "counterfactual"}:
         merchants = _payloads(database, "merchant_data", allowed_relations)
+        if any(
+            not isinstance(row.get("merchant"), str) or not row["merchant"] for row in merchants
+        ):
+            raise RuleToolError("rule_source_record_invalid")
         matching = [row for row in merchants if row["merchant"] == request.merchant]
         if len(matching) != 1:
             raise RuleToolError("rule_merchant_not_unique")
@@ -183,20 +219,20 @@ def analyze_fee_rules(database, arguments, *, allowed_relations, documents):
             parameters=(request.merchant, request.year),
         )
 
-        def moment(row):
-            day = int(row["day_of_year"])
-            value = date(int(row["year"]), 1, 1) + timedelta(days=day - 1)
-            if day < 1 or value.year != int(row["year"]):
-                raise ValueError("invalid day of year")
-            return value
+        try:
+            row_moments = [moment_of(row) for row in rows]
+        except PaymentsSourceError as exc:
+            raise RuleToolError(exc.code) from exc
 
         target_month = request.month
         if request.day_of_year is not None:
-            target = date(request.year, 1, 1) + timedelta(days=request.day_of_year - 1)
-            if target.year != request.year:
-                raise ValueError("day outside requested year")
+            target = moment_of({"year": request.year, "day_of_year": request.day_of_year})
             target_month = target.month
-        monthly = [row for row in rows if moment(row).month == target_month]
+        monthly = [
+            row
+            for row, moment in zip(rows, row_moments, strict=True)
+            if moment.month == target_month
+        ]
         if not monthly:
             raise RuleToolError("rule_month_empty")
         if verify_month_boundary(monthly, request.year, target_month):
@@ -210,22 +246,17 @@ def analyze_fee_rules(database, arguments, *, allowed_relations, documents):
         )
         scoped = [
             row
-            for row in monthly
-            if request.day_of_year is None or int(row["day_of_year"]) == request.day_of_year
+            for row, moment in zip(rows, row_moments, strict=True)
+            if moment.month == target_month
+            and (request.day_of_year is None or moment.timetuple().tm_yday == request.day_of_year)
         ]
-        transactions = [
-            TransactionFacets(
-                card_scheme=row["card_scheme"],
-                aci=row["aci"],
-                is_credit=_boolean(row["is_credit"]),
-                intracountry=row["issuing_country"] == row["acquirer_country"],
-                amount=format(Decimal(str(row["eur_amount"])), "f"),
-            )
-            for row in scoped
-        ]
+        try:
+            transactions = [TransactionFacets(**facet) for facet in transaction_facets(scoped)]
+        except PaymentsSourceError as exc:
+            raise RuleToolError(exc.code) from exc
         report = applicable_rules(selected, transactions)
         if report.indeterminate:
-            raise ValueError("indeterminate transaction facets")
+            raise RuleToolError("rule_transaction_facets_indeterminate")
         selected = tuple(rule for rule in selected if rule.rule_id in report.matched)
         context = dict(
             year=request.year,
@@ -287,11 +318,3 @@ def analyze_fee_rules(database, arguments, *, allowed_relations, documents):
         result["delta"] = float(change.delta)
         result["checks"].append("independent_counterfactual_delta")
     return result
-
-
-def _boolean(value):
-    if value in (True, 1, "True", "true", "1"):
-        return True
-    if value in (False, 0, "False", "false", "0"):
-        return False
-    raise ValueError("invalid transaction boolean")
