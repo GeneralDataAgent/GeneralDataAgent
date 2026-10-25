@@ -5,10 +5,15 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
-from generaldataagent.business.rules.engine import monthly_totals
+from generaldataagent.business.rules.engine import (
+    average_fee,
+    fee_results,
+    monthly_totals,
+    transaction_matches,
+)
 from generaldataagent.business.rules.payments import PaymentsSourceError, moment_of
 from generaldataagent.contracts.rule_tools import RuleAnalysisRequest
-from generaldataagent.contracts.rules import FeeRule
+from generaldataagent.contracts.rules import FeeResult, FeeRule, TransactionFacets
 
 
 def select_rule_facets(
@@ -93,4 +98,37 @@ def scope_rule_month(
         fraud_volume=fraud_volume,
         transaction_count=count,
         fraud_count=fraud_count,
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class FeeComputation:
+    """Exact per-rule fees and their mean; presentation stays with the caller."""
+
+    fees: tuple[FeeResult, ...]
+    average: Decimal | None
+
+
+def compute_fee_summary(rules: Sequence[FeeRule], *, transaction_value: Decimal) -> FeeComputation:
+    """Compute unrounded fees for the matched rules and their mean.
+
+    Rounding is deliberately not applied here: the product workflow renders
+    canonical decimal text and the evaluation transport renders JSON numbers,
+    so each consumer keeps its own declared presentation. The arithmetic and
+    the "no applicable rule" answer are shared.
+    """
+    return FeeComputation(
+        fees=fee_results(rules, transaction_value=transaction_value, rounding="none"),
+        average=average_fee(rules, transaction_value=transaction_value, rounding="none"),
+    )
+
+
+def rule_affected_amounts(
+    rule: FeeRule, transactions: Sequence[TransactionFacets]
+) -> tuple[Decimal, ...]:
+    """Amounts of the transactions that a single rule actually applies to."""
+    return tuple(
+        Decimal(transaction.amount)
+        for transaction in transactions
+        if transaction_matches(rule, transaction)
     )

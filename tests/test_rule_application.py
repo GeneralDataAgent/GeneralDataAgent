@@ -11,7 +11,9 @@ from admission_helpers import enroll
 from generaldataagent.business.extensions import ExtensionAdmission, SkillDefinition
 from generaldataagent.business.governance import CapabilityRegistry
 from generaldataagent.business.rules.application import (
+    compute_fee_summary,
     resolve_target_month,
+    rule_affected_amounts,
     scope_rule_month,
     select_rule_facets,
 )
@@ -20,7 +22,7 @@ from generaldataagent.business.rules.payments import PaymentsSourceError
 from generaldataagent.business.rules.workflow import AnnexWorkflowServices
 from generaldataagent.contracts import ActorContext
 from generaldataagent.contracts.rule_tools import RuleAnalysisRequest
-from generaldataagent.contracts.rules import RuleSemantics
+from generaldataagent.contracts.rules import RuleSemantics, TransactionFacets
 from generaldataagent.evaluation.stage_nine import analyze_fee_rules
 
 DOCUMENTS = "null accepts all values\nfee = fixed_amount + rate * transaction_value / 10000"
@@ -191,3 +193,48 @@ def test_empty_month_and_zero_volume_keep_separate_decisions():
         month=1,
     )
     assert zero.volume == 0 and zero.fraud_ratio is None
+
+
+def fee_rules():
+    return load_rule_set(
+        [
+            dict(ID="a", card_scheme="Orbit", fixed_amount="0.07", rate="13"),
+            dict(ID="b", card_scheme="Orbit", fixed_amount="0.09", rate="17", aci=["F"]),
+        ],
+        source="synthetic-annex",
+        semantics=RuleSemantics(source="synthetic-manual"),
+    )
+
+
+def test_fee_summary_is_exact_and_leaves_presentation_to_callers():
+    rules = fee_rules()
+    value = Decimal("100")
+    computation = compute_fee_summary(rules, transaction_value=value)
+    assert [fee.rule_id for fee in computation.fees] == ["a", "b"]
+    # Independent expectation: fixed + rate * value / 10000, unrounded.
+    assert [Decimal(fee.fee) for fee in computation.fees] == [
+        Decimal("0.07") + Decimal("13") * value / Decimal(10000),
+        Decimal("0.09") + Decimal("17") * value / Decimal(10000),
+    ]
+    assert computation.average == sum(
+        (Decimal(fee.fee) for fee in computation.fees), Decimal(0)
+    ) / Decimal(2)
+
+
+def test_fee_summary_reports_no_average_when_no_rule_applies():
+    computation = compute_fee_summary((), transaction_value=Decimal("100"))
+    assert computation.fees == () and computation.average is None
+
+
+def test_affected_amounts_follow_the_same_rule_match_both_consumers_use():
+    rule_a, rule_b = fee_rules()
+    transactions = tuple(
+        TransactionFacets(**facet)
+        for facet in (
+            dict(card_scheme="Orbit", aci="B", is_credit=True, amount="10"),
+            dict(card_scheme="Orbit", aci="F", is_credit=True, amount="25.5"),
+            dict(card_scheme="Nova", aci="F", is_credit=True, amount="99"),
+        )
+    )
+    assert rule_affected_amounts(rule_a, transactions) == (Decimal("10"), Decimal("25.5"))
+    assert rule_affected_amounts(rule_b, transactions) == (Decimal("25.5"),)
