@@ -14,6 +14,32 @@ from generaldataagent.contracts import ActorContext, ArtifactRef
 from generaldataagent.security.dlp import TextDLPScanner
 
 
+class ArtifactScopeError(PermissionError):
+    """The caller's identity does not cover the store's bound scope."""
+
+    def __init__(self) -> None:
+        super().__init__("artifact_store_actor_scope_mismatch")
+
+
+def require_artifact_scope(store: LocalArtifactStore, actor: ActorContext) -> None:
+    """One authorization boundary: does this actor cover this store's scope?
+
+    A plain content-addressed store carries no scope, so nothing can mismatch.
+    A governed store is bound to one tenant, project and domain set; every
+    caller that writes or reads through it must match that binding. Callers
+    previously re-implemented this test and could disagree on which fields they
+    compared.
+    """
+    if not isinstance(store, GovernedArtifactStore):
+        return
+    bound = store.actor
+    if (bound.tenant_id, bound.project_id) != (
+        actor.tenant_id,
+        actor.project_id,
+    ) or not set(actor.data_domains) <= set(bound.data_domains):
+        raise ArtifactScopeError()
+
+
 class GovernedArtifactStore(LocalArtifactStore):
     """Actor-bound local pilot, injectable through the existing artifact-store port.
 

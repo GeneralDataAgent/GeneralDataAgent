@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from generaldataagent.artifacts import LocalArtifactStore
-from generaldataagent.artifacts.governed import GovernedArtifactStore
+from generaldataagent.artifacts.governed import GovernedArtifactStore, require_artifact_scope
 from generaldataagent.contracts import ActorContext
 from generaldataagent.observability import JsonlAuditSink
 from generaldataagent.observability.verified_audit import VerifiedAuditSink
@@ -85,12 +85,10 @@ class ExecutionComposition:
         if not isinstance(self.audit, _AUDIT_SINKS):
             raise CompositionError("composition_audit_required")
         if isinstance(self.artifacts, GovernedArtifactStore):
-            bound = self.artifacts.actor
-            if (bound.tenant_id, bound.project_id) != (
-                self.actor.tenant_id,
-                self.actor.project_id,
-            ) or not set(self.actor.data_domains) <= set(bound.data_domains):
-                raise CompositionError("composition_artifact_scope_mismatch")
+            try:
+                require_artifact_scope(self.artifacts, self.actor)
+            except PermissionError:
+                raise CompositionError("composition_artifact_scope_mismatch") from None
         if self.mode == "product":
             if not isinstance(self.artifacts, GovernedArtifactStore):
                 raise CompositionError("composition_product_requires_governed_artifacts")
