@@ -35,6 +35,7 @@ from generaldataagent.observability import JsonlAuditSink
 from generaldataagent.observability.alerts import CriticalAlertRouter
 from generaldataagent.observability.verified_audit import VerifiedAuditSink
 from generaldataagent.orchestration.checkpoints import ProtectedSqliteSaver
+from generaldataagent.orchestration.composition import ExecutionComposition
 from generaldataagent.orchestration.state import PhaseOneState
 from generaldataagent.orchestration.workflow import PhaseOneServices, build_phase_one_graph
 from generaldataagent.policy import PolicyEngine
@@ -64,7 +65,24 @@ class MetricAnalysisRuntime:
         alerts: CriticalAlertRouter | None = None,
         budgets: TaskBudgetLedger | None = None,
         checkpointer: ProtectedSqliteSaver | None = None,
+        composition: ExecutionComposition | None = None,
     ) -> None:
+        if composition is not None:
+            if composition.artifacts is not artifacts or (
+                audit is not None and composition.audit is not audit
+            ):
+                raise ValueError("analysis_composition_ports_disagree")
+            if composition.budgets is not None and (
+                budgets is not None and budgets is not composition.budgets
+            ):
+                # Two ledgers would meter the same task twice and disagree about
+                # what it has spent.
+                raise ValueError("analysis_composition_budgets_disagree")
+            if production_mode and composition.mode != "product":
+                raise ValueError("analysis_production_mode_requires_a_product_composition")
+            production_mode = composition.mode == "product"
+            budgets = composition.budgets or budgets
+            audit = composition.audit
         if narrator is not None and routed_narrator is not None:
             raise ValueError("choose either a legacy or a routed narrator")
         if routed_narrator is not None and (
@@ -86,6 +104,7 @@ class MetricAnalysisRuntime:
         self.checkpointer = checkpointer
         self.budgets = budgets
         self.production_mode = production_mode
+        self.composition = composition
         self.catalog = catalog
         self.executor = executor
         self.artifacts = artifacts
@@ -119,13 +138,28 @@ class MetricAnalysisRuntime:
         thread_id: str | None = None,
     ) -> dict[str, Any]:
         require_artifact_scope(self.artifacts, actor)
-        task_id = str(uuid4())
+        composed_task = None
+        if self.composition is not None:
+            if self.composition.actor != actor:
+                raise PermissionError("analysis_composition_actor_mismatch")
+            composed_task = self.composition.task_id
+        task_id = str(composed_task or uuid4())
         if self.budgets is not None:
-            self.budgets.register(UUID(task_id), actor, Budget())
+            if composed_task is not None:
+                # A composed task owns its budget. An unregistered or expired
+                # task is refused here rather than handed a fresh default that
+                # would silently cover usage the operator never authorized.
+                self.budgets.ensure_active(composed_task, actor)
+            else:
+                self.budgets.register(UUID(task_id), actor, Budget())
         actual_thread_id = thread_id or task_id
         if self.checkpointer is not None:
             self.checkpointer.register_thread(actual_thread_id, actor)
-        trace_id = str(uuid4())
+        trace_id = (
+            self.composition.trace_id
+            if self.composition is not None and self.composition.trace_id is not None
+            else str(uuid4())
+        )
         state: PhaseOneState = {
             "task_id": task_id,
             "user_id": actor.user_id,
@@ -181,6 +215,11 @@ class MetricAnalysisRuntime:
                 or ActorContext.model_validate(snapshot.values["actor_context"]) != actor
             ):
                 raise PermissionError("checkpoint_access_denied")
+            # ``execution`` already bound the actor to this thread; what it cannot
+            # know is whether the thread is the work the operator composed.
+            composed_task = self.composition.task_id if self.composition is not None else None
+            if composed_task is not None and UUID(snapshot.values["task_id"]) != composed_task:
+                raise PermissionError("analysis_composition_task_mismatch")
             if self.budgets is not None:
                 self.budgets.ensure_active(UUID(snapshot.values["task_id"]), actor)
             if not snapshot.next:

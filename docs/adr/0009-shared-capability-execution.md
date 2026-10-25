@@ -135,8 +135,20 @@ accept an optional composition, check that the wired ports are the composition's
 the gateway's `production_mode` and budget ledger from it, so a product run is refused when the
 audit service is down or the task budget was never registered. A composition is a statement about
 wiring, not an authorization: it does not admit an actor, a release or a data source, and its
-`production_ready` property reports wiring completeness only. Science workbench reuse, a shared
-task/actor/trace context object and the receipt milestone remain open.
+`production_ready` property reports wiring completeness only.
+
+The same composition now reaches the other capabilities. `DataScienceWorkbench` runs experiments
+under `prepare_experiment`/`run_prepared_experiment`, which the regression evaluator also uses, so a
+preparation control added once reaches both; `MetricAnalysisRuntime` is the last entry point to
+accept a composition. Artifact authorization has one boundary (`require_artifact_scope`) instead of
+each writer re-deriving the tenant/project/domain comparison. A composition may carry `task_id` and
+`trace_id`; when it does, the rule runner, rule delivery, science workbench and metric runtime use
+them rather than minting their own, and each refuses work outside the composed task. Metric analysis
+under a composition no longer registers a default budget, so an uncomposed caller keeps today's
+behaviour while a composed one must have its task registered first.
+
+Still open in this milestone: one shared task/actor/trace value object instead of four consumers
+reading the composition's fields directly, and the receipt milestone.
 
 ## Supporting consolidation
 
