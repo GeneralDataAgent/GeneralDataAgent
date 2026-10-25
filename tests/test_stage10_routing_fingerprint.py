@@ -25,6 +25,15 @@ def run_manifest(tmp_path, monkeypatch):
     runner = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(runner)
     monkeypatch.setattr(runner, "verify_sources", lambda root: {"sources": []})
+    # This test exercises runner orchestration, so it must not need the
+    # locally prepared public snapshots (they are not committed). Supply a
+    # synthetic data root with only the files the runner reads directly.
+    data_root = tmp_path / "stage6"
+    (data_root / "dabstep").mkdir(parents=True)
+    (data_root / "sources.json").write_text(json.dumps({"sources": [{"path": "synthetic"}]}))
+    for name in ("manual.md", "payments-readme.md"):
+        (data_root / "dabstep" / name).write_text(f"# {name}\n\nSynthetic fixture.\n")
+    monkeypatch.setattr(runner, "DATA_ROOT", data_root)
     monkeypatch.setattr(
         runner,
         "resolve_evaluation_model",

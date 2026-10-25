@@ -575,6 +575,7 @@ def test_bird_runner_rejects_changed_database_before_loading_model(tmp_path, mon
     db.write_bytes(b"substituted database")
     c = Case(Task("bird-mini-dev-sqlite", "1", "q", "", "simple", "bank"), {}, "SELECT 1")
     monkeypatch.setattr(runner, "ROOT", tmp_path)
+    monkeypatch.setattr(runner, "DATA_ROOT", tmp_path / "data/stage6")
     monkeypatch.setattr(runner, "verify_sources", lambda root: {"sources": []})
     monkeypatch.setattr(runner, "load_bird", lambda path: [c])
     monkeypatch.setattr(
