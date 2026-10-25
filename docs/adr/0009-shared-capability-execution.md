@@ -172,6 +172,16 @@ readiness; keep each consumer's purpose-specific blockers. Use a small immutable
 value derived from a frozen route to generate both worker payload and protocol declarations.
 These are bounded foundations supporting the application migration, not separate frameworks.
 
+The dependency direction is now part of this consolidation rather than an accident of history.
+Three runtime ports lived under `evaluation/`, so importing them pulled the eager package `__init__`
+(stages one through three) into API startup: declared-key introspection moved to
+`catalog/schema_relationships.py`, the human review stores to `generaldataagent.review`, and the
+action-qualification contract to `security/action_qualification.py`, each leaving a re-export where a
+pinned evaluation path named it. Two facts made this worth doing beyond import cost: `evaluation`
+is offline tooling, so a runtime module importing it is a layering inversion whatever the timing,
+and the same file had been assigning `__all__` twice, silently discarding the stage-one/two/review
+exports. Both directions are now asserted by tests that run in a fresh interpreter.
+
 ## Alternatives and boundaries
 
 Do not build a universal workflow engine, enterprise rules DSL, generic keyword router, or automatic
