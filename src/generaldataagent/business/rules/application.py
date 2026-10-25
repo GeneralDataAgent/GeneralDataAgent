@@ -6,14 +6,21 @@ from decimal import Decimal
 from typing import Any
 
 from generaldataagent.business.rules.engine import (
+    applicable_rules,
     average_fee,
     fee_results,
+    match_rules,
     monthly_totals,
     transaction_matches,
 )
 from generaldataagent.business.rules.payments import PaymentsSourceError, moment_of
 from generaldataagent.contracts.rule_tools import RuleAnalysisRequest
-from generaldataagent.contracts.rules import FeeResult, FeeRule, TransactionFacets
+from generaldataagent.contracts.rules import (
+    FeeResult,
+    FeeRule,
+    RuleMatchReport,
+    TransactionFacets,
+)
 
 
 def select_rule_facets(
@@ -132,3 +139,46 @@ def rule_affected_amounts(
         for transaction in transactions
         if transaction_matches(rule, transaction)
     )
+
+
+@dataclass(frozen=True, slots=True)
+class Applicability:
+    """Merchant-level survivors, the transaction report, and the final matches.
+
+    ``indeterminate`` is carried rather than raised: the product workflow and
+    the evaluation transport declare different stable failure codes for it.
+    """
+
+    merchant_level: tuple[FeeRule, ...]
+    report: RuleMatchReport
+    matched: tuple[FeeRule, ...]
+
+    @property
+    def indeterminate(self) -> bool:
+        return bool(self.report.indeterminate)
+
+
+def resolve_applicability(
+    rules: Sequence[FeeRule],
+    *,
+    merchant: Mapping[str, Any],
+    volume: Decimal,
+    fraud_ratio: Decimal | None,
+    transactions: Sequence[TransactionFacets],
+) -> Applicability:
+    """Apply merchant/month thresholds, then transaction facets, in that order.
+
+    Order is part of the contract: a rule that fails a threshold never reaches
+    transaction matching, and the returned rules keep the source order of the
+    input. Indeterminate transaction facets stop the whole answer instead of
+    dropping rules silently, which is why the report is returned as well.
+    """
+    merchant_level = match_rules(
+        rules,
+        merchant=merchant,
+        monthly_volume=volume,
+        monthly_fraud_level=fraud_ratio,
+    )
+    report = applicable_rules(merchant_level, transactions)
+    matched = tuple(rule for rule in merchant_level if rule.rule_id in report.matched)
+    return Applicability(merchant_level=merchant_level, report=report, matched=matched)
