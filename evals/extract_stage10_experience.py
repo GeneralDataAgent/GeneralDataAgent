@@ -42,12 +42,21 @@ def main():
     )
     output.mkdir(parents=True)
     store = ExperienceStore(output / "candidates.sqlite", clock=lambda: datetime.now(UTC))
+    extractor_hash = digest(ROOT / "src/generaldataagent/evaluation/experience_extraction.py")
     for candidate in candidates:
-        store.capture(candidate.record, actor)
+        # Binding re-runs the template over these exact bytes; a candidate that
+        # does not match them is refused rather than stored unbound.
+        store.capture_from_extraction(
+            candidate,
+            actor,
+            trace_bytes=trace_bytes,
+            document_bytes=document_bytes,
+            extractor_hash=extractor_hash,
+        )
     report = {
         "trace_hash": hashlib.sha256(trace_bytes).hexdigest(),
         "documents_hash": hashlib.sha256(document_bytes).hexdigest(),
-        "extractor_hash": digest(ROOT / "src/generaldataagent/evaluation/experience_extraction.py"),
+        "extractor_hash": extractor_hash,
         "scope_hash": ExperienceStore._scope(actor),
         "candidate_count": len(candidates),
         "candidates": [candidate.model_dump(mode="json") for candidate in candidates],

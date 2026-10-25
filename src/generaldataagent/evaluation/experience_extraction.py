@@ -10,11 +10,12 @@ import hashlib
 import json
 from datetime import datetime
 
-from pydantic import Field
+from pydantic import Field, ValidationError
 
 from generaldataagent.business.actions import content_hash
 from generaldataagent.business.experience import ExperienceRecord
 from generaldataagent.contracts.models import ContractModel
+from generaldataagent.contracts.rule_tools import RuleAnalysisRequest
 
 
 class ExtractedExperience(ContractModel):
@@ -63,6 +64,12 @@ def extract_rule_experience(
             continue
         arguments = action["rules"]
         if not isinstance(arguments, dict) or not isinstance(evidence, dict):
+            continue
+        try:
+            request = RuleAnalysisRequest.model_validate(arguments)
+        except ValidationError:
+            continue
+        if evidence.get("operation") != request.operation:
             continue
         if failure.get("rule_repair_context_hash") != rule_repair_context_hash(arguments):
             continue
