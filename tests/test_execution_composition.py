@@ -894,3 +894,81 @@ def test_identity_validates_its_own_fields(change, code):
 
     with pytest.raises(ValueError, match=code):
         ExecutionIdentity(**({"actor": ACTOR} | change))
+
+
+def test_delivery_uses_the_composed_audit_sink_when_none_is_passed(tmp_path):
+    """A composition declares the audit port; omitting the kwarg must not silence it."""
+    composition = research_composition(tmp_path)
+    with open_protected_checkpointer(tmp_path / "state", encryption_key=b"k" * 32) as saver:
+        flow = runtime(tmp_path, saver)
+        request = RuleAnalysisRequest(operation="average_fee", semantics_excerpt="null means all")
+        thread, _ = flow.run(request, ACTOR, thread_id=str(TASK))
+        # No ``audit=``: the composition's sink must be adopted, not abandoned.
+        service = RuleDeliveryRuntime(
+            workflow=flow, artifacts=composition.artifacts, composition=composition
+        )
+        result = service.deliver(thread, request, ACTOR, task_id=TASK)
+        assert result["task_id"] == str(TASK)
+        assert composition.audit.path.exists()
+        events = [
+            json.loads(line)
+            for line in composition.audit.path.read_text().splitlines()
+            if line.strip()
+        ]
+        assert {event["event_type"] for event in events} >= {"policy.decision"}
+
+
+def test_a_composed_runtime_cannot_finish_another_actors_thread(tmp_path):
+    """The composed runtime must be the principal, not merely the thread's friend."""
+    from generaldataagent.artifacts.governed import GovernedArtifactStore
+    from generaldataagent.contracts import MetricQuery
+    from generaldataagent.observability import JsonlAuditSink
+
+    alice = ACTOR
+    bob = ACTOR.model_copy(update={"user_id": "someone-else"})
+    alice_store = GovernedArtifactStore(tmp_path / "alice", index_path=tmp_path / "ia", actor=alice)
+    from generaldataagent.orchestration.checkpoints import open_protected_checkpointer
+
+    with open_protected_checkpointer(tmp_path / "state", encryption_key=b"k" * 32) as saver:
+        # The graph is compiled with its saver, so the plain runtime must be
+        # built with the shared one rather than assigned it after the fact.
+        plain = _metric_fixture(
+            tmp_path, artifacts=alice_store, audit=None, budgets=None, checkpointer=saver
+        )
+        thread = plain.run(
+            MetricQuery(metric_name="order_count", metric_version="v1"), alice, thread_id=None
+        )["task_id"]
+
+        bob_store = GovernedArtifactStore(tmp_path / "bob", index_path=tmp_path / "ib", actor=bob)
+        bob_sink = JsonlAuditSink(tmp_path / "bob-audit.jsonl")
+        bob_composition = ExecutionComposition(
+            mode="research", actor=bob, artifacts=bob_store, audit=bob_sink, trace_id="bob-trace"
+        )
+        bob_runtime = _metric_fixture(
+            tmp_path,
+            artifacts=bob_store,
+            audit=bob_sink,
+            budgets=None,
+            checkpointer=saver,
+            composition=bob_composition,
+        )
+        with pytest.raises(PermissionError, match="analysis_composition_actor_mismatch"):
+            bob_runtime.resume(thread, alice)
+
+
+def test_a_composed_ledger_without_a_composed_task_is_refused(tmp_path):
+    composition = ExecutionComposition(
+        mode="research",
+        actor=ACTOR,
+        artifacts=LocalArtifactStore(tmp_path / "artifacts"),
+        audit=JsonlAuditSink(tmp_path / "audit.jsonl"),
+        budgets=TaskBudgetLedger(tmp_path / "budgets.sqlite"),
+    )
+    with pytest.raises(ValueError, match="analysis_composition_budgets_require_a_task"):
+        _metric_fixture(
+            tmp_path,
+            artifacts=composition.artifacts,
+            audit=composition.audit,
+            budgets=None,
+            composition=composition,
+        )

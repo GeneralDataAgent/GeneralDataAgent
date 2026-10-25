@@ -80,6 +80,12 @@ class MetricAnalysisRuntime:
                 raise ValueError("analysis_composition_budgets_disagree")
             if production_mode and composition.mode != "product":
                 raise ValueError("analysis_production_mode_requires_a_product_composition")
+            if composition.budgets is not None and composition.task_id is None:
+                # A composed ledger meters registered tasks. Without a composed
+                # task every run would mint a new one and register a default
+                # budget against it, which is the behaviour the composition
+                # exists to prevent.
+                raise ValueError("analysis_composition_budgets_require_a_task")
             production_mode = composition.mode == "product"
             budgets = composition.budgets or budgets
             audit = composition.audit
@@ -215,10 +221,14 @@ class MetricAnalysisRuntime:
                 or ActorContext.model_validate(snapshot.values["actor_context"]) != actor
             ):
                 raise PermissionError("checkpoint_access_denied")
-            # ``execution`` already bound the actor to this thread; what it cannot
-            # know is whether the thread is the work the operator composed.
+            # The checkpointer bound the *thread* to the caller. A composed
+            # runtime must also be the principal the composition names, or it
+            # would finish another actor's work and write it through this
+            # composition's ports and audit sink.
             if self.composition is not None:
-                self.composition.identity.resolve_task(
+                identity = self.composition.identity
+                identity.require_equal_actor(actor, "analysis_composition_actor_mismatch")
+                identity.resolve_task(
                     UUID(snapshot.values["task_id"]), code="analysis_composition_task_mismatch"
                 )
             if self.budgets is not None:
