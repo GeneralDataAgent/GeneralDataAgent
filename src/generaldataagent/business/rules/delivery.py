@@ -42,6 +42,8 @@ from generaldataagent.contracts import (
 )
 from generaldataagent.contracts.rule_tools import RuleAnalysisRequest
 from generaldataagent.observability import JsonlAuditSink
+from generaldataagent.observability.verified_audit import VerifiedAuditSink
+from generaldataagent.orchestration.composition import ExecutionComposition
 from generaldataagent.orchestration.rule_workflow import RuleWorkflowRuntime
 from generaldataagent.policy import PolicyEngine
 from generaldataagent.tools.gateway import ToolGateway
@@ -120,16 +122,29 @@ class RuleDeliveryRuntime:
         workflow: RuleWorkflowRuntime,
         artifacts: LocalArtifactStore | GovernedArtifactStore,
         feedback: FeedbackRegistry | None = None,
-        audit: JsonlAuditSink | None = None,
+        audit: JsonlAuditSink | VerifiedAuditSink | None = None,
         policy: PolicyEngine | None = None,
+        composition: ExecutionComposition | None = None,
     ) -> None:
         if not isinstance(artifacts, LocalArtifactStore | GovernedArtifactStore):
             raise ValueError("rule_delivery_requires_a_supported_artifact_store")
+        if audit is not None and not isinstance(audit, JsonlAuditSink | VerifiedAuditSink):
+            raise ValueError("rule_delivery_requires_a_supported_audit_sink")
+        if composition is not None:
+            # A product composition is refused on its own guarantee first: a
+            # JSONL sink is a development port no matter which one was wired.
+            if composition.mode == "product" and not isinstance(audit, VerifiedAuditSink):
+                raise ValueError("rule_delivery_product_composition_requires_verified_audit")
+            if composition.artifacts is not artifacts or (
+                audit is not None and composition.audit is not audit
+            ):
+                raise ValueError("rule_delivery_composition_ports_disagree")
         self.workflow = workflow
         self.artifacts = artifacts
         self.feedback = feedback
         self.audit = audit
         self.policy = policy or PolicyEngine()
+        self.composition = composition
 
     def deliver(
         self,
@@ -143,6 +158,8 @@ class RuleDeliveryRuntime:
     ) -> dict[str, Any]:
         if (actor.user_id, actor.tenant_id, actor.project_id) == ("", "", ""):
             raise PermissionError("rule_delivery_actor_required")
+        if self.composition is not None and self.composition.actor != actor:
+            raise PermissionError("rule_delivery_composition_actor_mismatch")
         if isinstance(self.artifacts, GovernedArtifactStore):
             bound = self.artifacts.actor
             if (bound.tenant_id, bound.project_id) != (
@@ -153,7 +170,12 @@ class RuleDeliveryRuntime:
         # A gateway per delivery, exactly as ``GovernedRuleRunner`` does: handlers
         # close over this call's actor and task so a shared gateway can never be
         # repointed at another tenant.
-        gateway = ToolGateway(self.policy, self.audit)
+        gateway = ToolGateway(
+            self.policy,
+            self.audit,
+            production_mode=self.composition is not None and self.composition.mode == "product",
+            budgets=self.composition.budgets if self.composition is not None else None,
+        )
         trace = trace_id or f"rule-delivery-{task_id}"
 
         def persist(arguments):

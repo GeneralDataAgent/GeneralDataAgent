@@ -3,8 +3,11 @@
 from uuid import UUID
 
 from generaldataagent.artifacts import LocalArtifactStore
+from generaldataagent.artifacts.governed import GovernedArtifactStore
 from generaldataagent.contracts import ActorContext, ToolRequest
 from generaldataagent.observability import JsonlAuditSink
+from generaldataagent.observability.verified_audit import VerifiedAuditSink
+from generaldataagent.orchestration.composition import ExecutionComposition
 from generaldataagent.orchestration.rule_workflow import RuleWorkflowRuntime
 from generaldataagent.policy import PolicyEngine
 from generaldataagent.tools.gateway import ToolGateway
@@ -13,8 +16,16 @@ from generaldataagent.tools.gateway import ToolGateway
 class GovernedRuleRunner:
     """Route execution and evidence writes through existing gateway policy.
 
-    Only development local stores are admitted. This adapter does not implement
-    production release admission, source authorization or governed retention.
+    An optional ``ExecutionComposition`` declares which guarantee set this run
+    carries. ``product`` compositions make the gateway itself refuse to run
+    without verified audit, task budgets and a governed, actor-scoped artifact
+    store; a ``research`` composition keeps the development ports. Both are
+    constructor checks rather than flags, and neither is an admission or an
+    acceptance claim.
+
+    A product composition does not register the task budget: the calling task
+    owns its budget and must register it first. An unregistered task is refused
+    by the gateway, which is the intended fail-closed outcome.
     """
 
     def __init__(
@@ -22,17 +33,54 @@ class GovernedRuleRunner:
         *,
         runtime: RuleWorkflowRuntime,
         actor: ActorContext,
-        artifacts: LocalArtifactStore,
-        audit: JsonlAuditSink,
+        artifacts: LocalArtifactStore | GovernedArtifactStore,
+        audit: JsonlAuditSink | VerifiedAuditSink,
         policy: PolicyEngine | None = None,
+        composition: ExecutionComposition | None = None,
     ):
-        if type(artifacts) is not LocalArtifactStore or not isinstance(audit, JsonlAuditSink):
-            raise ValueError("rule_runner_requires_development_artifacts_and_audit")
+        if not isinstance(artifacts, LocalArtifactStore | GovernedArtifactStore) or not isinstance(
+            audit, JsonlAuditSink | VerifiedAuditSink
+        ):
+            raise ValueError("rule_runner_requires_artifact_store_and_audit")
+        if composition is not None:
+            # Check the guarantee itself before the wiring, so a development
+            # audit sink in a product composition names the control it misses.
+            if composition.mode == "product" and (
+                not isinstance(artifacts, GovernedArtifactStore)
+                or not isinstance(audit, VerifiedAuditSink)
+            ):
+                raise ValueError("rule_runner_product_composition_requires_governed_ports")
+            if (
+                composition.actor != actor
+                or composition.artifacts is not artifacts
+                or composition.audit is not audit
+            ):
+                raise ValueError("rule_runner_composition_ports_disagree")
+        if isinstance(artifacts, GovernedArtifactStore):
+            bound = artifacts.actor
+            if (bound.tenant_id, bound.project_id) != (
+                actor.tenant_id,
+                actor.project_id,
+            ) or not set(actor.data_domains) <= set(bound.data_domains):
+                raise PermissionError("artifact_store_actor_scope_mismatch")
         self.runtime = runtime
         self.actor = actor
         self.artifacts = artifacts
         self.audit = audit
         self.policy = policy or PolicyEngine()
+        self.composition = composition
+
+    @property
+    def production_mode(self) -> bool:
+        return self.composition is not None and self.composition.mode == "product"
+
+    def _gateway(self) -> ToolGateway:
+        return ToolGateway(
+            self.policy,
+            self.audit,
+            production_mode=self.production_mode,
+            budgets=self.composition.budgets if self.composition is not None else None,
+        )
 
     def invoke(self, request: ToolRequest, *, trace_id: str):
         if (request.user_id, request.tenant_id, request.project_id) != (
@@ -43,7 +91,7 @@ class GovernedRuleRunner:
             raise PermissionError("rule_runner_actor_scope_mismatch")
         if request.tool_name != "rules.execute" or request.resource != "rule-workflow":
             raise ValueError("rule_runner_request_target_mismatch")
-        gateway = ToolGateway(self.policy, self.audit)
+        gateway = self._gateway()
 
         def persist(arguments):
             ref = self.artifacts.put_json(
