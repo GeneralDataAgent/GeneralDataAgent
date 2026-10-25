@@ -147,8 +147,16 @@ them rather than minting their own, and each refuses work outside the composed t
 under a composition no longer registers a default budget, so an uncomposed caller keeps today's
 behaviour while a composed one must have its task registered first.
 
-Still open in this milestone: one shared task/actor/trace value object instead of four consumers
-reading the composition's fields directly, and the receipt milestone.
+Still open in this milestone: the receipt milestone.
+
+`ExecutionIdentity` (in the same module) now owns the two questions every consumer was asking
+separately: whether a caller's actor is inside the bound scope, and whether its task is the composed
+one. The two answers are deliberately different checks — `require_covering_actor` admits a narrower
+actor (same tenant and project, domains a subset), `require_equal_actor` requires the same principal
+— because science compares a partial actor while rule delivery requires the identical one. Naming
+them made an existing divergence explicit instead of leaving each caller to inherit whichever rule
+its neighbour happened to encode. `resolve_task`/`resolve_trace` carry the "composed value wins"
+rule, and the composition validates through it while keeping its public failure codes.
 
 ## Supporting consolidation
 
@@ -163,6 +171,16 @@ Likewise, share a validated run envelope below treatment comparison, repeat stab
 readiness; keep each consumer's purpose-specific blockers. Use a small immutable execution-budget
 value derived from a frozen route to generate both worker payload and protocol declarations.
 These are bounded foundations supporting the application migration, not separate frameworks.
+
+The dependency direction is now part of this consolidation rather than an accident of history.
+Three runtime ports lived under `evaluation/`, so importing them pulled the eager package `__init__`
+(stages one through three) into API startup: declared-key introspection moved to
+`catalog/schema_relationships.py`, the human review stores to `generaldataagent.review`, and the
+action-qualification contract to `security/action_qualification.py`, each leaving a re-export where a
+pinned evaluation path named it. Two facts made this worth doing beyond import cost: `evaluation`
+is offline tooling, so a runtime module importing it is a layering inversion whatever the timing,
+and the same file had been assigning `__all__` twice, silently discarding the stage-one/two/review
+exports. Both directions are now asserted by tests that run in a fresh interpreter.
 
 ## Alternatives and boundaries
 

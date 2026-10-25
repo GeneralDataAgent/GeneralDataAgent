@@ -31,14 +31,17 @@ from generaldataagent.contracts import (
 from generaldataagent.data_science.sandbox import SandboxError
 from generaldataagent.data_science.tracking import ExperimentTrackingError
 from generaldataagent.data_science.workbench import DataScienceWorkbench, ScienceGateError
-from generaldataagent.evaluation import DuplicateReviewError, LocalHumanReviewStore
-from generaldataagent.evaluation.scoped_reviews import ScopedHumanReviewStore
 from generaldataagent.observability.alerts import CriticalAlertRouter
 from generaldataagent.observability.maintenance import ServiceMaintenance
 from generaldataagent.observability.slo import ServiceSLO
 from generaldataagent.orchestration import MetricAnalysisRuntime
 from generaldataagent.orchestration.checkpoints import CheckpointBusyError, CheckpointLeaseLostError
 from generaldataagent.policy.resume import PendingActionCoordinator
+from generaldataagent.review import (
+    DuplicateReviewError,
+    LocalHumanReviewStore,
+    ScopedHumanReviewStore,
+)
 from generaldataagent.security.identity import SessionBroker
 from generaldataagent.security.login import OIDCLoginFlow
 from generaldataagent.tools import QueryExecutionError

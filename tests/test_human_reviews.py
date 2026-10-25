@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 from generaldataagent.api.app import create_app
 from generaldataagent.contracts import HumanReview
-from generaldataagent.evaluation import DuplicateReviewError, LocalHumanReviewStore
+from generaldataagent.review import DuplicateReviewError, LocalHumanReviewStore
 
 
 def review(task_id, reviewer_id, *, score=5, blocking_issue=False) -> HumanReview:

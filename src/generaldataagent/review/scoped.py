@@ -6,7 +6,7 @@ from pathlib import Path
 from uuid import UUID
 
 from generaldataagent.contracts import ActorContext, HumanReview, HumanReviewSummary
-from generaldataagent.evaluation.reviews import DuplicateReviewError, summarize_reviews
+from generaldataagent.review.local import DuplicateReviewError, summarize_reviews
 
 
 class ScopedHumanReviewStore:

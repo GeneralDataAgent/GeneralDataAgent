@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
-from generaldataagent.evaluation.stage_five_external import (
+from generaldataagent.security.action_qualification import (
     QualifiedActionBundle,
     verify_action_qualification,
 )
