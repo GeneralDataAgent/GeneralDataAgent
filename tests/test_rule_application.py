@@ -2,6 +2,7 @@
 
 import json
 import sqlite3
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -9,8 +10,13 @@ from admission_helpers import enroll
 
 from generaldataagent.business.extensions import ExtensionAdmission, SkillDefinition
 from generaldataagent.business.governance import CapabilityRegistry
-from generaldataagent.business.rules.application import select_rule_facets
+from generaldataagent.business.rules.application import (
+    resolve_target_month,
+    scope_rule_month,
+    select_rule_facets,
+)
 from generaldataagent.business.rules.engine import load_rule_set
+from generaldataagent.business.rules.payments import PaymentsSourceError
 from generaldataagent.business.rules.workflow import AnnexWorkflowServices
 from generaldataagent.contracts import ActorContext
 from generaldataagent.contracts.rule_tools import RuleAnalysisRequest
@@ -137,3 +143,51 @@ def test_external_document_skill_requires_admission_before_rendering(tmp_path):
     assert context["documents"] in text
     assert "a quoted null rule does not establish empty-list semantics" in text
     assert reference == ("skill", skill.name, skill.version, admission.skill_hash(skill))
+
+
+def month_rows():
+    return [
+        {"year": 2026, "day_of_year": 1, "eur_amount": "10.25", "has_fraudulent_dispute": "True"},
+        {"year": 2026, "day_of_year": 2, "eur_amount": "4.75", "has_fraudulent_dispute": "False"},
+        {"year": 2026, "day_of_year": 32, "eur_amount": "99.00", "has_fraudulent_dispute": "True"},
+    ]
+
+
+@pytest.mark.parametrize(
+    ("request_month", "ordinal", "expected"), [(1, None, 1), (None, 32, 2), (7, 32, 2)]
+)
+def test_target_month_resolution_is_exact(request_month, ordinal, expected):
+    assert resolve_target_month(year=2026, month=request_month, day_of_year=ordinal) == expected
+
+
+@pytest.mark.parametrize("ordinal", [0, 367, 1.5, True])
+def test_invalid_ordinal_days_fail_closed(ordinal):
+    with pytest.raises(PaymentsSourceError, match="payments_invalid_row"):
+        resolve_target_month(year=2026, month=None, day_of_year=ordinal)
+
+
+def test_missing_month_and_day_is_refused():
+    with pytest.raises(ValueError, match="month or day_of_year required"):
+        resolve_target_month(year=2026, month=None, day_of_year=None)
+
+
+def test_month_scope_keeps_month_totals_and_day_subset_separate():
+    scope = scope_rule_month(month_rows(), month=1, day_of_year=1)
+    assert [row["day_of_year"] for row in scope.monthly_rows] == [1, 2]
+    assert [row["day_of_year"] for row in scope.scoped_rows] == [1]
+    assert (scope.volume, scope.fraud_volume) == (Decimal("15"), Decimal("10.25"))
+    assert (scope.transaction_count, scope.fraud_count) == (2, 1)
+    assert float(scope.fraud_ratio) == pytest.approx(0.6833333333333333)
+    unscoped = scope_rule_month(month_rows(), month=2)
+    assert len(unscoped.scoped_rows) == len(unscoped.monthly_rows) == 1
+    assert unscoped.month == 2
+
+
+def test_empty_month_and_zero_volume_keep_separate_decisions():
+    with pytest.raises(PaymentsSourceError, match="payments_month_empty"):
+        scope_rule_month(month_rows(), month=4)
+    zero = scope_rule_month(
+        [{"year": 2026, "day_of_year": 1, "eur_amount": "0", "has_fraudulent_dispute": "False"}],
+        month=1,
+    )
+    assert zero.volume == 0 and zero.fraud_ratio is None

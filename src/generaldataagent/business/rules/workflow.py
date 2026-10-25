@@ -11,10 +11,13 @@ Two execution scopes are supported and never mixed:
 
 import hashlib
 import json
-from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 
-from generaldataagent.business.rules.application import select_rule_facets
+from generaldataagent.business.rules.application import (
+    resolve_target_month,
+    scope_rule_month,
+    select_rule_facets,
+)
 from generaldataagent.business.rules.engine import (
     applicable_rules,
     average_fee,
@@ -22,12 +25,10 @@ from generaldataagent.business.rules.engine import (
     fee_results,
     load_rule_set,
     match_rules,
-    monthly_totals,
     transaction_matches,
 )
 from generaldataagent.business.rules.payments import (
     PaymentsSourceError,
-    scoped_month,
     transaction_facets,
 )
 from generaldataagent.contracts.rule_tools import RuleAnalysisRequest
@@ -109,32 +110,26 @@ class AnnexWorkflowServices:
         return context
 
     def _monthly_context(self, request):
-        target_month = request.month
-        if request.day_of_year is not None:
-            target = date(request.year, 1, 1) + timedelta(days=request.day_of_year - 1)
-            if target.year != request.year:
-                raise ValueError("annex_workflow_day_outside_year")
-            target_month = target.month
+        try:
+            target_month = resolve_target_month(
+                year=request.year, month=request.month, day_of_year=request.day_of_year
+            )
+        except PaymentsSourceError as exc:
+            raise ValueError("annex_workflow_day_outside_year") from exc
         source = self._payments.merchant_year(request.merchant, request.year)
-        rows = scoped_month(source, target_month)
-        volume, fraud, count, fraud_count = monthly_totals(rows)
-        if not volume:
+        scope = scope_rule_month(source.rows, month=target_month, day_of_year=request.day_of_year)
+        if not scope.volume:
             raise ValueError("annex_workflow_zero_monthly_volume")
-        scoped = [
-            row
-            for row in rows
-            if request.day_of_year is None or int(row["day_of_year"]) == request.day_of_year
-        ]
         return {
             "year": request.year,
             "month": target_month,
             # Canonical text: SQLite REAL columns carry binary-float tails.
-            "volume": _canonical(volume),
-            "fraud_volume": _canonical(fraud),
-            "fraud_ratio": _canonical(fraud / volume),
-            "transaction_count": count,
-            "fraud_count": fraud_count,
-            "scoped_transactions": len(scoped),
+            "volume": _canonical(scope.volume),
+            "fraud_volume": _canonical(scope.fraud_volume),
+            "fraud_ratio": _canonical(scope.fraud_ratio),
+            "transaction_count": scope.transaction_count,
+            "fraud_count": scope.fraud_count,
+            "scoped_transactions": len(scope.scoped_rows),
         }
 
     # -- stages -------------------------------------------------------------
@@ -156,13 +151,12 @@ class AnnexWorkflowServices:
     def _transactions(self, state) -> tuple[TransactionFacets, ...]:
         request = self._request(state)
         source = self._payments.merchant_year(request.merchant, request.year)
-        rows = scoped_month(source, state["monthly_context"]["month"])
-        scoped = [
-            row
-            for row in rows
-            if request.day_of_year is None or int(row["day_of_year"]) == request.day_of_year
-        ]
-        return tuple(TransactionFacets(**facet) for facet in transaction_facets(scoped))
+        scope = scope_rule_month(
+            source.rows,
+            month=state["monthly_context"]["month"],
+            day_of_year=request.day_of_year,
+        )
+        return tuple(TransactionFacets(**facet) for facet in transaction_facets(scope.scoped_rows))
 
     def _match(self, state):
         request = self._request(state)
