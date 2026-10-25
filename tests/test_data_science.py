@@ -520,3 +520,37 @@ def test_registration_contract_never_permits_deployment(tmp_path: Path) -> None:
             model_artifact=report.output_artifact,
             deployment_permitted=True,
         )
+
+
+def test_workbench_runs_the_injected_sandbox_through_the_shared_preparation(
+    tmp_path: Path,
+) -> None:
+    class Recorder:
+        runtime_fingerprint = "sha256:" + "a" * 64
+
+        def __init__(self):
+            self.calls = []
+
+        def run(self, *, rows, spec, train_indices, test_indices, notebook=None):
+            self.calls.append((rows, spec, train_indices, test_indices))
+            return {
+                "template_version": "1.0",
+                "train_rows": len(train_indices),
+                "test_rows": len(test_indices),
+                "metrics": {"accuracy": 0.5},
+                "eda": {},
+                "statistical_checks": {},
+                "error_analysis": {},
+                "subgroups": [],
+            }
+
+    task_id, store, snapshot = _snapshot(tmp_path)
+    sandbox = Recorder()
+    workbench = DataScienceWorkbench(artifact_store=store, sandbox=sandbox)
+    report = _run(workbench, snapshot, _spec(task_id, snapshot.snapshot_id))
+    assert report.passed is True
+    assert report.runtime_fingerprint == "sha256:" + "a" * 64
+    assert len(sandbox.calls) == 1
+    rows, spec, train, test = sandbox.calls[0]
+    assert len(rows) == 20 and sorted(train + test) == list(range(20))
+    assert spec.task_id == task_id

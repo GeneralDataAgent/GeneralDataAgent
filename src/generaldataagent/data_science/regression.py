@@ -6,8 +6,12 @@ import re
 from uuid import uuid4
 
 from generaldataagent.contracts import ExperimentSpec, SandboxQuota
-from generaldataagent.data_science.checks import split_indices, validate_experiment_data
-from generaldataagent.data_science.sandbox import FixedTemplateSandbox
+from generaldataagent.data_science.experiment import (
+    ExperimentSandbox,
+    prepare_experiment,
+    resolve_sandbox,
+    run_prepared_experiment,
+)
 from generaldataagent.data_science.statistics import derive_features, finite_number
 
 
@@ -52,7 +56,22 @@ def regression_metric_bindings(bindings, evidence, text):
     )
 
 
-def evaluate_regression(rows, request, *, public_text=""):
+def evaluate_regression(
+    rows,
+    request,
+    *,
+    public_text="",
+    task_id=None,
+    snapshot_id=None,
+    sandbox: ExperimentSandbox | None = None,
+):
+    """Prepare and run the shared experiment path for regression evidence.
+
+    ``task_id`` and ``snapshot_id`` let a caller bind the experiment to its own
+    task instead of the throwaway identity this adapter uses when it runs as a
+    research tool. ``sandbox`` admits an injected runner; the local fixed
+    template stays the default.
+    """
     requested_metrics = requested_regression_metrics(public_text)
     if len(requested_metrics) == 1 and request.primary_metric not in requested_metrics:
         raise ValueError("primary metric conflicts with public regression metric")
@@ -76,8 +95,8 @@ def evaluate_regression(rows, request, *, public_text=""):
         ]
         derived = [derived[i] for i in source_indices]
     spec = ExperimentSpec(
-        task_id=uuid4(),
-        snapshot_id=uuid4(),
+        task_id=task_id or uuid4(),
+        snapshot_id=snapshot_id or uuid4(),
         problem_type="regression",
         target_column=request.target,
         feature_columns=tuple(request.features),
@@ -93,14 +112,13 @@ def evaluate_regression(rows, request, *, public_text=""):
             memory_mb=512 if request.estimator == "sklearn_linear_regression" else 256
         ),
     )
-    train, test = split_indices(derived, spec)
-    checks = validate_experiment_data(derived, spec, train, test)
-    if any(not c.passed and c.severity == "error" for c in checks):
+    prepared = prepare_experiment(derived, spec)
+    checks = prepared.checks
+    if prepared.blocked:
         raise ValueError(
             "regression checks failed: " + ",".join(c.code for c in checks if not c.passed)
         )
-    runner = FixedTemplateSandbox()
-    result = runner.run(rows=derived, spec=spec, train_indices=train, test_indices=test)
+    result = run_prepared_experiment(prepared, sandbox=sandbox)
     result.update(
         operation="regression_evaluation",
         source_indices=source_indices,
@@ -110,7 +128,7 @@ def evaluate_regression(rows, request, *, public_text=""):
         + hashlib.sha256(json.dumps(rows, sort_keys=True, allow_nan=False).encode()).hexdigest(),
         derived_hash="sha256:"
         + hashlib.sha256(json.dumps(derived, sort_keys=True, allow_nan=False).encode()).hexdigest(),
-        runtime_fingerprint=runner.runtime_fingerprint,
+        runtime_fingerprint=resolve_sandbox(sandbox).runtime_fingerprint,
         scope=(
             "held-out predictive evaluation; seed and method defaults declared, "
             "not inferred from labels"

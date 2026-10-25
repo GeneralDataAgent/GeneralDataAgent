@@ -339,3 +339,201 @@ def test_a_research_composition_cannot_be_reused_as_a_product_one(tmp_path):
                     budgets=TaskBudgetLedger(tmp_path / "budgets.sqlite"),
                 ),
             )
+
+
+def _science_fixture(tmp_path):
+    from uuid import uuid4
+
+    from generaldataagent.contracts import ExperimentSpec, SnapshotColumn, SplitSpec
+    from generaldataagent.data_science.experiment import prepare_experiment
+    from generaldataagent.data_science.snapshot import create_dataset_snapshot
+
+    store = LocalArtifactStore(tmp_path / "science-artifacts")
+    task_id = uuid4()
+    rows = [
+        {
+            "age": 20 + index,
+            "score": (index * 7) % 19,
+            "group": f"g{index % 4}",
+            "converted": "yes" if index % 3 == 0 else "no",
+        }
+        for index in range(20)
+    ]
+    columns = (
+        SnapshotColumn(name="age", data_type="integer", role="feature"),
+        SnapshotColumn(name="score", data_type="integer", role="feature"),
+        SnapshotColumn(name="group", data_type="string", role="group"),
+        SnapshotColumn(name="converted", data_type="string", role="target"),
+    )
+    snapshot = create_dataset_snapshot(
+        task_id=task_id,
+        tenant_id=ACTOR.tenant_id,
+        project_id=ACTOR.project_id,
+        data_domain="payments",
+        source_name="composition-fixture",
+        rows=rows,
+        columns=columns,
+        artifact_store=store,
+    )
+    spec = ExperimentSpec(
+        task_id=task_id,
+        snapshot_id=snapshot.snapshot_id,
+        problem_type="binary_classification",
+        target_column="converted",
+        feature_columns=("age", "score"),
+        baseline="majority",
+        primary_metric="f1",
+        split=SplitSpec(),
+    )
+    assert prepare_experiment(rows, spec).blocked is False
+    return store, snapshot, spec
+
+
+def test_science_workbench_refuses_a_composition_that_does_not_match_its_ports(tmp_path):
+    from generaldataagent.data_science import DataScienceWorkbench
+
+    store, snapshot, spec = _science_fixture(tmp_path)
+    other = research_composition(tmp_path)
+    with pytest.raises(ValueError, match="science_composition_ports_disagree"):
+        DataScienceWorkbench(artifact_store=store, composition=other)
+    matching = ExecutionComposition(
+        mode="research",
+        actor=ACTOR,
+        artifacts=store,
+        audit=JsonlAuditSink(tmp_path / "matching-audit.jsonl"),
+    )
+    with pytest.raises(ValueError, match="science_production_mode_requires_a_product"):
+        DataScienceWorkbench(
+            artifact_store=store,
+            audit=matching.audit,
+            composition=matching,
+            production_mode=True,
+        )
+
+
+def test_science_workbench_refuses_a_request_outside_the_composition_actor(tmp_path):
+    from generaldataagent.data_science import DataScienceWorkbench
+
+    store, snapshot, spec = _science_fixture(tmp_path)
+    composition = ExecutionComposition(
+        mode="research",
+        actor=ACTOR,
+        artifacts=store,
+        audit=JsonlAuditSink(tmp_path / "science-audit.jsonl"),
+    )
+    workbench = DataScienceWorkbench(artifact_store=store, composition=composition)
+    with pytest.raises(PermissionError, match="science_composition_actor_mismatch"):
+        workbench.run_experiment(
+            snapshot=snapshot,
+            spec=spec,
+            user_id="someone-else",
+            tenant_id=ACTOR.tenant_id,
+            project_id=ACTOR.project_id,
+            data_domain="payments",
+        )
+    report = workbench.run_experiment(
+        snapshot=snapshot,
+        spec=spec,
+        user_id=ACTOR.user_id,
+        tenant_id=ACTOR.tenant_id,
+        project_id=ACTOR.project_id,
+        data_domain="payments",
+    )
+    assert report.passed is True
+
+
+def test_science_cannot_run_under_an_unregistered_task_budget(tmp_path):
+    from generaldataagent.contracts import (
+        ExperimentSpec,
+        OCIContainerRuntime,
+        SnapshotColumn,
+    )
+    from generaldataagent.data_science import DataScienceWorkbench
+    from generaldataagent.data_science.snapshot import create_dataset_snapshot
+
+    composition = ExecutionComposition(
+        mode="product",
+        actor=ACTOR,
+        artifacts=governed_store(tmp_path / "science"),
+        audit=ReceiptTransport().sink(),
+        budgets=TaskBudgetLedger(tmp_path / "science-budgets.sqlite"),
+    )
+    task_id = uuid4()
+    rows = [
+        {
+            "age": 20 + index,
+            "score": (index * 7) % 19,
+            "group": f"g{index % 4}",
+            "converted": "yes" if index % 3 == 0 else "no",
+        }
+        for index in range(20)
+    ]
+    columns = (
+        SnapshotColumn(name="age", data_type="integer", role="feature"),
+        SnapshotColumn(name="score", data_type="integer", role="feature"),
+        SnapshotColumn(name="group", data_type="string", role="group"),
+        SnapshotColumn(name="converted", data_type="string", role="target"),
+    )
+    snapshot = create_dataset_snapshot(
+        task_id=task_id,
+        tenant_id=ACTOR.tenant_id,
+        project_id=ACTOR.project_id,
+        data_domain="payments",
+        source_name="composition-fixture",
+        rows=rows,
+        columns=columns,
+        artifact_store=composition.artifacts,
+    )
+    spec = ExperimentSpec(
+        task_id=task_id,
+        snapshot_id=snapshot.snapshot_id,
+        problem_type="binary_classification",
+        target_column="converted",
+        feature_columns=("age", "score"),
+        baseline="majority",
+        primary_metric="f1",
+    )
+    # A production workbench also demands the OCI sandbox; the container never
+    # starts because the budget check rejects first.
+    from generaldataagent.data_science.sandbox import OCIContainerSandbox
+
+    workbench = DataScienceWorkbench(
+        artifact_store=composition.artifacts,
+        audit=composition.audit,
+        sandbox=OCIContainerSandbox(
+            OCIContainerRuntime(
+                engine="docker",
+                image_ref=f"registry.example/gda-stage3@sha256:{'e' * 64}",
+            )
+        ),
+        composition=composition,
+    )
+    with pytest.raises(BudgetExceededError, match="task_budget_access_denied"):
+        workbench.run_experiment(
+            snapshot=snapshot,
+            spec=spec,
+            user_id=ACTOR.user_id,
+            tenant_id=ACTOR.tenant_id,
+            project_id=ACTOR.project_id,
+            data_domain="payments",
+        )
+    composition.budgets.register(task_id, ACTOR, Budget())
+    # Registered now, so the budget gate passes and the audit event is written;
+    # the experiment then stops at the sandbox rather than at the budget.
+    events = []
+    original = composition.audit.transport
+    composition.audit.transport = lambda content: (
+        events.append(json.loads(content)),
+        original(content),
+    )[1]
+    with pytest.raises(Exception) as failure:
+        workbench.run_experiment(
+            snapshot=snapshot,
+            spec=spec,
+            user_id=ACTOR.user_id,
+            tenant_id=ACTOR.tenant_id,
+            project_id=ACTOR.project_id,
+            data_domain="payments",
+        )
+    assert not isinstance(failure.value, BudgetExceededError)
+    assert [event["payload"]["decision"] for event in events] == ["allow"]
