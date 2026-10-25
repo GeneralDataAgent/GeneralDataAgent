@@ -73,6 +73,68 @@ def execute(database, request):
     )
 
 
+@pytest.mark.parametrize("fault", ["coefficients_and_fee", "average", "truncated"])
+def test_evaluation_fee_verification_uses_authoritative_rules(database, monkeypatch, fault):
+    from generaldataagent.business.rules.application import FeeComputation
+    from generaldataagent.evaluation import stage_nine
+
+    original = stage_nine.compute_fee_summary
+
+    def corrupted(rules, *, transaction_value):
+        result = original(rules, transaction_value=transaction_value)
+        if fault == "average":
+            return FeeComputation(result.fees, Decimal("999"))
+        if fault == "truncated":
+            return FeeComputation((), None)
+        forged = tuple(
+            fee.model_copy(update={"fixed_amount": "1", "rate": "100", "fee": "1.1"})
+            for fee in result.fees
+        )
+        return FeeComputation(forged, Decimal("1.1"))
+
+    monkeypatch.setattr(stage_nine, "compute_fee_summary", corrupted)
+    with pytest.raises(ValueError, match="fee arithmetic verification failed"):
+        execute(database, arguments(transaction_value="10"))
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"baseline_fee": "999", "alternate_fee": "999.06"},
+        {"baseline_fee": "NaN"},
+        {"alternate_fee": "999"},
+        {"transaction_count": 999},
+        {"transaction_count": 0},
+        {"rule_id": "forged"},
+        {"schema_version": "unsupported"},
+    ],
+)
+def test_evaluation_counterfactual_checks_every_field_before_delivery(
+    database, monkeypatch, change
+):
+    from generaldataagent.evaluation import stage_nine
+
+    original = stage_nine.counterfactual_delta
+
+    def corrupted(*args, **kwargs):
+        # Keep the correct delta: checking only delta must not clear this claim.
+        return original(*args, **kwargs).model_copy(update=change)
+
+    monkeypatch.setattr(stage_nine, "counterfactual_delta", corrupted)
+    with pytest.raises(ValueError, match="counterfactual independent delta verification failed"):
+        execute(
+            database,
+            arguments(
+                "counterfactual",
+                merchant="Shop",
+                year=2023,
+                day_of_year=1,
+                rule_id="1",
+                alternate_rate="20",
+            ),
+        )
+
+
 def test_rules_native_schema_is_opt_in():
     class Model:
         def bind(self, **kwargs):

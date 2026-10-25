@@ -13,6 +13,8 @@ from generaldataagent.business.rules import (
     select_passages,
     split_passages,
     verify_answer,
+    verify_authoritative_counterfactual,
+    verify_authoritative_fee_summary,
     verify_band_round_trip,
     verify_citations,
     verify_fee_arithmetic,
@@ -179,6 +181,130 @@ def test_fee_arithmetic_mismatch_is_reported_per_rule():
     bad = good.model_copy(update={"fee": "0.070000"})
     assert verify_fee_arithmetic([good], Decimal("10")) == ()
     assert verify_fee_arithmetic([bad], Decimal("10")) == ("fee_mismatch:384",)
+
+
+def authoritative_rule():
+    return load_rule_set(ANNEX, source="annex", semantics=SEMANTICS)[0]
+
+
+def fee_claim(rule, *, fixed=None, rate=None, fee="0.064", average="0.064"):
+    return {
+        "fees": [
+            FeeResult(
+                rule_id=rule.rule_id,
+                fixed_amount=fixed or rule.fixed_amount,
+                rate=rate or rule.rate,
+                fee=fee,
+                source=rule.source,
+            ).model_dump(mode="json")
+        ],
+        "average_fee": average,
+    }
+
+
+def test_authoritative_fee_summary_uses_rules_not_self_reported_coefficients(monkeypatch):
+    rule = authoritative_rule()
+    claim = fee_claim(rule)
+    assert verify_authoritative_fee_summary([rule], Decimal("10"), claim) == ()
+
+    # Internally consistent with the forged coefficients, but inconsistent
+    # with the authoritative loaded rule. A self-check would accept this.
+    forged = fee_claim(rule, fixed="1", rate="100", fee="1.1", average="1.1")
+    issues = verify_authoritative_fee_summary([rule], Decimal("10"), forged)
+    assert issues == ("record_mismatch", "average_mismatch")
+
+    import generaldataagent.business.rules.engine as engine
+
+    monkeypatch.setattr(engine, "compute_fee", lambda *args: Decimal("999"))
+    assert verify_authoritative_fee_summary([rule], Decimal("10"), claim) == ()
+
+
+@pytest.mark.parametrize(
+    ("change", "expected"),
+    [
+        ("numeric_fee", "record_mismatch"),
+        ("nan_fee", "record_mismatch"),
+        ("wrong_id", "result_ids_mismatch"),
+        ("extra_field", "record_mismatch"),
+        ("missing_fees", "computation_invalid"),
+        ("empty", "result_ids_mismatch"),
+    ],
+)
+def test_authoritative_fee_summary_refuses_malformed_or_incomplete_claims(change, expected):
+    rule = authoritative_rule()
+    claim = fee_claim(rule)
+    if change == "numeric_fee":
+        claim["fees"][0]["fee"] = 0.064
+    elif change == "nan_fee":
+        claim["fees"][0]["fee"] = "NaN"
+    elif change == "wrong_id":
+        claim["fees"][0]["rule_id"] = "other"
+    elif change == "extra_field":
+        claim["fees"][0]["unchecked"] = True
+    elif change == "missing_fees":
+        claim.pop("fees")
+    else:
+        claim["fees"] = []
+    assert expected in verify_authoritative_fee_summary([rule], Decimal("10"), claim)
+
+
+def counterfactual_claim(rule):
+    return {
+        "schema_version": "1.0",
+        "rule_id": rule.rule_id,
+        "baseline_fee": "0.064",
+        "alternate_fee": "0.051",
+        "delta": "-0.013",
+        "transaction_count": 1,
+    }
+
+
+def test_authoritative_counterfactual_rederives_every_field(monkeypatch):
+    rule = authoritative_rule()
+    transactions = (TransactionFacets(card_scheme="Alpha", aci="B", is_credit=True, amount="10"),)
+    claim = counterfactual_claim(rule)
+    assert (
+        verify_authoritative_counterfactual(
+            rule, transactions, alternate_rate=Decimal("1"), claim=claim
+        )
+        == ()
+    )
+
+    import generaldataagent.business.rules.engine as engine
+
+    monkeypatch.setattr(engine, "counterfactual_delta", lambda *args, **kwargs: None)
+    forged = claim | {
+        "baseline_fee": "999",
+        "alternate_fee": "999",
+        "delta": "0",
+        "transaction_count": 2,
+    }
+    assert verify_authoritative_counterfactual(
+        rule, transactions, alternate_rate=Decimal("1"), claim=forged
+    ) == (
+        "baseline_mismatch",
+        "alternate_mismatch",
+        "delta_mismatch",
+        "transaction_count_mismatch",
+    )
+
+
+def test_authoritative_counterfactual_rejects_wrong_identity_and_shape():
+    rule = authoritative_rule()
+    transactions = (TransactionFacets(card_scheme="Alpha", aci="B", is_credit=True, amount="10"),)
+    claim = counterfactual_claim(rule)
+    assert verify_authoritative_counterfactual(
+        rule,
+        transactions,
+        alternate_rate=Decimal("1"),
+        claim=claim | {"rule_id": "other"},
+    ) == ("rule_mismatch",)
+    assert verify_authoritative_counterfactual(
+        rule,
+        transactions,
+        alternate_rate=Decimal("1"),
+        claim=claim | {"unchecked": True},
+    ) == ("record_invalid",)
 
 
 def test_ambiguous_and_missing_matches_fail_closed():

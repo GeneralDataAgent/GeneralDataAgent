@@ -11,7 +11,7 @@ Two execution scopes are supported and never mixed:
 
 import hashlib
 import json
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 
 from generaldataagent.business.rules.application import (
     compute_fee_summary,
@@ -26,13 +26,12 @@ from generaldataagent.business.rules.payments import (
     PaymentsSourceError,
     transaction_facets,
 )
-from generaldataagent.contracts.rule_tools import RuleAnalysisRequest
-from generaldataagent.contracts.rules import (
-    CounterfactualResult,
-    FeeResult,
-    RuleSemantics,
-    TransactionFacets,
+from generaldataagent.business.rules.verification import (
+    verify_authoritative_counterfactual,
+    verify_authoritative_fee_summary,
 )
+from generaldataagent.contracts.rule_tools import RuleAnalysisRequest
+from generaldataagent.contracts.rules import RuleSemantics, TransactionFacets
 from generaldataagent.orchestration.rule_workflow import RuleWorkflowServices
 
 FACET_OPERATIONS = frozenset({"select", "average_fee"})
@@ -270,88 +269,39 @@ class AnnexWorkflowServices:
         }
 
     def _verify_fees(self, request, state):
-        failures = []
-        rules = self._selected(state)
-        computation = state["computation"]
-        if set(computation) != {"fees", "average_fee"}:
-            failures.append("rule_fee_computation_invalid")
-        results = computation.get("fees")
-        if not isinstance(results, list) or any(not isinstance(row, dict) for row in results):
-            return failures + ["rule_fee_records_invalid"]
-        if [row.get("rule_id") for row in results] != [rule.rule_id for rule in rules]:
-            failures.append("rule_result_ids_mismatch")
-        value = Decimal(request.transaction_value)
-        expected_fees = [
-            Decimal(rule.fixed_amount) + Decimal(rule.rate) * value / Decimal(10000)
-            for rule in rules
-        ]
-        for rule, row, expected in zip(rules, results, expected_fees, strict=False):
-            if (
-                set(row) != set(FeeResult.model_fields)
-                or row.get("schema_version") != FeeResult.model_fields["schema_version"].default
-                or row.get("fixed_amount") != rule.fixed_amount
-                or row.get("rate") != rule.rate
-                or row.get("source") != rule.source
-                or not self._decimal_matches(row.get("fee"), expected)
-            ):
-                failures.append("rule_fee_record_mismatch")
-        expected_average = (
-            sum(expected_fees, Decimal(0)) / len(expected_fees) if expected_fees else None
+        mapping = {
+            "computation_invalid": "rule_fee_computation_invalid",
+            "records_invalid": "rule_fee_records_invalid",
+            "result_ids_mismatch": "rule_result_ids_mismatch",
+            "record_mismatch": "rule_fee_record_mismatch",
+            "average_mismatch": "rule_average_mismatch",
+        }
+        issues = verify_authoritative_fee_summary(
+            self._selected(state),
+            Decimal(request.transaction_value),
+            state["computation"],
         )
-        average = computation.get("average_fee")
-        if (
-            average is not None
-            if expected_average is None
-            else not self._decimal_matches(average, expected_average)
-        ):
-            failures.append("rule_average_mismatch")
-        return failures
-
-    @staticmethod
-    def _decimal_matches(value, expected):
-        if not isinstance(value, str):
-            return False
-        try:
-            actual = Decimal(value)
-        except InvalidOperation:
-            return False
-        return actual.is_finite() and actual == expected
+        return [mapping[issue] for issue in issues]
 
     def _verify_counterfactual(self, request, state):
-        failures = []
         targets = [rule for rule in self._selected(state) if rule.rule_id == request.rule_id]
         if len(targets) != 1:
             return ["rule_counterfactual_target_missing"]
-        rule = targets[0]
-        amounts = rule_affected_amounts(rule, self._transactions(state))
-        total = sum(amounts, Decimal(0))
-        alternate = Decimal(request.alternate_rate)
-        baseline = Decimal(rule.fixed_amount) * len(amounts) + Decimal(rule.rate) * total / Decimal(
-            10000
+        mapping = {
+            "record_invalid": "rule_counterfactual_record_invalid",
+            "rule_mismatch": "rule_counterfactual_rule_mismatch",
+            "delta_mismatch": "rule_delta_mismatch",
+            "baseline_mismatch": "rule_baseline_mismatch",
+            "alternate_mismatch": "rule_alternate_mismatch",
+            "transaction_count_mismatch": "rule_transaction_count_mismatch",
+        }
+        issues = verify_authoritative_counterfactual(
+            targets[0],
+            self._transactions(state),
+            alternate_rate=Decimal(request.alternate_rate),
+            claim=state["computation"],
         )
-        expected_alternate = Decimal(rule.fixed_amount) * len(
-            amounts
-        ) + alternate * total / Decimal(10000)
-        computation = state["computation"]
-        if (
-            set(computation) != set(CounterfactualResult.model_fields)
-            or computation.get("schema_version")
-            != CounterfactualResult.model_fields["schema_version"].default
-        ):
-            failures.append("rule_counterfactual_record_invalid")
-        if computation.get("rule_id") != rule.rule_id:
-            failures.append("rule_counterfactual_rule_mismatch")
-        for field, expected, code in (
-            ("delta", expected_alternate - baseline, "rule_delta_mismatch"),
-            ("baseline_fee", baseline, "rule_baseline_mismatch"),
-            ("alternate_fee", expected_alternate, "rule_alternate_mismatch"),
-        ):
-            if not self._decimal_matches(computation.get(field), expected):
-                failures.append(code)
-        count = computation.get("transaction_count")
-        if type(count) is not int or count != len(amounts):
-            failures.append("rule_transaction_count_mismatch")
-        return failures
+        return [mapping[issue] for issue in issues]
 
     # -- delivery -----------------------------------------------------------
 
