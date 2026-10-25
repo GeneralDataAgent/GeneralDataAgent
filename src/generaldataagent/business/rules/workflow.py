@@ -15,17 +15,13 @@ from decimal import Decimal, InvalidOperation
 
 from generaldataagent.business.rules.application import (
     compute_fee_summary,
+    resolve_applicability,
     resolve_target_month,
     rule_affected_amounts,
     scope_rule_month,
     select_rule_facets,
 )
-from generaldataagent.business.rules.engine import (
-    applicable_rules,
-    counterfactual_delta,
-    load_rule_set,
-    match_rules,
-)
+from generaldataagent.business.rules.engine import counterfactual_delta, load_rule_set
 from generaldataagent.business.rules.payments import (
     PaymentsSourceError,
     transaction_facets,
@@ -166,16 +162,16 @@ class AnnexWorkflowServices:
             return {"ids": ids, "complete": True, "total_count": len(ids)}
         context = state["monthly_context"]
         source = self._payments.merchant_year(request.merchant, request.year)
-        merchant_level = match_rules(
+        applicability = resolve_applicability(
             self._facet_matches(request, rules),
             merchant=source.merchant,
-            monthly_volume=Decimal(context["volume"]),
-            monthly_fraud_level=Decimal(context["fraud_ratio"]),
+            volume=Decimal(context["volume"]),
+            fraud_ratio=Decimal(context["fraud_ratio"]),
+            transactions=self._transactions(state),
         )
-        report = applicable_rules(merchant_level, self._transactions(state))
-        if report.indeterminate:
+        if applicability.indeterminate:
             raise ValueError("annex_workflow_indeterminate_facets")
-        ids = [rule.rule_id for rule in merchant_level if rule.rule_id in report.matched]
+        ids = [rule.rule_id for rule in applicability.matched]
         return {"ids": ids, "complete": True, "total_count": len(ids)}
 
     def _selected(self, state):

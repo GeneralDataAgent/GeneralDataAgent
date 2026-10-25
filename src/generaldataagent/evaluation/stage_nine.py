@@ -7,14 +7,10 @@ import json
 from decimal import Decimal
 from pathlib import Path
 
-from generaldataagent.business.rules import (
-    applicable_rules,
-    counterfactual_delta,
-    load_rule_set,
-    match_rules,
-)
+from generaldataagent.business.rules import counterfactual_delta, load_rule_set
 from generaldataagent.business.rules.application import (
     compute_fee_summary,
+    resolve_applicability,
     resolve_target_month,
     rule_affected_amounts,
     scope_rule_month,
@@ -223,22 +219,22 @@ def analyze_fee_rules(database, arguments, *, allowed_relations, documents):
             raise ValueError("month verification failed")
         if not scope.volume:
             raise RuleToolError("rule_zero_monthly_volume")
-        selected = match_rules(
-            selected,
-            merchant=merchant,
-            monthly_volume=scope.volume,
-            monthly_fraud_level=scope.fraud_ratio,
-        )
         try:
             transactions = [
                 TransactionFacets(**facet) for facet in transaction_facets(scope.scoped_rows)
             ]
         except PaymentsSourceError as exc:
             raise RuleToolError(exc.code) from exc
-        report = applicable_rules(selected, transactions)
-        if report.indeterminate:
+        applicability = resolve_applicability(
+            selected,
+            merchant=merchant,
+            volume=scope.volume,
+            fraud_ratio=scope.fraud_ratio,
+            transactions=transactions,
+        )
+        if applicability.indeterminate:
             raise RuleToolError("rule_transaction_facets_indeterminate")
-        selected = tuple(rule for rule in selected if rule.rule_id in report.matched)
+        selected = applicability.matched
         context = dict(
             year=request.year,
             month=target_month,

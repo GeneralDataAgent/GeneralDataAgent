@@ -12,6 +12,7 @@ from generaldataagent.business.extensions import ExtensionAdmission, SkillDefini
 from generaldataagent.business.governance import CapabilityRegistry
 from generaldataagent.business.rules.application import (
     compute_fee_summary,
+    resolve_applicability,
     resolve_target_month,
     rule_affected_amounts,
     scope_rule_month,
@@ -238,3 +239,95 @@ def test_affected_amounts_follow_the_same_rule_match_both_consumers_use():
     )
     assert rule_affected_amounts(rule_a, transactions) == (Decimal("10"), Decimal("25.5"))
     assert rule_affected_amounts(rule_b, transactions) == (Decimal("25.5"),)
+
+
+def applicability_rules():
+    return load_rule_set(
+        [
+            dict(ID="open", card_scheme="Orbit", fixed_amount="0.07", rate="13"),
+            dict(
+                ID="high-volume",
+                card_scheme="Orbit",
+                fixed_amount="0.09",
+                rate="17",
+                monthly_volume=">10",
+            ),
+            dict(
+                ID="foreign",
+                card_scheme="Orbit",
+                fixed_amount="0.05",
+                rate="11",
+                intracountry=False,
+            ),
+            dict(ID="other", card_scheme="Nova", fixed_amount="0.01", rate="5"),
+        ],
+        source="synthetic-annex",
+        semantics=RuleSemantics(source="synthetic-manual"),
+    )
+
+
+@pytest.mark.parametrize(
+    ("volume", "expected"),
+    [
+        (Decimal("5"), ["open", "foreign"]),
+        (Decimal("50"), ["open", "high-volume", "foreign"]),
+    ],
+)
+def test_applicability_applies_thresholds_before_transactions(volume, expected):
+    transactions = (
+        TransactionFacets(
+            card_scheme="Orbit", aci="B", is_credit=True, intracountry=False, amount="10"
+        ),
+    )
+    result = resolve_applicability(
+        applicability_rules(),
+        merchant={"merchant": "Shop"},
+        volume=volume,
+        fraud_ratio=Decimal("0.1"),
+        transactions=transactions,
+    )
+    assert [rule.rule_id for rule in result.matched] == expected
+    # The threshold decides merchant-level membership before transactions are
+    # considered, so a rule that fails it never reaches transaction matching.
+    merchant_level = [rule.rule_id for rule in result.merchant_level]
+    assert merchant_level == [
+        rule_id
+        for rule_id in ("open", "high-volume", "foreign", "other")
+        if rule_id not in {"high-volume"} or volume > Decimal("10")
+    ]
+    assert result.indeterminate is False
+
+
+def test_applicability_reports_indeterminate_facets_instead_of_dropping_rules():
+    # No countries on the transaction: domesticity cannot be decided.
+    transactions = (TransactionFacets(card_scheme="Orbit", aci="B", is_credit=True, amount="10"),)
+    result = resolve_applicability(
+        applicability_rules(),
+        merchant={"merchant": "Shop"},
+        volume=Decimal("50"),
+        fraud_ratio=None,
+        transactions=transactions,
+    )
+    assert result.indeterminate is True
+    # The undecidable rule stays a merchant-level survivor but is not matched,
+    # so a caller that ignored `indeterminate` would under-report rather than
+    # silently guess.
+    assert "foreign" in [rule.rule_id for rule in result.merchant_level]
+    assert "foreign" not in result.report.matched
+
+
+def test_applicability_keeps_source_order_and_returns_no_match_for_other_scheme():
+    transactions = (
+        TransactionFacets(
+            card_scheme="Nova", aci="F", is_credit=False, intracountry=True, amount="10"
+        ),
+    )
+    result = resolve_applicability(
+        applicability_rules(),
+        merchant={"merchant": "Shop"},
+        volume=Decimal("50"),
+        fraud_ratio=None,
+        transactions=transactions,
+    )
+    assert [rule.rule_id for rule in result.matched] == ["other"]
+    assert result.indeterminate is False
