@@ -86,6 +86,8 @@ def not_attempted_result(reason: str) -> dict:
         "cost_usd": 0.0,
         "observed_cost_usd": 0.0,
         "cost_status": "no_request_made",
+        # An unattempted case received no hints; the evidence field stays present.
+        "experience_used": [],
     }
 
 
@@ -135,23 +137,36 @@ class SharedRequestPacer:
 
 
 class PacedModel:
-    def __init__(self, model, pacer: SharedRequestPacer):
+    def __init__(self, model, pacer: SharedRequestPacer, *, max_seconds: float = 120):
+        import math
         import time
 
-        self.model, self.pacer, self.deadline = model, pacer, time.monotonic() + 115
+        if (
+            type(max_seconds) not in {int, float}
+            or not math.isfinite(max_seconds)
+            or max_seconds <= 0
+        ):
+            raise ValueError("invalid pacing time budget")
+        self.model, self.pacer, self.max_seconds = model, pacer, max_seconds
+        self.deadline = time.monotonic() + max_seconds - 5
 
     def bind(self, **kwargs):
         """Forward tool binding without bypassing pacing or extending the task deadline."""
-        bound = PacedModel(self.model.bind(**kwargs), self.pacer)
+        bound = PacedModel(self.model.bind(**kwargs), self.pacer, max_seconds=self.max_seconds)
         bound.deadline = self.deadline
         return bound
 
     def invoke(self, messages):
         import time
 
-        delay = self.pacer.reserve(
-            now=time.time(), max_wait_seconds=max(0, self.deadline - time.monotonic() - 5)
-        )
+        remaining = self.deadline - time.monotonic() - 5
+        if remaining <= 0:
+            raise PacingDeadlineExceeded("no request time remains")
+        delay = self.pacer.reserve(now=time.time(), max_wait_seconds=remaining)
         if delay:
             time.sleep(delay)
+        # Reservation can block on SQLite, and sleep can resume late. Never
+        # send a request after the pacing allowance expired during either wait.
+        if self.deadline - time.monotonic() - 5 <= 0:
+            raise PacingDeadlineExceeded("no request time remains")
         return self.model.invoke(messages)

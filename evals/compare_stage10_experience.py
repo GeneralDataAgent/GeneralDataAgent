@@ -25,7 +25,12 @@ def main():
     with output.open("x") as stream:
         stream.write(json.dumps(result, indent=2) + "\n")
     print(
-        json.dumps({key: result[key] for key in ("n", "improvements", "regressions", "blocked_by")})
+        json.dumps(
+            {
+                key: result[key]
+                for key in ("n", "improvements", "regressions", "experience_delivery", "blocked_by")
+            }
+        )
     )
 
 

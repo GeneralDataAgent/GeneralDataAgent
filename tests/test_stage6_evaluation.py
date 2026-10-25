@@ -55,6 +55,33 @@ def case(expected="2.00"):
     )
 
 
+@pytest.mark.parametrize("steps", [0, -1, True, 1.5, float("nan"), float("inf"), "6", None, [], {}])
+def test_agent_rejects_invalid_step_budgets_at_construction(steps):
+    model = Model()
+    with pytest.raises(ValueError, match="invalid agent budget"):
+        BoundedSQLAgent(model, max_steps=steps)
+    assert model.messages == []
+
+
+@pytest.mark.parametrize(
+    "seconds", [0, -1, True, float("nan"), float("inf"), -float("inf"), "120", None, [], {}]
+)
+def test_agent_rejects_invalid_time_budgets_at_construction(seconds):
+    model = Model()
+    with pytest.raises(ValueError, match="invalid agent budget"):
+        BoundedSQLAgent(model, max_seconds=seconds)
+    assert model.messages == []
+
+
+@pytest.mark.parametrize("seconds", [0.5, 90, 120.5, 180])
+def test_agent_accepts_finite_positive_time_budgets(database, seconds):
+    model = Model({"unsupported": "scripted control"})
+    agent = BoundedSQLAgent(model, max_steps=1, max_seconds=seconds)
+    assert agent.max_seconds == seconds
+    assert agent.run(case().task, database)["failure"] == "unsupported_capability"
+    assert len(model.messages) > 0
+
+
 def test_gold_never_reaches_agent_and_real_query_executes(database):
     c = case("SECRET_REFERENCE_VALUE")
     model = Model(
@@ -297,6 +324,214 @@ def test_isolated_worker_deadline_never_receives_golden_answers(database, monkey
     assert "GOLD_SECRET" not in seen["input"]
     assert "LANGSMITH_API_KEY" not in seen["env"]
     assert seen["env"]["LANGSMITH_TRACING"] == "false"
+
+
+@pytest.mark.parametrize(
+    "lane,seconds,expected_terminal",
+    [("short", 90, True), ("analysis", 150, False), ("governed", 180, False)],
+)
+def test_worker_hard_deadline_covers_the_lane_time_budget(
+    database, monkeypatch, lane, seconds, expected_terminal
+):
+    """A lane may spend its own time budget without the OS killing it as a service fault."""
+    import subprocess
+
+    from generaldataagent.evaluation.routing import route_task
+    from generaldataagent.evaluation.stage_six import run_isolated
+
+    seen = {}
+    route = route_task("x", override=lane)
+
+    def timeout(command, **kwargs):
+        seen.update(kwargs)
+        raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+
+    monkeypatch.setattr(subprocess, "run", timeout)
+    result = run_isolated(
+        case().task,
+        database,
+        app_type="claude",
+        provider_id="p",
+        max_seconds=route.max_seconds,
+    )
+    # The worker's own time budget is the in-task ceiling; the process deadline
+    # must sit above it or a legitimate timeout is mislabelled a service failure.
+    assert seen["timeout"] > route.max_seconds
+    assert result["failure"] == "worker_deadline"
+
+
+@pytest.mark.parametrize("deadline", [120, 100, 0, -1])
+def test_explicit_deadline_below_the_time_budget_is_refused(database, monkeypatch, deadline):
+    import subprocess
+
+    from generaldataagent.evaluation.stage_six import run_isolated
+
+    def must_not_start(command, **kwargs):
+        raise AssertionError("worker started despite an invalid deadline")
+
+    monkeypatch.setattr(subprocess, "run", must_not_start)
+    with pytest.raises(ValueError, match="process deadline must exceed"):
+        run_isolated(
+            case().task, database, app_type="claude", provider_id="p", deadline_seconds=deadline
+        )
+
+
+@pytest.mark.parametrize(
+    "deadline", [float("nan"), float("inf"), float("-inf"), True, "130", [], {}]
+)
+def test_invalid_process_deadline_is_refused_before_start(database, monkeypatch, deadline):
+    import subprocess
+
+    from generaldataagent.evaluation.stage_six import run_isolated
+
+    calls = []
+
+    def execute(command, **kwargs):
+        calls.append(kwargs["timeout"])
+        return SimpleNamespace(stdout=json.dumps({"elapsed_seconds": 0}))
+
+    monkeypatch.setattr(subprocess, "run", execute)
+    with pytest.raises(ValueError, match="invalid process deadline"):
+        run_isolated(
+            case().task, database, app_type="scripted", provider_id="p", deadline_seconds=deadline
+        )
+    assert calls == []
+
+
+@pytest.mark.parametrize(
+    "stdout",
+    [
+        "not JSON",
+        "null",
+        "[]",
+        '"private worker output sentinel"',
+        "{}",
+        '{"elapsed_seconds": null}',
+        '{"elapsed_seconds": true}',
+        '{"elapsed_seconds": "private worker output sentinel"}',
+        '{"elapsed_seconds": -1}',
+        '{"elapsed_seconds": NaN}',
+        '{"elapsed_seconds": Infinity}',
+    ],
+)
+def test_malformed_worker_response_remains_a_recorded_failure(database, monkeypatch, stdout):
+    import subprocess
+
+    from generaldataagent.evaluation.stage_six import run_isolated
+
+    calls = []
+
+    def execute(command, **kwargs):
+        calls.append(command)
+        return SimpleNamespace(stdout=stdout)
+
+    monkeypatch.setattr(subprocess, "run", execute)
+    result = run_isolated(case().task, database, app_type="scripted", provider_id="scripted")
+    assert len(calls) == 1
+    assert result["failure"] == "worker_error"
+    assert result["answers"] == {}
+    assert result["final_sql"] is None
+    assert result["trace"] == result["experience_used"] == []
+    assert result["usage_status"] == "unknown_worker_failure"
+    assert result["tokens"] == 0 and result["cost_usd"] is None
+    assert result["elapsed_seconds"] >= 0
+    assert "sentinel" not in str(result)
+
+
+@pytest.mark.parametrize(
+    "interval",
+    [float("nan"), float("inf"), -float("inf"), -1, -0.5, 60.5, 120, True, "3.5", None, [], {}],
+)
+def test_invalid_request_interval_is_refused_before_start(database, monkeypatch, interval):
+    import subprocess
+
+    from generaldataagent.evaluation.stage_six import run_isolated
+
+    calls = []
+
+    def execute(*args, **kwargs):
+        calls.append(kwargs)
+        return SimpleNamespace(stdout=json.dumps({"elapsed_seconds": 0}))
+
+    monkeypatch.setattr(subprocess, "run", execute)
+    with pytest.raises(ValueError, match="invalid request interval"):
+        run_isolated(
+            case().task,
+            database,
+            app_type="scripted",
+            provider_id="scripted",
+            request_interval_seconds=interval,
+        )
+    assert calls == []
+
+
+@pytest.mark.parametrize("interval", [0, 0.5, 3.5, 60])
+def test_valid_request_interval_reaches_the_worker_unchanged(database, monkeypatch, interval):
+    import subprocess
+
+    from generaldataagent.evaluation.stage_six import run_isolated
+
+    seen = {}
+
+    def execute(*args, **kwargs):
+        seen.update(json.loads(kwargs["input"]))
+        return SimpleNamespace(stdout=json.dumps({"elapsed_seconds": 0}))
+
+    monkeypatch.setattr(subprocess, "run", execute)
+    run_isolated(
+        case().task,
+        database,
+        app_type="scripted",
+        provider_id="scripted",
+        request_interval_seconds=interval,
+    )
+    assert seen["request_interval_seconds"] == interval
+
+
+@pytest.mark.parametrize("deadline", [126, 130.5])
+def test_valid_explicit_process_deadline_reaches_subprocess(database, monkeypatch, deadline):
+    import subprocess
+
+    from generaldataagent.evaluation.stage_six import run_isolated
+
+    calls = []
+
+    def execute(command, **kwargs):
+        calls.append(kwargs["timeout"])
+        return SimpleNamespace(stdout=json.dumps({"elapsed_seconds": 0, "failure": None}))
+
+    monkeypatch.setattr(subprocess, "run", execute)
+    result = run_isolated(
+        case().task, database, app_type="scripted", provider_id="p", deadline_seconds=deadline
+    )
+    assert calls == [deadline]
+    assert result["failure"] is None
+
+
+def test_expired_pacing_is_time_budget_without_a_provider_request(database, monkeypatch):
+    import time
+
+    from generaldataagent.evaluation.stage_six_control import PacedModel
+
+    now = [1000.0]
+    monkeypatch.setattr(time, "monotonic", lambda: now[0])
+
+    class Pacer:
+        def reserve(self, **kwargs):
+            raise AssertionError("expired pacing must not reserve a slot")
+
+    provider = Model()
+    paced = PacedModel(provider, Pacer())
+    now[0] += 110
+    result = BoundedSQLAgent(paced).run(case().task, database)
+    assert provider.messages == []
+    assert result["failure"] == "time_budget"
+    assert result["tokens"] == result["input_tokens"] == result["output_tokens"] == 0
+    assert result["usage_status"] == "complete"
+    assert result["experience_used"] == []
+    assert result["trace"] == [
+        {"step": 1, "status": "error", "error": "PacingDeadlineExceeded", "http_status": None}
+    ]
 
 
 def test_provider_errors_are_not_retried_and_do_not_leak_secrets(database):

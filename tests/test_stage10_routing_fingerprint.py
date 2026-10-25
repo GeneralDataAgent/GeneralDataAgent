@@ -4,11 +4,14 @@ import importlib.util
 import json
 import sqlite3
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
+from generaldataagent.business.experience import ExperienceRecord, ExperienceStore
+from generaldataagent.contracts import ActorContext
 from generaldataagent.evaluation.stage_six import Case, Task
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -52,6 +55,7 @@ def run_manifest(tmp_path, monkeypatch):
             elapsed_seconds=0.0,
             usage_status="complete",
             cost_usd=0.0,
+            experience_used=[],
         )
 
     monkeypatch.setattr(runner, "run_isolated", execute)
@@ -86,8 +90,8 @@ def run_manifest(tmp_path, monkeypatch):
         if experience_actor is not None:
             experience_database = experience_database or tmp_path / "experience.sqlite"
             if not experience_database.exists():
-                with sqlite3.connect(experience_database) as db:
-                    db.execute("CREATE TABLE placeholder (value TEXT)")
+                # A real store: the runner now refuses a file without the schema.
+                ExperienceStore(experience_database, clock=lambda: None)
             arguments.extend(
                 [
                     "--experience-database",
@@ -102,6 +106,113 @@ def run_manifest(tmp_path, monkeypatch):
         return report, executed_profiles[-len(cases) :]
 
     return runner, run
+
+
+@pytest.mark.parametrize(
+    "routing,mode,limit",
+    [(False, "fixed", 125), (True, "per_lane", 185)],
+)
+def test_protocol_declares_the_deadline_that_will_actually_apply(
+    run_manifest, routing, mode, limit
+):
+    """The report must not declare 125 s while routed lanes may run to 185 s."""
+    _, run = run_manifest
+    report, _ = run(
+        ["What is the fee?"], routing=routing, profile="sql" if routing else "sql-rules"
+    )
+    protocol = report["protocol"]
+    assert protocol["hard_case_deadline_seconds"] == limit
+    assert protocol["hard_case_deadline_mode"] == mode
+    if routing:
+        assert protocol["lane_time_budgets"] == {"short": 90, "analysis": 150, "governed": 180}
+    else:
+        assert "lane_time_budgets" not in protocol
+
+
+@pytest.mark.parametrize("routing", [False, True])
+def test_protocol_time_ceiling_covers_the_budgets_sent_to_workers(
+    run_manifest, monkeypatch, routing
+):
+    runner, run = run_manifest
+    execute = runner.run_isolated
+    budgets = []
+
+    def capture(*args, **kwargs):
+        budgets.append(kwargs["max_seconds"])
+        return execute(*args, **kwargs)
+
+    monkeypatch.setattr(runner, "run_isolated", capture)
+    report, _ = run(
+        ["What is the fee?", "Find the median amount", "How many payments?"],
+        routing=routing,
+        profile="sql" if routing else "sql-rules",
+    )
+    protocol = report["protocol"]
+    assert sorted(budgets) == ([90, 150, 180] if routing else [120, 120, 120])
+    assert protocol["seconds"] == max(budgets)
+    assert protocol["hard_case_deadline_seconds"] == protocol["seconds"] + 5
+
+
+def test_workers_execute_the_routes_frozen_before_asset_preparation(run_manifest, monkeypatch):
+    runner, run = run_manifest
+    route_task = runner.route_task
+    build = runner.build_csv_database
+    execute = runner.run_isolated
+    prepared = False
+    observed = {}
+
+    def changed_policy(question, instructions="", *, override=None):
+        if prepared and override is None:
+            # The recorded policy has changed before execution. Recomputing
+            # here would make the report describe different profiles/budgets.
+            lane = "governed" if "How many" in question else "short"
+            return route_task(question, instructions, override=lane)
+        return route_task(question, instructions, override=override)
+
+    def prepare(*args, **kwargs):
+        nonlocal prepared
+        result = build(*args, **kwargs)
+        prepared = True
+        return result
+
+    def capture(task, *args, **kwargs):
+        observed[task.case_id] = {
+            key: kwargs[key] for key in ("tool_profile", "max_steps", "max_seconds", "max_repairs")
+        }
+        return execute(task, *args, **kwargs)
+
+    monkeypatch.setattr(runner, "route_task", changed_policy)
+    monkeypatch.setattr(runner, "build_csv_database", prepare)
+    monkeypatch.setattr(runner, "run_isolated", capture)
+    report, _ = run(["What is the fee?", "Find the median amount", "How many payments?"])
+    plans = report["system_fingerprint"]["routing"]["per_case"]
+    assert {plan["lane"] for plan in plans.values()} == {"governed", "analysis", "short"}
+    for row in report["results"]:
+        plan = plans[row["case_id"]]
+        assert observed[row["case_id"]] == {key: plan[key] for key in observed[row["case_id"]]}
+        assert row["route"] == plan
+    assert report["summary"]["n"] == 3
+    assert report["summary"]["tokens"] == 0
+
+
+@pytest.mark.parametrize("routing", [False, True])
+def test_protocol_declares_the_step_and_repair_budgets_that_apply(run_manifest, routing):
+    """Routed lanes use 5/7/8 steps and 2/3/3 repairs, never the fixed 6 and 3."""
+    _, run = run_manifest
+    report, _ = run(
+        ["What is the fee?"], routing=routing, profile="sql" if routing else "sql-rules"
+    )
+    protocol = report["protocol"]
+    if routing:
+        assert protocol["steps"] == 8
+        assert protocol["lane_step_budgets"] == {"short": 5, "analysis": 7, "governed": 8}
+        assert protocol["lane_repair_budgets"] == {"short": 2, "analysis": 3, "governed": 3}
+        assert protocol["max_repairs_per_case"] == 3
+    else:
+        assert protocol["steps"] == 6
+        assert protocol["max_repairs_per_case"] == 3
+        assert "lane_step_budgets" not in protocol
+        assert "lane_repair_budgets" not in protocol
 
 
 @pytest.mark.parametrize(
@@ -128,6 +239,61 @@ def test_routed_fingerprint_covers_executed_profiles(run_manifest, questions, pr
     assert report["summary"]["n"] == len(questions)
     assert report["summary"]["tokens"] == 0
     assert report["production_accepted"] is False
+
+
+@pytest.mark.parametrize("routing", [False, True])
+def test_rule_runner_fingerprint_includes_the_shared_payment_parser(run_manifest, routing):
+    import hashlib
+
+    _, run = run_manifest
+    report, _ = run(
+        ["What is the fee?"], routing=routing, profile="sql" if routing else "sql-rules"
+    )
+    source = "business/rules/payments.py"
+    expected = hashlib.sha256((ROOT / "src/generaldataagent" / source).read_bytes()).hexdigest()
+    assert report["system_fingerprint"]["stage9_sources"][source] == expected
+
+
+@pytest.mark.parametrize("routing", [False, True])
+def test_shared_payment_parser_change_blocks_same_system_repeats(
+    run_manifest, monkeypatch, routing
+):
+    from generaldataagent.evaluation.stage_six_stability import repeated_evidence
+
+    _, run = run_manifest
+    before, _ = run(
+        ["What is the fee?"], routing=routing, profile="sql" if routing else "sql-rules"
+    )
+    original = Path.read_bytes
+    source = ROOT / "src/generaldataagent/business/rules/payments.py"
+
+    def changed(path):
+        content = original(path)
+        return content + b"\n# changed date parser\n" if path == source else content
+
+    monkeypatch.setattr(Path, "read_bytes", changed)
+    after, _ = run(["What is the fee?"], routing=routing, profile="sql" if routing else "sql-rules")
+    assert before["protocol_hash"] == after["protocol_hash"]
+    assert before["cohort_hash"] == after["cohort_hash"]
+    assert before["system_fingerprint"] != after["system_fingerprint"]
+    with pytest.raises(ValueError, match="incomparable repeated-run system_fingerprint"):
+        repeated_evidence([before, after])
+
+
+def test_missing_payment_parser_cannot_be_omitted_from_the_stage9_fingerprint(monkeypatch):
+    from generaldataagent.evaluation.stage_nine import stage9_fingerprint
+
+    original = Path.read_bytes
+    source = ROOT / "src/generaldataagent/business/rules/payments.py"
+
+    def missing(path):
+        if path == source:
+            raise FileNotFoundError("synthetic missing payment parser")
+        return original(path)
+
+    monkeypatch.setattr(Path, "read_bytes", missing)
+    with pytest.raises(FileNotFoundError, match="synthetic missing payment parser"):
+        stage9_fingerprint(ROOT)
 
 
 @pytest.mark.parametrize("profile,stages", [("sql", set()), ("sql-rules", {7, 9})])
@@ -214,39 +380,53 @@ def test_experience_snapshot_survives_source_changes(run_manifest, tmp_path, mon
     source = tmp_path / "live.sqlite"
     observed = []
     original = runner.run_isolated
-    with sqlite3.connect(source) as live:
-        if wal:
+    if wal:
+        with sqlite3.connect(source) as live:
             live.execute("PRAGMA journal_mode=WAL")
             live.execute("PRAGMA wal_autocheckpoint=0")
-        live.execute("CREATE TABLE lessons (value TEXT)")
-        live.execute("INSERT INTO lessons VALUES ('reviewed-before-run')")
-        live.commit()
+    actor_context = ActorContext(
+        user_id="u", tenant_id="t", project_id="p", data_domains=("payments",)
+    )
+    store = ExperienceStore(source, clock=lambda: datetime(2026, 10, 24, tzinfo=UTC))
+    store.capture(
+        ExperienceRecord(
+            failure_class="rule_semantics_excerpt_missing",
+            applies_when=("reviewed-before-run applies",),
+            does_not_apply_when=("the documentation does not establish the semantics",),
+            repair="locate a verbatim source passage before retrying",
+            counterexample="inventing documentation remains invalid",
+            tool_scope=("rules",),
+            owner=actor_context.user_id,
+            created_at=datetime(2026, 10, 24, tzinfo=UTC),
+        ),
+        actor_context,
+    )
 
-        def execute(*args, **kwargs):
-            path = Path(kwargs["experience_database"])
-            observed.append(path)
-            assert path != source
-            assert path.is_relative_to(tmp_path)
-            with sqlite3.connect(path) as frozen:
-                assert frozen.execute("SELECT value FROM lessons").fetchall() == [
-                    ("reviewed-before-run",)
-                ]
-            with sqlite3.connect(source) as writer:
-                writer.execute("INSERT INTO lessons VALUES ('added-during-run')")
-            return original(*args, **kwargs)
+    def execute(*args, **kwargs):
+        path = Path(kwargs["experience_database"])
+        observed.append(path)
+        assert path != source
+        assert path.is_relative_to(tmp_path)
+        assert kwargs["experience_store_hash"] == runner.digest(path)
+        snap = ExperienceStore(path, clock=lambda: None, read_only=True).audit()
+        assert snap["records"] == 1 and snap["consistent"] is True
+        with sqlite3.connect(source) as writer:
+            writer.execute("CREATE TABLE IF NOT EXISTS later_write (value TEXT)")
+        return original(*args, **kwargs)
 
-        monkeypatch.setattr(runner, "run_isolated", execute)
-        actor = dict(user_id="u", tenant_id="t", project_id="p", data_domains=["payments"])
-        report, _ = run(
-            ["What is the fee?", "How many payments?"],
-            experience_actor=actor,
-            experience_database=source,
-        )
-        assert len(observed) == 2
-        assert observed[0] == observed[1]
-        assert report["protocol"]["experience_store_hash"] == runner.digest(observed[0])
-        assert report["summary"]["n"] == 2
-        assert report["summary"]["tokens"] == 0
+    monkeypatch.setattr(runner, "run_isolated", execute)
+    actor = dict(user_id="u", tenant_id="t", project_id="p", data_domains=["payments"])
+    report, _ = run(
+        ["What is the fee?", "How many payments?"],
+        experience_actor=actor,
+        experience_database=source,
+    )
+    assert len(observed) == 2
+    assert observed[0] == observed[1]
+    assert report["protocol"]["experience_store_hash"] == runner.digest(observed[0])
+    assert report["summary"]["n"] == 2
+    assert report["summary"]["tokens"] == 0
+    assert report["experience_preflight"] == {"records": 1, "consistent": True, "findings": 0}
 
 
 def test_runner_reports_support_explicit_experience_treatment_comparison(run_manifest):
@@ -260,6 +440,10 @@ def test_runner_reports_support_explicit_experience_treatment_comparison(run_man
     assert result["n"] == 1
     assert result["improvements"] == result["regressions"] == []
     assert result["efficiency"]["candidate"]["tokens"] == 0
+    # The scripted worker delivered no hints, so the declared treatment is
+    # reported as not delivered rather than silently credited with no effect.
+    assert result["experience_delivery"]["candidate_cases_with_hints"] == 0
+    assert "experience_treatment_not_delivered" in result["blocked_by"]
     assert result["production_accepted"] is False
 
 
@@ -274,3 +458,149 @@ def test_invalid_experience_database_stops_before_worker(run_manifest, tmp_path,
         run(["What is the fee?"], experience_actor=actor, experience_database=source)
     assert invoked == []
     assert not (tmp_path / "run-1" / "report.json").exists()
+
+
+def test_database_without_experience_schema_stops_before_worker(
+    run_manifest, tmp_path, monkeypatch
+):
+    runner, run = run_manifest
+    source = tmp_path / "wrong.sqlite"
+    with sqlite3.connect(source) as db:
+        db.execute("CREATE TABLE unrelated (value TEXT)")
+    invoked = []
+    monkeypatch.setattr(runner, "run_isolated", lambda *args, **kwargs: invoked.append(True))
+    actor = dict(user_id="u", tenant_id="t", project_id="p", data_domains=["payments"])
+    with pytest.raises(SystemExit) as refusal:
+        run(["What is the fee?"], experience_actor=actor, experience_database=source)
+    assert refusal.value.code == 2
+    assert invoked == []
+    assert not (tmp_path / "run-1" / "report.json").exists()
+
+
+def test_experience_store_with_findings_blocks_the_run_before_worker(
+    run_manifest, tmp_path, monkeypatch
+):
+    runner, run = run_manifest
+    source = tmp_path / "audited.sqlite"
+    actor_context = ActorContext(
+        user_id="u", tenant_id="t", project_id="p", data_domains=("payments",)
+    )
+    store = ExperienceStore(source, clock=lambda: datetime(2026, 10, 24, tzinfo=UTC))
+    record = ExperienceRecord(
+        failure_class="rule_semantics_excerpt_missing",
+        applies_when=("a required excerpt is missing from supplied documents",),
+        does_not_apply_when=("the documentation does not establish the semantics",),
+        repair="locate a verbatim source passage before retrying",
+        counterexample="inventing documentation remains invalid",
+        tool_scope=("rules",),
+        owner=actor_context.user_id,
+        created_at=datetime(2026, 10, 24, tzinfo=UTC),
+    )
+    store.capture(record, actor_context)
+    with sqlite3.connect(source) as db:
+        db.execute("UPDATE experiences SET body='{'")
+    invoked = []
+    monkeypatch.setattr(runner, "run_isolated", lambda *args, **kwargs: invoked.append(True))
+    actor = dict(user_id="u", tenant_id="t", project_id="p", data_domains=["payments"])
+    with pytest.raises(SystemExit) as refusal:
+        run(["What is the fee?"], experience_actor=actor, experience_database=source)
+    assert refusal.value.code == 2
+    assert invoked == []
+    assert not (tmp_path / "run-1" / "report.json").exists()
+
+
+@pytest.mark.parametrize("corrupt", [False, True])
+def test_experience_preflight_audits_the_executed_snapshot(
+    run_manifest, tmp_path, monkeypatch, corrupt
+):
+    runner, run = run_manifest
+    source = tmp_path / "changing.sqlite"
+    actor = ActorContext(user_id="u", tenant_id="t", project_id="p", data_domains=("payments",))
+    now = datetime(2026, 10, 24, tzinfo=UTC)
+    store = ExperienceStore(source, clock=lambda: now)
+    original_route = runner.resolve_evaluation_model
+    original_worker = runner.run_isolated
+    invoked = []
+
+    def change_after_source_audit(**kwargs):
+        store.capture(
+            ExperienceRecord(
+                failure_class="rule_semantics_excerpt_missing",
+                applies_when=("a required excerpt is missing",),
+                does_not_apply_when=("the documentation does not establish the semantics",),
+                repair="locate a verbatim source passage before retrying",
+                counterexample="inventing documentation remains invalid",
+                tool_scope=("rules",),
+                owner=actor.user_id,
+                created_at=now,
+            ),
+            actor,
+        )
+        if corrupt:
+            with sqlite3.connect(source) as db:
+                db.execute("UPDATE experiences SET body='{'")
+        return original_route(**kwargs)
+
+    def execute(*args, **kwargs):
+        invoked.append(Path(kwargs["experience_database"]))
+        return original_worker(*args, **kwargs)
+
+    monkeypatch.setattr(runner, "resolve_evaluation_model", change_after_source_audit)
+    monkeypatch.setattr(runner, "run_isolated", execute)
+    if corrupt:
+        with pytest.raises(SystemExit) as refusal:
+            run(
+                ["What is the fee?"],
+                experience_actor=actor.model_dump(mode="json"),
+                experience_database=source,
+            )
+        assert refusal.value.code == 2
+        assert invoked == []
+        # Preserve the rejected snapshot for diagnosis, without claiming a run.
+        assert (tmp_path / "run-1/experience-snapshot.sqlite").is_file()
+        assert not (tmp_path / "run-1/report.json").exists()
+    else:
+        report, _ = run(
+            ["What is the fee?"],
+            experience_actor=actor.model_dump(mode="json"),
+            experience_database=source,
+        )
+        snapshot_audit = ExperienceStore(invoked[0], clock=lambda: None, read_only=True).audit()
+        assert snapshot_audit["records"] == 1
+        assert report["experience_preflight"] == {
+            "records": snapshot_audit["records"],
+            "consistent": snapshot_audit["consistent"],
+            "findings": len(snapshot_audit["findings"]),
+        }
+        assert report["protocol"]["experience_store_hash"] == runner.digest(invoked[0])
+        assert report["production_accepted"] is False
+
+
+def test_clean_experience_store_passes_the_preflight(run_manifest, tmp_path, monkeypatch):
+    runner, run = run_manifest
+    source = tmp_path / "clean.sqlite"
+    actor_context = ActorContext(
+        user_id="u", tenant_id="t", project_id="p", data_domains=("payments",)
+    )
+    store = ExperienceStore(source, clock=lambda: datetime(2026, 10, 24, tzinfo=UTC))
+    store.capture(
+        ExperienceRecord(
+            failure_class="rule_semantics_excerpt_missing",
+            applies_when=("a required excerpt is missing from supplied documents",),
+            does_not_apply_when=("the documentation does not establish the semantics",),
+            repair="locate a verbatim source passage before retrying",
+            counterexample="inventing documentation remains invalid",
+            tool_scope=("rules",),
+            owner=actor_context.user_id,
+            created_at=datetime(2026, 10, 24, tzinfo=UTC),
+        ),
+        actor_context,
+    )
+    actor = dict(user_id="u", tenant_id="t", project_id="p", data_domains=["payments"])
+    report, _ = run(["What is the fee?"], experience_actor=actor, experience_database=source)
+    assert report["experience_preflight"] == {
+        "records": 1,
+        "consistent": True,
+        "findings": 0,
+    }
+    assert report["production_accepted"] is False

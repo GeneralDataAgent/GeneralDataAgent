@@ -1,5 +1,6 @@
 """One answer-blind evaluation worker. Only repository-owned code is executed."""
 
+import hashlib
 import json
 import sys
 from datetime import UTC, datetime
@@ -10,6 +11,41 @@ from generaldataagent.evaluation.stage_six_models import (
     build_evaluation_model,
     resolve_evaluation_model,
 )
+
+
+def _experience_port(payload: dict):
+    """Build the reviewed-experience reader, or a port that keeps failing visibly.
+
+    Experience is advisory. If the snapshot cannot be opened or its actor scope
+    is malformed, the case must still run and report the failure at the step
+    that asked for hints; turning it into worker_error would attribute an
+    infrastructure fault to the task under test. Returning ``None`` instead
+    would silently look like the off arm, so the port stays present and raises.
+    """
+    if not payload.get("experience_database"):
+        return None
+    try:
+        from generaldataagent.business.experience import ExperienceStore, experience_hints
+        from generaldataagent.contracts import ActorContext
+
+        path = Path(payload["experience_database"])
+        if hashlib.sha256(path.read_bytes()).hexdigest() != payload.get("experience_store_hash"):
+            raise ValueError("experience_snapshot_hash_mismatch")
+        store = ExperienceStore(
+            path,
+            clock=lambda: datetime.now(UTC),
+            read_only=True,
+        )
+        actor = ActorContext.model_validate(payload["experience_actor"])
+        return experience_hints(store, actor)
+    except Exception as exc:
+        # The name ``exc`` is cleared when this block exits; keep the object.
+        failure = exc
+
+        def unavailable(failure_class: str, tool: str):
+            raise failure
+
+        return unavailable
 
 
 def main():
@@ -37,19 +73,9 @@ def main():
                 scope=scope,
                 interval_seconds=payload["request_interval_seconds"],
             ),
+            max_seconds=payload.get("max_seconds", 120),
         )
-    experience = None
-    if payload.get("experience_database"):
-        from generaldataagent.business.experience import ExperienceStore, experience_hints
-        from generaldataagent.contracts import ActorContext
-
-        store = ExperienceStore(
-            Path(payload["experience_database"]),
-            clock=lambda: datetime.now(UTC),
-            read_only=True,
-        )
-        actor = ActorContext.model_validate(payload["experience_actor"])
-        experience = experience_hints(store, actor)
+    experience = _experience_port(payload)
     result = BoundedSQLAgent(
         model,
         tool_profile=payload.get("tool_profile", "sql"),

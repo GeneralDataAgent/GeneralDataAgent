@@ -25,11 +25,14 @@ def reports():
             difficulty="easy",
             elapsed_seconds=1.0,
             tokens=10,
+            usage_status="complete",
             sub_hits=0,
             sub_total=1,
             cost_usd=None,
             database_hash="database",
             attempted=True,
+            experience_used=[],
+            trace=[],
         )
         for i in range(4)
     ]
@@ -89,9 +92,13 @@ def test_both_arms_cannot_silently_drop_the_same_task():
 
 def test_explicit_treatment_diagnostics_preserve_input_reports_and_unknown_cost():
     baseline, candidate = reports()
-    before = copy.deepcopy((baseline, candidate))
     with pytest.raises(ValueError, match="incomparable protocol_hash"):
         paired_gate(baseline, candidate)
+    candidate["results"][0]["experience_used"] = [
+        {"step": 1, "failure_code": "answer_mismatch", "tool": "sql", "n": 1, "dropped": 0}
+    ]
+    candidate["summary"] = summarize(candidate["results"])
+    before = copy.deepcopy((baseline, candidate))
     result = compare_experience_runs(baseline, candidate)
     assert (baseline, candidate) == before
     assert result["n"] == 4
@@ -178,6 +185,59 @@ def test_undeclared_changes_and_missing_evidence_are_refused(change):
         compare_experience_runs(baseline, candidate)
 
 
+@pytest.mark.parametrize("arm", ["baseline", "candidate"])
+@pytest.mark.parametrize("usage_status", [None, "partial_or_unknown", "unknown_worker_failure"])
+def test_incomplete_usage_blocks_resource_evaluation_without_dropping_results(arm, usage_status):
+    baseline, candidate = reports()
+    report = baseline if arm == "baseline" else candidate
+    row = report["results"][3]
+    if usage_status is None:
+        row.pop("usage_status")
+    else:
+        row["usage_status"] = usage_status
+    report["summary"] = summarize(report["results"])
+    before = copy.deepcopy((baseline, candidate))
+    result = compare_experience_runs(baseline, candidate)
+    # The fixture delivers no hints, so delivery is independently blocked; the
+    # usage evidence must still be reported rather than dropped.
+    assert "incomplete_token_telemetry" in result["blocked_by"]
+    assert result["n"] == 4
+    assert result["improvements"] == ["0"]
+    assert result["regressions"] == ["1"]
+    assert result["efficiency"][arm]["token_telemetry_complete"] is False
+    assert result["efficiency"][arm]["tokens"] == report["summary"]["tokens"]
+    assert result["efficiency"][arm]["cost_usd"] is None
+    assert (baseline, candidate) == before
+
+
+@pytest.mark.parametrize("arm", ["baseline", "candidate"])
+@pytest.mark.parametrize("field,value", [("sub_total", 2), ("difficulty", "hard")])
+def test_task_scoring_metadata_must_match_between_arms(arm, field, value):
+    baseline, candidate = reports()
+    report = baseline if arm == "baseline" else candidate
+    report["results"][3][field] = value
+    report["summary"] = summarize(report["results"])
+    before = copy.deepcopy((baseline, candidate))
+    with pytest.raises(ValueError, match="experience task scoring metadata changed"):
+        compare_experience_runs(baseline, candidate)
+    assert (baseline, candidate) == before
+
+
+def test_equal_run_totals_cannot_hide_changed_per_task_denominators():
+    baseline, candidate = reports()
+    for report in (baseline, candidate):
+        report["results"][2]["sub_total"] = 2
+    candidate["results"][2]["sub_total"] = 1
+    candidate["results"][3]["sub_total"] = 2
+    for report in (baseline, candidate):
+        report["summary"] = summarize(report["results"])
+    assert sum(row["sub_total"] for row in baseline["results"]) == sum(
+        row["sub_total"] for row in candidate["results"]
+    )
+    with pytest.raises(ValueError, match="experience task scoring metadata changed"):
+        compare_experience_runs(baseline, candidate)
+
+
 @pytest.mark.parametrize(
     "failure,attempted,severe,blocker",
     [
@@ -193,3 +253,238 @@ def test_failures_stay_in_denominator_and_block_attribution(failure, attempted, 
     result = compare_experience_runs(baseline, candidate)
     assert result["n"] == 4
     assert blocker in result["blocked_by"]
+
+
+def test_treatment_that_never_reaches_a_task_is_reported_not_scored():
+    baseline, candidate = reports()
+    result = compare_experience_runs(baseline, candidate)
+    assert result["experience_delivery"]["candidate_cases_with_hints"] == 0
+    assert result["experience_delivery"]["baseline_cases_with_hints"] == 0
+    assert "experience_treatment_not_delivered" in result["blocked_by"]
+    # Observed outcomes are still reported; they are simply not attributable.
+    assert result["improvements"] == ["0"]
+    assert result["regressions"] == ["1"]
+
+
+@pytest.mark.parametrize("delivered", [False, True])
+def test_unavailable_experience_blocks_attribution_even_with_partial_delivery(delivered):
+    baseline, candidate = reports()
+    candidate["results"][2]["trace"] = [
+        {"step": 2, "status": "experience_unavailable", "error": "OperationalError"}
+    ]
+    if delivered:
+        candidate["results"][0]["experience_used"] = [
+            {"step": 1, "failure_code": "answer_mismatch", "tool": "sql", "n": 1, "dropped": 0}
+        ]
+    candidate["summary"] = summarize(candidate["results"])
+    before = copy.deepcopy((baseline, candidate))
+    result = compare_experience_runs(baseline, candidate)
+    assert "experience_unavailable_confound_attribution" in result["blocked_by"]
+    assert ("experience_treatment_not_delivered" in result["blocked_by"]) is not delivered
+    assert result["experience_delivery"]["candidate_cases_with_hints"] == int(delivered)
+    assert result["n"] == 4
+    assert result["improvements"] == ["0"]
+    assert result["regressions"] == ["1"]
+    assert result["efficiency"]["candidate"]["tokens"] == 50
+    assert result["efficiency"]["candidate"]["cost_usd"] is None
+    assert result["production_accepted"] is False
+    assert (baseline, candidate) == before
+
+
+@pytest.mark.parametrize("n,dropped", [(1, 0), (0, 2), (1, 2)])
+def test_same_step_cannot_record_both_outage_and_hint_processing(n, dropped):
+    baseline, candidate = reports()
+    row = candidate["results"][0]
+    row["trace"] = [{"step": 2, "status": "experience_unavailable", "error": "OSError"}]
+    row["experience_used"] = [
+        {"step": 2, "failure_code": "answer_mismatch", "tool": "sql", "n": n, "dropped": dropped}
+    ]
+    candidate["summary"] = summarize(candidate["results"])
+    before = copy.deepcopy((baseline, candidate))
+    with pytest.raises(ValueError, match="experience delivery conflicts with unavailable step"):
+        compare_experience_runs(baseline, candidate)
+    assert (baseline, candidate) == before
+
+
+@pytest.mark.parametrize("same_case", [False, True])
+def test_outage_and_hint_processing_can_occur_in_separate_calls(same_case):
+    baseline, candidate = reports()
+    candidate["results"][0]["trace"] = [
+        {"step": 2, "status": "experience_unavailable", "error": "OSError"}
+    ]
+    row = candidate["results"][0 if same_case else 1]
+    row["experience_used"] = [
+        {
+            "step": 3 if same_case else 2,
+            "failure_code": "answer_mismatch",
+            "tool": "sql",
+            "n": 1,
+            "dropped": 2,
+        }
+    ]
+    candidate["summary"] = summarize(candidate["results"])
+    before = copy.deepcopy((baseline, candidate))
+    result = compare_experience_runs(baseline, candidate)
+    assert result["blocked_by"] == ["experience_unavailable_confound_attribution"]
+    assert result["experience_delivery"]["candidate_hints"] == 1
+    assert result["experience_delivery"]["candidate_hints_dropped"] == 2
+    assert result["n"] == 4
+    assert result["efficiency"]["candidate"]["tokens"] == 50
+    assert result["production_accepted"] is False
+    assert (baseline, candidate) == before
+
+
+@pytest.mark.parametrize("arm", ["baseline", "candidate"])
+def test_missing_trace_field_is_refused_even_when_summary_matches(arm):
+    baseline, candidate = reports()
+    report = baseline if arm == "baseline" else candidate
+    report["results"][0].pop("trace")
+    report["summary"] = summarize(report["results"])
+    before = copy.deepcopy((baseline, candidate))
+    with pytest.raises(ValueError, match="experience trace evidence invalid"):
+        compare_experience_runs(baseline, candidate)
+    assert (baseline, candidate) == before
+
+
+@pytest.mark.parametrize("arm", ["baseline", "candidate"])
+@pytest.mark.parametrize("trace", [None, {}, "trace", [None], [{"step": 1}], [{"status": 1}]])
+def test_malformed_trace_evidence_is_refused(arm, trace):
+    baseline, candidate = reports()
+    report = baseline if arm == "baseline" else candidate
+    report["results"][0]["trace"] = trace
+    report["summary"] = summarize(report["results"])
+    before = copy.deepcopy((baseline, candidate))
+    with pytest.raises(ValueError, match="experience trace evidence invalid"):
+        compare_experience_runs(baseline, candidate)
+    assert (baseline, candidate) == before
+
+
+def test_off_arm_experience_unavailable_is_refused():
+    baseline, candidate = reports()
+    baseline["results"][0]["trace"] = [
+        {"step": 1, "status": "experience_unavailable", "error": "OperationalError"}
+    ]
+    baseline["summary"] = summarize(baseline["results"])
+    with pytest.raises(ValueError, match="off arm recorded experience processing"):
+        compare_experience_runs(baseline, candidate)
+
+
+def test_hints_in_the_off_arm_are_refused():
+    baseline, candidate = reports()
+    baseline["results"][0]["experience_used"] = [
+        {"step": 1, "failure_code": "answer_mismatch", "tool": "sql", "n": 1, "dropped": 0}
+    ]
+    baseline["summary"] = summarize(baseline["results"])
+    with pytest.raises(ValueError, match="off arm received experience"):
+        compare_experience_runs(baseline, candidate)
+
+
+def test_budget_drops_in_the_off_arm_are_refused():
+    baseline, candidate = reports()
+    baseline["results"][0]["experience_used"] = [
+        {"step": 1, "failure_code": "answer_mismatch", "tool": "sql", "n": 0, "dropped": 2}
+    ]
+    baseline["summary"] = summarize(baseline["results"])
+    before = copy.deepcopy((baseline, candidate))
+    with pytest.raises(ValueError, match="off arm contains experience budget drops"):
+        compare_experience_runs(baseline, candidate)
+    assert (baseline, candidate) == before
+
+
+def test_budget_drops_in_the_on_arm_remain_reported_without_delivery():
+    baseline, candidate = reports()
+    candidate["results"][0]["experience_used"] = [
+        {"step": 1, "failure_code": "answer_mismatch", "tool": "sql", "n": 0, "dropped": 2}
+    ]
+    candidate["summary"] = summarize(candidate["results"])
+    before = copy.deepcopy((baseline, candidate))
+    result = compare_experience_runs(baseline, candidate)
+    assert result["experience_delivery"] == {
+        "baseline_cases_with_hints": 0,
+        "candidate_cases_with_hints": 0,
+        "candidate_hints": 0,
+        "candidate_hints_dropped": 2,
+        "by_failure_code": {},
+    }
+    assert result["blocked_by"] == ["experience_treatment_not_delivered"]
+    assert result["n"] == 4
+    assert (baseline, candidate) == before
+
+
+def test_on_arm_hint_delivery_is_counted_from_case_evidence():
+    baseline, candidate = reports()
+    candidate["results"][0]["experience_used"] = [
+        {"step": 1, "failure_code": "answer_mismatch", "tool": "sql", "n": 2, "dropped": 0}
+    ]
+    candidate["summary"] = summarize(candidate["results"])
+    result = compare_experience_runs(baseline, candidate)
+    assert result["experience_delivery"] == {
+        "baseline_cases_with_hints": 0,
+        "candidate_cases_with_hints": 1,
+        "candidate_hints": 2,
+        "candidate_hints_dropped": 0,
+        "by_failure_code": {"answer_mismatch": 2},
+    }
+    assert "experience_treatment_not_delivered" not in result["blocked_by"]
+
+
+@pytest.mark.parametrize("steps", [(1, 1), (2, 1), (1, 3, 2)])
+def test_duplicate_or_reordered_hint_steps_are_refused(steps):
+    baseline, candidate = reports()
+    candidate["results"][0]["experience_used"] = [
+        {"step": step, "failure_code": "answer_mismatch", "tool": "sql", "n": 1, "dropped": 0}
+        for step in steps
+    ]
+    candidate["summary"] = summarize(candidate["results"])
+    before = copy.deepcopy((baseline, candidate))
+    with pytest.raises(ValueError, match="experience delivery steps must strictly increase"):
+        compare_experience_runs(baseline, candidate)
+    assert (baseline, candidate) == before
+
+
+def test_hint_steps_can_skip_and_restart_for_each_case():
+    baseline, candidate = reports()
+    for row in candidate["results"][:2]:
+        row["experience_used"] = [
+            {"step": 1, "failure_code": "answer_mismatch", "tool": "sql", "n": 1, "dropped": 0},
+            {"step": 3, "failure_code": "answer_mismatch", "tool": "sql", "n": 0, "dropped": 2},
+        ]
+    candidate["summary"] = summarize(candidate["results"])
+    result = compare_experience_runs(baseline, candidate)
+    assert result["experience_delivery"] == {
+        "baseline_cases_with_hints": 0,
+        "candidate_cases_with_hints": 2,
+        "candidate_hints": 2,
+        "candidate_hints_dropped": 4,
+        "by_failure_code": {"answer_mismatch": 2},
+    }
+    assert result["n"] == 4
+    assert result["production_accepted"] is False
+
+
+def test_missing_or_malformed_hint_evidence_is_refused():
+    baseline, candidate = reports()
+    candidate["results"][1].pop("experience_used")
+    candidate["summary"] = summarize(candidate["results"])
+    with pytest.raises(ValueError, match="experience delivery evidence missing"):
+        compare_experience_runs(baseline, candidate)
+
+
+@pytest.mark.parametrize(
+    "hint",
+    [
+        {"step": 1, "failure_code": "answer_mismatch", "tool": "sql", "n": 0, "dropped": 0},
+        {"step": 1, "failure_code": "", "tool": "sql", "n": 1, "dropped": 0},
+        {"step": 1, "failure_code": "answer_mismatch", "tool": "sql", "n": True, "dropped": 0},
+        {"step": 1, "failure_code": "answer_mismatch", "tool": "sql", "n": 1, "dropped": 0, "x": 1},
+        {"step": "1", "failure_code": "answer_mismatch", "tool": "sql", "n": 1, "dropped": 0},
+        {"step": 1, "failure_code": "answer_mismatch", "tool": "sql", "n": 1, "dropped": -1},
+        {"step": 1, "failure_code": "answer_mismatch", "tool": "sql", "n": 0, "dropped": True},
+    ],
+)
+def test_malformed_hint_records_are_refused(hint):
+    baseline, candidate = reports()
+    candidate["results"][2]["experience_used"] = [hint]
+    candidate["summary"] = summarize(candidate["results"])
+    with pytest.raises(ValueError, match="experience delivery evidence invalid"):
+        compare_experience_runs(baseline, candidate)

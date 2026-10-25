@@ -16,6 +16,10 @@ from pathlib import Path
 from generaldataagent.contracts import ActorContext
 from generaldataagent.evaluation.routing import route_task
 from generaldataagent.evaluation.stage_six import (
+    DEADLINE_MARGIN_SECONDS,
+    DEFAULT_WORKER_REPAIRS,
+    DEFAULT_WORKER_SECONDS,
+    DEFAULT_WORKER_STEPS,
     SYSTEM_PROMPT,
     add_json_tables,
     build_csv_database,
@@ -158,9 +162,32 @@ def main():
             experience_scope_hash = content_hash(json.loads(actor_scope(actor)))
         except (json.JSONDecodeError, ValueError) as exc:
             parser.error(f"invalid experience actor scope: {exc}")
+        # A misconfigured store would otherwise fail every case as a worker
+        # error while still spending a full run. Require the store shape and
+        # internal consistency up front; the audit is read-only.
+        from generaldataagent.business.experience import ExperienceError, ExperienceStore
+
+        try:
+            experience_audit = ExperienceStore(
+                args.experience_database, clock=lambda: None, read_only=True
+            ).audit()
+        except sqlite3.OperationalError as exc:
+            # A readable SQLite file without the experience schema.
+            parser.error(f"experience database is not an experience store: {exc}")
+        except sqlite3.DatabaseError as exc:
+            # An unreadable file is an environment failure, not a bad argument.
+            raise exc
+        except (ExperienceError, FileNotFoundError) as exc:
+            parser.error(f"experience database is not a usable experience store: {exc}")
+        if not experience_audit["consistent"]:
+            parser.error(
+                "experience database failed its consistency audit: "
+                f"{len(experience_audit['findings'])} finding(s)"
+            )
     else:
         experience_actor = None
         experience_scope_hash = None
+        experience_audit = None
     root = ROOT / "data/stage6"
     manifest = verify_sources(root)
     cases = (
@@ -199,11 +226,44 @@ def main():
     )
     args.output.mkdir(parents=True)
     code_hash = digest(Path(__file__).resolve())
+    # The protocol must state the deadline that will actually apply. Routed
+    # runs pick the lane per case, so the reported ceiling is the largest lane
+    # budget plus the same margin the worker process gets.
+    lane_budgets = {
+        lane: route_task("x", override=lane).max_seconds
+        for lane in ("short", "analysis", "governed")
+    }
+    lane_steps = {
+        lane: route_task("x", override=lane).max_steps for lane in ("short", "analysis", "governed")
+    }
+    lane_repairs = {
+        lane: route_task("x", override=lane).max_repairs
+        for lane in ("short", "analysis", "governed")
+    }
+    mode_deadline = (
+        max(lane_budgets.values()) + DEADLINE_MARGIN_SECONDS
+        if args.routing
+        else DEFAULT_WORKER_SECONDS + DEADLINE_MARGIN_SECONDS
+    )
     protocol = evaluation_protocol(
-        workers=args.workers, max_output_tokens=args.max_output_tokens, max_tokens=args.max_tokens
+        workers=args.workers,
+        max_output_tokens=args.max_output_tokens,
+        max_tokens=args.max_tokens,
+        hard_case_deadline=mode_deadline,
+        steps=max(lane_steps.values()) if args.routing else DEFAULT_WORKER_STEPS,
+        seconds=max(lane_budgets.values()) if args.routing else DEFAULT_WORKER_SECONDS,
     )
     protocol["version"] = args.evaluation_protocol
     protocol["request_interval_seconds"] = args.request_interval_seconds
+    protocol["hard_case_deadline_mode"] = "per_lane" if args.routing else "fixed"
+    protocol["max_repairs_per_case"] = (
+        max(lane_repairs.values()) if args.routing else DEFAULT_WORKER_REPAIRS
+    )
+    if args.routing:
+        # Recorded so a reader can recompute each case's limits from its lane.
+        protocol["lane_time_budgets"] = lane_budgets
+        protocol["lane_step_budgets"] = lane_steps
+        protocol["lane_repair_budgets"] = lane_repairs
     if args.csv_importer == "identifier-v2":
         protocol["csv_importer"] = args.csv_importer
         protocol["numeric_import"] = (
@@ -227,6 +287,19 @@ def main():
             closing(sqlite3.connect(experience_database)) as snapshot,
         ):
             source.backup(snapshot)
+        # The source can change after the early audit. Audit the frozen copy
+        # that workers actually read, and report evidence from that copy.
+        try:
+            experience_audit = ExperienceStore(
+                experience_database, clock=lambda: None, read_only=True
+            ).audit()
+        except (sqlite3.OperationalError, ExperienceError, FileNotFoundError) as exc:
+            parser.error(f"experience snapshot is not a usable experience store: {exc}")
+        if not experience_audit["consistent"]:
+            parser.error(
+                "experience snapshot failed its consistency audit: "
+                f"{len(experience_audit['findings'])} finding(s)"
+            )
         protocol["experience_store_hash"] = digest(experience_database)
         protocol["experience_scope_hash"] = experience_scope_hash
     if args.preflight_report:
@@ -257,6 +330,11 @@ def main():
     from generaldataagent.evaluation.stage_nine import stage9_fingerprint
     from generaldataagent.evaluation.stage_seven import stage7_fingerprint
 
+    case_routes = (
+        {c.task.case_id: route_task(c.task.question, c.task.instructions) for c in selected}
+        if args.routing
+        else None
+    )
     routing_manifest = (
         {
             "mode": "public-text-marker",
@@ -265,10 +343,7 @@ def main():
                 lane: route_task("x", override=lane).as_dict()
                 for lane in ("short", "analysis", "governed")
             },
-            "per_case": {
-                c.task.case_id: route_task(c.task.question, c.task.instructions).as_dict()
-                for c in selected
-            },
+            "per_case": {case_id: plan.as_dict() for case_id, plan in case_routes.items()},
         }
         if args.routing
         else None
@@ -359,6 +434,14 @@ def main():
         "contamination": "public development data; no training-contamination guarantee",
         "production_accepted": False,
     }
+    if experience_audit is not None:
+        # Recorded with the run so a later reader can see the store passed only
+        # an internal consistency check, not source qualification.
+        report["experience_preflight"] = {
+            "records": experience_audit["records"],
+            "consistent": experience_audit["consistent"],
+            "findings": len(experience_audit["findings"]),
+        }
     databases = {}
     docs = ""
     if args.benchmark == "dabstep":
@@ -401,9 +484,7 @@ def main():
         if circuit.reason:
             result = not_attempted_result(circuit.reason)
         else:
-            route_plan = (
-                route_task(case.task.question, case.task.instructions) if args.routing else None
-            )
+            route_plan = case_routes[case.task.case_id] if case_routes is not None else None
             result = run_isolated(
                 case.task,
                 database,
@@ -420,11 +501,12 @@ def main():
                 max_tokens=args.max_tokens,
                 request_interval_seconds=args.request_interval_seconds,
                 pacing_database=ROOT / ".state/stage6/request-pacing.sqlite",
-                max_steps=route_plan.max_steps if route_plan else 6,
-                max_seconds=route_plan.max_seconds if route_plan else 120,
-                max_repairs=route_plan.max_repairs if route_plan else 3,
+                max_steps=route_plan.max_steps if route_plan else DEFAULT_WORKER_STEPS,
+                max_seconds=route_plan.max_seconds if route_plan else DEFAULT_WORKER_SECONDS,
+                max_repairs=route_plan.max_repairs if route_plan else DEFAULT_WORKER_REPAIRS,
                 experience_database=experience_database,
                 experience_actor=experience_actor,
+                experience_store_hash=protocol.get("experience_store_hash"),
             )
             if route_plan is not None:
                 result["route"] = route_plan.as_dict()
