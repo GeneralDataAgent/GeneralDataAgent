@@ -108,7 +108,14 @@ def test_source_changes_and_duplicate_baselines_cannot_be_paired():
 
 def test_actual_repeated_runs_are_recomputed_and_bound_to_candidate():
     r = report()
-    r.update(system_fingerprint={"agent": "a"}, model_route={"model": "m"}, completed_at="one")
+    r.update(
+        system_fingerprint={"agent": "a"},
+        model_route={"model": "m"},
+        completed_at="one",
+        run_status="completed",
+        requested_n=10,
+        population_n=10,
+    )
     for row in r["results"]:
         row["database_hash"] = "d"
     second, third = copy.deepcopy(r), copy.deepcopy(r)
