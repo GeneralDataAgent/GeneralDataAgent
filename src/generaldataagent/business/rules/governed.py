@@ -86,6 +86,14 @@ class GovernedRuleRunner:
             raise PermissionError("rule_runner_actor_scope_mismatch")
         if request.tool_name != "rules.execute" or request.resource != "rule-workflow":
             raise ValueError("rule_runner_request_target_mismatch")
+        if self.composition is not None:
+            # A composed task and trace belong to the operator, not the caller:
+            # evidence must land in the composed task and both audit records and
+            # artifacts must join on the composed trace.
+            if self.composition.task_id is not None and request.task_id != self.composition.task_id:
+                raise PermissionError("rule_runner_task_scope_mismatch")
+            if self.composition.trace_id is not None:
+                trace_id = self.composition.trace_id
         gateway = self._gateway()
 
         def persist(arguments):

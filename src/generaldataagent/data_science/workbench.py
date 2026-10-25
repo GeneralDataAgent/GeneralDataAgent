@@ -95,6 +95,8 @@ class DataScienceWorkbench:
                 project_id,
             ) or data_domain not in bound.data_domains:
                 raise PermissionError("science_composition_actor_mismatch")
+            if self.composition.task_id is not None and spec.task_id != self.composition.task_id:
+                raise PermissionError("science_composition_task_mismatch")
             if self.composition.budgets is not None:
                 # The task owns its budget; an unregistered or expired task is
                 # refused here, before any policy decision is recorded.
@@ -135,7 +137,11 @@ class DataScienceWorkbench:
             requested_risk=RiskLevel.R1,
         )
         decision = self.policy.evaluate(request)
-        active_trace_id = trace_id or f"experiment-{spec.experiment_id}"
+        active_trace_id = (
+            self.composition.trace_id
+            if self.composition is not None and self.composition.trace_id is not None
+            else trace_id or f"experiment-{spec.experiment_id}"
+        )
         self._audit(
             event_type="science.policy_decision",
             task_id=spec.task_id,
