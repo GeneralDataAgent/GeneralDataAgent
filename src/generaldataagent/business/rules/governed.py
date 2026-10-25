@@ -3,7 +3,7 @@
 from uuid import UUID
 
 from generaldataagent.artifacts import LocalArtifactStore
-from generaldataagent.artifacts.governed import GovernedArtifactStore
+from generaldataagent.artifacts.governed import GovernedArtifactStore, require_artifact_scope
 from generaldataagent.contracts import ActorContext, ToolRequest
 from generaldataagent.observability import JsonlAuditSink
 from generaldataagent.observability.verified_audit import VerifiedAuditSink
@@ -57,12 +57,7 @@ class GovernedRuleRunner:
             ):
                 raise ValueError("rule_runner_composition_ports_disagree")
         if isinstance(artifacts, GovernedArtifactStore):
-            bound = artifacts.actor
-            if (bound.tenant_id, bound.project_id) != (
-                actor.tenant_id,
-                actor.project_id,
-            ) or not set(actor.data_domains) <= set(bound.data_domains):
-                raise PermissionError("artifact_store_actor_scope_mismatch")
+            require_artifact_scope(artifacts, actor)
         self.runtime = runtime
         self.actor = actor
         self.artifacts = artifacts

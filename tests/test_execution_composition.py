@@ -537,3 +537,24 @@ def test_science_cannot_run_under_an_unregistered_task_budget(tmp_path):
         )
     assert not isinstance(failure.value, BudgetExceededError)
     assert [event["payload"]["decision"] for event in events] == ["allow"]
+
+
+def test_one_artifact_authorization_boundary_serves_every_writer(tmp_path):
+    from generaldataagent.artifacts.governed import ArtifactScopeError, require_artifact_scope
+
+    governed = governed_store(tmp_path)
+    # A plain content-addressed store carries no scope, so nothing can mismatch.
+    assert require_artifact_scope(LocalArtifactStore(tmp_path / "plain"), OTHER) is None
+    assert require_artifact_scope(governed, ACTOR) is None
+    # The store's domain set must cover the actor's.
+    assert require_artifact_scope(governed, ACTOR) is None
+    broad_store = governed_store(
+        tmp_path / "broad", actor=ACTOR.model_copy(update={"data_domains": ("payments", "extra")})
+    )
+    assert require_artifact_scope(broad_store, ACTOR) is None
+    for change in ({"tenant_id": "other"}, {"project_id": "other"}, {"data_domains": ("sales",)}):
+        with pytest.raises(ArtifactScopeError, match="artifact_store_actor_scope_mismatch"):
+            require_artifact_scope(governed, ACTOR.model_copy(update=change))
+    wider = ACTOR.model_copy(update={"data_domains": ("payments", "extra")})
+    with pytest.raises(ArtifactScopeError, match="artifact_store_actor_scope_mismatch"):
+        require_artifact_scope(governed, wider)

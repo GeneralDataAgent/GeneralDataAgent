@@ -9,7 +9,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langsmith import tracing_context
 
 from generaldataagent.artifacts import LocalArtifactStore
-from generaldataagent.artifacts.governed import GovernedArtifactStore
+from generaldataagent.artifacts.governed import GovernedArtifactStore, require_artifact_scope
 from generaldataagent.business.actions import content_hash
 from generaldataagent.catalog import InMemoryMetricCatalog, MetricDefinition
 from generaldataagent.contracts import (
@@ -118,13 +118,7 @@ class MetricAnalysisRuntime:
         *,
         thread_id: str | None = None,
     ) -> dict[str, Any]:
-        if isinstance(self.artifacts, GovernedArtifactStore):
-            bound = self.artifacts.actor
-            if (bound.tenant_id, bound.project_id) != (
-                actor.tenant_id,
-                actor.project_id,
-            ) or not set(actor.data_domains) <= set(bound.data_domains):
-                raise PermissionError("artifact_store_actor_scope_mismatch")
+        require_artifact_scope(self.artifacts, actor)
         task_id = str(uuid4())
         if self.budgets is not None:
             self.budgets.register(UUID(task_id), actor, Budget())

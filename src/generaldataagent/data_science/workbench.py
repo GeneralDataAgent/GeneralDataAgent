@@ -3,8 +3,9 @@
 from dataclasses import dataclass
 
 from generaldataagent.artifacts import LocalArtifactStore
-from generaldataagent.artifacts.governed import GovernedArtifactStore
+from generaldataagent.artifacts.governed import GovernedArtifactStore, require_artifact_scope
 from generaldataagent.contracts import (
+    ActorContext,
     AgentRole,
     AuditEvent,
     DatasetSnapshot,
@@ -98,13 +99,15 @@ class DataScienceWorkbench:
                 # The task owns its budget; an unregistered or expired task is
                 # refused here, before any policy decision is recorded.
                 self.composition.budgets.ensure_active(spec.task_id, bound)
-        if isinstance(self.artifact_store, GovernedArtifactStore):
-            actor = self.artifact_store.actor
-            if (actor.tenant_id, actor.project_id) != (
-                tenant_id,
-                project_id,
-            ) or data_domain not in actor.data_domains:
-                raise PermissionError("artifact_store_actor_scope_mismatch")
+        require_artifact_scope(
+            self.artifact_store,
+            ActorContext(
+                user_id=user_id,
+                tenant_id=tenant_id,
+                project_id=project_id,
+                data_domains=(data_domain,),
+            ),
+        )
         if spec.task_id != snapshot.task_id or spec.snapshot_id != snapshot.snapshot_id:
             raise ValueError("experiment must bind the exact task and snapshot")
         if (

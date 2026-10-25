@@ -28,7 +28,7 @@ from typing import Any
 from uuid import UUID
 
 from generaldataagent.artifacts import LocalArtifactStore
-from generaldataagent.artifacts.governed import GovernedArtifactStore
+from generaldataagent.artifacts.governed import GovernedArtifactStore, require_artifact_scope
 from generaldataagent.business.actions import content_hash
 from generaldataagent.business.governance import FeedbackRegistry
 from generaldataagent.contracts import (
@@ -160,13 +160,7 @@ class RuleDeliveryRuntime:
             raise PermissionError("rule_delivery_actor_required")
         if self.composition is not None and self.composition.actor != actor:
             raise PermissionError("rule_delivery_composition_actor_mismatch")
-        if isinstance(self.artifacts, GovernedArtifactStore):
-            bound = self.artifacts.actor
-            if (bound.tenant_id, bound.project_id) != (
-                actor.tenant_id,
-                actor.project_id,
-            ) or not set(actor.data_domains) <= set(bound.data_domains):
-                raise PermissionError("artifact_store_actor_scope_mismatch")
+        require_artifact_scope(self.artifacts, actor)
         # A gateway per delivery, exactly as ``GovernedRuleRunner`` does: handlers
         # close over this call's actor and task so a shared gateway can never be
         # repointed at another tenant.
