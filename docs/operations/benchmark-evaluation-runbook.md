@@ -233,6 +233,22 @@ separately. Specialist declarations never authorize execution. Missing or failed
 remains unknown even when known totals are zero. Costs remain null without independent billing
 telemetry.
 
+A stored report keeps the classifier it ran under. When the classifier is corrected, an old
+`summary.stop_diagnostics` still carries the old code and can disagree with the row it summarizes.
+`evals/reclassify_stage10_diagnostics.py` re-derives every row and the run summary with the current
+classifier and records the differences:
+
+```bash
+uv run python evals/reclassify_stage10_diagnostics.py \
+  --report .artifacts/supervisor-10/report.json \
+  --output .artifacts/supervisor-10/reclassification.json
+```
+
+It prints the stored and recomputed counts, lists each changed row with both codes, and refuses to
+overwrite an existing output or to write over the report it reads. The report itself is never
+edited: a reclassification says what the current classifier supports, while the stored summary
+remains the record of that run.
+
 This runner reuses `ServiceCircuitBreaker`: HTTP 401/402/403/404 opens the circuit immediately;
 three consecutive other model-service failures also open it. Later parseable cases are
 `service_circuit_open`, `attempted=false` and remain in the denominator; parser refusals keep
