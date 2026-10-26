@@ -76,6 +76,21 @@ Use Stage 1–5 runners and `uv run --frozen pytest --cov=generaldataagent --cov
 UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/run_stage6_acceptance.py --report .artifacts/stage6/bird-run/report.json --report .artifacts/stage6/infi-run/report.json --report .artifacts/stage6/dabstep-run/report.json --output .artifacts/stage6/acceptance.json
 ```
 
+## Checking stored failure labels
+
+A report keeps the failure label its run assigned. When the loop's labelling rules change,
+stored rows can name an ending the current code no longer produces — for example
+`execution_or_model_error` on a row whose trace ends with a successful observation. This
+read-only checker re-derives the reachable ending from each row's own trace and lists the
+rows that do not match. Rows without a readable trace are listed separately as unverifiable
+rather than counted as agreeing. Labels decided outside the loop (`answer_mismatch`,
+`unsupported_capability`, `repair_budget_exhausted`) are not judged here. It calls no model,
+changes no score, refuses an existing output and refuses to write over the report.
+
+```bash
+UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/check_stage6_failure_labels.py --report .artifacts/stage6/dabstep-run/report.json --output .artifacts/stage6/dabstep-labels.json
+```
+
 ## Offline replay without model calls
 
 Replace the report path for InfiAgent or DABstep. Replay reconstructs the cohort, verifies source/database digests, and rescores stored predictions without model requests. Reproduced scoring is not independent semantic correctness or production acceptance.
