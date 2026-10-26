@@ -41,10 +41,24 @@ the test checks an exact source-line citation. The enrolled evidence hashes, rev
 and model output are synthetic fixtures; the demo is not benchmark integration, live-model
 evidence, or production acceptance, and it is not connected to any evaluation runner.
 
-The current document facility is heading-based `split_passages` / `select_passages`, with exact
-line-span citations. Start with versioned source files and these retrieval primitives; add an
-index only when corpus size or retrieval evidence warrants it. A knowledge corpus is not an
-experience store: the latter contains independently reviewed advisory repair patterns.
+`business/rules/document_context.py` now wraps the heading-based primitives as a reusable
+explicit-input port. Construct `MarkdownDocument(source=..., version=..., text=...)` for each
+supplied revision and pass the sequence to `DocumentContext`, or to `build_search_documents` for
+the tool adapter. Matches carry source/version, the exact UTF-8 input hash, a passage hash and
+original line spans. Each source is unique within a snapshot; replacing text requires a new
+snapshot. Missing documents/content/matches have distinct `gap` codes. Multiple contradictory
+passages remain untrusted quotations; the port does not select a business interpretation.
+
+Input size, result count and returned text are bounded. Count truncation is explicit through
+`hit_count` and `truncated`; text overflow is refused rather than clipping a quotation. Hashes
+identify supplied content, not its authenticity or approval. The tool adapter does not grant
+permissions or register itself in the gateway: admission and execution controls remain with its
+caller. The example keeps its single-document function signature over this shared port.
+
+Start with versioned source files and this port; add an index only when corpus size or retrieval
+evidence warrants it. A knowledge corpus is not an experience store: the latter contains
+independently reviewed advisory repair patterns. Neither the rule supervisor nor the benchmark
+runner automatically enables this port.
 
 ## First knowledge inputs for payment analysis
 

@@ -92,6 +92,25 @@ After capability convergence, factor bounded team invocation, completion handlin
 and bound empty-argument tools shared by metric and rule supervisors. Keep their fixed delegation
 orders, candidate handling, and domain validation local.
 
+The metric and rule teams now share bounded invocation through
+`agents/supervision.py::continue_role_sequence`. A graph that returns after a real tool stage
+may receive a controller-owned next-role message on the same thread. Each additional invocation
+requires new role progress, and at most one invocation per declared role is allowed. Repeating
+the previous role, making no tool progress, a failed deterministic candidate, an explicit
+`failed`/`needs_human` result, or a graph interrupt stops continuation. The existing total
+deadline encloses every model invocation; provider errors propagate to the runtime's failure
+result. No final model completion claim can replace the tool sequence or validated delivery.
+The reporter remains a deterministic assembly step after the verifier passes, but an explicit
+team stop prevents automatic reporting. `TeamStopMiddleware` intercepts the task tool's returned
+structured stop before control reaches the next delegation, including within a single graph
+invocation. The final reporting step is awaited within the same deadline and exception handling;
+its audit/storage error yields failure rather than escaping the runtime. Cancellation of an
+await does not forcibly terminate synchronous storage work already running in an executor. Synthetic provider scripts exercise the actual Deep
+Agents graph, checkpoint reuse, policy audit, and both capability entry points. They demonstrate
+control behavior, not a resolution of the historical live provider's stopping cause.
+The rule supervisor runner fingerprints both the shared role controller and completion helper
+so later runs declare this lifecycle change without rewriting historical reports.
+
 ## Exit criteria
 
 The first implementation milestone requires all of the following:

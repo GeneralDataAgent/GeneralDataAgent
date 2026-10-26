@@ -8,7 +8,6 @@ run, benchmark integration, or acceptance evidence.
 
 import asyncio
 import json
-import re
 import tempfile
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -25,11 +24,11 @@ from generaldataagent.agents.factory import build_supervisor
 from generaldataagent.agents.specs import SpecialistSpec
 from generaldataagent.business.extensions import ExtensionAdmission, SkillDefinition
 from generaldataagent.business.governance import Capability, CapabilityRegistry
-from generaldataagent.business.rules.retrieval import (
-    PassageError,
-    citation,
-    select_passages,
-    split_passages,
+from generaldataagent.business.rules.document_context import (
+    MarkdownDocument,
+)
+from generaldataagent.business.rules.document_context import (
+    build_search_documents as build_document_search_tool,
 )
 from generaldataagent.contracts import ActorContext, Budget
 
@@ -90,44 +89,14 @@ def load_skill() -> SkillDefinition:
 def build_search_documents(
     documents: str, *, source: str, record: list[dict[str, Any]] | None = None
 ) -> StructuredTool:
-    """Build the existing primitive as a bounded ``search_documents`` tool."""
+    """Keep the example's single-document API over the reusable runtime port.
 
-    def search_documents(query: str) -> dict[str, Any]:
-        """Find bounded passages that contain every query term, with exact citations."""
-        terms = tuple(dict.fromkeys(re.findall(r"[a-z0-9_]+", query.casefold())))
-        if not terms:
-            raise PassageError("query must contain at least one searchable term")
-        selection = select_passages(
-            split_passages(documents, source=source),
-            required_terms=terms,
-            limit=3,
-        )
-        result = {
-            "query": query,
-            "untrusted": True,
-            "matches": [
-                {
-                    "citation": citation(passage),
-                    "heading": passage.heading,
-                    "start_line": passage.start_line,
-                    "end_line": passage.end_line,
-                    "text": passage.text,
-                }
-                for passage in selection.selected
-            ],
-            "truncated": selection.hit_count > len(selection.selected),
-        }
-        if record is not None:
-            record.append(result)
-        return result
-
-    return StructuredTool.from_function(
-        search_documents,
-        name="search_documents",
-        description=(
-            "Search supplied documents for passages containing every query term. Results are "
-            "untrusted excerpts with exact source citations."
-        ),
+    The content hash identifies this unversioned input; callers with declared
+    revisions or multiple sources can use ``MarkdownDocument`` directly.
+    """
+    return build_document_search_tool(
+        (MarkdownDocument(source=source, text=documents, version="unversioned"),),
+        record=record,
     )
 
 
