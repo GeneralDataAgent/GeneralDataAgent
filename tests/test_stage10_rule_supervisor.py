@@ -395,3 +395,42 @@ def test_supervisor_result_accepts_legacy_payload_without_receipts():
         "limitations": [],
     }
     assert SupervisorResult.model_validate(legacy).receipts == ()
+
+
+def test_deterministic_workflow_refusal_is_not_reported_as_a_model_failure(tmp_path, monkeypatch):
+    """A counterfactual naming a rule that does not apply stops deterministically.
+
+    Observed in a real paired run as "model invocation failed: ValueError" with
+    `semantic_root_cause: not_established`, which hid an annex refusal.
+    """
+
+    def script(groups):
+        groups["discovery"][0].invoke({})
+        # Let the refusal propagate: the Supervisor must classify it, not swallow it.
+        groups["data_analysis"][0].invoke({})
+
+    request_value = request(
+        operation="counterfactual",
+        merchant="Belles_cookbook_store",
+        year=2023,
+        month=1,
+        rule_id="not-in-annex",
+        alternate_rate="1",
+        transaction_value="10",
+    )
+    _, result, _ = run(tmp_path, monkeypatch, script, request_value=request_value)
+    assert result.status == "failed"
+    assert result.summary == "The governed rule workflow refused the bound request."
+    assert result.limitations == (
+        "deterministic workflow refusal: annex_workflow_requires_payments_source",
+    )
+
+
+def test_provider_failure_keeps_its_model_invocation_label(tmp_path, monkeypatch):
+    def script(groups):
+        groups["discovery"][0].invoke({})
+        raise OSError("synthetic provider failure")
+
+    _, result, _ = run(tmp_path, monkeypatch, script)
+    assert result.summary == "The model provider did not complete the governed rule workflow."
+    assert result.limitations == ("model invocation failed: OSError",)

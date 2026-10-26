@@ -274,6 +274,21 @@ class RuleSupervisorRuntime:
                 limitations=("explicit specialist stop or human review required",),
             )
         except Exception as exc:
+            # A deterministic refusal of the bound request (for example a
+            # counterfactual whose target rule does not apply to the merchant
+            # month) is not a model or provider fault. Reporting it as one hides
+            # the actual cause behind "model invocation failed".
+            code = _workflow_refusal_code(exc)
+            if code is not None:
+                return SupervisorResult(
+                    status="failed",
+                    summary="The governed rule workflow refused the bound request.",
+                    task_id=str(self.task_id),
+                    receipts=_receipts(candidates),
+                    delegated_roles=tuple(role_events),
+                    artifact_uris=_artifact_uris(candidates),
+                    limitations=(f"deterministic workflow refusal: {code}",),
+                )
             return SupervisorResult(
                 status="failed",
                 summary="The model provider did not complete the governed rule workflow.",
@@ -538,6 +553,18 @@ class RuleSupervisorRuntime:
         thread = result["thread_id"]
         state = self.workflow.state_of(thread, self.request, actor)
         return {**state, "thread_id": thread, "receipt": result.get("receipt")}
+
+
+def _workflow_refusal_code(exc: BaseException) -> str | None:
+    """Return a deterministic refusal code, never a model or provider failure.
+
+    The rule handlers refuse a bound request with a stable ``annex_workflow_*``
+    code when the request cannot be answered from the supplied evidence. Those
+    messages are fixed strings chosen by this repository, so echoing the code is
+    safe; any other exception text is left out of the result.
+    """
+    message = str(exc)
+    return message if message.startswith("annex_workflow_") else None
 
 
 def _receipts(candidates: dict[str, dict[str, Any]]) -> tuple[ExecutionReceipt, ...]:
