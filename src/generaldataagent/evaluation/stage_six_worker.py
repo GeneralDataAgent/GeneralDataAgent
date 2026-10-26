@@ -76,6 +76,25 @@ def main():
             max_seconds=payload.get("max_seconds", 120),
         )
     experience = _experience_port(payload)
+    recorder = None
+    if payload.get("receipt_config") is not None:
+        from uuid import UUID
+
+        from generaldataagent.artifacts import LocalArtifactStore
+        from generaldataagent.contracts import ActorContext
+        from generaldataagent.evaluation.receipts import EvaluationReceiptRecorder
+
+        config = payload["receipt_config"]
+        recorder = EvaluationReceiptRecorder(
+            artifacts=LocalArtifactStore(Path(config["artifact_root"])),
+            actor=ActorContext.model_validate(config["actor"]),
+            task_id=UUID(config["task_id"]),
+            trace_id=config["trace_id"],
+            task=Task(**payload["task"]),
+            database=Path(payload["database"]),
+            documents=payload["documents"],
+            profile=payload.get("tool_profile", "sql"),
+        )
     result = BoundedSQLAgent(
         model,
         tool_profile=payload.get("tool_profile", "sql"),
@@ -85,7 +104,12 @@ def main():
         max_repairs=payload.get("max_repairs", 3),
         experience=experience,
         max_experience=payload.get("max_experience", 2),
-    ).run(Task(**payload["task"]), Path(payload["database"]), documents=payload["documents"])
+    ).run(
+        Task(**payload["task"]),
+        Path(payload["database"]),
+        documents=payload["documents"],
+        **({"receipt_recorder": recorder} if recorder is not None else {}),
+    )
     print(json.dumps(result))
 
 

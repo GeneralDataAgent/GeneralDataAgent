@@ -34,8 +34,17 @@ def historical_protection(historical: dict, candidate: dict) -> dict:
     }
 
 
-def answer_receipt_errors(report: dict) -> list[str]:
+def answer_receipt_errors(report: dict, *, read_bytes=None) -> list[str]:
+    from generaldataagent.evaluation.receipts import validate_evaluation_receipts
+
     errors = []
+    for row in report["results"]:
+        try:
+            if ("execution_receipts" in row or "receipt_context" in row) and read_bytes is None:
+                raise ValueError("evaluation_receipt_readback_required")
+            validate_evaluation_receipts(row, read_bytes=read_bytes)
+        except (ValueError, TypeError, KeyError, AttributeError, IndexError, OSError):
+            errors.append(row["case_id"] + ":invalid_execution_receipt")
     if report["benchmark"] == "bird-mini-dev-sqlite":
         import re
 
@@ -140,7 +149,9 @@ def answer_receipt_errors(report: dict) -> list[str]:
     return sorted(set(errors))
 
 
-def qualify_stage7(baselines: list[dict], candidates: list[dict], historical: list[dict]) -> dict:
+def qualify_stage7(
+    baselines: list[dict], candidates: list[dict], historical: list[dict], *, read_bytes=None
+) -> dict:
     def index(reports):
         output = {report["benchmark"]: report for report in reports}
         if len(output) != len(reports) or set(output) != set(REQUIRED_TRACKS):
@@ -152,7 +163,7 @@ def qualify_stage7(baselines: list[dict], candidates: list[dict], historical: li
     for name, expected in REQUIRED_TRACKS.items():
         paired = review_comparison(before[name], after[name], [])
         protection = historical_protection(history[name], after[name])
-        errors = answer_receipt_errors(after[name])
+        errors = answer_receipt_errors(after[name], read_bytes=read_bytes)
         comparison = paired["strict_comparison"]
         reasons = []
         if comparison["n"] != expected:

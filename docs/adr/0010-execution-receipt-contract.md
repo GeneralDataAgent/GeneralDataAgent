@@ -5,7 +5,8 @@ Status: Proposed on 2026-10-26. The contract in
 `GovernedRuleRunner.invoke()` now returns a receipt for persisted workflow
 evidence. `DataScienceWorkbench.run_experiment()` now embeds a receipt in its
 experiment report. Rule delivery returns a separate receipt, and the rule
-Supervisor retains execution and delivery receipts. Evaluation compatibility remains pending. This
+Supervisor retains execution and delivery receipts. Fresh research evaluations can
+opt in to step receipts without rewriting legacy reports. This
 ADR is the contract review that ADR 0009 requires before adapting execution;
 implementation and local tests do not constitute independent review or acceptance.
 
@@ -68,8 +69,8 @@ contract fixes the shape now; adoption is separate work.
   release admission remain the authority for those questions.
 - Not a replacement for `DeliveryPackage`; the receipt describes an execution,
   the package describes what may be delivered.
-- Not a compatibility shim yet: mapping evaluation step bindings to receipts is a
-  later slice with its own tests.
+- Not a historical migration: legacy evaluation rows remain unchanged. Fresh runs
+  use the opt-in adapter described below.
 
 ## Adoption plan
 
@@ -182,6 +183,22 @@ it does not fingerprint all installed libraries or host preparation code. OCI
 fingerprints retain their pinned-image meaning. Neither is promoted to proof of
 full-environment reproducibility or production acceptance.
 
+## Evaluation compatibility
+
+Fresh evaluation runs may explicitly supply an operator-declared research actor
+and receive per-step receipts with persisted same-task result artifacts. The
+adapter preserves the legacy result serialization and hash, linking existing
+step/path/method field bindings to those artifacts. It checks actual run inputs,
+static database hashes and artifact bytes; active SQLite WAL is refused. Step
+verification describes only producer readback/hash checks. Tokens and costs are
+not inferred from whole-case totals. Declared identity is not authentication.
+
+Legacy rows without adapter fields remain readable and unmodified. New metadata
+must be consistent with trace and field bindings. Qualification of new rows also
+requires artifact readback, including method and raw value agreement; absent
+stores or corrupt bytes block qualification. Existing SQL dependency, method and
+scoring checks remain in force. See the [evaluation receipt guide](../guides/evaluation-receipts.md).
+
 ## Alternatives considered
 
 - **Extend `DeliveryPackage` with receipt fields.** Rejected: the package is a
@@ -197,5 +214,5 @@ full-environment reproducibility or production acceptance.
 Consumers gain one place to ask "what ran and how strongly was it checked", at
 the cost of a migration that must be done per capability. Rule adoption adds the
 inline receipt described above; science embeds a receipt in its report. Evaluation
-adoption remains pending.
+adoption is opt-in for fresh research runs; legacy records stay unchanged.
 This ADR supports no quality or production claim.
