@@ -42,6 +42,21 @@ pass `--artifact-root` (one or more run artifact directories) to
 legacy rows keep their previous checks. SQL dependency and method checks remain,
 and malformed new envelopes are rejected on failed cases too.
 
+`evals/verify_evaluation_receipts.py` performs only that readback, without a model
+or a stored-replay pass:
+
+```bash
+uv run python evals/verify_evaluation_receipts.py \
+  --report .artifacts/receipt-run/report.json \
+  --artifact-root .artifacts/receipt-run/artifacts \
+  --output .artifacts/receipt-run/receipt-readback.json
+```
+
+It records the report hash, per-case receipt counts, verified readback and any
+receipt or qualification errors, and never rewrites the report. It is evidence
+about the stored report; combine it with `evals/replay_stage6.py` for an
+independent scoring replay and keep each dataset's denominator separate.
+
 Without `--receipt-actor`, result shapes retain the existing fields. Legacy rows
 without the two new fields return an empty receipt tuple when validated, are not
 rewritten, and receive no fabricated actor, source, usage or verification scope.

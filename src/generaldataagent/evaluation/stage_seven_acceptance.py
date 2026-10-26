@@ -5,6 +5,16 @@ from generaldataagent.evaluation.stage_six_gates import REQUIRED_TRACKS, validat
 
 TARGETS = {"bird-mini-dev-sqlite": 36, "infiagent-dabench": 32, "dabstep-dev": 1}
 
+# A tool whose result is an answer field must declare the method that tool
+# produces. ``fixed_analysis`` additionally names its operation in the action.
+# Tools absent here cannot carry a field receipt, so an unlisted tool fails closed.
+_METHOD_BY_TOOL = {
+    "sql": "sql",
+    "sql_crosscheck": "sql",
+    "complete_collection": "complete_collection",
+    "fee_rules": "fee_rules",
+}
+
 
 def historical_protection(historical: dict, candidate: dict) -> dict:
     """A regression guard across protocols, explicitly not paired causal attribution."""
@@ -98,11 +108,7 @@ def answer_receipt_errors(report: dict, *, read_bytes=None) -> list[str]:
             expected_method = (
                 event.get("action", {}).get("analysis", {}).get("operation")
                 if tool == "fixed_analysis"
-                else "sql"
-                if tool in {"sql", "sql_crosscheck"}
-                else "complete_collection"
-                if tool == "complete_collection"
-                else None
+                else _METHOD_BY_TOOL.get(tool)
             )
             if expected_method is None or receipt.get("method_id") != expected_method:
                 errors.append(row["case_id"] + ":receipt_method_mismatch")
