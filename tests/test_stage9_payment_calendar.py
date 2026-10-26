@@ -109,3 +109,45 @@ def test_fractional_source_day_cannot_produce_governed_completion_evidence(tmp_p
         events = [json.loads(line) for line in audit.path.read_text().splitlines()]
         assert len(events) == 1
         assert events[0]["payload"]["decision"] == "allow"
+
+
+@pytest.mark.parametrize(
+    "row, expected",
+    [
+        # A numeric CSV column is imported as REAL, so SQLite returns floats.
+        ({"year": 2023.0, "day_of_year": 10.0}, date(2023, 1, 10)),
+        ({"year": 2024.0, "day_of_year": 60.0}, date(2024, 2, 29)),
+    ],
+)
+def test_imported_real_columns_are_accepted_when_exactly_integral(row, expected):
+    assert moment_of(row) == expected
+
+
+@pytest.mark.parametrize("invalid", [2023.5, float("nan"), float("inf")])
+def test_non_integral_real_columns_are_still_refused(invalid):
+    with pytest.raises(PaymentsSourceError) as error:
+        moment_of({"year": invalid, "day_of_year": 1.0})
+    assert error.value.code == "payments_invalid_row"
+
+
+def test_imported_snapshot_reaches_month_scope_for_a_day_of_year_request(tmp_path):
+    """The regression: a REAL calendar column rejected every imported row."""
+    from generaldataagent.business.rules.application import scope_rule_month
+    from generaldataagent.business.rules.payments import SQLitePaymentsSource
+    from generaldataagent.evaluation.stage_six import build_csv_database
+
+    database = tmp_path / "payments.sqlite"
+    csv_path = tmp_path / "payments.csv"
+    csv_path.write_text(
+        "merchant,year,day_of_year,eur_amount,has_fraudulent_dispute\n"
+        "Shop,2023,10,100.0,False\n"
+        "Shop,2023,20,50.0,False\n"
+        "Shop,2023,300,25.0,False\n"
+    )
+    build_csv_database({"payments": csv_path}, database)
+    source = SQLitePaymentsSource(database, allowed_relations={"merchant_data", "payments"})
+    rows = source._rows("payments")
+    assert all(type(row["year"]) is float for row in rows)
+    scope = scope_rule_month(rows, month=1, day_of_year=10)
+    assert scope.transaction_count == 2
+    assert len(scope.scoped_rows) == 1

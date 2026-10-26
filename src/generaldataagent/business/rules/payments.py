@@ -15,6 +15,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
+from math import isfinite
 from pathlib import Path
 from typing import Any
 
@@ -51,18 +52,33 @@ class MerchantYear:
     rows: tuple[Mapping[str, Any], ...]
 
 
+def _whole_number(value: Any) -> int:
+    """Accept an integer, digit text, or a finite float that is exactly integral.
+
+    SQLite stores a numeric CSV column as REAL, so a genuine calendar value
+    arrives as ``2023.0``. Rejecting every float made each imported row
+    invalid. A fractional, infinite or NaN value is still refused rather than
+    truncated, and booleans are never calendar numbers.
+    """
+    if type(value) is bool:
+        raise PaymentsSourceError("payments_invalid_row")
+    if type(value) is int:
+        return value
+    if type(value) is float:
+        if not isfinite(value) or not value.is_integer():
+            raise PaymentsSourceError("payments_invalid_row")
+        return int(value)
+    if isinstance(value, str) and value.isascii() and value.isdecimal():
+        return int(value)
+    raise PaymentsSourceError("payments_invalid_row")
+
+
 def moment_of(row: Mapping[str, Any]) -> date:
     """Resolve a row's calendar date from ``year`` and one-based ``day_of_year``."""
     try:
-        values = [row["year"], row["day_of_year"]]
-        if any(
-            type(value) is not int
-            and not (isinstance(value, str) and value.isascii() and value.isdecimal())
-            for value in values
-        ):
-            raise PaymentsSourceError("payments_invalid_row")
-        year, day = (int(value) for value in values)
-    except (KeyError, TypeError, ValueError) as exc:
+        year = _whole_number(row["year"])
+        day = _whole_number(row["day_of_year"])
+    except (KeyError, TypeError) as exc:
         raise PaymentsSourceError("payments_invalid_row") from exc
     if day < 1:
         raise PaymentsSourceError("payments_invalid_row")
