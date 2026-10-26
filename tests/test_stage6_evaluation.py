@@ -134,6 +134,53 @@ def test_incomplete_work_is_not_success(database, actions, failure):
     )
 
 
+def test_a_recovered_action_error_does_not_label_the_finished_run(database):
+    """``failure`` is how the loop ended, not the last thing that went wrong."""
+    result = BoundedSQLAgent(
+        Model(
+            {"sql": 123},
+            {"sql": "SELECT AVG(value) AS mean FROM data"},
+            {"sql": "SELECT COUNT(*) AS n FROM data"},
+        ),
+        tool_profile="sql-semantic",
+        max_steps=3,
+    ).run(case().task, database)
+    assert [row["status"] for row in result["trace"]] == ["error", "ok", "ok"]
+    assert result["failure"] == "step_budget"
+    assert not result["answers"]
+
+
+def test_a_recovered_action_error_does_not_label_a_later_success(database):
+    result = BoundedSQLAgent(
+        Model(
+            {"sql": 123},
+            {"sql": "SELECT AVG(value) AS mean FROM data"},
+            {"submit_answers": {"fields": [{"name": "mean", "step": 2, "path": ["rows", 0, 0]}]}},
+        ),
+        tool_profile="sql-semantic",
+        max_steps=3,
+    ).run(case().task, database)
+    assert [row["status"] for row in result["trace"]][:2] == ["error", "ok"]
+    assert result["failure"] is None and result["answers"] == {"mean": 2.0}
+
+
+def test_a_run_ending_on_a_failed_action_is_still_an_execution_error(database):
+    """The boundary: only the *open* step decides; earlier errors are not carried.
+
+    A last action that raised is reported as such, with the specific code kept in
+    the trace. What no longer happens is an error from an earlier, corrected step
+    labelling a run that later completed work.
+    """
+    result = BoundedSQLAgent(
+        Model({"sql": "SELECT nope FROM data"}),
+        tool_profile="sql-semantic",
+        max_steps=1,
+    ).run(case().task, database)
+    assert result["trace"][-1]["status"] == "error"
+    assert result["trace"][-1]["code"] == "unknown_column"
+    assert result["failure"] == "execution_or_model_error"
+
+
 def test_budget_counts_consumed_tokens(database):
     result = BoundedSQLAgent(Model({"sql": "SELECT 1"}), max_tokens=5).run(case().task, database)
     assert result["failure"] == "token_budget"

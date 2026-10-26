@@ -1389,6 +1389,13 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                 if receipt_recorder is not None:
                     receipt_recorder.record(event, result_data)
                 trace.append(event)
+                # An observation that succeeded means whatever went wrong at an
+                # earlier step was recovered from. Keep that entry in the trace
+                # for diagnosis, but do not let it label the run: otherwise a
+                # corrected error stays latched, and a case that simply spends
+                # its remaining steps observing is reported as an execution
+                # failure instead of a spent step budget.
+                failure = "step_budget"
                 automatic_spec = False
                 if semantic and tool != "document_search":
                     evidence[step] = dict(result_data)
