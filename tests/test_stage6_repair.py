@@ -58,6 +58,27 @@ def test_only_known_execution_diagnostics_are_returned():
     assert "secret-token" not in execution_hint(RuntimeError("no such column: bad\nsecret-token"))
 
 
+@pytest.mark.parametrize(
+    "check,expected",
+    [
+        # Naming the fix the checker wants, not a generic "revise the action".
+        ("answer_sql_requires_public_column_aliases", "public key"),
+        ("answer_sql_requires_one_row", "exactly one row"),
+    ],
+)
+def test_each_atomic_sql_check_names_its_own_repair(check, expected):
+    hint = execution_hint(ValueError(check))
+    assert expected in hint
+    assert hint != "Revise the action using the visible schema and supported tools."
+
+
+def test_an_unknown_check_still_falls_back_to_the_generic_hint():
+    """Only recognised codes get specific advice; no guess from arbitrary text."""
+    assert execution_hint(ValueError("answer_sql_requires_something_new")) == (
+        "Revise the action using the visible schema and supported tools."
+    )
+
+
 class Model:
     def __init__(self, actions):
         self.actions = iter(actions)
