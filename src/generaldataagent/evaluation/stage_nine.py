@@ -115,6 +115,51 @@ class RuleToolError(ValueError):
         super().__init__(code)
 
 
+def excerpt_rejection_diagnostic(excerpt: str, documents: str) -> dict:
+    """Say how a rejected ``semantics_excerpt`` differs, without echoing it.
+
+    A verbatim check that only says "missing" is undiagnosable: a reviewer cannot
+    tell a paraphrase from a copy whose whitespace moved, and every DABstep run
+    has shown the same failure without explaining it. This reports the reason
+    class, sizes and offsets only. The excerpt and the document text are model
+    and source content; neither is returned.
+
+    The returned codes are this module's own, so a reader learns the cause
+    without receiving a passage they could copy into the next attempt.
+    """
+    if not isinstance(excerpt, str) or not isinstance(documents, str):
+        raise ValueError("excerpt diagnostics require text")
+    diagnostic = {"excerpt_chars": len(excerpt), "document_chars": len(documents)}
+    if not excerpt.strip():
+        return diagnostic | {"reason": "blank"}
+    # The check compares the raw excerpt, so a copy whose only difference is
+    # outer whitespace is refused. Name that separately from a quoted copy.
+    quotes = "\"'`“”‘’"
+    stripped = excerpt.strip()
+    if stripped in documents:
+        if stripped == excerpt:
+            # The raw excerpt does occur; a rejection here is a caller defect,
+            # not a property of what the model wrote.
+            return diagnostic | {"reason": "verbatim"}
+        return diagnostic | {
+            "reason": "outer_whitespace",
+            "match_offset": documents.index(stripped),
+        }
+    unquoted = stripped.strip(quotes).strip()
+    if unquoted and unquoted in documents and unquoted != stripped:
+        return diagnostic | {"reason": "quoting", "match_offset": documents.index(unquoted)}
+    if " ".join(stripped.split()) in " ".join(documents.split()):
+        return diagnostic | {"reason": "internal_whitespace"}
+    # Longest prefix that still occurs verbatim: a copy that diverges late looks
+    # like a dropped line, one that diverges at once like a paraphrase.
+    divergence = 0
+    for end in range(len(stripped), 24, -1):
+        if stripped[:end] in documents:
+            divergence = end
+            break
+    return diagnostic | {"reason": "not_verbatim", "verbatim_prefix_chars": divergence}
+
+
 def rule_schema_repair_hints(errors):
     """Translate only known rule contract error types, without reflecting input values."""
     hints = {

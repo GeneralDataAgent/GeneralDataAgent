@@ -1530,10 +1530,21 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                             from generaldataagent.evaluation.experience_extraction import (
                                 rule_repair_context_hash,
                             )
+                            from generaldataagent.evaluation.stage_nine import (
+                                excerpt_rejection_diagnostic,
+                            )
 
                             event["rule_repair_context_hash"] = rule_repair_context_hash(
                                 action["rules"]
                             )
+                            # How the rejected excerpt differed, never the excerpt
+                            # itself. Without this a "not verbatim" refusal cannot
+                            # be distinguished from a paraphrase by any reviewer.
+                            rejected = action["rules"].get("semantics_excerpt")
+                            if isinstance(rejected, str):
+                                event["excerpt_diagnostic"] = excerpt_rejection_diagnostic(
+                                    rejected, documents
+                                )
                         event.update(code=exc.code, repair_type="correct_rule_context")
                         feedback.update(
                             code=exc.code,
