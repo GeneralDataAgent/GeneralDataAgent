@@ -633,6 +633,8 @@ def test_runner_persists_refusal_and_exception_with_full_denominator(
         stored = json.loads(output.read_text())
         assert stored["summary"]["n"] == 10
         assert stored["summary"]["processed_n"] == int(question)
+        assert stored["role_controller_hash"] == "fixture-hash"
+        assert stored["completion_hash"] == "fixture-hash"
         return runner.parse_request
 
     from generaldataagent.contracts.rule_tools import RuleAnalysisRequest

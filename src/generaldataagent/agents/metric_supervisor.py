@@ -10,11 +10,17 @@ from deepagents.backends import StateBackend
 from langchain_core.tools import StructuredTool
 from langgraph.checkpoint.memory import InMemorySaver
 
-from generaldataagent.agents.completion import await_validated_completion
 from generaldataagent.agents.contracts import SpecialistResult, SupervisorResult
 from generaldataagent.agents.factory import build_supervisor
 from generaldataagent.agents.specs import SPECIALIST_SPECS
-from generaldataagent.agents.supervision import NoToolArguments, record_role
+from generaldataagent.agents.supervision import (
+    NoToolArguments,
+    TeamStopMiddleware,
+    TeamStopped,
+    continue_role_sequence,
+    record_role,
+    role_sequence_stop,
+)
 from generaldataagent.business.actions import content_hash
 from generaldataagent.catalog import InMemoryMetricCatalog
 from generaldataagent.contracts import ActorContext, MetricQuery
@@ -122,7 +128,7 @@ class MetricSupervisorRuntime:
             model=self.orchestration_router.bootstrap_model
             if self.orchestration_router
             else self.model,
-            model_middleware=middleware,
+            model_middleware=(*middleware, TeamStopMiddleware()),
             tool_groups=tool_groups,
             backend=StateBackend(),
             checkpointer=InMemorySaver(),
@@ -147,12 +153,30 @@ class MetricSupervisorRuntime:
         config = {"configurable": {"thread_id": thread_id}, "recursion_limit": 40}
         try:
             async with asyncio.timeout(max_runtime_seconds):
-                result = await await_validated_completion(
-                    supervisor.ainvoke(
-                        {"messages": [{"role": "user", "content": json.dumps(request)}]}, config
-                    ),
-                    completed,
+                result = await continue_role_sequence(
+                    supervisor,
+                    {"messages": [{"role": "user", "content": json.dumps(request)}]},
+                    config,
+                    events=role_events,
+                    sequence=_REQUIRED_ROLE_SEQUENCE,
+                    completed=completed,
+                    can_continue=lambda: len(role_events) < 2 or _candidate_passed(candidates),
                 )
+                if (
+                    role_sequence_stop(result) is None
+                    and tuple(role_events) == _REQUIRED_ROLE_SEQUENCE[:-1]
+                    and _candidate_passed(candidates)
+                ):
+                    await tool_groups["reporting"][0].ainvoke({})
+        except TeamStopped as exc:
+            return SupervisorResult(
+                status=exc.status,
+                summary="The specialist team stopped before a validated delivery.",
+                task_id=None,
+                delegated_roles=tuple(role_events),
+                artifact_uris=(),
+                limitations=("explicit specialist stop or human review required",),
+            )
         except Exception as exc:
             candidate = candidates.get("current", {}).get("analysis")
             artifacts = (
@@ -168,8 +192,17 @@ class MetricSupervisorRuntime:
                 artifact_uris=artifacts,
                 limitations=(f"model invocation failed: {type(exc).__name__}",),
             )
-        if tuple(role_events) == _REQUIRED_ROLE_SEQUENCE[:-1] and _candidate_passed(candidates):
-            tool_groups["reporting"][0].invoke({})
+        stop = role_sequence_stop(result)
+        if stop is not None and tuple(role_events) != _REQUIRED_ROLE_SEQUENCE:
+            candidate = candidates.get("current", {}).get("analysis")
+            return SupervisorResult(
+                status=stop,
+                summary="The metric team stopped before a validated delivery.",
+                task_id=candidate["task_id"] if candidate else None,
+                delegated_roles=tuple(role_events),
+                artifact_uris=(),
+                limitations=("explicit team stop or human review required",),
+            )
         candidate = candidates.get("current", {}).get("analysis")
         actual_task_id = candidate["task_id"] if candidate else None
         actual_artifacts = (

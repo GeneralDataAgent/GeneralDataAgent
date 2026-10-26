@@ -206,6 +206,8 @@ async def main() -> None:
     report = {
         "runner_hash": digest(Path(__file__)),
         "supervisor_hash": digest(ROOT / "src/generaldataagent/agents/rule_supervisor.py"),
+        "role_controller_hash": digest(ROOT / "src/generaldataagent/agents/supervision.py"),
+        "completion_hash": digest(ROOT / "src/generaldataagent/agents/completion.py"),
         "diagnostics_hash": digest(ROOT / "src/generaldataagent/evaluation/rule_diagnostics.py"),
         "factory_hash": digest(ROOT / "src/generaldataagent/agents/factory.py"),
         "dataset_hashes": {
