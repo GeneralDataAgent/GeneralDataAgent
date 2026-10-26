@@ -215,7 +215,12 @@ Without an unmet requirement or a higher-priority stop, a final text reply with 
 `incomplete_sequence_reason_unknown`. A completed delivery whose role sequence or artifact readback
 is not confirmed is `delivery_check_failed`; a completed delivery with all four roles and readable
 artifacts that merely disagrees with the published answer is `answer_mismatch`, so a wrong answer is
-not filed as a delivery fault. Every non-completed row keeps
+not filed as a delivery fault. A row whose Supervisor reported a declared deterministic refusal
+(`deterministic workflow refusal: <code>` in its limitations) is `workflow_refusal`: the stop has a
+recorded cause, so it is not left as reason-unknown. The refusal is only read back from that exact
+prefix with a non-empty code; free text that happens to resemble one is not accepted. An observed
+model or tool error and an explicit specialist `failed`/`needs_human` report still outrank it.
+Every non-completed row keeps
 `semantic_root_cause: not_established`. These classifications describe associated callback evidence,
 not a verified wire capture or an endpoint root cause. A local payload simulation cannot establish
 what an earlier live run sent; old reports without request metadata remain unqualified. A later
