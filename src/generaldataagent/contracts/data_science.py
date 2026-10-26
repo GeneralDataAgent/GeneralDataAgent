@@ -1,5 +1,7 @@
 """Versioned contracts for the governed Stage 3 data-science workbench."""
 
+import hashlib
+import json
 from datetime import datetime
 from typing import Literal
 from uuid import UUID, uuid4
@@ -7,6 +9,7 @@ from uuid import UUID, uuid4
 from pydantic import Field, model_validator
 
 from generaldataagent.contracts.models import ArtifactRef, ContractModel, utc_now
+from generaldataagent.contracts.receipt import ExecutionReceipt
 
 
 class SnapshotColumn(ContractModel):
@@ -131,6 +134,12 @@ class ExperimentSpec(ContractModel):
     def template_version(self) -> str:
         return "2.2" if self.estimator != "baseline" else "1.0"
 
+    def content_hash(self) -> str:
+        content = json.dumps(
+            self.model_dump(mode="json"), sort_keys=True, separators=(",", ":"), allow_nan=False
+        ).encode()
+        return "sha256:" + hashlib.sha256(content).hexdigest()
+
 
 class ScienceCheck(ContractModel):
     check_id: str = Field(pattern=r"^[a-z][a-z0-9_-]{0,63}$")
@@ -153,6 +162,7 @@ class SubgroupEvaluation(ContractModel):
 
 
 class ExperimentReport(ContractModel):
+    schema_version: str = "1.1"
     experiment_id: UUID
     snapshot_id: UUID
     runtime_fingerprint: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
@@ -167,6 +177,7 @@ class ExperimentReport(ContractModel):
     checks: tuple[ScienceCheck, ...]
     passed: bool
     output_artifact: ArtifactRef
+    receipt: ExecutionReceipt | None = None
     completed_at: datetime = Field(default_factory=utc_now)
 
     @model_validator(mode="after")
@@ -176,6 +187,21 @@ class ExperimentReport(ContractModel):
             raise ValueError("experiment status must match error-severity checks")
         if len({metric.name for metric in self.metrics}) != len(self.metrics):
             raise ValueError("experiment metrics must be unique")
+        if self.receipt is not None:
+            receipt = self.receipt
+            if receipt.result_refs != (self.output_artifact,):
+                raise ValueError("experiment receipt must reference the exact output artifact")
+            if (
+                receipt.method.method_version != self.template_version
+                or receipt.method.runtime_fingerprint != self.runtime_fingerprint
+            ):
+                raise ValueError("experiment receipt method must match the report")
+            if (
+                receipt.verification.scope != "producer_self_check"
+                or receipt.verification.passed != self.passed
+                or receipt.verification.check_codes != tuple(check.code for check in self.checks)
+            ):
+                raise ValueError("experiment receipt verification must match the report checks")
         return self
 
 
@@ -197,6 +223,18 @@ class TrackedExperiment(ContractModel):
             raise ValueError("tracked experiment task must match its spec")
         if self.spec.snapshot_id != self.snapshot_id or self.report.snapshot_id != self.snapshot_id:
             raise ValueError("tracked experiment snapshot bindings must match")
+        receipt = self.report.receipt
+        if receipt is not None and (
+            receipt.task_id != str(self.task_id)
+            or receipt.method.random_seed != self.spec.random_seed
+            or receipt.method.method_id != f"science.{self.spec.estimator}"
+            or receipt.method.method_version != self.spec.template_version
+            or {source.source_id: source.content_hash for source in receipt.sources}.get(
+                "experiment_spec"
+            )
+            != self.spec.content_hash()
+        ):
+            raise ValueError("tracked experiment receipt must match its spec")
         return self
 
 

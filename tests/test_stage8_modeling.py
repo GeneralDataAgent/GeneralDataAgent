@@ -73,6 +73,10 @@ def test_real_multivariate_holdout_against_numpy(experiment, strategy):
         snapshot=snapshot, spec=spec, user_id="u", tenant_id="t", project_id="p", data_domain="d"
     )
     assert report.passed and report.template_version == "2.2"
+    assert report.receipt.method.method_id == "science.linear_regression"
+    assert report.receipt.method.method_version == "2.2"
+    assert report.receipt.method.random_seed == spec.random_seed
+    assert report.receipt.verification.scope == "producer_self_check"
     result = json.loads(store.read_bytes(report.output_artifact))
     model = result["model"]
     assert model["coefficients"] == pytest.approx({"x": 2, "z": -3})

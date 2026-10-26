@@ -24,6 +24,7 @@ retention or production-mode checks, and it never reports production acceptance.
 
 from __future__ import annotations
 
+import json
 from typing import Any
 from uuid import UUID
 
@@ -31,11 +32,14 @@ from generaldataagent.artifacts import LocalArtifactStore
 from generaldataagent.artifacts.governed import GovernedArtifactStore, require_artifact_scope
 from generaldataagent.business.actions import content_hash
 from generaldataagent.business.governance import FeedbackRegistry
+from generaldataagent.business.rules.receipts import receipt_sources, receipt_verification
 from generaldataagent.contracts import (
     ActorContext,
     AgentRole,
     ChartSpec,
     DeliveryPackage,
+    ExecutionMethod,
+    ExecutionReceipt,
     GroundedClaim,
     TableSpec,
     ToolRequest,
@@ -63,6 +67,8 @@ class RuleDeliveryError(ValueError):
             "rule_delivery_unknown_operation",
             "rule_delivery_evidence_missing",
             "rule_delivery_already_packaged",
+            "rule_delivery_artifact_task_mismatch",
+            "rule_delivery_artifact_bytes_mismatch",
         }
     )
 
@@ -182,10 +188,25 @@ class RuleDeliveryRuntime:
             else trace_id or f"rule-delivery-{task_id}"
         )
 
+        intended_outputs: dict[str, bytes] = {}
+
         def persist(arguments):
+            # Capture the bytes before invoking the store: a faulty store could
+            # return a self-consistent reference to different content.
+            expected = json.dumps(
+                arguments["value"], ensure_ascii=False, sort_keys=True, separators=(",", ":")
+            ).encode()
             ref = self.artifacts.put_json(task_id=task_id, **arguments)
-            self.artifacts.read_bytes(ref)
+            if ref.task_id != task_id:
+                raise RuleDeliveryError("rule_delivery_artifact_task_mismatch")
+            if self.artifacts.read_bytes(ref) != expected:
+                raise RuleDeliveryError("rule_delivery_artifact_bytes_mismatch")
+            intended_outputs[ref.uri] = expected
             return ref
+
+        def verify_artifact(ref):
+            if self.artifacts.read_bytes(ref) != intended_outputs[ref.uri]:
+                raise RuleDeliveryError("rule_delivery_artifact_bytes_mismatch")
 
         def write_artifact(**arguments):
             artifact_request = ToolRequest(
@@ -206,7 +227,12 @@ class RuleDeliveryRuntime:
         gateway.register(
             "rules.deliver",
             lambda arguments: self._package(
-                arguments, actor=actor, task_id=task_id, write_artifact=write_artifact
+                arguments,
+                actor=actor,
+                task_id=task_id,
+                trace_id=trace,
+                write_artifact=write_artifact,
+                verify_artifact=verify_artifact,
             ),
         )
         tool_request = ToolRequest(
@@ -227,7 +253,14 @@ class RuleDeliveryRuntime:
         return gateway.invoke(tool_request, trace_id=trace)
 
     def _package(
-        self, arguments: dict[str, Any], *, actor: ActorContext, task_id: UUID, write_artifact
+        self,
+        arguments: dict[str, Any],
+        *,
+        actor: ActorContext,
+        task_id: UUID,
+        trace_id: str,
+        write_artifact,
+        verify_artifact,
     ) -> dict[str, Any]:
         """Authorized handler: build and verify the package for one thread."""
         thread_id = arguments["thread_id"]
@@ -244,6 +277,13 @@ class RuleDeliveryRuntime:
         rows = answer_rows(delivery, operation)
         if self.feedback is not None and self.feedback.registered(task_id, actor):
             raise RuleDeliveryError("rule_delivery_already_packaged")
+        sources = receipt_sources(state["source_hashes"])
+        method = ExecutionMethod(
+            method_id="rules.delivery", method_version=state["workflow_version"]
+        )
+        receipt_check = receipt_verification(
+            verification, scope=state.get("verification_scope", "producer_self_check")
+        )
 
         data = write_artifact(
             artifact_type="rule_analysis_result",
@@ -288,7 +328,7 @@ class RuleDeliveryRuntime:
         )
         # Read every reference back before advertising it.
         for ref in (data, chart_artifact, claims_artifact):
-            self.artifacts.read_bytes(ref)
+            verify_artifact(ref)
 
         package = DeliveryPackage(
             metric=f"rule:{operation}",
@@ -304,12 +344,26 @@ class RuleDeliveryRuntime:
             narrative_model=None,
             evidence=(data, chart_artifact, claims_artifact),
         )
+        receipt = ExecutionReceipt(
+            task_id=str(task_id),
+            action="rules.deliver",
+            actor_id=actor.user_id,
+            tenant_id=actor.tenant_id,
+            project_id=actor.project_id,
+            trace_id=trace_id,
+            sources=sources,
+            method=method,
+            result_refs=package.evidence,
+            completeness="complete",
+            verification=receipt_check,
+        )
         if self.feedback is not None:
             self.feedback.register_task(
                 task_id, actor, content_hash(package.model_dump(mode="json"))
             )
         return {
             "delivery": package.model_dump(mode="json"),
+            "receipt": receipt.model_dump(mode="json"),
             "thread_id": thread_id,
             "task_id": str(task_id),
             "verification": verification,

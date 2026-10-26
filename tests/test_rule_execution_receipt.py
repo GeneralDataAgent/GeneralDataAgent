@@ -7,7 +7,7 @@ import pytest
 from pydantic import ValidationError
 from test_stage9_governed import ACTOR, request, runner
 
-from generaldataagent.business.rules.governed import _receipt_verification
+from generaldataagent.business.rules.receipts import receipt_verification
 from generaldataagent.contracts import ArtifactRef, ExecutionReceipt
 from generaldataagent.contracts.rule_tools import RuleAnalysisRequest
 from generaldataagent.orchestration.checkpoints import open_protected_checkpointer
@@ -199,7 +199,7 @@ def test_receipt_uses_composed_task_and_trace_with_governed_storage(tmp_path):
 
 
 def test_legacy_verification_is_conservatively_a_self_check():
-    result = _receipt_verification(
+    result = receipt_verification(
         {"passed": True, "checks": ["legacy_check"], "scope": "authoritative_rederivation"}
     )
     assert result.scope == "producer_self_check"
@@ -262,4 +262,4 @@ def test_legacy_source_names_receive_stable_collision_safe_receipt_identifiers(t
 @pytest.mark.parametrize("checks", ["not-a-list", [""], [1]])
 def test_malformed_check_names_are_refused(checks):
     with pytest.raises(ValueError, match="checks_invalid"):
-        _receipt_verification({"passed": True, "checks": checks})
+        receipt_verification({"passed": True, "checks": checks})

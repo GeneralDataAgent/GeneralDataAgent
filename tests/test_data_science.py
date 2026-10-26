@@ -550,6 +550,8 @@ def test_workbench_runs_the_injected_sandbox_through_the_shared_preparation(
     report = _run(workbench, snapshot, _spec(task_id, snapshot.snapshot_id))
     assert report.passed is True
     assert report.runtime_fingerprint == "sha256:" + "a" * 64
+    assert report.receipt.method.runtime_fingerprint == sandbox.runtime_fingerprint
+    assert report.receipt.method.random_seed == 42
     assert len(sandbox.calls) == 1
     rows, spec, train, test = sandbox.calls[0]
     assert len(rows) == 20 and sorted(train + test) == list(range(20))

@@ -45,7 +45,7 @@ from generaldataagent.business.rules.delivery import RuleDeliveryRuntime, answer
 from generaldataagent.business.rules.document_context import DocumentContext
 from generaldataagent.business.rules.governed import GovernedRuleRunner
 from generaldataagent.business.rules.semantics import AnnexSemanticsDeclaration
-from generaldataagent.contracts import ActorContext, AgentRole, ToolRequest
+from generaldataagent.contracts import ActorContext, AgentRole, ExecutionReceipt, ToolRequest
 from generaldataagent.contracts.rule_tools import RuleAnalysisRequest
 from generaldataagent.llm.orchestration import OrchestrationRouter
 from generaldataagent.orchestration.rule_workflow import RuleWorkflowRuntime
@@ -268,6 +268,7 @@ class RuleSupervisorRuntime:
                 status=exc.status,
                 summary="The specialist team stopped before a validated delivery.",
                 task_id=str(self.task_id),
+                receipts=_receipts(candidates),
                 delegated_roles=tuple(role_events),
                 artifact_uris=(),
                 limitations=("explicit specialist stop or human review required",),
@@ -277,6 +278,7 @@ class RuleSupervisorRuntime:
                 status="failed",
                 summary="The model provider did not complete the governed rule workflow.",
                 task_id=str(self.task_id),
+                receipts=_receipts(candidates),
                 delegated_roles=tuple(role_events),
                 artifact_uris=_artifact_uris(candidates),
                 limitations=(f"model invocation failed: {type(exc).__name__}",),
@@ -287,6 +289,7 @@ class RuleSupervisorRuntime:
                 status=stop,
                 summary="The rule team stopped before a validated delivery.",
                 task_id=str(self.task_id),
+                receipts=_receipts(candidates),
                 delegated_roles=tuple(role_events),
                 artifact_uris=(),
                 limitations=("explicit team stop or human review required",),
@@ -296,6 +299,7 @@ class RuleSupervisorRuntime:
                 status="failed",
                 summary="The Supervisor did not complete the required governed role sequence.",
                 task_id=str(self.task_id),
+                receipts=_receipts(candidates),
                 delegated_roles=tuple(role_events),
                 artifact_uris=_artifact_uris(candidates),
                 limitations=(
@@ -309,6 +313,7 @@ class RuleSupervisorRuntime:
                 status="failed",
                 summary="The reporter did not produce a verified delivery package.",
                 task_id=str(self.task_id),
+                receipts=_receipts(candidates),
                 delegated_roles=tuple(role_events),
                 artifact_uris=(),
                 limitations=("missing rule delivery package",),
@@ -318,6 +323,7 @@ class RuleSupervisorRuntime:
             status="completed",
             summary=package["summary"],
             task_id=str(self.task_id),
+            receipts=_receipts(candidates),
             delegated_roles=tuple(role_events),
             artifact_uris=tuple(item["uri"] for item in package["evidence"]),
             limitations=tuple(package["limitations"]),
@@ -375,7 +381,13 @@ class RuleSupervisorRuntime:
                     else None
                 ),
             }
-            candidates["analysis"] = {"state": state, "tool_result": tool_result}
+            candidates["analysis"] = {
+                "state": state,
+                "tool_result": tool_result,
+                "receipt": ExecutionReceipt.model_validate(state["receipt"])
+                if state.get("receipt") is not None
+                else None,
+            }
             return tool_result
 
         def verify_rule_analysis() -> dict[str, Any]:
@@ -416,7 +428,12 @@ class RuleSupervisorRuntime:
                 trace_id=f"rule-supervisor-{self.task_id}",
             )
             package = result["delivery"]
-            candidates["delivery"] = {"package": package}
+            candidates["delivery"] = {
+                "package": package,
+                "receipt": ExecutionReceipt.model_validate(result["receipt"])
+                if result.get("receipt") is not None
+                else None,
+            }
             if on_validated_delivery is not None:
                 on_validated_delivery()
             return package
@@ -520,7 +537,15 @@ class RuleSupervisorRuntime:
         result = self.runner.invoke(proposal, trace_id=f"rule-supervisor-{self.task_id}")
         thread = result["thread_id"]
         state = self.workflow.state_of(thread, self.request, actor)
-        return {**state, "thread_id": thread}
+        return {**state, "thread_id": thread, "receipt": result.get("receipt")}
+
+
+def _receipts(candidates: dict[str, dict[str, Any]]) -> tuple[ExecutionReceipt, ...]:
+    return tuple(
+        receipt
+        for stage in ("analysis", "delivery")
+        if (receipt := candidates.get(stage, {}).get("receipt")) is not None
+    )
 
 
 def _time_scope(request: RuleAnalysisRequest) -> str:

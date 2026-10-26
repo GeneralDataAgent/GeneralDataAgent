@@ -3,6 +3,7 @@
 .venv/
 .uv-cache/
 .cache/
+.claude/worktrees/
 __pycache__/
 *.py[cod]
 .pytest_cache/

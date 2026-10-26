@@ -100,6 +100,11 @@ def test_science_endpoint_runs_only_configured_fixed_workbench(tmp_path: Path) -
     assert response.status_code == 200
     assert response.json()["passed"] is True
     assert response.json()["experiment_id"] == str(experiment.experiment_id)
+    receipt = response.json()["receipt"]
+    assert receipt["task_id"] == str(task_id)
+    assert receipt["trace_id"] == "science-api-test"
+    assert receipt["verification"]["scope"] == "producer_self_check"
+    assert receipt["result_refs"] == [response.json()["output_artifact"]]
     wrong_tenant = configured.post(
         "/v1/science/experiments",
         headers=headers | {"x-tenant-id": "tenant-2"},

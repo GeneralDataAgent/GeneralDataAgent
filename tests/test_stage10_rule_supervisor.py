@@ -13,7 +13,7 @@ from generaldataagent.business.governance import FeedbackRegistry
 from generaldataagent.business.rules.delivery import RuleDeliveryRuntime
 from generaldataagent.business.rules.governed import GovernedRuleRunner
 from generaldataagent.business.rules.workflow import AnnexWorkflowServices
-from generaldataagent.contracts import ActorContext, DeliveryPackage
+from generaldataagent.contracts import ActorContext, DeliveryPackage, ExecutionReceipt
 from generaldataagent.contracts.rule_tools import RuleAnalysisRequest
 from generaldataagent.observability import JsonlAuditSink
 from generaldataagent.orchestration.checkpoints import open_protected_checkpointer
@@ -128,6 +128,13 @@ def test_full_role_sequence_returns_a_packaged_delivery(tmp_path, monkeypatch):
     package = DeliveryPackage.model_validate(built[0].groups["reporting"][0].invoke({}))
     assert package.metric == "rule:average_fee"
     assert package.row_count == 1
+    assert len(result.receipts) == 1
+    receipt = result.receipts[0]
+    assert isinstance(receipt, ExecutionReceipt)
+    assert receipt.action == "rules.deliver"
+    assert receipt.result_refs == package.evidence
+    assert tuple(ref.uri for ref in receipt.result_refs) == result.artifact_uris
+    assert result.model_dump(mode="json")["receipts"][0] == receipt.model_dump(mode="json")
 
 
 def test_reporter_runs_deterministically_when_the_model_omits_it(tmp_path, monkeypatch):
@@ -199,6 +206,26 @@ def test_governed_runner_puts_execution_and_delivery_through_policy_audit(tmp_pa
     assert [row["payload"]["decision"] for row in rows] == ["allow"] * len(rows)
     assert len(rows) >= 3
     assert all(row["task_id"] == str(runtime.task_id) for row in rows)
+    assert [receipt.action for receipt in result.receipts] == ["rules.execute", "rules.deliver"]
+    execution, delivery = result.receipts
+    assert execution.method.method_id == "rules.workflow"
+    assert len(execution.result_refs) == 1
+    assert execution.result_refs[0].artifact_type == "rule.workflow.evidence"
+    assert delivery.method.method_id == "rules.delivery"
+    assert len(delivery.result_refs) == 3
+    assert all(receipt.task_id == result.task_id for receipt in result.receipts)
+    assert all(
+        receipt.trace_id == f"rule-supervisor-{runtime.task_id}" for receipt in result.receipts
+    )
+    assert all(
+        receipt.verification.scope == "authoritative_rederivation" for receipt in result.receipts
+    )
+    # The verifier checkpoint refresh must not discard the execution receipt.
+    public = result.model_dump(mode="json")
+    assert [receipt["action"] for receipt in public["receipts"]] == [
+        "rules.execute",
+        "rules.deliver",
+    ]
 
 
 def test_verifier_reads_the_checkpoint_rather_than_the_cached_copy(tmp_path, monkeypatch):
@@ -314,3 +341,57 @@ def test_the_analyst_tool_returns_no_answer_for_a_failed_run(tmp_path, monkeypat
     assert seen["analysis"]["verification_passed"] is False
     assert seen["analysis"]["answer"] is None
     assert result.status == "failed"
+
+
+@pytest.mark.parametrize("stop", ["incomplete", "exception", "needs_human"])
+def test_execution_receipt_survives_team_stop_without_delivery(tmp_path, monkeypatch, stop):
+    from generaldataagent.agents.supervision import TeamStopped
+
+    def script(groups):
+        groups["discovery"][0].invoke({})
+        groups["data_analysis"][0].invoke({})
+        if stop == "exception":
+            raise OSError("synthetic provider failure")
+        if stop == "needs_human":
+            raise TeamStopped("needs_human")
+
+    runtime, result, _ = run(tmp_path, monkeypatch, script, governed=True)
+    assert result.status == ("needs_human" if stop == "needs_human" else "failed")
+    assert [receipt.action for receipt in result.receipts] == ["rules.execute"]
+    assert result.receipts[0].task_id == str(runtime.task_id)
+    assert result.receipts[0].verification.passed is True
+    assert result.artifact_uris == ()
+
+
+def test_failed_governed_execution_retains_its_receipt(tmp_path, monkeypatch):
+    def script(groups):
+        groups["discovery"][0].invoke({})
+        groups["data_analysis"][0].invoke({})
+        groups["verification"][0].invoke({})
+
+    _, result, _ = run(
+        tmp_path,
+        monkeypatch,
+        script,
+        governed=True,
+        tamper=lambda computation: computation | {"average_fee": "999"},
+    )
+    assert result.status == "failed"
+    assert len(result.receipts) == 1
+    assert result.receipts[0].action == "rules.execute"
+    assert result.receipts[0].verification.passed is False
+    assert result.receipts[0].completeness == "partial"
+
+
+def test_supervisor_result_accepts_legacy_payload_without_receipts():
+    from generaldataagent.agents.contracts import SupervisorResult
+
+    legacy = {
+        "status": "completed",
+        "summary": "An existing metric result.",
+        "task_id": None,
+        "delegated_roles": list(RULE_ROLE_SEQUENCE),
+        "artifact_uris": [],
+        "limitations": [],
+    }
+    assert SupervisorResult.model_validate(legacy).receipts == ()

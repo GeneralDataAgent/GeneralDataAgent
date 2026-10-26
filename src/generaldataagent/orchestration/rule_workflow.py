@@ -32,6 +32,10 @@ class RuleWorkflowState(TypedDict, total=False):
     verification_scope: str
     delivery: dict[str, Any]
     status: str
+    context_input_hash: str
+    context_sources: list[str]
+    parent_thread_id: str
+    reused_stages: list[str]
 
 
 RuleHandler = Callable[[RuleWorkflowState], dict[str, Any]]
@@ -48,6 +52,8 @@ class RuleWorkflowServices:
     verification_scope: Literal["producer_self_check", "authoritative_rederivation"] = (
         "producer_self_check"
     )
+    # None means unknown dependencies: never reuse the context across tasks.
+    context_sources: tuple[str, ...] | None = None
 
 
 def _binding(request, sources, version):
@@ -96,6 +102,12 @@ class RuleWorkflowRuntime:
         if services.verification_scope not in {"producer_self_check", "authoritative_rederivation"}:
             raise ValueError("rule_workflow_verification_scope_invalid")
         self.verification_scope = services.verification_scope
+        self.context_sources = services.context_sources
+        if self.context_sources is not None and (
+            len(set(self.context_sources)) != len(self.context_sources)
+            or any(not isinstance(name, str) or not name for name in self.context_sources)
+        ):
+            raise ValueError("rule_workflow_context_dependencies_invalid")
         graph = StateGraph(RuleWorkflowState)
         stages = [
             ("monthly_context", services.monthly_context, "monthly_context"),
@@ -106,7 +118,11 @@ class RuleWorkflowRuntime:
         ]
         for name, handler, output in stages:
             graph.add_node(name, self._node(handler, output))
-        graph.add_edge(START, "monthly_context")
+        graph.add_conditional_edges(
+            START,
+            lambda state: "match_rules" if "monthly_context" in state else "monthly_context",
+            {"match_rules": "match_rules", "monthly_context": "monthly_context"},
+        )
         graph.add_edge("monthly_context", "match_rules")
         graph.add_edge("match_rules", "compute")
         graph.add_edge("compute", "verify")
@@ -149,6 +165,13 @@ class RuleWorkflowRuntime:
             ):
                 raise ValueError("rule_workflow_verification_invalid")
             update = {output: result, "status": "completed" if output == "delivery" else output}
+            if (
+                output == "monthly_context"
+                and self.context_sources is not None
+                and set(self.context_sources) <= set(state["source_hashes"])
+            ):
+                update["context_sources"] = list(self.context_sources)
+                update["context_input_hash"] = self._context_hash(state)
             if output == "verification":
                 # This checkpoint channel is owned by the wrapper. Legacy handler
                 # dictionaries may contain arbitrary scope metadata and are untrusted.
@@ -182,6 +205,82 @@ class RuleWorkflowRuntime:
                 {"configurable": {"thread_id": thread}},
                 interrupt_after=list(interrupt_after) or None,
             )
+        return thread, result
+
+    def _context_hash(self, state):
+        if self.context_sources is None or not set(self.context_sources) <= set(
+            state["source_hashes"]
+        ):
+            raise ValueError("rule_workflow_context_dependencies_missing")
+        return _binding(
+            state["request"],
+            {name: state["source_hashes"][name] for name in self.context_sources},
+            state["workflow_version"],
+        )
+
+    def recompute(
+        self,
+        parent_thread: str,
+        request: RuleAnalysisRequest,
+        actor: ActorContext,
+        *,
+        thread_id: str | None = None,
+    ) -> tuple[str, dict]:
+        """Fork a completed claim under new sources; never rewrite its old evidence.
+
+        Only context with an identical declared dependency fingerprint is reused.
+        Unknown/legacy dependencies recompute all stages. Matching and all later
+        stages always rerun, including authoritative verification.
+        """
+        original_actor = self.checkpointer.authorize_thread(parent_thread, actor)
+        if (actor.user_id, actor.tenant_id, actor.project_id) != (
+            original_actor.user_id,
+            original_actor.tenant_id,
+            original_actor.project_id,
+        ) or set(actor.data_domains) != set(original_actor.data_domains):
+            raise PermissionError("rule_workflow_recompute_actor_changed")
+        with self.checkpointer.execution(parent_thread, actor), tracing_context(enabled=False):
+            parent = dict(
+                self.graph.get_state({"configurable": {"thread_id": parent_thread}}).values
+            )
+        payload = request.model_dump(mode="json")
+        if (
+            parent.get("request") != payload
+            or parent.get("workflow_version") != self.workflow_version
+            or parent.get("status") not in {"completed", "failed"}
+            or parent.get("binding_hash")
+            != _binding(payload, _sources(parent.get("source_hashes", {})), self.workflow_version)
+        ):
+            raise ValueError("rule_workflow_recompute_parent_invalid")
+        sources = _sources(self.source_hashes())
+        state = dict(
+            request=payload,
+            source_hashes=sources,
+            workflow_version=self.workflow_version,
+            binding_hash=_binding(payload, sources, self.workflow_version),
+            status="created",
+            parent_thread_id=parent_thread,
+            reused_stages=[],
+        )
+        if (
+            self.context_sources is not None
+            and set(self.context_sources) <= set(sources)
+            and set(self.context_sources) <= set(parent["source_hashes"])
+            and parent.get("context_sources") == list(self.context_sources)
+            and parent.get("context_input_hash") == self._context_hash(state)
+            and parent.get("context_input_hash") == self._context_hash(parent)
+            and isinstance(parent.get("monthly_context"), dict)
+        ):
+            state.update(
+                monthly_context=json.loads(json.dumps(parent["monthly_context"], allow_nan=False)),
+                context_sources=list(self.context_sources),
+                context_input_hash=parent["context_input_hash"],
+                reused_stages=["monthly_context"],
+            )
+        thread = thread_id or str(uuid4())
+        self.checkpointer.register_thread(thread, actor)
+        with self.checkpointer.execution(thread, actor), tracing_context(enabled=False):
+            result = self.graph.invoke(state, {"configurable": {"thread_id": thread}})
         return thread, result
 
     def resume(self, thread: str, request: RuleAnalysisRequest, actor: ActorContext) -> dict:

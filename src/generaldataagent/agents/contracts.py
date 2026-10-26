@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from generaldataagent.contracts import ExecutionReceipt
+
 
 class SpecialistResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -25,3 +27,4 @@ class SupervisorResult(BaseModel):
     delegated_roles: tuple[Literal["discovery", "data-analyst", "verifier", "reporter"], ...]
     artifact_uris: tuple[str, ...] = ()
     limitations: tuple[str, ...] = ()
+    receipts: tuple[ExecutionReceipt, ...] = ()

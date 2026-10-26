@@ -27,6 +27,7 @@ COMMON = {
 }
 GOVERNED = {
     "business/rules/governed.py",
+    "business/rules/receipts.py",
     "tools/gateway.py",
     "policy/engine.py",
     "policy/approvals.py",
