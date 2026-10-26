@@ -808,3 +808,9 @@ LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false UV_CACHE_DIR=/tmp/deepagents-
 UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/qualify_stage6_repair.py --report .artifacts/stage6/dabstep-nvidia-enhanced-v5/report.json --output .artifacts/stage6/feedback-replay-fresh.json
 UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/build_stage6_iteration_report.py --manifest evals/stage6_iteration_v7.json --output ../docs/validation/stage6-iteration-v7-results
 ```
+
+Documents are opt-in and are exercised only when `search_documents` is called. In a paired run,
+evidence of use comes from persisted `rule.document.evidence` artifacts under each task's thread
+directory — one per search, carrying `status` (`matches` or `gap`), query and citations — not from
+the model's narration. Compare those counts between the two arms before attributing any answer
+change to the treatment; a treatment arm that made no searches has not tested documents.
