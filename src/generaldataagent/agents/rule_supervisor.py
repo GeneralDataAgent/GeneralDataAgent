@@ -44,6 +44,7 @@ from generaldataagent.business.extensions import ExtensionAdmission, SkillDefini
 from generaldataagent.business.rules.delivery import RuleDeliveryRuntime, answer_rows
 from generaldataagent.business.rules.document_context import DocumentContext
 from generaldataagent.business.rules.governed import GovernedRuleRunner
+from generaldataagent.business.rules.payments import PaymentsSourceError
 from generaldataagent.business.rules.semantics import AnnexSemanticsDeclaration
 from generaldataagent.contracts import ActorContext, AgentRole, ExecutionReceipt, ToolRequest
 from generaldataagent.contracts.rule_tools import RuleAnalysisRequest
@@ -558,11 +559,15 @@ class RuleSupervisorRuntime:
 def _workflow_refusal_code(exc: BaseException) -> str | None:
     """Return a deterministic refusal code, never a model or provider failure.
 
-    The rule handlers refuse a bound request with a stable ``annex_workflow_*``
-    code when the request cannot be answered from the supplied evidence. Those
-    messages are fixed strings chosen by this repository, so echoing the code is
-    safe; any other exception text is left out of the result.
+    The rule handlers refuse a bound request with a stable code when the request
+    cannot be answered from the supplied evidence: ``annex_workflow_*`` for the
+    annex stages and a validated ``PaymentsSourceError`` code for the payment
+    source. Only an error's own declared code is considered — never a generic
+    ``ValueError`` message, and never arbitrary exception text, which could
+    quote caller or row data.
     """
+    if isinstance(exc, PaymentsSourceError):
+        return exc.code
     message = str(exc)
     return message if message.startswith("annex_workflow_") else None
 

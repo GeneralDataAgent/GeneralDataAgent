@@ -434,3 +434,33 @@ def test_provider_failure_keeps_its_model_invocation_label(tmp_path, monkeypatch
     _, result, _ = run(tmp_path, monkeypatch, script)
     assert result.summary == "The model provider did not complete the governed rule workflow."
     assert result.limitations == ("model invocation failed: OSError",)
+
+
+def test_payment_source_refusal_is_not_reported_as_a_model_failure(tmp_path, monkeypatch):
+    """Two stored rows said "model invocation failed: PaymentsSourceError".
+
+    A scoped payment lookup refuses with a declared, stable code; that is a
+    source refusal and must not be attributed to the provider.
+    """
+    from generaldataagent.business.rules.payments import PaymentsSourceError
+
+    def script(groups):
+        groups["discovery"][0].invoke({})
+        raise PaymentsSourceError("payments_month_empty")
+
+    _, result, _ = run(tmp_path, monkeypatch, script)
+    assert result.summary == "The governed rule workflow refused the bound request."
+    assert result.limitations == ("deterministic workflow refusal: payments_month_empty",)
+
+
+def test_an_undeclared_value_error_is_still_not_echoed(tmp_path, monkeypatch):
+    """Only a declared code is surfaced; arbitrary exception text never is."""
+
+    def script(groups):
+        groups["discovery"][0].invoke({})
+        raise ValueError("merchant Belles_cookbook_store row 12 is malformed")
+
+    _, result, _ = run(tmp_path, monkeypatch, script)
+    assert result.limitations == ("model invocation failed: ValueError",)
+    assert "Belles_cookbook_store" not in result.summary
+    assert not any("Belles_cookbook_store" in line for line in result.limitations)
