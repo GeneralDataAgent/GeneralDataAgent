@@ -4,6 +4,7 @@ from uuid import UUID
 
 from generaldataagent.artifacts import LocalArtifactStore
 from generaldataagent.artifacts.governed import GovernedArtifactStore, require_artifact_scope
+from generaldataagent.business.rules.document_context import DocumentContext
 from generaldataagent.contracts import ActorContext, ToolRequest
 from generaldataagent.observability import JsonlAuditSink
 from generaldataagent.observability.verified_audit import VerifiedAuditSink
@@ -77,13 +78,63 @@ class GovernedRuleRunner:
             budgets=self.composition.budgets if self.composition is not None else None,
         )
 
-    def invoke(self, request: ToolRequest, *, trace_id: str):
+    def search_documents(self, request: ToolRequest, context: DocumentContext, *, trace_id: str):
+        """Search one explicit corpus and persist its quotation evidence under this task."""
+        self._require_identity(request)
+        if (
+            request.tool_name != "documents.search"
+            or request.action != "search"
+            or request.resource != "rule-document-context"
+            or set(request.arguments) != {"query"}
+        ):
+            raise ValueError("rule_document_request_target_mismatch")
+        if self.composition is not None:
+            trace_id = self.composition.identity.resolve_trace(trace_id)
+        gateway = self._gateway()
+
+        def persist(arguments):
+            ref = self.artifacts.put_json(
+                task_id=request.task_id,
+                artifact_type="rule.document.evidence",
+                value=arguments,
+                created_by="rule-document-context",
+            )
+            self.artifacts.read_bytes(ref)
+            return ref.model_dump(mode="json")
+
+        def search(arguments):
+            result = context.search(arguments["query"])
+            evidence = gateway.invoke(
+                request.model_copy(
+                    update={
+                        "tool_name": "artifact.write",
+                        "action": "create",
+                        "resource": "rule-document-evidence",
+                        "arguments": result,
+                    }
+                ),
+                trace_id=trace_id,
+            )
+            return {**result, "evidence": evidence}
+
+        gateway.register("documents.search", search)
+        gateway.register("artifact.write", persist)
+        return gateway.invoke(request, trace_id=trace_id)
+
+    def _require_identity(self, request: ToolRequest):
         if (request.user_id, request.tenant_id, request.project_id) != (
             self.actor.user_id,
             self.actor.tenant_id,
             self.actor.project_id,
         ) or not set(request.data_domains) <= set(self.actor.data_domains):
             raise PermissionError("rule_runner_actor_scope_mismatch")
+        if self.composition is not None:
+            self.composition.identity.resolve_task(
+                request.task_id, code="rule_runner_task_scope_mismatch"
+            )
+
+    def invoke(self, request: ToolRequest, *, trace_id: str):
+        self._require_identity(request)
         if request.tool_name != "rules.execute" or request.resource != "rule-workflow":
             raise ValueError("rule_runner_request_target_mismatch")
         if self.composition is not None:

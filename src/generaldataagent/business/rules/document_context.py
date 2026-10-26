@@ -102,6 +102,17 @@ class DocumentContext:
         self._max_results = max_results
         self._max_result_chars = max_result_chars
 
+    def manifest(self) -> list[dict[str, str]]:
+        """Identify every revision in the supplied snapshot, including empty text."""
+        return [
+            {
+                "source": document.source,
+                "version": document.version,
+                "content_hash": document.content_hash,
+            }
+            for document in self._documents.values()
+        ]
+
     def search(self, query: str) -> dict[str, Any]:
         """Return exact quotations and identities, or an explicit retrieval gap.
 
@@ -118,14 +129,7 @@ class DocumentContext:
         selection = select_passages(self._passages, required_terms=terms, limit=self._max_results)
         if sum(len(passage.text) for passage in selection.selected) > self._max_result_chars:
             raise PassageError("selected passage text exceeds max_result_chars")
-        manifest = {
-            source: {
-                "source": source,
-                "version": document.version,
-                "content_hash": document.content_hash,
-            }
-            for source, document in self._documents.items()
-        }
+        manifest = {item["source"]: item for item in self.manifest()}
         gap = None
         if not self._passages:
             gap = "no_documents" if not self._documents else "no_document_content"

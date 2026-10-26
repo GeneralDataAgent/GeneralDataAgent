@@ -243,6 +243,25 @@ already applies a stricter owner check on the same read path. Until that decisio
 reads are scoped to the tenant/project/domain, and per-user artifact confidentiality rests on the
 callers that add the owner check.
 
+## Admitted advisory document consumer
+
+The rule Supervisor now accepts an optional `RuleDocumentExtension` carrying a supplied
+`DocumentContext`, an `ExtensionAdmission`, and a reviewed discovery Skill. It requires the
+existing governed runner for the same workflow. The Skill retains exactly bound discovery and
+document search; it cannot expand the other specialists' tools. Admission is checked while
+assembling the graph and again before every search. Search is allowed only during the active
+discovery stage, through `documents.search` policy/audit/budgets, followed by an audited task-bound
+quotation artifact write. Audit failure prevents the search handler from running.
+
+This context is advisory. Documents do not alter the approved request, annex semantics, or
+workflow source binding. Missing evidence and contradictory quotations remain explicit results;
+this slice does not implement semantic conflict adjudication or dependency-based recomputation.
+The runner enables it only through an explicit pinned configuration with pre-existing admission,
+checks exact document bytes and canonical Skill hash before provider construction, and records
+configuration/Skill/corpus/runtime fingerprints. Disabled runs remain a separate treatment. An
+unadmitted example Skill is supplied; no activation, real-model gain or production qualification
+is implied by shipping it.
+
 ## Alternatives and boundaries
 
 Do not build a universal workflow engine, enterprise rules DSL, generic keyword router, or automatic

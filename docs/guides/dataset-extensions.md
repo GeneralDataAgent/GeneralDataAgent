@@ -26,11 +26,30 @@ Load it with `SkillDefinition.model_validate_json`, propose/review/activate its 
 `actor`, and `admission`. The chosen specialist must already own the declared tools. Provide
 `question` and bounded `documents` as literal context. Changes require a new reviewed hash.
 
-This is a discovery-only example, not an enabled feature. The current rule supervisor has a
-bound `resolve_rule_request` discovery tool rather than `search_documents`, and the benchmark
-`BoundedSQLAgent` has no `specialist_skills` injection. Loading this JSON alone connects neither
-entry point. Any future adapter must explicitly select and fingerprint the Skill/knowledge inputs,
-use existing admission checks, and preserve the baseline configuration as a separate run.
+This JSON remains a discovery-only example. The rule supervisor now accepts an explicit
+`RuleDocumentExtension(context, admission, skill)` and requires a `GovernedRuleRunner` using the
+same workflow. Its reviewed discovery Skill must retain exactly `resolve_rule_request` and
+`search_documents`, with `bound_request` and `document_manifest` available as literal template
+inputs. The example JSON does not meet that combined tool contract unchanged. Search is available
+only after bound discovery and before analysis; each search rechecks admission, runs through
+`documents.search` gateway policy/audit/budgets, and persists a task-bound quotation artifact.
+Missing or contradictory text remains advisory evidence and cannot rewrite the bound request or
+approved rule semantics. Disabled configuration adds no document tool. The benchmark
+`BoundedSQLAgent` still has no `specialist_skills` injection.
+
+`examples/skills/rule-document-discovery.json` supplies an unadmitted combined discovery Skill
+matching this contract. Propose, review and activate its canonical `ExtensionAdmission.skill_hash`
+for the intended actor before use. Its examples and procedure are guidance, not acceptance evidence.
+
+`evals/run_stage10_rule_supervisor.py --document-extension <config.json>` selects this treatment
+explicitly; omit it for a separately recorded disabled run. The JSON configuration has exactly
+`registry_path`, `skill_path`, `skill_hash`, and `documents`. Each document entry has `path`,
+`source`, `version`, and `content_hash`. Paths resolve from the implementation repository and must
+stay inside it. Both document hashes (exact UTF-8 bytes) and the canonical Skill hash are pinned
+and checked before provider construction. The registry must already contain an active reviewed
+Skill for the evaluation actor; the runner never enrolls or activates it. Reports retain enabled
+state, configuration hash, Skill identity/hash, corpus manifest and runtime hashes. No live run
+or quality improvement is implied by this integration.
 
 `examples/payment_document_skill_demo.py` shows the local wiring path without a live model:
 it loads this JSON, enrolls a synthetic custom specialist and the Skill through the normal
@@ -57,8 +76,8 @@ caller. The example keeps its single-document function signature over this share
 
 Start with versioned source files and this port; add an index only when corpus size or retrieval
 evidence warrants it. A knowledge corpus is not an experience store: the latter contains
-independently reviewed advisory repair patterns. Neither the rule supervisor nor the benchmark
-runner automatically enables this port.
+independently reviewed advisory repair patterns. The rule supervisor requires explicit admitted
+configuration; the benchmark SQL agent does not enable this port.
 
 ## First knowledge inputs for payment analysis
 

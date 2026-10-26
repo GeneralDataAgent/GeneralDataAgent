@@ -148,6 +148,13 @@ DEFAULT_RULES = (
         obligations=("audit", "approval", "draft_only", "no_deployment"),
     ),
     PolicyRule(
+        tool_name="documents.search",
+        risk_level=RiskLevel.R0,
+        allowed_actions=frozenset({"search"}),
+        allowed_roles=frozenset({"discovery"}),
+        obligations=("audit", "read_only", "content_hash", "evidence_bound"),
+    ),
+    PolicyRule(
         tool_name="rules.execute",
         risk_level=RiskLevel.R1,
         allowed_actions=frozenset({"run", "resume"}),
@@ -236,6 +243,7 @@ class PolicyEngine:
             "dbt.test",
             "development.write",
             "python.experiment",
+            "documents.search",
             "rules.execute",
             "rules.deliver",
             "model.registry",
