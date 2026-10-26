@@ -219,7 +219,10 @@ not filed as a delivery fault. A row whose Supervisor reported a declared determ
 (`deterministic workflow refusal: <code>` in its limitations) is `workflow_refusal`: the stop has a
 recorded cause, so it is not left as reason-unknown. The refusal is only read back from that exact
 prefix with a non-empty code; free text that happens to resemble one is not accepted. An observed
-model or tool error and an explicit specialist `failed`/`needs_human` report still outrank it.
+model or tool error still outranks it. A specialist's own `failed`/`needs_human` declaration is a
+model report, not a control: it gives `specialist_stop_reported` only when the delivery is not
+confirmed. If the deterministic sequence ran through the reporter and the package read back, the
+team demonstrably did not stop there, so the row is `answer_mismatch` (or `completed`) instead.
 Every non-completed row keeps
 `semantic_root_cause: not_established`. These classifications describe associated callback evidence,
 not a verified wire capture or an endpoint root cause. A local payload simulation cannot establish

@@ -251,6 +251,15 @@ def _workflow_refusal(row: dict) -> str | None:
     return None
 
 
+def _delivery_confirmed(row: dict) -> bool:
+    """The deterministic sequence completed and its package was readable."""
+    return (
+        row.get("status") == "completed"
+        and row.get("roles_complete") is True
+        and row.get("evidence_present") is True
+    )
+
+
 def stop_diagnostic(row: dict) -> dict:
     """Describe the evidence we have, without inferring a reason from an absent role."""
     roles = row.get("delegated_roles") or []
@@ -268,15 +277,18 @@ def stop_diagnostic(row: dict) -> dict:
         code = "tool_error_observed"
     elif row["outcome"] == "supervisor_error":
         code = "supervisor_exception"
-    elif any(report["status"] in {"failed", "needs_human"} for report in reports):
+    elif any(report["status"] in {"failed", "needs_human"} for report in reports) and not (
+        _delivery_confirmed(row)
+    ):
+        # A specialist's status is the model's own declaration, not a control.
+        # When the deterministic sequence completed and its package read back,
+        # the team did not stop there: the only unmet condition is the answer.
         code = "specialist_stop_reported"
     elif refusal is not None:
         # The workflow recorded why it refused the bound request. That is a known
         # cause, not the unknown-sequence bucket it used to fall into.
         code = "workflow_refusal"
-    elif row.get("status") == "completed" and not (
-        row.get("roles_complete") is True and row.get("evidence_present") is True
-    ):
+    elif row.get("status") == "completed" and not _delivery_confirmed(row):
         # The Supervisor returned completed but the delivery is not confirmed
         # usable: a role or artifact check failed, or the row predates those
         # fields. Unknown delivery state is not evidence of an intact package.

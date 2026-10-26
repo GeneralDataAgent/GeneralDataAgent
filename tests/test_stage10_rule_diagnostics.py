@@ -862,6 +862,30 @@ def test_a_reported_specialist_stop_outranks_the_refusal_code():
     assert stop_diagnostic(row)["code"] == "specialist_stop_reported"
 
 
+def test_a_specialist_status_cannot_contradict_a_confirmed_delivery():
+    # Observed in the real supervisor run on 1681: the verifier declared
+    # needs_human, yet the deterministic sequence still ran the reporter and the
+    # package read back. The status is the model's declaration, not a control, so
+    # the stop category is the published-answer comparison rather than a stop
+    # that demonstrably did not happen.
+    row = _completed_row(
+        specialist_reports=[
+            {"role": "discovery", "status": "completed"},
+            {"role": "data-analyst", "status": "completed"},
+            {"role": "verifier", "status": "needs_human"},
+        ]
+    )
+    assert stop_diagnostic(row)["code"] == "answer_mismatch"
+    assert (
+        stop_diagnostic({**row, "answer_matches_published": True, "passed": True})["code"]
+        == "completed"
+    )
+    # An unconfirmed delivery keeps the specialist's report as the better code.
+    assert stop_diagnostic({**row, "evidence_present": False})["code"] == (
+        "specialist_stop_reported"
+    )
+
+
 def test_a_recorded_workflow_refusal_is_not_left_as_an_unknown_stop():
     diagnostic = stop_diagnostic(_refused_row())
     assert diagnostic["code"] == "workflow_refusal"
