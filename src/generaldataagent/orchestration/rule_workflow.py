@@ -9,7 +9,7 @@ import hashlib
 import json
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Any, TypedDict
+from typing import Any, Literal, TypedDict
 from uuid import uuid4
 
 from langgraph.graph import END, START, StateGraph
@@ -29,6 +29,7 @@ class RuleWorkflowState(TypedDict, total=False):
     matched_rules: dict[str, Any]
     computation: dict[str, Any]
     verification: dict[str, Any]
+    verification_scope: str
     delivery: dict[str, Any]
     status: str
 
@@ -43,6 +44,10 @@ class RuleWorkflowServices:
     compute: RuleHandler
     verify: RuleHandler
     deliver: RuleHandler
+    # Trusted application wiring declares the implementation's checking strength.
+    verification_scope: Literal["producer_self_check", "authoritative_rederivation"] = (
+        "producer_self_check"
+    )
 
 
 def _binding(request, sources, version):
@@ -88,6 +93,9 @@ class RuleWorkflowRuntime:
         self.checkpointer = checkpointer
         self.source_hashes = source_hashes
         self.workflow_version = workflow_version
+        if services.verification_scope not in {"producer_self_check", "authoritative_rederivation"}:
+            raise ValueError("rule_workflow_verification_scope_invalid")
+        self.verification_scope = services.verification_scope
         graph = StateGraph(RuleWorkflowState)
         stages = [
             ("monthly_context", services.monthly_context, "monthly_context"),
@@ -140,7 +148,12 @@ class RuleWorkflowRuntime:
                 or result["passed"] == bool(result["failures"])
             ):
                 raise ValueError("rule_workflow_verification_invalid")
-            return {output: result, "status": "completed" if output == "delivery" else output}
+            update = {output: result, "status": "completed" if output == "delivery" else output}
+            if output == "verification":
+                # This checkpoint channel is owned by the wrapper. Legacy handler
+                # dictionaries may contain arbitrary scope metadata and are untrusted.
+                update["verification_scope"] = self.verification_scope
+            return update
 
         return execute
 

@@ -1,17 +1,62 @@
 """Development-only policy/audit/artifact adapter for rule workflow execution."""
 
+import hashlib
+import re
 from uuid import UUID
 
 from generaldataagent.artifacts import LocalArtifactStore
 from generaldataagent.artifacts.governed import GovernedArtifactStore, require_artifact_scope
 from generaldataagent.business.rules.document_context import DocumentContext
-from generaldataagent.contracts import ActorContext, ToolRequest
+from generaldataagent.contracts import (
+    ActorContext,
+    ArtifactRef,
+    ExecutionMethod,
+    ExecutionReceipt,
+    ReceiptVerification,
+    SourceBinding,
+    ToolRequest,
+)
 from generaldataagent.observability import JsonlAuditSink
 from generaldataagent.observability.verified_audit import VerifiedAuditSink
 from generaldataagent.orchestration.composition import ExecutionComposition
 from generaldataagent.orchestration.rule_workflow import RuleWorkflowRuntime
 from generaldataagent.policy import PolicyEngine
 from generaldataagent.tools.gateway import ToolGateway
+
+
+def _receipt_sources(source_hashes):
+    # Preserve ordinary names; encode all names together if any requires an alias,
+    # so a caller-supplied valid name cannot collide with a generated identifier.
+    preserve = all(re.fullmatch(r"[a-z][a-z0-9_.-]{0,63}", name) for name in source_hashes)
+    names = sorted(source_hashes)
+    identifiers = [
+        name if preserve else "s" + hashlib.sha256(name.encode()).hexdigest()[:63] for name in names
+    ]
+    if len(set(identifiers)) != len(identifiers):
+        raise ValueError("rule_receipt_source_identifier_collision")
+    return tuple(
+        SourceBinding(source_id=identifier, content_hash=source_hashes[name])
+        for name, identifier in zip(names, identifiers, strict=True)
+    )
+
+
+def _receipt_verification(verification, *, scope="producer_self_check"):
+    if verification is None:
+        return ReceiptVerification(scope="none", passed=False)
+    checks = verification.get("checks", [])
+    if not isinstance(checks, list) or any(
+        not isinstance(code, str) or not code for code in checks
+    ):
+        raise ValueError("rule_receipt_checks_invalid")
+    if scope not in {"producer_self_check", "authoritative_rederivation"}:
+        raise ValueError("rule_receipt_verification_scope_invalid")
+    if not checks:
+        return ReceiptVerification(scope="none", passed=False)
+    return ReceiptVerification(
+        scope=scope,
+        passed=verification["passed"],
+        check_codes=tuple(checks),
+    )
 
 
 class GovernedRuleRunner:
@@ -168,6 +213,15 @@ class GovernedRuleRunner:
                 state = self.runtime.resume(thread, proposal, self.actor)
             else:
                 raise ValueError("unsupported_rule_runner_action")
+            if thread != str(request.task_id):
+                raise ValueError("rule_runner_task_scope_mismatch")
+            # Recheck the authoritative checkpoint before publishing its evidence.
+            state = self.runtime.state_of(thread, proposal, self.actor)
+            verification = _receipt_verification(
+                state.get("verification"),
+                scope=state.get("verification_scope", "producer_self_check"),
+            )
+            sources = _receipt_sources(state["source_hashes"])
             evidence = {
                 "task_id": str(request.task_id),
                 "thread_id": thread,
@@ -192,10 +246,26 @@ class GovernedRuleRunner:
                 data_domains=request.data_domains,
             )
             ref = gateway.invoke(artifact_request, trace_id=trace_id)
+            receipt = ExecutionReceipt(
+                task_id=str(request.task_id),
+                action=request.tool_name,
+                actor_id=self.actor.user_id,
+                tenant_id=self.actor.tenant_id,
+                project_id=self.actor.project_id,
+                trace_id=trace_id,
+                sources=sources,
+                method=ExecutionMethod(
+                    method_id="rules.workflow", method_version=state["workflow_version"]
+                ),
+                result_refs=(ArtifactRef.model_validate(ref),),
+                completeness="complete" if state["status"] == "completed" else "partial",
+                verification=verification,
+            )
             return {
                 "status": state["status"],
                 "thread_id": thread,
                 "evidence": ref,
+                "receipt": receipt.model_dump(mode="json"),
                 "production_accepted": False,
             }
 

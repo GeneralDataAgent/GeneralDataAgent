@@ -176,7 +176,9 @@ composed task but not that the caller was the composed actor, so a runtime compo
 could finish another actor's thread and record it through its own ports; the actor check now runs
 with the task check. Both were reproduced before being fixed and are pinned by regression tests.
 
-Still open in this milestone: the receipt milestone.
+Still open in this milestone: the receipt milestone. ADR 0010 now defines the
+contract and adopts it for rule execution; science and evaluation adoption remain
+open.
 
 `ExecutionIdentity` (in the same module) now owns the two questions every consumer was asking
 separately: whether a caller's actor is inside the bound scope, and whether its task is the composed

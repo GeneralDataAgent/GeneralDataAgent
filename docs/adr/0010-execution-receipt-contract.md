@@ -1,9 +1,11 @@
 # ADR 0010: Versioned execution receipt contract
 
 Status: Proposed on 2026-10-26. The contract in
-`src/generaldataagent/contracts/receipt.py` exists and is tested, but **no
-capability emits a receipt yet**. This ADR is the contract review that ADR 0009
-requires before adapting rule and science execution.
+`src/generaldataagent/contracts/receipt.py` exists and is tested.
+`GovernedRuleRunner.invoke()` now returns a receipt for persisted workflow
+evidence. Science execution and evaluation compatibility remain pending. This
+ADR is the contract review that ADR 0009 requires before adapting execution;
+implementation and local tests do not constitute independent review or acceptance.
 
 ## Context
 
@@ -79,6 +81,44 @@ contract fixes the shape now; adoption is separate work.
 Each slice must keep the invariants above and must not relabel a weaker
 verification as a stronger one to make an old report fit.
 
+## Rule adapter
+
+`GovernedRuleRunner.invoke()` returns a JSON `receipt` alongside its existing
+`status`, `thread_id`, `evidence` and `production_accepted` fields. The receipt is
+an inline projection of the checkpoint and the stored evidence reference; it is
+not a separately persisted artifact. Existing evidence writes still pass through
+the gateway and the store's byte/hash check before a receipt is returned.
+`RuleDeliveryRuntime` and `DeliveryPackage` retain their existing interfaces.
+
+- Identity uses the authorized actor and resolved composition task/trace. Sources
+  come from the checked checkpoint, and the method version is its workflow version.
+- `RuleWorkflowServices.verification_scope` is trusted application wiring. Its
+  default is `producer_self_check`; the Annex services declare
+  `authoritative_rederivation`. The wrapper saves that declaration in a separate
+  checkpoint channel when verification runs. Handler-returned `scope` metadata
+  cannot raise the declared strength. Resuming a completed check preserves its
+  stored scope even if the new runtime declares a stronger one.
+- Legacy checkpoints without that channel use `producer_self_check`, ignoring any
+  old handler `scope` metadata. Missing named checks produce `scope="none"` and
+  `passed=false`; malformed check names are refused. Failures remain available
+  through the referenced evidence, including their original failure codes.
+- Completed workflows report `completeness="complete"`; other returned states
+  report `partial`. Completeness describes execution, not verification strength.
+  A verifier or persistence exception propagates without returning a receipt.
+- Existing source names matching the receipt identifier syntax are preserved.
+  If any name does not match, every source gets the identifier `s` followed by
+  the first 63 hexadecimal characters of SHA-256 over its original UTF-8 name.
+  Mapping every name avoids collisions between a literal name and a generated
+  alias; duplicate generated identifiers are refused. Evidence retains exact
+  original names and content hashes. Names and hashes are never normalized in
+  the workflow's source/request/version binding.
+- Usage is unknown because this adapter does not observe model/resource totals.
+  It does not synthesize zeros or infer complete telemetry from gateway events.
+
+No old evaluation reports are rewritten. This slice does not aggregate receipts
+into the Supervisor's result or the delivery package, and does not add a science
+adapter or independent-verifier claim.
+
 ## Alternatives considered
 
 - **Extend `DeliveryPackage` with receipt fields.** Rejected: the package is a
@@ -92,6 +132,6 @@ verification as a stronger one to make an old report fit.
 ## Consequences
 
 Consumers gain one place to ask "what ran and how strongly was it checked", at
-the cost of a migration that must be done per capability. Until adoption lands,
-this ADR changes no runtime behaviour and supports no quality or production
-claim.
+the cost of a migration that must be done per capability. Rule adoption adds the
+inline receipt described above; science and evaluation adoption remain pending.
+This ADR supports no quality or production claim.
