@@ -131,6 +131,32 @@ def test_missing_evidence_is_repaired_but_never_accepted_unobserved(tmp_path):
     assert result["failure"] == "missing_evidence" and result["answers"] == {}
 
 
+def test_the_specific_alias_hint_reaches_the_model_that_must_repair(tmp_path):
+    """The helper's text is worth nothing unless the refused call receives it."""
+    db = tmp_path / "data.sqlite"
+    with sqlite3.connect(db) as connection:
+        connection.execute("CREATE TABLE data(x REAL)")
+        connection.executemany("INSERT INTO data VALUES (?)", [(2,), (4,)])
+    model = Model(
+        [
+            {"sql": "SELECT 1"},
+            {"submit_sql_answers": {"sql": "SELECT AVG(x) AS wrong FROM data"}},
+            {"submit_sql_answers": {"sql": "SELECT AVG(x) AS mean FROM data"}},
+        ]
+    )
+    task = Task("infiagent-dabench", "fixture", "mean?", "@mean[value]", "easy", "data.csv")
+    result = BoundedSQLAgent(model, max_steps=3, tool_profile="sql-semantic").run(task, db)
+    assert result["failure"] is None and result["answers"] == {"mean": 3.0}
+    feedback = [json.loads(text) for role, text in model.messages if role == "human"]
+    refused = [
+        item
+        for item in feedback
+        if item.get("checks") == ("answer_sql_requires_public_column_aliases")
+    ]
+    assert len(refused) == 1
+    assert "public key" in refused[0]["hint"]
+
+
 def test_unknown_column_feedback_enables_a_valid_retry(tmp_path):
     db = tmp_path / "data.sqlite"
     with sqlite3.connect(db) as connection:
