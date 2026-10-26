@@ -157,7 +157,7 @@ DEFAULT_RULES = (
     PolicyRule(
         tool_name="rules.execute",
         risk_level=RiskLevel.R1,
-        allowed_actions=frozenset({"run", "resume"}),
+        allowed_actions=frozenset({"run", "resume", "recompute"}),
         allowed_roles=frozenset({"data_analyst", "verifier"}),
         obligations=("audit", "read_only", "content_hash", "evidence_bound"),
     ),

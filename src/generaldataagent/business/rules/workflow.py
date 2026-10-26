@@ -74,6 +74,9 @@ class AnnexWorkflowServices:
             verify=self._verify,
             deliver=self._deliver,
             verification_scope="authoritative_rederivation",
+            context_sources=("documents", "payments")
+            if self._payments is not None
+            else ("documents",),
         )
 
     # -- request validation -------------------------------------------------

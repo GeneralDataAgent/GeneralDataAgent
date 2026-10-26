@@ -26,6 +26,7 @@ _WORKFLOW_SOURCES = (
 )
 _GOVERNANCE_SOURCES = (
     "business/rules/governed.py",
+    "business/rules/receipts.py",
     # Imported by the runner: it decides which guarantees the gateway enforces.
     "orchestration/composition.py",
     "tools/gateway.py",

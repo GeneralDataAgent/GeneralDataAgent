@@ -1,19 +1,16 @@
 """Development-only policy/audit/artifact adapter for rule workflow execution."""
 
-import hashlib
-import re
 from uuid import UUID
 
 from generaldataagent.artifacts import LocalArtifactStore
 from generaldataagent.artifacts.governed import GovernedArtifactStore, require_artifact_scope
 from generaldataagent.business.rules.document_context import DocumentContext
+from generaldataagent.business.rules.receipts import receipt_sources, receipt_verification
 from generaldataagent.contracts import (
     ActorContext,
     ArtifactRef,
     ExecutionMethod,
     ExecutionReceipt,
-    ReceiptVerification,
-    SourceBinding,
     ToolRequest,
 )
 from generaldataagent.observability import JsonlAuditSink
@@ -22,41 +19,6 @@ from generaldataagent.orchestration.composition import ExecutionComposition
 from generaldataagent.orchestration.rule_workflow import RuleWorkflowRuntime
 from generaldataagent.policy import PolicyEngine
 from generaldataagent.tools.gateway import ToolGateway
-
-
-def _receipt_sources(source_hashes):
-    # Preserve ordinary names; encode all names together if any requires an alias,
-    # so a caller-supplied valid name cannot collide with a generated identifier.
-    preserve = all(re.fullmatch(r"[a-z][a-z0-9_.-]{0,63}", name) for name in source_hashes)
-    names = sorted(source_hashes)
-    identifiers = [
-        name if preserve else "s" + hashlib.sha256(name.encode()).hexdigest()[:63] for name in names
-    ]
-    if len(set(identifiers)) != len(identifiers):
-        raise ValueError("rule_receipt_source_identifier_collision")
-    return tuple(
-        SourceBinding(source_id=identifier, content_hash=source_hashes[name])
-        for name, identifier in zip(names, identifiers, strict=True)
-    )
-
-
-def _receipt_verification(verification, *, scope="producer_self_check"):
-    if verification is None:
-        return ReceiptVerification(scope="none", passed=False)
-    checks = verification.get("checks", [])
-    if not isinstance(checks, list) or any(
-        not isinstance(code, str) or not code for code in checks
-    ):
-        raise ValueError("rule_receipt_checks_invalid")
-    if scope not in {"producer_self_check", "authoritative_rederivation"}:
-        raise ValueError("rule_receipt_verification_scope_invalid")
-    if not checks:
-        return ReceiptVerification(scope="none", passed=False)
-    return ReceiptVerification(
-        scope=scope,
-        passed=verification["passed"],
-        check_codes=tuple(checks),
-    )
 
 
 class GovernedRuleRunner:
@@ -205,23 +167,34 @@ class GovernedRuleRunner:
         def execute(arguments):
             from generaldataagent.contracts.rule_tools import RuleAnalysisRequest
 
-            proposal = RuleAnalysisRequest.model_validate(arguments)
+            parent_thread = None
+            if request.action == "recompute":
+                if set(arguments) != {"parent_thread_id", "request"}:
+                    raise ValueError("rule_recompute_request_invalid")
+                parent_thread = str(UUID(arguments["parent_thread_id"]))
+                proposal = RuleAnalysisRequest.model_validate(arguments["request"])
+            else:
+                proposal = RuleAnalysisRequest.model_validate(arguments)
             thread = str(request.task_id)
             if request.action == "run":
                 thread, state = self.runtime.run(proposal, self.actor, thread_id=thread)
             elif request.action == "resume":
                 state = self.runtime.resume(thread, proposal, self.actor)
+            elif request.action == "recompute":
+                thread, state = self.runtime.recompute(
+                    parent_thread, proposal, self.actor, thread_id=thread
+                )
             else:
                 raise ValueError("unsupported_rule_runner_action")
             if thread != str(request.task_id):
                 raise ValueError("rule_runner_task_scope_mismatch")
             # Recheck the authoritative checkpoint before publishing its evidence.
             state = self.runtime.state_of(thread, proposal, self.actor)
-            verification = _receipt_verification(
+            verification = receipt_verification(
                 state.get("verification"),
                 scope=state.get("verification_scope", "producer_self_check"),
             )
-            sources = _receipt_sources(state["source_hashes"])
+            sources = receipt_sources(state["source_hashes"])
             evidence = {
                 "task_id": str(request.task_id),
                 "thread_id": thread,
@@ -233,6 +206,9 @@ class GovernedRuleRunner:
                 "computation": state.get("computation"),
                 "delivery": state.get("delivery"),
             }
+            if "parent_thread_id" in state:
+                evidence["parent_thread_id"] = state["parent_thread_id"]
+                evidence["reused_stages"] = state["reused_stages"]
             artifact_request = ToolRequest(
                 task_id=UUID(thread),
                 user_id=request.user_id,
