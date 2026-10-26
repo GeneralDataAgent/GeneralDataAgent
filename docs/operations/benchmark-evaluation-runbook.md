@@ -82,6 +82,22 @@ Replace the report path for InfiAgent or DABstep. Replay reconstructs the cohort
 UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/replay_stage6.py --report .artifacts/stage6/bird-run/report.json --output .artifacts/stage6/bird-replay.json
 ```
 
+## Execution-receipt readback
+
+A run started with `--receipt-actor` stores per-step result artifacts next to its
+report. Readback rehashes those stored bytes without a model call and without
+rescoring, and records the report hash, per-case receipt counts and any receipt or
+Stage 7 qualification errors. It refuses to overwrite an existing output.
+
+```bash
+UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/verify_evaluation_receipts.py --report .artifacts/stage6/bird-run/report.json --artifact-root .artifacts/stage6/bird-run/artifacts --output .artifacts/stage6/bird-readback.json
+```
+
+Legacy reports without receipt metadata still read back, contributing zero
+receipts. Readback proves byte identity and binding consistency only; use
+`replay_stage6.py` separately for scoring replay, and keep each dataset's
+denominator separate.
+
 ## Explicit model and tool selection
 
 Verify available model IDs against the configured service when selecting a route. `--model EXACT_MODEL_ID --transport openai-chat` affects this evaluation only, without editing current CC Switch configuration. Parent and worker reconstruct/check route hashes; configuration drift, floating selectors such as `~...latest`, and credential-bearing URL parameters are rejected.
