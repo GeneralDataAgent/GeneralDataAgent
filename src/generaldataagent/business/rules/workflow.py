@@ -73,6 +73,7 @@ class AnnexWorkflowServices:
             compute=self._compute,
             verify=self._verify,
             deliver=self._deliver,
+            verification_scope="authoritative_rederivation",
         )
 
     # -- request validation -------------------------------------------------
