@@ -1,5 +1,6 @@
 """Policy-gated orchestration for reproducible fixed-template experiments."""
 
+import json
 from dataclasses import dataclass
 
 from generaldataagent.artifacts import LocalArtifactStore
@@ -9,12 +10,16 @@ from generaldataagent.contracts import (
     AgentRole,
     AuditEvent,
     DatasetSnapshot,
+    ExecutionMethod,
+    ExecutionReceipt,
     ExperimentReport,
     ExperimentSpec,
     MetricValue,
     ModelCard,
+    ReceiptVerification,
     RiskLevel,
     ScienceCheck,
+    SourceBinding,
     SubgroupEvaluation,
     ToolRequest,
 )
@@ -183,6 +188,7 @@ class DataScienceWorkbench:
             )
             raise ScienceGateError(checks)
         result = run_prepared_experiment(prepared, sandbox=self.sandbox)
+        expected_result = json.dumps(result, sort_keys=True, separators=(",", ":"), allow_nan=False)
         result_artifact = self.artifact_store.put_json(
             task_id=spec.task_id,
             artifact_type="experiment_result",
@@ -190,6 +196,12 @@ class DataScienceWorkbench:
             created_by="data_scientist",
             lineage=(snapshot.data_artifact.artifact_id,),
         )
+        stored_result = json.loads(self.artifact_store.read_bytes(result_artifact))
+        if json.dumps(stored_result, sort_keys=True, separators=(",", ":"), allow_nan=False) != (
+            expected_result
+        ):
+            raise ValueError("experiment result artifact does not match executed output")
+        result = stored_result
         metrics = tuple(
             MetricValue(name=name, value=float(value))
             for name, value in sorted(result["metrics"].items())
@@ -223,10 +235,39 @@ class DataScienceWorkbench:
             )
             for index, subgroup in enumerate(subgroups)
         )
+        runtime_fingerprint = self.sandbox.runtime_fingerprint
+        receipt = ExecutionReceipt(
+            task_id=str(spec.task_id),
+            action="python.experiment",
+            actor_id=user_id,
+            tenant_id=tenant_id,
+            project_id=project_id,
+            trace_id=active_trace_id,
+            sources=(
+                SourceBinding(source_id="snapshot", content_hash=snapshot.content_hash),
+                SourceBinding(
+                    source_id="experiment_spec",
+                    content_hash=spec.content_hash(),
+                ),
+            ),
+            method=ExecutionMethod(
+                method_id=f"science.{spec.estimator}",
+                method_version=result["template_version"],
+                runtime_fingerprint=runtime_fingerprint,
+                random_seed=spec.random_seed,
+            ),
+            result_refs=(result_artifact,),
+            completeness="complete",
+            verification=ReceiptVerification(
+                scope="producer_self_check",
+                passed=not any(not check.passed and check.severity == "error" for check in checks),
+                check_codes=tuple(check.code for check in checks),
+            ),
+        )
         report = ExperimentReport(
             experiment_id=spec.experiment_id,
             snapshot_id=snapshot.snapshot_id,
-            runtime_fingerprint=self.sandbox.runtime_fingerprint,
+            runtime_fingerprint=runtime_fingerprint,
             template_version=result["template_version"],
             train_rows=result["train_rows"],
             test_rows=result["test_rows"],
@@ -238,6 +279,7 @@ class DataScienceWorkbench:
             checks=checks,
             passed=True,
             output_artifact=result_artifact,
+            receipt=receipt,
         )
         if self.tracker is not None:
             self.tracker.record(spec=spec, report=report)

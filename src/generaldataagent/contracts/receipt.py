@@ -47,8 +47,10 @@ class SourceBinding(ContractModel):
 class ExecutionMethod(ContractModel):
     """The implementation and runtime that performed the work."""
 
+    schema_version: str = "1.1"
     method_id: str = Field(pattern=r"^[a-z][a-z0-9_.-]{0,127}$")
     method_version: str = Field(min_length=1, max_length=128)
+    random_seed: int | None = Field(default=None, ge=0, le=2**32 - 1)
     runtime_fingerprint: str | None = Field(
         default=None,
         pattern=r"^sha256:[0-9a-f]{64}$",

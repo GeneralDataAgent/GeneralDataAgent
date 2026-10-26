@@ -3,7 +3,8 @@
 Status: Proposed on 2026-10-26. The contract in
 `src/generaldataagent/contracts/receipt.py` exists and is tested.
 `GovernedRuleRunner.invoke()` now returns a receipt for persisted workflow
-evidence. Science execution and evaluation compatibility remain pending. This
+evidence. `DataScienceWorkbench.run_experiment()` now embeds a receipt in its
+experiment report. Evaluation compatibility remains pending. This
 ADR is the contract review that ADR 0009 requires before adapting execution;
 implementation and local tests do not constitute independent review or acceptance.
 
@@ -37,7 +38,7 @@ contract fixes the shape now; adoption is separate work.
 - identity: `task_id`, `action`, `actor_id`, `tenant_id`, `project_id`, `trace_id`
 - `sources`: named `SourceBinding` entries with `content_hash` and optional `version`
 - `method`: `ExecutionMethod` with `method_id`, `method_version`, optional
-  `runtime_fingerprint`
+  `runtime_fingerprint` and `random_seed`
 - `result_refs`: `ArtifactRef` values produced by the same task
 - `completeness`: `complete` / `partial` / `unknown`
 - `usage`: `ObservedUsage`
@@ -119,6 +120,45 @@ No old evaluation reports are rewritten. This slice does not aggregate receipts
 into the Supervisor's result or the delivery package, and does not add a science
 adapter or independent-verifier claim.
 
+## Science adapter
+
+`DataScienceWorkbench.run_experiment()` keeps its `ExperimentReport` return type
+and adds an optional inline `receipt`. The existing result artifact is read back
+through the store and its decoded content compared with the canonical executed
+output before the report can be tracked or returned. A valid hash for a different
+same-task output is insufficient. Receipts identify
+the authorized actor and resolved composition task/trace, with `python.experiment`
+as the action. Sources bind the immutable snapshot content and the canonical JSON
+hash of the full `ExperimentSpec`, including split, estimator, preprocessing and
+seed. `ExperimentSpec.content_hash()` defines that canonical serialization.
+
+The method identifier is `science.<estimator>`; its version is the executed
+fixed-template version, fingerprint is the actual injected sandbox's fingerprint,
+and seed is `spec.random_seed`. `ExecutionMethod` schema 1.1 adds optional
+`random_seed` (0 through 2**32-1); missing seeds remain unknown. Report schema 1.1
+adds optional `receipt`. Explicit schema 1.0 JSON remains readable with the new
+reader; old readers using `extra="forbid"` cannot consume the additive fields, so
+producers and readers must be upgraded together. The receipt envelope remains 1.0.
+
+Checks are `producer_self_check`; no independent verifier is introduced. The
+receipt's pass outcome follows the report's error-severity gate, so failed warning
+checks remain visible without failing a successful run. Usage stays unknown.
+The report validates exact result-reference, version, fingerprint and check
+agreement. Tracker records additionally validate task, seed, estimator/version
+and full spec-hash agreement. These consistency checks do not attest provenance.
+
+Old report/tracker records remain readable with `receipt=None`; reads never invent
+missing actor/trace/seed information or rewrite stored records. This adapter adds
+no execution-resume support. Preparation, sandbox, persistence, tracker and audit
+exceptions still propagate without returning a report/receipt. A completion audit
+failure can occur after artifact/tracker persistence, as before; no transaction
+spans those ports. Evaluation adapters and notebook replay remain unchanged.
+
+The local sandbox fingerprint continues to mean worker bytes plus Python runtime;
+it does not fingerprint all installed libraries or host preparation code. OCI
+fingerprints retain their pinned-image meaning. Neither is promoted to proof of
+full-environment reproducibility or production acceptance.
+
 ## Alternatives considered
 
 - **Extend `DeliveryPackage` with receipt fields.** Rejected: the package is a
@@ -133,5 +173,6 @@ adapter or independent-verifier claim.
 
 Consumers gain one place to ask "what ran and how strongly was it checked", at
 the cost of a migration that must be done per capability. Rule adoption adds the
-inline receipt described above; science and evaluation adoption remain pending.
+inline receipt described above; science embeds a receipt in its report. Evaluation
+adoption remains pending.
 This ADR supports no quality or production claim.
