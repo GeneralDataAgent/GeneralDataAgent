@@ -46,6 +46,7 @@ from generaldataagent.business.rules.document_context import DocumentContext
 from generaldataagent.business.rules.governed import GovernedRuleRunner
 from generaldataagent.business.rules.payments import PaymentsSourceError
 from generaldataagent.business.rules.semantics import AnnexSemanticsDeclaration
+from generaldataagent.business.rules.workflow import REFUSAL_CODES
 from generaldataagent.contracts import ActorContext, AgentRole, ExecutionReceipt, ToolRequest
 from generaldataagent.contracts.rule_tools import RuleAnalysisRequest
 from generaldataagent.llm.orchestration import OrchestrationRouter
@@ -557,19 +558,19 @@ class RuleSupervisorRuntime:
 
 
 def _workflow_refusal_code(exc: BaseException) -> str | None:
-    """Return a deterministic refusal code, never a model or provider failure.
+    """Return a declared deterministic refusal code, never a model/provider fault.
 
-    The rule handlers refuse a bound request with a stable code when the request
-    cannot be answered from the supplied evidence: ``annex_workflow_*`` for the
-    annex stages and a validated ``PaymentsSourceError`` code for the payment
-    source. Only an error's own declared code is considered — never a generic
-    ``ValueError`` message, and never arbitrary exception text, which could
-    quote caller or row data.
+    The rule handlers refuse a bound request with a code from a closed, declared
+    set when the request cannot be answered from the supplied evidence:
+    ``REFUSAL_CODES`` for the annex stages and ``PaymentsSourceError.CODES`` for
+    the payment source. Membership — not a message prefix — is what counts, so
+    arbitrary exception text can never be surfaced, even if it happens to look
+    like a code.
     """
     if isinstance(exc, PaymentsSourceError):
         return exc.code
     message = str(exc)
-    return message if message.startswith("annex_workflow_") else None
+    return message if message in REFUSAL_CODES else None
 
 
 def _receipts(candidates: dict[str, dict[str, Any]]) -> tuple[ExecutionReceipt, ...]:

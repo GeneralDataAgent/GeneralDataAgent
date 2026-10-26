@@ -38,6 +38,24 @@ FACET_OPERATIONS = frozenset({"select", "average_fee"})
 CONTEXT_OPERATIONS = frozenset({"applicable", "counterfactual"})
 FORMULA = "fee = fixed_amount + rate * transaction_value / 10000"
 
+# Deterministic refusals of a bound request. They are declared here so a caller
+# can distinguish "this request cannot be answered from the supplied evidence"
+# from a model, provider or wiring fault, and so only these exact strings are
+# ever surfaced. Nothing is interpolated into them.
+REFUSAL_CODES = frozenset(
+    {
+        "annex_workflow_semantics_source_missing",
+        "annex_workflow_null_semantics_required",
+        "annex_workflow_formula_source_missing",
+        "annex_workflow_requires_payments_source",
+        "annex_workflow_unsupported_operation",
+        "annex_workflow_day_outside_year",
+        "annex_workflow_zero_monthly_volume",
+        "annex_workflow_indeterminate_facets",
+        "annex_workflow_counterfactual_not_applicable",
+    }
+)
+
 
 def _canonical(value: Decimal) -> str:
     """Plain decimal text without binary-float noise or trailing zeros."""
