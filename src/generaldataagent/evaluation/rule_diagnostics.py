@@ -256,8 +256,18 @@ def stop_diagnostic(row: dict) -> dict:
         code = "supervisor_exception"
     elif any(report["status"] in {"failed", "needs_human"} for report in reports):
         code = "specialist_stop_reported"
-    elif row.get("status") == "completed":
+    elif row.get("status") == "completed" and not (
+        row.get("roles_complete") is True and row.get("evidence_present") is True
+    ):
+        # The Supervisor returned completed but the delivery is not confirmed
+        # usable: a role or artifact check failed, or the row predates those
+        # fields. Unknown delivery state is not evidence of an intact package.
         code = "delivery_check_failed"
+    elif row.get("status") == "completed":
+        # Roles and evidence are intact, so the only unmet condition is the
+        # comparison with the published answer. That is a wrong answer, not a
+        # delivery failure; calling it a delivery failure would hide it.
+        code = "answer_mismatch"
     elif _ignored_required_tool_call(row):
         code = "required_tool_call_not_honoured"
     elif _stopped_with_prose(row):

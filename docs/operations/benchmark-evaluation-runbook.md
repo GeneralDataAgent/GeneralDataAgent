@@ -212,7 +212,10 @@ Named requirements also check the requested name; calling a different tool does 
 Malformed tool arguments are recorded separately and do not count as an absent required call.
 Without an unmet requirement or a higher-priority stop, a final text reply with no tool call is
 `response_without_tool_call`; empty and malformed final replies stay
-`incomplete_sequence_reason_unknown`. Every non-completed row keeps
+`incomplete_sequence_reason_unknown`. A completed delivery whose role sequence or artifact readback
+is not confirmed is `delivery_check_failed`; a completed delivery with all four roles and readable
+artifacts that merely disagrees with the published answer is `answer_mismatch`, so a wrong answer is
+not filed as a delivery fault. Every non-completed row keeps
 `semantic_root_cause: not_established`. These classifications describe associated callback evidence,
 not a verified wire capture or an endpoint root cause. A local payload simulation cannot establish
 what an earlier live run sent; old reports without request metadata remain unqualified. A later

@@ -791,3 +791,41 @@ def test_runner_rejects_invalid_denominator_before_model_access(tmp_path, monkey
     )
     with pytest.raises(ValueError, match="limit"):
         asyncio.run(runner.main())
+
+
+def _completed_row(**overrides):
+    row = dict(
+        outcome="model_run",
+        status="completed",
+        passed=False,
+        delegated_roles=["discovery", "data-analyst", "verifier", "reporter"],
+        roles_complete=True,
+        evidence_present=True,
+        answer_matches_published=False,
+    )
+    row.update(overrides)
+    return row
+
+
+def test_completed_delivery_with_a_wrong_answer_is_not_a_delivery_failure():
+    # Observed in a real paired run: the rule workflow, all four roles and the
+    # three artifacts were intact, only the published-answer comparison failed.
+    assert stop_diagnostic(_completed_row())["code"] == "answer_mismatch"
+    assert stop_diagnostic(_completed_row(answer_matches_published=True, passed=True))["code"] == (
+        "completed"
+    )
+
+
+def test_completed_delivery_with_a_missing_role_or_artifact_still_fails_the_check():
+    assert stop_diagnostic(_completed_row(roles_complete=False))["code"] == "delivery_check_failed"
+    assert stop_diagnostic(_completed_row(evidence_present=False))["code"] == (
+        "delivery_check_failed"
+    )
+
+
+def test_unreported_delivery_fields_keep_the_stricter_delivery_failure_code():
+    # Older rows may predate these fields; an unknown delivery state must not be
+    # reported as a confirmed wrong answer.
+    row = _completed_row()
+    del row["roles_complete"], row["evidence_present"]
+    assert stop_diagnostic(row)["code"] == "delivery_check_failed"
