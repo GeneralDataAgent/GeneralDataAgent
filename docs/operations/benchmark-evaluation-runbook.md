@@ -252,6 +252,22 @@ overwrite an existing output or to write over the report it reads. The report it
 edited: a reclassification says what the current classifier supports, while the stored summary
 remains the record of that run.
 
+Two runs of the same commit are not a paired experiment: the model is stochastic, so a difference in
+role sequence belongs to that run, not to any change between them. `evals/compare_stage10_rule_runs.py`
+compares them row by row and keeps both scores separate:
+
+```bash
+uv run python evals/compare_stage10_rule_runs.py \
+  --baseline .artifacts/supervisor-10/report.json \
+  --candidate .artifacts/supervisor-11/report.json \
+  --output .artifacts/comparison.json
+```
+
+It refuses an incomplete run, a different planned task set, dataset, model route or annex
+semantics, and reports `paired_effect_claimed: false`. Identity hashes that may legitimately differ
+(an added report field, a corrected classifier) are recorded side by side rather than treated as a
+mismatch. Use it to describe what changed between runs, never to derive an improvement.
+
 This runner reuses `ServiceCircuitBreaker`: HTTP 401/402/403/404 opens the circuit immediately;
 three consecutive other model-service failures also open it. Later parseable cases are
 `service_circuit_open`, `attempted=false` and remain in the denominator; parser refusals keep
