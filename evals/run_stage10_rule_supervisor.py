@@ -30,10 +30,12 @@ from uuid import uuid4
 
 from langchain_core.rate_limiters import InMemoryRateLimiter
 
-from generaldataagent.agents.rule_supervisor import RuleSupervisorRuntime
+from generaldataagent.agents.rule_supervisor import RuleDocumentExtension, RuleSupervisorRuntime
 from generaldataagent.artifacts import LocalArtifactStore
-from generaldataagent.business.governance import FeedbackRegistry
+from generaldataagent.business.extensions import ExtensionAdmission, SkillDefinition
+from generaldataagent.business.governance import CapabilityRegistry, FeedbackRegistry
 from generaldataagent.business.rules.delivery import RuleDeliveryRuntime
+from generaldataagent.business.rules.document_context import DocumentContext, MarkdownDocument
 from generaldataagent.business.rules.governed import GovernedRuleRunner
 from generaldataagent.business.rules.payments import SQLitePaymentsSource
 from generaldataagent.business.rules.question import RuleQuestionError, parse_rule_question
@@ -132,12 +134,79 @@ def _retained_runtime(output: Path):
     yield folder, key
 
 
+def _workspace_file(value: str) -> Path:
+    if not isinstance(value, str):
+        raise ValueError("document configuration paths must be strings")
+    path = (ROOT / value).resolve()
+    if not path.is_relative_to(ROOT) or not path.is_file():
+        raise ValueError("document configuration files must exist inside the repository")
+    return path
+
+
+def load_document_extension(path: Path) -> RuleDocumentExtension:
+    """Load an explicit pinned treatment; never create or activate admission records."""
+    path = _workspace_file(str(path))
+    if path.stat().st_size > 128_000:
+        raise ValueError("document configuration is too large")
+    config = json.loads(path.read_text())
+    if not isinstance(config, dict) or set(config) != {
+        "registry_path",
+        "skill_path",
+        "skill_hash",
+        "documents",
+    }:
+        raise ValueError("invalid document extension configuration")
+    entries = config["documents"]
+    if not isinstance(entries, list) or len(entries) > 32:
+        raise ValueError("document extension requires at most 32 explicit documents")
+    documents = []
+    total_bytes = 0
+    for entry in entries:
+        if not isinstance(entry, dict) or set(entry) != {
+            "path",
+            "source",
+            "version",
+            "content_hash",
+        }:
+            raise ValueError("invalid pinned document entry")
+        source = _workspace_file(entry["path"])
+        size = source.stat().st_size
+        total_bytes += size
+        if size > 512_000 or total_bytes > 1_024_000:
+            raise ValueError("document input exceeds byte budget")
+        document = MarkdownDocument(
+            source=entry["source"],
+            version=entry["version"],
+            text=source.read_bytes().decode("utf-8"),
+        )
+        if document.content_hash != entry["content_hash"]:
+            raise ValueError("document content differs from pinned hash")
+        documents.append(document)
+    skill_path = _workspace_file(config["skill_path"])
+    if skill_path.stat().st_size > 128_000:
+        raise ValueError("document skill input is too large")
+    skill = SkillDefinition.model_validate_json(skill_path.read_bytes())
+    if ExtensionAdmission.skill_hash(skill) != config["skill_hash"]:
+        raise ValueError("document skill differs from pinned hash")
+    admission = ExtensionAdmission(
+        CapabilityRegistry(
+            _workspace_file(config["registry_path"]), clock=lambda: datetime.now(UTC)
+        )
+    )
+    extension = RuleDocumentExtension(DocumentContext(documents), admission, skill)
+    # Check admission before resolving or invoking any provider. Request-specific
+    # template validation is repeated by the runtime for every bound task.
+    admission.require("skill", skill.name, skill.version, config["skill_hash"], ACTOR)
+    return extension
+
+
 async def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--app-type", choices=["claude", "codex", "magpie"], default="magpie")
     parser.add_argument("--provider-id", default="magpie")
     parser.add_argument("--model", required=True)
+    parser.add_argument("--document-extension", type=Path, default=None)
     parser.add_argument("--limit", type=int, default=10)
     parser.add_argument("--max-runtime-seconds", type=float, default=120)
     parser.add_argument("--request-interval-seconds", type=float, default=3.5)
@@ -183,6 +252,9 @@ async def main() -> None:
     ]
     annex = json.loads((DATASET / "fees.json").read_text())
 
+    document_extension = (
+        load_document_extension(args.document_extension) if args.document_extension else None
+    )
     provider, route = resolve_evaluation_model(
         app_type=args.app_type,
         provider_id=args.provider_id,
@@ -210,6 +282,16 @@ async def main() -> None:
         "completion_hash": digest(ROOT / "src/generaldataagent/agents/completion.py"),
         "diagnostics_hash": digest(ROOT / "src/generaldataagent/evaluation/rule_diagnostics.py"),
         "factory_hash": digest(ROOT / "src/generaldataagent/agents/factory.py"),
+        "document_context_hash": digest(
+            ROOT / "src/generaldataagent/business/rules/document_context.py"
+        ),
+        "governed_runner_hash": digest(ROOT / "src/generaldataagent/business/rules/governed.py"),
+        "document_extension": document_extension.summary()
+        if document_extension
+        else {"enabled": False},
+        "document_configuration_hash": digest(_workspace_file(str(args.document_extension)))
+        if document_extension
+        else None,
         "dataset_hashes": {
             path.name: digest(path) for path in sorted(DATASET.iterdir()) if path.is_file()
         },
@@ -341,6 +423,7 @@ async def main() -> None:
                     delivery=delivery,
                     task_id=task_id,
                     semantics=declaration,
+                    document_extension=document_extension,
                     # Execution goes through ``rules.execute`` policy and audit;
                     # the model never calls the workflow directly.
                     runner=GovernedRuleRunner(
