@@ -41,6 +41,13 @@ curl -X POST http://127.0.0.1:8000/v1/analysis/metrics \
   }'
 ```
 
+## Recompute a rule task after source updates
+
+Use the explicit new-task recomputation path in the [rule recomputation guide](rule-recomputation.md).
+Ordinary resume still refuses changed sources. Rule delivery responses include a separate
+`rules.deliver` receipt; rule Supervisor results retain execution and delivery receipts in
+`receipts`, without changing the `DeliveryPackage` schema.
+
 ## Run the real-data and real-model validation
 
 Prerequisites:

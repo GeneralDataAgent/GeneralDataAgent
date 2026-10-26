@@ -4,7 +4,8 @@ Status: Proposed on 2026-10-26. The contract in
 `src/generaldataagent/contracts/receipt.py` exists and is tested.
 `GovernedRuleRunner.invoke()` now returns a receipt for persisted workflow
 evidence. `DataScienceWorkbench.run_experiment()` now embeds a receipt in its
-experiment report. Evaluation compatibility remains pending. This
+experiment report. Rule delivery returns a separate receipt, and the rule
+Supervisor retains execution and delivery receipts. Evaluation compatibility remains pending. This
 ADR is the contract review that ADR 0009 requires before adapting execution;
 implementation and local tests do not constitute independent review or acceptance.
 
@@ -89,7 +90,8 @@ verification as a stronger one to make an old report fit.
 an inline projection of the checkpoint and the stored evidence reference; it is
 not a separately persisted artifact. Existing evidence writes still pass through
 the gateway and the store's byte/hash check before a receipt is returned.
-`RuleDeliveryRuntime` and `DeliveryPackage` retain their existing interfaces.
+`DeliveryPackage` retains its existing schema and feedback hash. Delivery adds its
+own receipt in the response envelope, described below.
 
 - Identity uses the authorized actor and resolved composition task/trace. Sources
   come from the checked checkpoint, and the method version is its workflow version.
@@ -116,9 +118,30 @@ the gateway and the store's byte/hash check before a receipt is returned.
 - Usage is unknown because this adapter does not observe model/resource totals.
   It does not synthesize zeros or infer complete telemetry from gateway events.
 
-No old evaluation reports are rewritten. This slice does not aggregate receipts
-into the Supervisor's result or the delivery package, and does not add a science
-adapter or independent-verifier claim.
+No old evaluation reports are rewritten. Recomputing after a source update uses
+a new task, preserving parent evidence; see [rule recomputation](../guides/rule-recomputation.md).
+
+## Rule delivery and Supervisor
+
+`RuleDeliveryRuntime.deliver()` returns an inline `receipt` next to `delivery`.
+Its action is `rules.deliver`, method is `rules.delivery`, version is the checked
+workflow version, and sources and verification scope come from the checkpoint.
+It references exactly the package's three same-task artifacts. Actor and trace
+use the authorized delivery composition. Usage remains unknown.
+
+Each artifact retains its own gateway policy and audit event. Before calling the
+store, the adapter captures the intended canonical bytes; immediate readback must
+match them, so a self-consistent hash for substituted content is refused. All
+three artifacts are rechecked before feedback registration. Storage failures can
+leave earlier artifacts, but do not return a receipt or register feedback.
+
+`SupervisorResult.receipts` defaults to an empty tuple for legacy payloads. The
+rule Supervisor retains `rules.execute` and `rules.deliver` separately, including
+an execution receipt when later roles stop or fail. A direct workflow run without
+a governed execution receipt exposes only the delivery receipt. It does not
+invent an execution receipt or reinterpret execution evidence as delivery. Old
+readers with `extra="forbid"` require an upgrade for this additive result field.
+Neither receipt grants production admission or independent-verifier status.
 
 ## Science adapter
 
