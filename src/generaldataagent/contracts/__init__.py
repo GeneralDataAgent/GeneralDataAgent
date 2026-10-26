@@ -74,6 +74,13 @@ from generaldataagent.contracts.models import (
     ValidationCheck,
     ValidationResult,
 )
+from generaldataagent.contracts.receipt import (
+    ExecutionMethod,
+    ExecutionReceipt,
+    ObservedUsage,
+    ReceiptVerification,
+    SourceBinding,
+)
 from generaldataagent.contracts.review import HumanReview, HumanReviewSummary
 from generaldataagent.contracts.types import (
     AgentRole,
@@ -114,6 +121,8 @@ __all__ = [
     "ImpactAnalysis",
     "ImpactedAsset",
     "LineageAsset",
+    "ExecutionMethod",
+    "ExecutionReceipt",
     "LineageSnapshot",
     "MetricQuery",
     "MetricCandidate",
@@ -123,6 +132,7 @@ __all__ = [
     "ModelRegistrationDraft",
     "OCIContainerRuntime",
     "NaturalLanguageMetricQuery",
+    "ObservedUsage",
     "PolicyDecision",
     "ProfileBatchItem",
     "ProfileBatchRequest",
@@ -135,11 +145,13 @@ __all__ = [
     "QualityRule",
     "QualityRuleProposal",
     "RelationSchema",
+    "ReceiptVerification",
     "RiskLevel",
     "SandboxQuota",
     "SchemaDiff",
     "ScienceCheck",
     "SnapshotColumn",
+    "SourceBinding",
     "SplitSpec",
     "SubgroupEvaluation",
     "TaskPlan",
