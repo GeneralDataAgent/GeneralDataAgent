@@ -470,6 +470,18 @@ constraints; `applicable`/`counterfactual` derive merchant thresholds from the f
 month even for a day-scoped transaction set. Null and empty-list wildcard declarations remain
 separate and are recorded with the caller's exact document excerpt.
 
+Every rule result reports the other empty-list reading without choosing it. The DABstep annex
+stores "applies to every value" as `[]` for most rules while the manual defines only `null`, so
+`empty_list_is_wildcard` is a caller declaration, not a derived fact. `empty_list_reading` carries
+the facet counts under both readings plus, when `applicable`/`counterfactual` narrow by merchant
+thresholds and transaction facets, the counts after that stage (`selection_stage`,
+`selected_under_declared_reading`, `selected_under_alternate_reading`). Facet counts alone are not
+enough there: both readings can select all 1000 rules and still return 0 versus 34 applicable
+rules. `reading_changes_selection` describes the stage that decides the returned rules, and an
+alternate reading whose applicability is indeterminate is reported as
+`alternate_reading_indeterminate` instead of "no change". The declared reading still decides the
+result; the default is unchanged and relaxing it still requires independent review.
+
 The development rule workflow retains `Decimal` values when passing monthly volume and
 fraud amount ratio from its context checkpoint to threshold matching. Converting them to
 binary floats can move a value across a strict boundary while the shared verifier repeats
