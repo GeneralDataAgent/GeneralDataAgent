@@ -164,10 +164,15 @@ protocol/system/model-route checks. A mismatch raises `incomparable repeated-run
 or `incomparable repeated-run model`, including through release diagnostics. Equality checks
 consistency of the supplied provenance; it does not authenticate which runner or model executed.
 
+Repeated arms are compared with `evals/compare_repeated_runs.py`. It pairs tasks, not task-runs: each task contributes one vector of repeat outcomes per arm, so a task that flips between repeats cannot inflate the sample. Per-task rows carry pass counts, rates, mean tokens and mean seconds for both arms. The 95% interval resamples tasks with replacement (2,000 deterministic samples, seed 20261020); the exact two-sided test counts tasks whose pass count moved. The arm summary adds tokens per pass and p50/p95 latency, and sums cost only when every task-run in that arm carries a measured `cost_usd`; otherwise cost is reported as unknown, never as zero. Failures and unattempted runs stay in the denominator.
+
+The tool never certifies a gain. `design_blockers` records a single-run arm (one run cannot establish its own comparability), fewer than three runs in an arm, a development cohort, provider failures above 5%, unmeasured cost, any per-task regression, a non-positive delta, and an interval that includes zero. `--cohort-status` is a caller declaration (`development` by default, `held_out` when a frozen unused cohort is claimed) and the tool cannot verify that the cohort was never used. Independent review and production shadow validation stay external gates; `production_accepted` is always false. Incomparable inputs raise instead of averaging: a different cohort, source manifest, model, route or planned denominator, a different per-task database snapshot, a system or protocol change within one arm, or one copied report supplied as two.
+
 ```bash
 UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/qualify_stage6_analysis.py
 UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/compare_stage6.py --baseline BASELINE_REPORT --candidate CANDIDATE_REPORT --output COMPARISON_JSON
 UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/qualify_stage6_stability.py --report RUN1 --report RUN2 --report RUN3 --output STABILITY_JSON
+UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/compare_repeated_runs.py --baseline B1 --baseline B2 --baseline B3 --candidate C1 --candidate C2 --candidate C3 --cohort-status held_out --output REPEATS_JSON
 ```
 
 ## Identifier-preserving import and counterfactual scorer checks
