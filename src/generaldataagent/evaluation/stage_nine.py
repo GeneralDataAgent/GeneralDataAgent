@@ -160,6 +160,39 @@ def excerpt_rejection_diagnostic(excerpt: str, documents: str) -> dict:
     return diagnostic | {"reason": "not_verbatim", "verbatim_prefix_chars": divergence}
 
 
+def _empty_list_reading_effect(annex, *, source, request, semantics, selected) -> dict:
+    """Report how the empty-list reading changes facet selection; never choose it.
+
+    The DABstep annex stores "applies to every value" as `[]` for 720 of 1000
+    rules, while the manual only defines `null`. Whether `[]` means "any value"
+    is therefore an undeclared reading that the caller supplies. It is not this
+    tool's place to pick one, but a run that silently reports 50 rules where the
+    other reading yields 416 hides the single largest lever on the answer.
+
+    Both counts are facet-stage selections, so the two readings are compared at
+    the same step rather than against a later, further-narrowed result. Nothing
+    here changes the returned rules.
+    """
+    alternate = load_rule_set(
+        annex,
+        source=source,
+        semantics=RuleSemantics(
+            null_is_wildcard=semantics.null_is_wildcard,
+            empty_list_is_wildcard=not request.empty_list_is_wildcard,
+            unknown_observation=semantics.unknown_observation,
+            source=semantics.source,
+        ),
+    )
+    alternate_count = len(select_rule_facets(alternate, request))
+    current_count = len(selected)
+    return {
+        "declared_empty_list_is_wildcard": request.empty_list_is_wildcard,
+        "facet_selected_under_declared_reading": current_count,
+        "facet_selected_under_alternate_reading": alternate_count,
+        "reading_changes_selection": alternate_count != current_count,
+    }
+
+
 def rule_schema_repair_hints(errors):
     """Translate only known rule contract error types, without reflecting input values."""
     hints = {
@@ -230,6 +263,9 @@ def analyze_fee_rules(database, arguments, *, allowed_relations, documents):
         # specific record value back to the model.
         raise RuleToolError("rule_source_record_invalid") from exc
     selected = select_rule_facets(rules, request)
+    reading_effect = _empty_list_reading_effect(
+        annex, source=source, request=request, semantics=semantics, selected=selected
+    )
     context = None
     transactions = []
     if request.operation in {"applicable", "counterfactual"}:
@@ -308,6 +344,7 @@ def analyze_fee_rules(database, arguments, *, allowed_relations, documents):
             if rule in selected
         ],
         context=context,
+        empty_list_reading=reading_effect,
         checks=["source_hash", "typed_annex", "exact_rule_records"],
     )
     if request.operation == "average_fee":
