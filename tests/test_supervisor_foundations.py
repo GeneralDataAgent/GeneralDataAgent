@@ -312,10 +312,12 @@ def test_automatic_reporter_failure_is_returned_as_failed(tmp_path, monkeypatch,
 def test_automatic_reporter_is_covered_by_the_total_deadline(tmp_path, monkeypatch):
     import asyncio
 
+    started = []
     cancelled = []
 
     class SlowReporter:
         async def ainvoke(self, arguments):
+            started.append(True)
             try:
                 await asyncio.Event().wait()
             finally:
@@ -338,7 +340,12 @@ def test_automatic_reporter_is_covered_by_the_total_deadline(tmp_path, monkeypat
     monkeypatch.setattr("generaldataagent.agents.rule_supervisor.build_supervisor", builder)
     with open_protected_checkpointer(tmp_path / "state", encryption_key=b"k" * 32) as saver:
         runtime = build(tmp_path, saver, governed=True)
-        result = runtime.run(ACTOR, thread_id=str(runtime.task_id), max_runtime_seconds=0.1)
+        # A loaded shared runner can stall long enough that a 0.1 s deadline
+        # fires before the reporter coroutine is first scheduled. The deadline
+        # still has to cover a started reporter, so allow the start to happen
+        # while the reporter itself never returns.
+        result = runtime.run(ACTOR, thread_id=str(runtime.task_id), max_runtime_seconds=1)
     assert result.status == "failed"
     assert result.limitations == ("model invocation failed: TimeoutError",)
+    assert started == [True]
     assert cancelled == [True]
