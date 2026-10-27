@@ -85,6 +85,16 @@ def test_each_task_is_paired_across_repeats_not_counted_per_run():
     assert [row["case_id"] for row in result["per_case"]] == CASES
 
 
+def test_within_arm_flips_are_reported_and_block_the_claim():
+    baseline = arm(BASE)
+    baseline[1] = make_report(BASE - {"2"}, stamp="1")
+    baseline[2] = make_report(BASE - {"4"}, stamp="2")
+    result = compare(baseline, arm(WIDER))
+    assert result["stability"]["baseline"]["flipped_case_ids"] == ["2", "4"]
+    assert result["stability"]["baseline"]["flip_rate"] == pytest.approx(0.2)
+    assert "baseline:task_outcomes_unstable" in result["design_blockers"]
+
+
 def test_a_single_run_arm_is_reported_as_insufficient_not_silently_accepted():
     result = compare(arm(BASE, runs=1), arm(WIDER, runs=1))
     assert "baseline:single_run_arm" in result["design_blockers"]

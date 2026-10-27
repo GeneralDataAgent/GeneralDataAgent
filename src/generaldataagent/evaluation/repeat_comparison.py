@@ -221,6 +221,9 @@ def compare_repeated_runs(
         "protocol_hash_changed": arms["baseline"]["protocol_hashes"]
         != arms["candidate"]["protocol_hashes"],
         "per_case": rows,
+        # Within-arm reliability, so a flip rate that blocks the claim is visible
+        # rather than only named in a blocker string.
+        "stability": evidence,
         "comparison": {
             "pass_rate_delta": delta,
             "bootstrap_95": interval,
