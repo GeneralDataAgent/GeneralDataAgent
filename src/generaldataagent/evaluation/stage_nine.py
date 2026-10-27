@@ -160,8 +160,10 @@ def excerpt_rejection_diagnostic(excerpt: str, documents: str) -> dict:
     return diagnostic | {"reason": "not_verbatim", "verbatim_prefix_chars": divergence}
 
 
-def _empty_list_reading_effect(annex, *, source, request, semantics, selected) -> dict:
-    """Report how the empty-list reading changes facet selection; never choose it.
+def _empty_list_reading_effect(
+    annex, *, source, request, semantics, declared_facets, selected, narrow=None
+) -> dict:
+    """Report how the empty-list reading changes the returned selection; never choose it.
 
     The DABstep annex stores "applies to every value" as `[]` for 720 of 1000
     rules, while the manual only defines `null`. Whether `[]` means "any value"
@@ -169,9 +171,13 @@ def _empty_list_reading_effect(annex, *, source, request, semantics, selected) -
     tool's place to pick one, but a run that silently reports 50 rules where the
     other reading yields 416 hides the single largest lever on the answer.
 
-    Both counts are facet-stage selections, so the two readings are compared at
-    the same step rather than against a later, further-narrowed result. Nothing
-    here changes the returned rules.
+    Facet counts alone are not enough for ``applicable``/``counterfactual``:
+    both readings can select all 1000 rules at the facet stage and still differ
+    in the final answer once merchant thresholds and transaction facets apply
+    (a real run returned 0 rules where the other reading returns the 34 that
+    match the published answer). ``narrow`` applies that same stage to the
+    alternate selection, so ``reading_changes_selection`` describes what the
+    caller would actually receive. Nothing here changes the returned rules.
     """
     alternate = load_rule_set(
         annex,
@@ -183,14 +189,31 @@ def _empty_list_reading_effect(annex, *, source, request, semantics, selected) -
             source=semantics.source,
         ),
     )
-    alternate_count = len(select_rule_facets(alternate, request))
-    current_count = len(selected)
-    return {
+    alternate_facets = select_rule_facets(alternate, request)
+    effect = {
         "declared_empty_list_is_wildcard": request.empty_list_is_wildcard,
-        "facet_selected_under_declared_reading": current_count,
-        "facet_selected_under_alternate_reading": alternate_count,
-        "reading_changes_selection": alternate_count != current_count,
+        "facet_selected_under_declared_reading": len(declared_facets),
+        "facet_selected_under_alternate_reading": len(alternate_facets),
+        "selection_stage": "facets" if narrow is None else "applicability",
+        "selected_under_declared_reading": len(selected),
+        "selected_under_alternate_reading": len(alternate_facets),
+        "alternate_reading_indeterminate": False,
+        "reading_changes_selection": len(alternate_facets) != len(selected),
     }
+    if narrow is not None:
+        alternate_selected = narrow(alternate_facets)
+        if alternate_selected is None:
+            # The alternate reading cannot be narrowed to a count here. Say so
+            # instead of reporting "no change" from a stage that does not decide
+            # the answer.
+            return effect | {
+                "selected_under_alternate_reading": None,
+                "alternate_reading_indeterminate": True,
+                "reading_changes_selection": None,
+            }
+        effect["selected_under_alternate_reading"] = alternate_selected
+        effect["reading_changes_selection"] = alternate_selected != len(selected)
+    return effect
 
 
 def rule_schema_repair_hints(errors):
@@ -262,10 +285,11 @@ def analyze_fee_rules(database, arguments, *, allowed_relations, documents):
         # into the same stable code as malformed payloads, without echoing a
         # specific record value back to the model.
         raise RuleToolError("rule_source_record_invalid") from exc
-    selected = select_rule_facets(rules, request)
-    reading_effect = _empty_list_reading_effect(
-        annex, source=source, request=request, semantics=semantics, selected=selected
-    )
+    declared_facets = select_rule_facets(rules, request)
+    selected = declared_facets
+    # Applied to the alternate reading as well, so the reported effect describes
+    # the returned answer rather than an intermediate stage that may not narrow.
+    narrow = None
     context = None
     transactions = []
     if request.operation in {"applicable", "counterfactual"}:
@@ -317,6 +341,18 @@ def analyze_fee_rules(database, arguments, *, allowed_relations, documents):
         if applicability.indeterminate:
             raise RuleToolError("rule_transaction_facets_indeterminate")
         selected = applicability.matched
+
+        def narrow(candidate_rules):
+            """Count a candidate rule set after the same applicability stage."""
+            narrowing = resolve_applicability(
+                candidate_rules,
+                merchant=merchant,
+                volume=scope.volume,
+                fraud_ratio=scope.fraud_ratio,
+                transactions=transactions,
+            )
+            return None if narrowing.indeterminate else len(narrowing.matched)
+
         context = dict(
             year=request.year,
             month=target_month,
@@ -327,6 +363,15 @@ def analyze_fee_rules(database, arguments, *, allowed_relations, documents):
             fraud_count=scope.fraud_count,
             scoped_transactions=len(scope.scoped_rows),
         )
+    reading_effect = _empty_list_reading_effect(
+        annex,
+        source=source,
+        request=request,
+        semantics=semantics,
+        declared_facets=declared_facets,
+        selected=selected,
+        narrow=narrow,
+    )
     items = [int(rule.rule_id) if rule.rule_id.isdigit() else rule.rule_id for rule in selected]
     result = dict(
         method_id="fee_rules",
