@@ -11,6 +11,7 @@ missing count, and a weaker verification is never relabelled as a stronger one.
 
 from __future__ import annotations
 
+import json
 from typing import Literal
 
 from pydantic import Field, model_validator
@@ -18,6 +19,12 @@ from pydantic import Field, model_validator
 from generaldataagent.contracts.models import ArtifactRef, ContractModel
 
 RECEIPT_VERSION = "1.0"
+SUPPORTED_RECEIPT_VERSIONS = frozenset({RECEIPT_VERSION})
+
+
+class ReceiptVersionUnsupported(ValueError):
+    """A stored receipt was written by a version this code does not implement."""
+
 
 # Producer self-check, authoritative re-derivation by the same implementation,
 # an independently implemented check, and a human attestation are different
@@ -142,11 +149,46 @@ class ExecutionReceipt(ContractModel):
         return self
 
 
+def load_receipt(payload: str | bytes | dict) -> ExecutionReceipt:
+    """Read a stored receipt as written: no defaulting, no upgrade, no rewrite.
+
+    A stored receipt is evidence of what a producer wrote. Reading it must not
+    assume a version it never stated, and it must not accept a version this code
+    does not implement by quietly ignoring the extra fields. Both are refused by
+    name, so a consumer can say "written by a newer version" rather than report a
+    generic validation failure — or worse, fold a newer receipt into an older
+    reading and call the result the same thing.
+    """
+    if isinstance(payload, (str, bytes)):
+        try:
+            data = json.loads(payload)
+        except json.JSONDecodeError:
+            raise ValueError("receipt is not valid JSON") from None
+    elif isinstance(payload, dict):
+        data = payload
+    else:
+        raise ValueError("a receipt must be a JSON object")
+    if not isinstance(data, dict):
+        raise ValueError("a receipt must be a JSON object")
+    if "receipt_version" not in data:
+        raise ValueError("a stored receipt must state its receipt_version")
+    version = data["receipt_version"]
+    if version not in SUPPORTED_RECEIPT_VERSIONS:
+        supported = ", ".join(sorted(SUPPORTED_RECEIPT_VERSIONS))
+        raise ReceiptVersionUnsupported(
+            f"receipt version {version!r} is not supported; this code reads {supported}"
+        )
+    return ExecutionReceipt.model_validate(data)
+
+
 __all__ = [
     "ExecutionMethod",
     "ExecutionReceipt",
     "ObservedUsage",
     "ReceiptVerification",
+    "ReceiptVersionUnsupported",
+    "SUPPORTED_RECEIPT_VERSIONS",
     "SourceBinding",
     "VerificationScope",
+    "load_receipt",
 ]

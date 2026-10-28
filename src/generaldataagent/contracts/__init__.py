@@ -79,7 +79,9 @@ from generaldataagent.contracts.receipt import (
     ExecutionReceipt,
     ObservedUsage,
     ReceiptVerification,
+    ReceiptVersionUnsupported,
     SourceBinding,
+    load_receipt,
 )
 from generaldataagent.contracts.review import HumanReview, HumanReviewSummary
 from generaldataagent.contracts.types import (
@@ -123,6 +125,8 @@ __all__ = [
     "LineageAsset",
     "ExecutionMethod",
     "ExecutionReceipt",
+    "ReceiptVersionUnsupported",
+    "load_receipt",
     "LineageSnapshot",
     "MetricQuery",
     "MetricCandidate",
