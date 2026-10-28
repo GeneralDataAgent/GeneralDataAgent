@@ -161,6 +161,13 @@ def sample_cases(cases: list[Case], limit: int, seed: int = 20261020) -> list[Ca
     return result
 
 
+def cohort_hash(cases: list[Case]) -> str:
+    """Hash the exact ordered tasks a run covers; order and content both count."""
+    return hashlib.sha256(
+        json.dumps([asdict(case.task) for case in cases], sort_keys=True).encode()
+    ).hexdigest()
+
+
 def quote_identifier(value: str) -> str:
     return '"' + value.replace('"', '""') + '"'
 

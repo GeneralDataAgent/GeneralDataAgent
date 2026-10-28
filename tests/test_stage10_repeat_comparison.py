@@ -2,10 +2,14 @@
 
 import copy
 import json
+import math
 
 import pytest
 
-from generaldataagent.evaluation.repeat_comparison import compare_repeated_runs
+from generaldataagent.evaluation.repeat_comparison import (
+    compare_repeated_runs,
+    tasks_for_power,
+)
 from generaldataagent.evaluation.stage_six import summarize
 
 CASES = [str(i) for i in range(1, 11)]
@@ -20,6 +24,7 @@ def make_report(
     cost=0.0,
     failure="answer_mismatch",
     stamp="t0",
+    cohort_file_hash="file-1",
 ):
     results = []
     for index, case_id in enumerate(CASES):
@@ -51,6 +56,7 @@ def make_report(
         "model_route": "route-1",
         "system_fingerprint": {"stage9_sources": {"evaluation/stage_nine.py": fingerprint}},
         "run_status": "completed",
+        "cohort_file_hash": cohort_file_hash,
         "started_at": "2026-10-28T00:00:00Z" if stamp == "t0" else f"2026-10-28T00:00:0{stamp}Z",
         "requested_n": len(CASES),
         "population_n": len(CASES),
@@ -154,10 +160,49 @@ def test_the_interval_is_deterministic_and_orders_the_delta():
     assert interval[0] <= first["comparison"]["pass_rate_delta"] <= interval[1]
 
 
+def test_no_discordant_task_means_no_power_estimate():
+    result = compare(arm(BASE), arm(BASE))
+    assert result["design"]["discordance_rate"] == 0
+    assert result["design"]["tasks_for_target_power"] is None
+
+
+def test_a_small_discordance_rate_implies_a_large_cohort():
+    design = compare(arm(BASE), arm(WIDER))["design"]["tasks_for_target_power"]
+    assert design["critical_discordant_tasks"] == 6
+    assert design["tasks_needed"] == math.ceil(
+        design["discordant_tasks_needed"] / design["observed_discordance_rate"]
+    )
+    assert design["tasks_needed"] > 50
+
+
+def test_the_power_estimate_shrinks_as_discordance_grows():
+    assert tasks_for_power(0.4)["tasks_needed"] < tasks_for_power(0.1)["tasks_needed"]
+    with pytest.raises(ValueError):
+        tasks_for_power(0.1, direction_share=0.5)
+
+
 def test_a_development_cohort_never_meets_the_exit_criterion():
     result = compare(arm(set()), arm(set(CASES)))
     assert result["design_blockers"] == ["cohort_not_held_out"]
     assert result["criteria_met"] is False
+
+
+def test_a_held_out_claim_without_a_frozen_file_is_refused():
+    with pytest.raises(ValueError, match="frozen cohort file"):
+        compare(
+            arm(set(), cohort_file_hash=None),
+            arm(set(CASES), cohort_file_hash=None),
+            cohort_status="held_out",
+        )
+
+
+def test_arms_from_different_frozen_files_are_refused():
+    with pytest.raises(ValueError, match="different frozen cohort files"):
+        compare(
+            arm(set(), cohort_file_hash="file-1"),
+            arm(set(CASES), cohort_file_hash="file-2"),
+            cohort_status="held_out",
+        )
 
 
 def test_a_held_out_cohort_with_a_clear_gain_meets_only_the_internal_criteria():

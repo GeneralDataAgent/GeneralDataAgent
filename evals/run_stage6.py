@@ -9,12 +9,16 @@ import sqlite3
 import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
-from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
 from generaldataagent.contracts import ActorContext
+from generaldataagent.evaluation.frozen_cohort import (
+    frozen_file_hash,
+    load_frozen_cohort,
+    select_frozen_cases,
+)
 from generaldataagent.evaluation.routing import route_task
 from generaldataagent.evaluation.stage_six import (
     DEADLINE_MARGIN_SECONDS,
@@ -24,6 +28,7 @@ from generaldataagent.evaluation.stage_six import (
     SYSTEM_PROMPT,
     add_json_tables,
     build_csv_database,
+    cohort_hash,
     digest,
     equivalent_rows,
     load_bird,
@@ -64,6 +69,14 @@ def main():
         default="stage6-v7",
     )
     parser.add_argument("--seed", type=int, default=20261020)
+    parser.add_argument(
+        "--cohort-file",
+        type=Path,
+        help=(
+            "Cohort declared before the run (see evals/freeze_cohort.py). Its IDs, order "
+            "and task hash are enforced; --limit is then informational only."
+        ),
+    )
     parser.add_argument("--workers", type=int, choices=range(1, 5), default=1)
     parser.add_argument("--app-type", choices=["claude", "codex", "magpie"], default="claude")
     parser.add_argument("--provider-id")
@@ -209,7 +222,13 @@ def main():
         if args.benchmark == "dabstep"
         else load_bird(root / "bird/mini_dev_sqlite.json")
     )
-    selected = sample_cases(cases, args.limit, args.seed)
+    if args.cohort_file:
+        # A declared cohort is authoritative: it must exist, keep its declared
+        # order and match the task content its hash was taken from.
+        cohort = load_frozen_cohort(args.cohort_file)
+        selected = select_frozen_cases(cases, cohort)
+    else:
+        selected = sample_cases(cases, args.limit, args.seed)
     if args.benchmark == "bird" and not args.bird_databases:
         parser.error("BIRD real database snapshot required; gold SQL is never a substitute")
     if args.benchmark == "bird":
@@ -432,11 +451,12 @@ def main():
         "started_at": datetime.now(UTC).isoformat(),
         "population_n": len(cases),
         "seed": args.seed,
-        "requested_n": args.limit,
-        "selection": "difficulty x asset round-robin",
-        "cohort_hash": hashlib.sha256(
-            json.dumps([asdict(c.task) for c in selected], sort_keys=True).encode()
-        ).hexdigest(),
+        "requested_n": len(selected),
+        "selection": (
+            "frozen cohort file" if args.cohort_file else "difficulty x asset round-robin"
+        ),
+        "cohort_file_hash": frozen_file_hash(args.cohort_file) if args.cohort_file else None,
+        "cohort_hash": cohort_hash(selected),
         "protocol_hash": hashlib.sha256(json.dumps(protocol, sort_keys=True).encode()).hexdigest(),
         "protocol": protocol,
         "system_fingerprint": system_fingerprint,

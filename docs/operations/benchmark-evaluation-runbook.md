@@ -175,6 +175,15 @@ UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/qualify_stage
 UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/compare_repeated_runs.py --baseline B1 --baseline B2 --baseline B3 --candidate C1 --candidate C2 --candidate C3 --cohort-status held_out --output REPEATS_JSON
 ```
 
+Declaring an unseen cohort. `evals/freeze_cohort.py` writes the cohort before it is run, from cases that none of the supplied prior reports covers. The file stores case IDs, the sampling seed, the hashes of the reports it relied on, and `cohort_hash` over the exact ordered tasks; it stores no question text, reference SQL or answers, so handing it to a reviewer does not leak labels. `--report` names each report that must count as used; `--report-dir` scans a tree for `**/report.json` and keeps those of the requested benchmark. The tool refuses to declare more cases than remain unseen.
+
+`evals/run_stage6.py --cohort-file` enforces the declaration instead of sampling: unknown or duplicate IDs, a missing `cohort_hash`, changed task content or a different benchmark raise rather than falling back. The report then records `selection: frozen cohort file`, `requested_n` as the declared size, and `cohort_file_hash` next to `cohort_hash`, so a run can be tied to the file it was declared from. The declaration only covers the reports passed in — runs not supplied are not known to it — and running the cohort consumes it, so freeze once, then compare arms.
+
+```bash
+UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/freeze_cohort.py --benchmark bird --limit 10 --seed 20261028 --report-dir .artifacts --output evals/cohorts/bird-unseen.json
+UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/run_stage6.py --benchmark bird --cohort-file evals/cohorts/bird-unseen.json --bird-databases data/stage6/bird/databases ...
+```
+
 ## Identifier-preserving import and counterfactual scorer checks
 
 `--csv-importer identifier-v2` preserves whole columns as TEXT when they contain leading-zero integers, very large integers, or nonnumeric text; other finite numbers become REAL. `legacy-v1` exists for historical reproduction. Import changes alter the protocol even with identical raw files, so old and new runs cannot be paired.
