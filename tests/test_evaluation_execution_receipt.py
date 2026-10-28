@@ -11,7 +11,11 @@ from uuid import uuid4
 import pytest
 
 from generaldataagent.artifacts import LocalArtifactStore
-from generaldataagent.contracts import ActorContext, ExecutionReceipt
+from generaldataagent.contracts import (
+    ActorContext,
+    ExecutionReceipt,
+    ReceiptVersionUnsupported,
+)
 from generaldataagent.evaluation.receipts import (
     EvaluationReceiptError,
     EvaluationReceiptRecorder,
@@ -331,3 +335,17 @@ def test_readback_detects_changed_artifact_bytes(setup):
     assert hashlib.sha256(path.read_bytes()).hexdigest() != ref["content_hash"].removeprefix(
         "sha256:"
     )
+
+
+def test_a_stored_step_from_another_receipt_version_is_refused_by_name(setup):
+    result = run(setup, recorder(setup))
+    result["execution_receipts"][0]["receipt"]["receipt_version"] = "1.1"
+    with pytest.raises(ReceiptVersionUnsupported):
+        validate_evaluation_receipts(result)
+
+
+def test_a_stored_step_that_does_not_state_its_version_is_refused(setup):
+    result = run(setup, recorder(setup))
+    del result["execution_receipts"][0]["receipt"]["receipt_version"]
+    with pytest.raises(ValueError, match="must state its receipt_version"):
+        validate_evaluation_receipts(result)
