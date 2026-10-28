@@ -227,6 +227,17 @@ def compare_repeated_runs(
 
     evidence = {"baseline": _stability(baseline), "candidate": _stability(candidate)}
     arms = {"baseline": _arm("baseline", baseline), "candidate": _arm("candidate", candidate)}
+    cohort_files = {
+        name: {run.get("cohort_file_hash") for run in runs}
+        for name, runs in (("baseline", baseline), ("candidate", candidate))
+    }
+    if cohort_status == "held_out":
+        # A held-out claim is only checkable if the run names the file it was
+        # declared from; otherwise the declaration is unfalsifiable.
+        if any(None in hashes for hashes in cohort_files.values()):
+            raise ValueError("a held-out claim requires a frozen cohort file on every run")
+        if cohort_files["baseline"] != cohort_files["candidate"]:
+            raise ValueError("arms used different frozen cohort files")
     rows = _per_case(ids, baseline, candidate)
     paired = [row for row in rows if row["outcome"] != "stable"]
     gains = sum(row["outcome"] == "gain" for row in rows)
@@ -258,6 +269,9 @@ def compare_repeated_runs(
         "benchmark": left["benchmark"],
         "cohort_hash": left["cohort_hash"],
         "cohort_status": cohort_status,
+        "cohort_file_hashes": {
+            name: sorted(h for h in hashes if h) for name, hashes in cohort_files.items()
+        },
         "n": len(ids),
         "case_ids": ids,
         "repeats_required": REPEATS_REQUIRED,

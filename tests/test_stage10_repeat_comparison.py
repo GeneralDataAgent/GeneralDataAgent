@@ -24,6 +24,7 @@ def make_report(
     cost=0.0,
     failure="answer_mismatch",
     stamp="t0",
+    cohort_file_hash="file-1",
 ):
     results = []
     for index, case_id in enumerate(CASES):
@@ -55,6 +56,7 @@ def make_report(
         "model_route": "route-1",
         "system_fingerprint": {"stage9_sources": {"evaluation/stage_nine.py": fingerprint}},
         "run_status": "completed",
+        "cohort_file_hash": cohort_file_hash,
         "started_at": "2026-10-28T00:00:00Z" if stamp == "t0" else f"2026-10-28T00:00:0{stamp}Z",
         "requested_n": len(CASES),
         "population_n": len(CASES),
@@ -183,6 +185,24 @@ def test_a_development_cohort_never_meets_the_exit_criterion():
     result = compare(arm(set()), arm(set(CASES)))
     assert result["design_blockers"] == ["cohort_not_held_out"]
     assert result["criteria_met"] is False
+
+
+def test_a_held_out_claim_without_a_frozen_file_is_refused():
+    with pytest.raises(ValueError, match="frozen cohort file"):
+        compare(
+            arm(set(), cohort_file_hash=None),
+            arm(set(CASES), cohort_file_hash=None),
+            cohort_status="held_out",
+        )
+
+
+def test_arms_from_different_frozen_files_are_refused():
+    with pytest.raises(ValueError, match="different frozen cohort files"):
+        compare(
+            arm(set(), cohort_file_hash="file-1"),
+            arm(set(CASES), cohort_file_hash="file-2"),
+            cohort_status="held_out",
+        )
 
 
 def test_a_held_out_cohort_with_a_clear_gain_meets_only_the_internal_criteria():
