@@ -172,12 +172,14 @@ The tool never certifies a gain. `design_blockers` records a single-run arm (one
 UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/qualify_stage6_analysis.py
 UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/compare_stage6.py --baseline BASELINE_REPORT --candidate CANDIDATE_REPORT --output COMPARISON_JSON
 UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/qualify_stage6_stability.py --report RUN1 --report RUN2 --report RUN3 --output STABILITY_JSON
-UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/compare_repeated_runs.py --baseline B1 --baseline B2 --baseline B3 --candidate C1 --candidate C2 --candidate C3 --cohort-status held_out --output REPEATS_JSON
+UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/compare_repeated_runs.py --baseline B1 --baseline B2 --baseline B3 --candidate C1 --candidate C2 --candidate C3 --cohort-status held_out --cohort-file evals/cohorts/COHORT_JSON --output REPEATS_JSON
 ```
 
 Declaring an unseen cohort. `evals/freeze_cohort.py` writes the cohort before it is run, from cases that none of the supplied prior reports covers. The file stores case IDs, the sampling seed, the hashes of the reports it relied on, and `cohort_hash` over the exact ordered tasks; it stores no question text, reference SQL or answers, so handing it to a reviewer does not leak labels. `--report` names each report that must count as used; `--report-dir` scans a tree for `**/report.json` and keeps those of the requested benchmark. The tool refuses to declare more cases than remain unseen.
 
 `evals/run_stage6.py --cohort-file` enforces the declaration instead of sampling: unknown or duplicate IDs, a missing `cohort_hash`, changed task content or a different benchmark raise rather than falling back. The report then records `selection: frozen cohort file`, `requested_n` as the declared size, and `cohort_file_hash` next to `cohort_hash`, so a run can be tied to the file it was declared from. The declaration only covers the reports passed in — runs not supplied are not known to it — and running the cohort consumes it, so freeze once, then compare arms.
+
+A freeze file also carries `case_hashes`, one content hash per declared ID (hashes, not text, so the file still leaks no labels). When a declared task's content changed, the runner's refusal names the case instead of only reporting an aggregate mismatch; a freeze file written before 2026-10-29 has no per-case hashes and says so rather than guessing. `evals/compare_repeated_runs.py --cohort-file` hashes the supplied file and checks every run against it: the file's `cohort_hash` must equal each run's, and its bytes must be the file the run recorded. Two arms agreeing on a self-reported hash is not evidence that either ran the file a reviewer holds; `cohort_file_verification` is `null` until the file is supplied.
 
 ```bash
 UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/freeze_cohort.py --benchmark bird --limit 10 --seed 20261028 --report-dir .artifacts --output evals/cohorts/bird-unseen.json

@@ -5,9 +5,11 @@ import json
 import pytest
 
 from generaldataagent.evaluation.frozen_cohort import (
+    cohort_drift,
     freeze_cohort,
     load_frozen_cohort,
     select_frozen_cases,
+    verify_cohort_file,
 )
 from generaldataagent.evaluation.stage_six import Case, Task, cohort_hash
 
@@ -109,3 +111,77 @@ def test_a_file_that_is_not_an_object_is_refused(tmp_path):
     path.write_text("not json")
     with pytest.raises(ValueError, match="valid JSON"):
         load_frozen_cohort(path)
+
+
+def test_the_declaration_records_a_hash_per_case():
+    cohort = freeze(limit=3, seed=1)
+    assert sorted(cohort["case_hashes"]) == sorted(cohort["case_ids"])
+    assert len(set(cohort["case_hashes"].values())) == 3
+
+
+def test_a_changed_task_is_named_instead_of_only_counted():
+    cohort = freeze(limit=3, seed=1)
+    frozen_id = cohort["case_ids"][0]
+    changed = [
+        case(item.task.case_id, question="edited") if item.task.case_id == frozen_id else item
+        for item in CASES
+    ]
+    with pytest.raises(ValueError, match=f"content changed for {frozen_id}$"):
+        select_frozen_cases(changed, cohort)
+    drift = cohort_drift(changed, cohort)
+    assert drift["changed_case_ids"] == [frozen_id]
+    assert drift["localized"] is True
+
+
+def test_a_file_without_per_case_hashes_says_it_cannot_localize():
+    cohort = {k: v for k, v in freeze(limit=3, seed=1).items() if k != "case_hashes"}
+    changed = [case(item.task.case_id, question="edited") for item in CASES]
+    with pytest.raises(ValueError, match="no per-case hashes"):
+        select_frozen_cases(changed, cohort)
+    assert cohort_drift(changed, cohort)["localized"] is False
+
+
+def test_the_declared_benchmark_is_named_in_the_refusal():
+    cohort = freeze(limit=3, seed=1)
+    other = [Case(Task("dabstep-dev", "q0", "question", "", "easy", "asset"), {"answer": "1"})]
+    with pytest.raises(ValueError, match="declared for 'bird-mini-dev-sqlite'"):
+        select_frozen_cases(other, cohort)
+
+
+def run_record(**overrides):
+    return {
+        "benchmark": BENCHMARK,
+        "cohort_hash": "h-1",
+        "cohort_file_hash": "f-1",
+        **overrides,
+    }
+
+
+DECLARATION = {"benchmark": BENCHMARK, "cohort_hash": "h-1", "case_ids": ["q4", "q5"]}
+
+
+def test_a_run_is_checked_against_the_file_not_just_the_other_arm():
+    summary = verify_cohort_file([run_record()], DECLARATION, file_sha256="f-1")
+    assert summary == {
+        "benchmark": BENCHMARK,
+        "cohort_hash": "h-1",
+        "file_sha256": "f-1",
+        "declared_case_ids": 2,
+        "runs": 1,
+        "case_hashes_present": False,
+    }
+
+
+def test_a_different_file_is_refused_even_when_the_arms_agree_with_each_other():
+    with pytest.raises(ValueError, match="not the file the run declared"):
+        verify_cohort_file([run_record()], DECLARATION, file_sha256="f-2")
+
+
+def test_a_file_from_another_benchmark_is_refused():
+    with pytest.raises(ValueError, match="declared for 'bird-mini-dev-sqlite'"):
+        verify_cohort_file([run_record(benchmark="dabstep-dev")], DECLARATION, file_sha256="f-1")
+
+
+def test_a_run_that_covered_another_cohort_is_refused():
+    with pytest.raises(ValueError, match="cohort does not match"):
+        verify_cohort_file([run_record(cohort_hash="h-2")], DECLARATION, file_sha256="f-1")
