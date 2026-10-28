@@ -24,7 +24,7 @@ ANNEX = [
 ]
 
 
-def runtime(tmp_path, *, saver, tamper=None, annex=None):
+def runtime(tmp_path, *, saver, tamper=None, annex=None, artifacts=None):
     adapter = AnnexWorkflowServices(annex or ANNEX, documents=DOCUMENTS)
     ports = adapter.services()
     if tamper is not None:
@@ -36,7 +36,7 @@ def runtime(tmp_path, *, saver, tamper=None, annex=None):
         source_hashes=adapter.source_hashes,
         workflow_version="delivery-v1",
     )
-    artifacts = LocalArtifactStore(tmp_path / "artifacts")
+    artifacts = artifacts or LocalArtifactStore(tmp_path / "artifacts")
     feedback = FeedbackRegistry(tmp_path / "feedback.sqlite")
     return flow, RuleDeliveryRuntime(workflow=flow, artifacts=artifacts, feedback=feedback)
 
@@ -375,7 +375,7 @@ def test_artifact_policy_denial_prevents_writes_and_feedback(tmp_path, mode):
 
 
 @pytest.mark.parametrize("fail_at", [2, 3, 4])
-def test_artifact_audit_outage_stops_writes_before_feedback(tmp_path, fail_at):
+def test_artifact_audit_outage_leaves_no_partial_package(tmp_path, fail_at):
     class Audit:
         def __init__(self):
             self.calls = 0
@@ -396,7 +396,9 @@ def test_artifact_audit_outage_stops_writes_before_feedback(tmp_path, fail_at):
         assert not service.feedback.registered(task_id, ACTOR)
         assert flow.state_of(thread, request(), ACTOR) == before
     assert audit.calls == fail_at
-    assert len(list((tmp_path / "artifacts").rglob("*.json"))) == fail_at - 2
+    # Whether the outage lands before or after a write, the package is rolled
+    # back: a delivery that never completed leaves no citable artifact.
+    assert list((tmp_path / "artifacts").rglob("*.json")) == []
 
 
 def test_a_long_id_list_is_counted_not_truncated(tmp_path):
@@ -610,3 +612,60 @@ def test_malformed_checkpoint_checks_fail_before_delivery_writes(tmp_path, monke
         with pytest.raises(ValueError, match="rule_receipt_checks_invalid"):
             service.deliver(thread, request(), ACTOR, task_id=uuid4())
         assert not list(service.artifacts.root.rglob("*.json"))
+
+
+class _FailingStore(LocalArtifactStore):
+    """Fails on one write, or on every rollback, to expose a half-written package."""
+
+    def __init__(self, root, *, fail_on=3, fail_discard=False):
+        super().__init__(root)
+        self.calls = 0
+        self.fail_on = fail_on
+        self.fail_discard = fail_discard
+
+    def put_bytes(self, **kwargs):
+        self.calls += 1
+        if self.calls == self.fail_on:
+            raise RuntimeError("store_unavailable")
+        return super().put_bytes(**kwargs)
+
+    def discard(self, ref):
+        if self.fail_discard:
+            raise RuntimeError("rollback_unavailable")
+        return super().discard(ref)
+
+
+def test_an_unfinished_package_leaves_no_artifact_behind(tmp_path):
+    task_id = uuid4()
+    store = _FailingStore(tmp_path / "artifacts", fail_on=3)
+    with open_protected_checkpointer(tmp_path / "state", encryption_key=b"k" * 32) as saver:
+        flow, service = runtime(tmp_path, saver=saver, artifacts=store)
+        thread, _ = flow.run(request(), ACTOR)
+        with pytest.raises(RuntimeError, match="store_unavailable"):
+            service.deliver(thread, request(), ACTOR, task_id=task_id)
+    # The first two artifacts were written and then rolled back, so no caller can
+    # ever cite a package that was never delivered.
+    assert list(store.root.rglob("*.json")) == []
+    assert not service.feedback.registered(task_id, ACTOR)
+
+
+def test_a_failed_rollback_is_reported_instead_of_hidden(tmp_path):
+    store = _FailingStore(tmp_path / "artifacts", fail_on=3, fail_discard=True)
+    with open_protected_checkpointer(tmp_path / "state", encryption_key=b"k" * 32) as saver:
+        flow, service = runtime(tmp_path, saver=saver, artifacts=store)
+        thread, _ = flow.run(request(), ACTOR)
+        with pytest.raises(RuleDeliveryError) as denied:
+            service.deliver(thread, request(), ACTOR, task_id=uuid4())
+    assert denied.value.code == "rule_delivery_rollback_incomplete"
+
+
+def test_discard_removes_only_the_reference_it_is_given(tmp_path):
+    store = LocalArtifactStore(tmp_path / "artifacts")
+    task_id = uuid4()
+    ref = store.put_json(task_id=task_id, artifact_type="note", value={"a": 1}, created_by="u")
+    other_task = ref.model_copy(update={"task_id": uuid4()})
+    with pytest.raises(ValueError, match="declaring task"):
+        store.discard(other_task)
+    assert store.read_bytes(ref)
+    assert store.discard(ref) is True
+    assert store.discard(ref) is False

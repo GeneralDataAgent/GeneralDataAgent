@@ -8,6 +8,7 @@ import pytest
 
 from generaldataagent.evaluation.repeat_comparison import (
     compare_repeated_runs,
+    minimum_detectable_effect,
     tasks_for_power,
 )
 from generaldataagent.evaluation.stage_six import summarize
@@ -164,6 +165,96 @@ def test_no_discordant_task_means_no_power_estimate():
     result = compare(arm(BASE), arm(BASE))
     assert result["design"]["discordance_rate"] == 0
     assert result["design"]["tasks_for_target_power"] is None
+
+
+def test_the_cohort_reports_the_smallest_effect_it_could_detect():
+    design = compare(arm(BASE), arm(WIDER))["design"]["minimum_detectable_effect"]
+    assert design["n"] == 10
+    assert design["repeats_per_arm"] == 3
+    assert 0 < design["per_task_rate_shift"] < 1
+    assert design["power"] >= design["target_power"]
+    assert design["expected_pooled_rate_delta"] <= design["per_task_rate_shift"]
+    assert design["decision_rule"] == "exact two-sided sign test over discordant tasks"
+
+
+def test_a_cohort_whose_tasks_are_all_at_ceiling_cannot_detect_any_effect():
+    # Every task passes every repeat in the baseline, so no task can improve and
+    # the sign test never rejects whatever the shift.
+    result = compare(arm(set(CASES)), arm(set(CASES)))
+    assert result["design"]["minimum_detectable_effect"] is None
+
+
+def test_more_tasks_lower_the_detectable_effect():
+    rows = [
+        {
+            "baseline_passes": 0,
+            "baseline_repeats": 3,
+            "candidate_passes": 0,
+            "candidate_repeats": 3,
+        }
+    ]
+    small = minimum_detectable_effect(rows * 6)
+    large = minimum_detectable_effect(rows * 30)
+    assert small["per_task_rate_shift"] > large["per_task_rate_shift"]
+    assert large["power"] >= large["target_power"]
+
+
+def test_an_effect_estimate_needs_equal_repeats_per_arm():
+    with pytest.raises(ValueError, match="equal repeats"):
+        minimum_detectable_effect(
+            [
+                {
+                    "baseline_passes": 1,
+                    "baseline_repeats": 3,
+                    "candidate_passes": 1,
+                    "candidate_repeats": 2,
+                }
+            ]
+        )
+
+
+def test_the_effect_estimate_is_deterministic():
+    first = minimum_detectable_effect(
+        [
+            {
+                "baseline_passes": 0,
+                "baseline_repeats": 3,
+                "candidate_passes": 1,
+                "candidate_repeats": 3,
+            }
+        ]
+        * 8
+    )
+    assert first == minimum_detectable_effect(
+        [
+            {
+                "baseline_passes": 0,
+                "baseline_repeats": 3,
+                "candidate_passes": 1,
+                "candidate_repeats": 3,
+            }
+        ]
+        * 8
+    )
+
+
+def test_unmeasured_cost_names_the_runs_that_lost_it():
+    result = compare(arm(BASE), arm(WIDER, cost=None))
+    assert result["cost"]["status"] == "unavailable"
+    assert result["cost"]["unmeasured_arms"] == ["candidate"]
+    assert result["cost"]["unmeasured_runs"] == {
+        "candidate": ["2026-10-28T00:00:00Z", "2026-10-28T00:00:01Z", "2026-10-28T00:00:02Z"]
+    }
+    assert result["cost"]["unmeasured_task_runs"] == {"candidate": 30}
+    assert "cost_not_verified stays in design_blockers" in result["cost"]["criteria_impact"]
+    assert "candidate" in result["cost"]["degradation"]
+
+
+def test_a_measured_cost_reports_no_degradation():
+    result = compare(arm(BASE), arm(WIDER))
+    assert result["cost"]["status"] == "measured"
+    assert result["cost"]["unmeasured_arms"] == []
+    assert result["cost"]["degradation"] is None
 
 
 def test_a_small_discordance_rate_implies_a_large_cohort():
