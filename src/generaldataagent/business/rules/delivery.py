@@ -36,6 +36,7 @@ from generaldataagent.business.rules.receipts import receipt_sources, receipt_ve
 from generaldataagent.contracts import (
     ActorContext,
     AgentRole,
+    ArtifactRef,
     ChartSpec,
     DeliveryPackage,
     ExecutionMethod,
@@ -69,6 +70,7 @@ class RuleDeliveryError(ValueError):
             "rule_delivery_already_packaged",
             "rule_delivery_artifact_task_mismatch",
             "rule_delivery_artifact_bytes_mismatch",
+            "rule_delivery_rollback_incomplete",
         }
     )
 
@@ -223,6 +225,12 @@ class RuleDeliveryRuntime:
             )
             return gateway.invoke(artifact_request, trace_id=trace)
 
+        def discard_artifact(ref):
+            # Rollback is not an authorized product action: the artifact belongs
+            # to a package that was never published, so removing it restores the
+            # state the caller started from.
+            return self.artifacts.discard(ref)
+
         gateway.register("artifact.write", persist)
         gateway.register(
             "rules.deliver",
@@ -233,6 +241,7 @@ class RuleDeliveryRuntime:
                 trace_id=trace,
                 write_artifact=write_artifact,
                 verify_artifact=verify_artifact,
+                discard_artifact=discard_artifact,
             ),
         )
         tool_request = ToolRequest(
@@ -261,6 +270,7 @@ class RuleDeliveryRuntime:
         trace_id: str,
         write_artifact,
         verify_artifact,
+        discard_artifact,
     ) -> dict[str, Any]:
         """Authorized handler: build and verify the package for one thread."""
         thread_id = arguments["thread_id"]
@@ -285,50 +295,79 @@ class RuleDeliveryRuntime:
             verification, scope=state.get("verification_scope", "producer_self_check")
         )
 
-        data = write_artifact(
-            artifact_type="rule_analysis_result",
-            value={
-                "operation": operation,
-                "request": request.model_dump(mode="json"),
-                "answer": rows,
-                "delivery": delivery,
-                "verification": verification,
-                "source_hashes": state.get("source_hashes", {}),
-                "thread_id": thread_id,
-            },
-            created_by="data-analyst",
-        )
-        table = TableSpec(
-            columns=(_ANSWER_COLUMN, "value"),
-            rows=tuple(rows),
-            data_artifact_uri=data.uri,
-        )
-        chart = ChartSpec(
-            chart_type="kpi",
-            title=f"rule analysis: {operation}",
-            data_artifact_uri=data.uri,
-        )
-        chart_artifact = write_artifact(
-            artifact_type="chart_spec",
-            value=chart.model_dump(mode="json"),
-            created_by="deterministic-reporter",
-            lineage=(data.artifact_id,),
-        )
-        claim = GroundedClaim(
-            claim_id="rule-result",
-            claim_type="fact",
-            text=self._claim_text(operation, rows, item_count=_item_count(delivery, operation)),
-            evidence_uris=(data.uri,),
-        )
-        claims_artifact = write_artifact(
-            artifact_type="rule_claims",
-            value=[claim.model_dump(mode="json")],
-            created_by="verifier",
-            lineage=(data.artifact_id,),
-        )
-        # Read every reference back before advertising it.
-        for ref in (data, chart_artifact, claims_artifact):
-            verify_artifact(ref)
+        written: list[ArtifactRef] = []
+
+        def write(artifact_type: str, value, created_by: str, lineage=()):
+            ref = write_artifact(
+                artifact_type=artifact_type,
+                value=value,
+                created_by=created_by,
+                lineage=lineage,
+            )
+            written.append(ref)
+            return ref
+
+        def rollback() -> None:
+            incomplete = False
+            for ref in reversed(written):
+                try:
+                    discard_artifact(ref)
+                except Exception:
+                    # A package must not be left half-written, but a rollback that
+                    # itself fails has to be reported as such rather than hidden
+                    # behind the original error.
+                    incomplete = True
+            if incomplete:
+                raise RuleDeliveryError("rule_delivery_rollback_incomplete")
+
+        try:
+            data = write(
+                "rule_analysis_result",
+                {
+                    "operation": operation,
+                    "request": request.model_dump(mode="json"),
+                    "answer": rows,
+                    "delivery": delivery,
+                    "verification": verification,
+                    "source_hashes": state.get("source_hashes", {}),
+                    "thread_id": thread_id,
+                },
+                "data-analyst",
+            )
+            table = TableSpec(
+                columns=(_ANSWER_COLUMN, "value"),
+                rows=tuple(rows),
+                data_artifact_uri=data.uri,
+            )
+            chart = ChartSpec(
+                chart_type="kpi",
+                title=f"rule analysis: {operation}",
+                data_artifact_uri=data.uri,
+            )
+            chart_artifact = write(
+                "chart_spec",
+                chart.model_dump(mode="json"),
+                "deterministic-reporter",
+                (data.artifact_id,),
+            )
+            claim = GroundedClaim(
+                claim_id="rule-result",
+                claim_type="fact",
+                text=self._claim_text(operation, rows, item_count=_item_count(delivery, operation)),
+                evidence_uris=(data.uri,),
+            )
+            claims_artifact = write(
+                "rule_claims",
+                [claim.model_dump(mode="json")],
+                "verifier",
+                (data.artifact_id,),
+            )
+            # Read every reference back before advertising it.
+            for ref in (data, chart_artifact, claims_artifact):
+                verify_artifact(ref)
+        except Exception:
+            rollback()
+            raise
 
         package = DeliveryPackage(
             metric=f"rule:{operation}",

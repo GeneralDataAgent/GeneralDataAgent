@@ -194,6 +194,150 @@ def tasks_for_power(
     return None
 
 
+def _binomial_pmf(repeats: int, probability: float) -> list[float]:
+    return [
+        math.comb(repeats, k) * probability**k * (1 - probability) ** (repeats - k)
+        for k in range(repeats + 1)
+    ]
+
+
+def _move_probabilities(baseline_rate: float, candidate_rate: float, repeats: int):
+    """Probability that one task's pass count rises and that it falls.
+
+    Both arms draw independently from their own binomial, so a task that passes
+    every repeat in one arm and every repeat in the other cannot move.
+    """
+    base = _binomial_pmf(repeats, baseline_rate)
+    cand = _binomial_pmf(repeats, candidate_rate)
+    gain = sum(base[b] * sum(cand[b + 1 :]) for b in range(repeats))
+    loss = sum(base[b] * sum(cand[:b]) for b in range(repeats))
+    return max(0.0, gain), max(0.0, loss)
+
+
+def minimum_detectable_effect(
+    rows: list[dict],
+    *,
+    target_power: float = 0.8,
+    alpha: float = 0.05,
+    step: float = 0.02,
+) -> dict | None:
+    """Smallest per-task pass-rate shift this cohort could detect at target power.
+
+    The comparison's inferential claim rests on the exact two-sided sign test
+    over discordant tasks, so the same test defines what "detect" means here.
+    For each candidate shift the observed per-task baseline rates are raised by
+    that amount (capped at 1), each task then contributes +1, 0 or -1 with
+    probabilities from two independent binomials over the recorded repeat count,
+    and the distribution of gain/regression counts is convolved exactly over
+    tasks. The returned shift is the first on the grid whose rejection
+    probability reaches ``target_power``.
+
+    It is a property of this cohort, this repeat count and these observed rates
+    — not of the treatment and not evidence of an effect. Tasks already at
+    ceiling cannot move and therefore only make the estimate more conservative.
+    ``None`` means no shift below 1.0 reached the target power.
+    """
+    if not 0 < target_power < 1 or not 0 < alpha < 1:
+        raise ValueError("invalid power policy")
+    if not 0 < step <= 0.5:
+        raise ValueError("invalid effect grid step")
+    rates = []
+    for row in rows:
+        repeats = row["baseline_repeats"]
+        if row["candidate_repeats"] != repeats:
+            raise ValueError("the effect estimate needs equal repeats per arm")
+        if repeats < 1:
+            raise ValueError("the effect estimate needs at least one repeat")
+        rates.append((row["baseline_passes"] / repeats, repeats))
+    if not rates:
+        raise ValueError("the effect estimate needs at least one task")
+    tasks = len(rates)
+    rejects = [
+        [_sign_test(gains, regressions) <= alpha for regressions in range(tasks + 1)]
+        for gains in range(tasks + 1)
+    ]
+    for index in range(1, int(round(1 / step)) + 1):
+        shift = round(index * step, 10)
+        distribution = {(0, 0): 1.0}
+        for baseline_rate, repeats in rates:
+            candidate_rate = min(1.0, baseline_rate + shift)
+            gain, loss = _move_probabilities(baseline_rate, candidate_rate, repeats)
+            moved = {}
+            for (gains, regressions), probability in distribution.items():
+                for dg, dr, weight in (
+                    (1, 0, gain),
+                    (0, 1, loss),
+                    (0, 0, 1.0 - gain - loss),
+                ):
+                    if weight <= 1e-12:
+                        continue
+                    key = (gains + dg, regressions + dr)
+                    moved[key] = moved.get(key, 0.0) + probability * weight
+            distribution = moved
+        power = sum(p for (g, r), p in distribution.items() if rejects[g][r])
+        if power >= target_power:
+            return {
+                "per_task_rate_shift": shift,
+                "expected_pooled_rate_delta": sum(
+                    min(1.0, rate + shift) - rate for rate, _ in rates
+                )
+                / tasks,
+                "power": power,
+                "target_power": target_power,
+                "alpha": alpha,
+                "n": tasks,
+                "repeats_per_arm": rates[0][1],
+                "decision_rule": "exact two-sided sign test over discordant tasks",
+            }
+    return None
+
+
+def _cost_report(baseline: list[dict], candidate: list[dict], arms: dict) -> dict:
+    """Say what cost reporting lost and what it would take to get it back.
+
+    A null cost is not a cheap run: it is a missing measurement. The gate that
+    depends on it stays closed, and this comparison can never open it.
+    """
+    unmeasured = {}
+    unmeasured_tasks = {}
+    for name, runs in (("baseline", baseline), ("candidate", candidate)):
+        runs_without_cost = [
+            run.get("started_at", f"run-{index}")
+            for index, run in enumerate(runs)
+            if any(row.get("cost_usd") is None for row in run["results"])
+        ]
+        if runs_without_cost:
+            unmeasured[name] = runs_without_cost
+            unmeasured_tasks[name] = sum(
+                1 for run in runs for row in run["results"] if row.get("cost_usd") is None
+            )
+    measured = not unmeasured
+    if measured:
+        degradation = None
+    else:
+        degradation = (
+            "cost is unknown for "
+            + ", ".join(sorted(unmeasured))
+            + ": cost per pass is null rather than zero, and tokens are reported as a "
+            "proxy only because they are not a price"
+        )
+    return {
+        "status": "measured" if measured else "unavailable",
+        "measured_arms": sorted(name for name in arms if name not in unmeasured),
+        "unmeasured_arms": sorted(unmeasured),
+        "unmeasured_runs": unmeasured,
+        "unmeasured_task_runs": unmeasured_tasks,
+        "degradation": degradation,
+        "criteria_impact": (
+            "cost conditions are met by measurement only"
+            if measured
+            else "cost_not_verified stays in design_blockers and this tool cannot clear it; "
+            "clearing it needs metered routing or an explicit external ruling that records "
+            "the cost gate as unavailable"
+        ),
+    }
+
+
 def compare_repeated_runs(
     baseline: list[dict],
     candidate: list[dict],
@@ -309,9 +453,11 @@ def compare_repeated_runs(
             "sign_test_exact_two_sided_p": _sign_test(gains, regressions),
         },
         "service_error_rates": service_rates,
+        "cost": _cost_report(baseline, candidate, arms),
         "design": {
             "discordance_rate": len(paired) / len(rows),
             "tasks_for_target_power": tasks_for_power(len(paired) / len(rows)),
+            "minimum_detectable_effect": minimum_detectable_effect(rows),
         },
         "design_blockers": blockers,
         "criteria_met": not blockers,
@@ -328,6 +474,12 @@ def compare_repeated_runs(
             "a failed or unattempted run counts as a failed observation; nothing is excluded",
             "tasks_for_target_power divides a discordant-task requirement by the observed "
             "discordance rate; it is a planning estimate, not evidence",
+            "minimum_detectable_effect simulates a shift applied to the observed per-task "
+            "baseline rates and asks how often the exact sign test would reject; it "
+            "describes this cohort, not the treatment, and is null when no shift below "
+            "1.0 reaches the target power",
+            "cost is summed only when every task-run of an arm carries a measured "
+            "cost_usd; a null cost is reported as unknown, never as zero",
             "independent review and production shadow validation are external gates and "
             "are never supplied by this comparison",
         ],
