@@ -30,6 +30,7 @@ from generaldataagent.contracts import ActorContext
 from generaldataagent.observability import JsonlAuditSink
 from generaldataagent.observability.verified_audit import VerifiedAuditSink
 from generaldataagent.policy.budgets import TaskBudgetLedger
+from generaldataagent.security.science_scope import ScienceWorkloadScope
 
 CompositionMode = Literal["research", "product"]
 
@@ -146,12 +147,27 @@ class ExecutionComposition:
     budgets: TaskBudgetLedger | None = None
     task_id: UUID | None = None
     trace_id: str | None = None
+    # Only a service workload sets this; a human session leaves it empty, because
+    # a person is not limited to one snapshot for one task.
+    workload_scope: ScienceWorkloadScope | None = None
 
     def __post_init__(self) -> None:
         if self.mode not in ("research", "product"):
             raise CompositionError("composition_mode_unknown")
         if not isinstance(self.actor, ActorContext):
             raise CompositionError("composition_actor_required")
+        if self.workload_scope is not None:
+            if not isinstance(self.workload_scope, ScienceWorkloadScope):
+                raise CompositionError("composition_workload_scope_invalid")
+            # A scope that does not cover the composition's own actor would be a
+            # second, contradicting statement of identity.
+            scope, actor = self.workload_scope, self.actor
+            if (scope.user_id, scope.tenant_id, scope.project_id) != (
+                actor.user_id,
+                actor.tenant_id,
+                actor.project_id,
+            ) or not set(actor.data_domains) <= set(scope.data_domains):
+                raise CompositionError("composition_workload_scope_actor_mismatch")
         # Validating the identity here keeps one owner for its rules while the
         # composition keeps reporting them under its own stable codes.
         try:
