@@ -97,3 +97,24 @@ class LocalArtifactStore:
         if actual != ref.content_hash:
             raise ValueError("artifact content hash mismatch")
         return content
+
+    def discard(self, ref: ArtifactRef) -> bool:
+        """Remove one artifact this store wrote, for a failed multi-artifact write.
+
+        Artifact file names carry a fresh UUID and live under the declaring task,
+        so a discard can only ever remove the reference it is given. A missing
+        file is reported as ``False`` rather than raised: a rollback must be safe
+        to call twice when one attempt was interrupted.
+        """
+        prefix = "artifact://local/"
+        if not ref.uri.startswith(prefix):
+            raise ValueError("artifact is not stored by this backend")
+        path = (self.root / ref.uri.removeprefix(prefix)).resolve()
+        if self.root not in path.parents:
+            raise ValueError("artifact path escapes the configured root")
+        if path.parent != (self.root / str(ref.task_id)).resolve():
+            raise ValueError("artifact does not belong to the declaring task")
+        if not path.exists():
+            return False
+        path.unlink()
+        return True
