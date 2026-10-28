@@ -4,8 +4,10 @@ This directory contains English documentation for system architecture, design de
 
 ## Architecture and design
 
+- [As-built architecture](architecture/as-built-architecture.md) — the code as it exists, with diagrams
+- [Capability catalog](architecture/capability-catalog.md) — what works today, and why each item is or is not on
 - [Research findings and design principles](architecture/research-and-principles.md)
-- [System architecture](architecture/system-architecture.md)
+- [System architecture](architecture/system-architecture.md) — the design target
 - [Multi-agent collaboration](architecture/multi-agent-design.md)
 - [Data contracts and evaluation architecture](architecture/data-contracts-and-evaluation.md)
 - [Governance and security](architecture/governance-and-security.md)
@@ -17,6 +19,9 @@ This directory contains English documentation for system architecture, design de
 ## Usage and operations
 
 - [Project usage guide](guides/usage.md)
+- [Evaluation receipts](guides/evaluation-receipts.md)
+- [Rule recomputation](guides/rule-recomputation.md)
+- [Dataset extensions](guides/dataset-extensions.md)
 - [Controlled statistics and modeling](guides/statistics-and-modeling.md)
 - [Deployment and operations reference](operations/deployment-and-operations.md)
 - [Controlled pilot runbook](operations/controlled-pilot-runbook.md)

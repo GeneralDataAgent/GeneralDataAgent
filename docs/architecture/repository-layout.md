@@ -1,37 +1,53 @@
 # Repository layout and ownership
 
-The original roadmap's suggested layout is retained here as a design reference. It is not an assertion that every directory exists. The [phase roadmap](../../../docs/planning/development-roadmap.md) owns implementation milestones.
+This is the actual layout of the repository as of commit `66139e5`, not a proposed one. For what each
+Python package does, see the [package map](as-built-architecture.md#5-package-map).
 
 ```text
-src/
-  api/                 # Sessions, tasks, approvals, streaming
-  orchestration/       # LangGraph state, routing, recovery
-  agents/              # Supervisor and specialist definitions
-  tools/               # SQL, catalog, Python, dbt adapters
-  contracts/           # Versioned Pydantic / JSON schemas
-  policy/              # Policy clients, risk classes, obligations
-  validation/          # Deterministic quality gates
-  artifacts/           # Artifact storage and lineage indexes
-  observability/       # Traces, metrics, logs, audit
-skills/                # Reviewed domain Skills
-evals/
-  datasets/            # Versioned task cohorts
-  graders/             # Deterministic and human graders
-  reports/             # No sensitive raw results in Git
-tests/
-  unit/
-  integration/
-  workflow/
-  security/
-infra/
-  sandbox/
-  deployment/
-docs/                  # English architecture, ADRs, usage, operations
-../docs/               # Workspace documentation index
-  planning/            # Roadmaps, phase plans, acceptance criteria
-  progress/            # Implementation inventories, backlogs, development history
-  research/            # Dataset selection and reference sources
-  validation/          # Run outcomes, independent review, machine-readable evidence
+GeneralDataAgent/
+  pyproject.toml            # package metadata, ruff/pytest config, one console script
+  Makefile                  # sync / test / lint / format / check / api wrappers
+  uv.lock                   # pinned dependency resolution
+  README.md                 # project entry and quick start
+  src/generaldataagent/     # 19 packages, 213 modules
+    contracts/              # frozen Pydantic boundary models
+    catalog/                # certified metrics and deterministic NL resolution
+    policy/                 # static rules, exact approvals, budgets, resume
+    tools/                  # ToolGateway, SQL guard/executor, statistics and rule tools
+    agents/                 # supervisor factory, specialist specs, role ordering
+    orchestration/          # LangGraph workflows, checkpoints, metric runtime
+    artifacts/              # content-addressed and governed stores
+    connectors/             # read-only SQLite / DuckDB / PostgreSQL adapters
+    data_engineering/       # profiling, quality, diff, proposals, impact, dbt
+    data_science/           # snapshots, experiments, sandbox, tracking, model cards
+    datasets/               # reproducible open-data ingestion (TLC)
+    business/               # outbox, approvals, schedules, receivers, admission
+      rules/                # document rule model, matching, Decimal computation
+    review/                 # runtime human-review stores
+    security/               # OIDC, sessions, RLS adapter, DLP, release admission
+    observability/          # audit sinks, SLO, alerts, maintenance
+    llm/                    # CC Switch / Magpie adapters, routing, deadlines
+    evaluation/             # benchmark harnesses, receipts, comparison, routing
+    services/               # approval authority, audit collector, report worker
+    api/                    # FastAPI assembly, business API and console
+  evals/                    # 70 runnable gates, qualifiers, and acceptance runners
+    cohorts/                # frozen cohort declarations (IDs and hashes only)
+  tests/                    # 191 flat test modules (no conftest, no subdirectories)
+  examples/                 # demos and live-model evidence runs
+    skills/                 # example skill admission manifests
+  infra/sandbox/            # pinned OCI build for the science sandbox
+  deploy/systemd/           # disabled service templates for reviewed deployment
+  docs/                     # English architecture, ADRs, guides, operations
+  data/                     # local, gitignored benchmark and TLC inputs
+  .artifacts/               # local, gitignored run outputs and evidence
 ```
 
-Keep plans, pending work, run outcomes, and benchmark evidence in workspace-level `../docs/`. Keep architecture contracts, actual ADRs, usage instructions, and operations references in repository-level `docs/`, in English. Separate mixed documents by content; link between the authoritative sections instead of maintaining duplicated plans or scores. Large raw datasets, `.artifacts/`, credentials, and runtime state stay under their existing protected/ignored locations.
+## Ownership rules
+
+- Plans, progress matrices, and run outcomes live in the workspace-level `../docs/` (Chinese).
+- Architecture contracts, ADRs, usage, and operations live here (English). Split a mixed document
+  instead of duplicating it.
+- `data/`, `.artifacts/`, `.state/`, and credentials stay out of Git. Frozen cohort declarations are
+  the exception: they contain IDs and hashes only, never question text or answers.
+- Benchmark evidence referenced from docs lives under `.artifacts/`; if a claim needs to survive a
+  clean checkout, the evidence has to be summarized in a document with its hashes, not copied in.

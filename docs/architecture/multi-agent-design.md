@@ -2,6 +2,8 @@
 
 This reference design defines roles, collaboration contracts, context boundaries, and failure handling for analytics, data engineering, and data science. Planned implementation and actual qualification are tracked in the [external phase plans](../../../docs/planning/development-roadmap.md).
 
+> Implemented names differ in places: the delivery role is `reporter`, engineering output is `TransformationProposal`, and science contracts are `ExperimentSpec`/`ExperimentReport`. For the assembled roles, ordering, and contracts in code, see [As-built architecture](as-built-architecture.md) and the [capability catalog](capability-catalog.md).
+
 ## 1. Organization
 
 ```mermaid

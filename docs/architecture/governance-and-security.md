@@ -2,6 +2,8 @@
 
 The system handles enterprise data, executable code, and potentially consequential production actions. Authorization is enforced technically, with audit evidence for allowed actions. This reference design does not establish production admission; see the [external acceptance records](../../../docs/validation/README.md).
 
+> The implemented actor context is narrower than the design: `ActorContext` carries user, tenant, project, and data domains; `AuditEvent` carries event type, task, actor, tenant, trace, time, and a payload. Execution receipts and the business approval authority are implemented controls not described below; see [As-built architecture](as-built-architecture.md) and [ADR 0010](../adr/0010-execution-receipt-contract.md).
+
 ## 1. Trust boundaries
 
 ```mermaid
