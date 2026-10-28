@@ -16,6 +16,7 @@ from generaldataagent.contracts import (
     ObservedUsage,
     ReceiptVerification,
     SourceBinding,
+    load_receipt,
 )
 
 ADAPTER_VERSION = "evaluation-step-v1"
@@ -220,7 +221,10 @@ def validate_evaluation_receipts(
         if type(step) is not int or step < 1 or step in seen:
             raise ValueError("evaluation_receipt_step_invalid")
         seen.add(step)
-        receipt = ExecutionReceipt.model_validate(entry["receipt"])
+        # Stored steps are read through the versioned entry point, so a step
+        # written by another receipt version is refused by name instead of
+        # failing as generic validation.
+        receipt = load_receipt(entry["receipt"])
         if (
             any(getattr(receipt, key) != context[key] for key in identity)
             or receipt.sources != sources

@@ -157,3 +157,53 @@ def test_receipt_does_not_claim_authenticity():
     """A digest is byte identity; the contract exposes no origin or approval claim."""
     fields = set(ExecutionReceipt.model_fields)
     assert not fields & {"authentic", "approved", "signed_by", "reviewer_identity"}
+
+
+def test_a_stored_receipt_reads_back_exactly_as_written():
+    import json
+
+    from generaldataagent.contracts import load_receipt
+
+    stored = json.loads(receipt().model_dump_json())
+    before = json.dumps(stored, sort_keys=True)
+    loaded = load_receipt(stored)
+    assert loaded.model_dump(mode="json") == stored
+    # Reading is not an upgrade: the stored object is untouched.
+    assert json.dumps(stored, sort_keys=True) == before
+
+
+def test_a_receipt_from_another_version_is_refused_by_name():
+    from generaldataagent.contracts import ReceiptVersionUnsupported, load_receipt
+
+    stored = receipt().model_dump(mode="json")
+    with pytest.raises(ReceiptVersionUnsupported) as error:
+        load_receipt(stored | {"receipt_version": "1.1"})
+    assert "1.1" in str(error.value) and "1.0" in str(error.value)
+
+
+def test_a_stored_receipt_must_state_its_version():
+    from generaldataagent.contracts import load_receipt
+
+    stored = receipt().model_dump(mode="json")
+    del stored["receipt_version"]
+    # Constructing a receipt defaults the version; reading a stored one must not.
+    with pytest.raises(ValueError, match="must state its receipt_version"):
+        load_receipt(stored)
+
+
+@pytest.mark.parametrize("payload", ["[1, 2]", "not json", 7])
+def test_a_payload_that_is_not_an_object_is_refused(payload):
+    from generaldataagent.contracts import load_receipt
+
+    with pytest.raises(ValueError, match="JSON object|not valid JSON"):
+        load_receipt(payload)
+
+
+def test_reading_a_receipt_does_not_relabel_a_newer_version():
+    from generaldataagent.contracts import ReceiptVersionUnsupported, load_receipt
+
+    stored = receipt().model_dump(mode="json")
+    # A newer receipt may carry fields this contract does not know; dropping them
+    # silently would report a different execution as the same one.
+    with pytest.raises(ReceiptVersionUnsupported):
+        load_receipt(stored | {"receipt_version": "2.0", "future_field": {"x": 1}})

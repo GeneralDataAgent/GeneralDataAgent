@@ -8,13 +8,19 @@ make an unrecorded experiment look delivered.
 """
 
 import hashlib
+import json
 import sqlite3
 from contextlib import closing
 from pathlib import Path
 from typing import Protocol
 from uuid import UUID
 
-from generaldataagent.contracts import ExperimentReport, ExperimentSpec, TrackedExperiment
+from generaldataagent.contracts import (
+    ExperimentReport,
+    ExperimentSpec,
+    TrackedExperiment,
+    load_receipt,
+)
 
 
 class ExperimentTrackingError(RuntimeError):
@@ -92,7 +98,14 @@ class SQLiteExperimentTracker:
         content, expected_hash = row
         if _hash(content) != expected_hash:
             raise ExperimentTrackingError("experiment tracking record failed integrity check")
-        return TrackedExperiment.model_validate_json(content)
+        data = json.loads(content)
+        # The embedded receipt is read through its versioned entry point, so a
+        # record written by another receipt version is refused by name instead of
+        # being folded into the current reading.
+        receipt = data.get("report", {}).get("receipt")
+        if isinstance(receipt, dict):
+            load_receipt(receipt)
+        return TrackedExperiment.model_validate(data)
 
     def list_for_snapshot(self, snapshot_id: UUID) -> tuple[TrackedExperiment, ...]:
         with self._connect() as connection:
