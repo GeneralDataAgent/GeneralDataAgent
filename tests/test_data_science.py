@@ -556,3 +556,51 @@ def test_workbench_runs_the_injected_sandbox_through_the_shared_preparation(
     rows, spec, train, test = sandbox.calls[0]
     assert len(rows) == 20 and sorted(train + test) == list(range(20))
     assert spec.task_id == task_id
+
+
+def _rewrite_stored_version(tracker, experiment_id, version):
+    import hashlib
+    import sqlite3
+
+    with sqlite3.connect(tracker.path) as connection:
+        (content,) = connection.execute(
+            "SELECT record_json FROM experiments WHERE experiment_id = ?",
+            (str(experiment_id),),
+        ).fetchone()
+    record = json.loads(content)
+    if version is None:
+        del record["report"]["receipt"]["receipt_version"]
+    else:
+        record["report"]["receipt"]["receipt_version"] = version
+    rewritten = json.dumps(record, sort_keys=True)
+    with sqlite3.connect(tracker.path) as connection:
+        connection.execute(
+            "UPDATE experiments SET record_json = ?, content_hash = ? WHERE experiment_id = ?",
+            (
+                rewritten,
+                "sha256:" + hashlib.sha256(rewritten.encode()).hexdigest(),
+                str(experiment_id),
+            ),
+        )
+
+
+def test_a_stored_experiment_from_another_receipt_version_is_refused_by_name(tmp_path: Path):
+    from generaldataagent.contracts import ReceiptVersionUnsupported
+
+    task_id, store, snapshot = _snapshot(tmp_path)
+    tracker = SQLiteExperimentTracker(tmp_path / "tracking.sqlite")
+    spec = _spec(task_id, snapshot.snapshot_id)
+    _run(DataScienceWorkbench(artifact_store=store, tracker=tracker), snapshot, spec)
+    _rewrite_stored_version(tracker, spec.experiment_id, "1.1")
+    with pytest.raises(ReceiptVersionUnsupported):
+        tracker.get(spec.experiment_id)
+
+
+def test_a_stored_experiment_without_a_receipt_version_is_refused(tmp_path: Path):
+    task_id, store, snapshot = _snapshot(tmp_path)
+    tracker = SQLiteExperimentTracker(tmp_path / "tracking.sqlite")
+    spec = _spec(task_id, snapshot.snapshot_id)
+    _run(DataScienceWorkbench(artifact_store=store, tracker=tracker), snapshot, spec)
+    _rewrite_stored_version(tracker, spec.experiment_id, None)
+    with pytest.raises(ValueError, match="must state its receipt_version"):
+        tracker.get(spec.experiment_id)
