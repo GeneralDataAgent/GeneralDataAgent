@@ -18,6 +18,7 @@ import math
 import random
 from collections import Counter
 
+from generaldataagent.evaluation.frozen_cohort import verify_cohort_file
 from generaldataagent.evaluation.stage_six_comparison import SERVICE_FAILURES
 from generaldataagent.evaluation.stage_six_gates import validate_report
 from generaldataagent.evaluation.stage_six_stability import repeated_evidence
@@ -345,10 +346,14 @@ def compare_repeated_runs(
     bootstrap_seed: int = 20261020,
     cohort_status: str = "development",
     max_service_error_rate: float = 0.05,
+    cohort_file: dict | None = None,
+    cohort_file_sha256: str | None = None,
 ) -> dict:
     """Pair two arms of repeated runs; report, never certify general improvement."""
     if cohort_status not in COHORT_STATUSES:
         raise ValueError("invalid cohort status")
+    if (cohort_file is None) != (cohort_file_sha256 is None):
+        raise ValueError("verifying a frozen file needs both the file and its hash")
     if not baseline or not candidate:
         raise ValueError("both arms need at least one run")
     if bootstrap_samples < 100:
@@ -368,6 +373,13 @@ def compare_repeated_runs(
     databases = [row["database_hash"] for row in left["results"]]
     if [row["database_hash"] for row in right["results"]] != databases:
         raise ValueError("arms evaluated different database snapshots")
+    # Self-reported agreement is all a pair of reports can show; reading the file
+    # itself is what ties them to the declaration a reviewer holds.
+    verification = (
+        verify_cohort_file(baseline + candidate, cohort_file, file_sha256=cohort_file_sha256)
+        if cohort_file is not None
+        else None
+    )
 
     evidence = {"baseline": _stability(baseline), "candidate": _stability(candidate)}
     arms = {"baseline": _arm("baseline", baseline), "candidate": _arm("candidate", candidate)}
@@ -416,6 +428,7 @@ def compare_repeated_runs(
         "cohort_file_hashes": {
             name: sorted(h for h in hashes if h) for name, hashes in cohort_files.items()
         },
+        "cohort_file_verification": verification,
         "n": len(ids),
         "case_ids": ids,
         "repeats_required": REPEATS_REQUIRED,
@@ -453,6 +466,9 @@ def compare_repeated_runs(
         "notes": [
             "cohort_status is a caller declaration; this tool cannot verify that "
             "the cohort was never used during development",
+            "cohort_file_verification is null until the frozen file is supplied; without "
+            "it the two arms agree on a self-reported hash, which is not evidence that "
+            "either ran the file a reviewer holds",
             "the interval resamples tasks, so repeats of one task are not treated as "
             "independent observations",
             "a failed or unattempted run counts as a failed observation; nothing is excluded",

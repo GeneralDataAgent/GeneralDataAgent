@@ -303,3 +303,38 @@ def test_a_held_out_cohort_with_a_clear_gain_meets_only_the_internal_criteria():
     assert result["independent_review"] == "not_supplied"
     assert result["production_accepted"] is False
     assert json.dumps(result)  # the result stays serialisable evidence
+
+
+DECLARATION = {"benchmark": "dabstep-dev", "cohort_hash": "cohort-1", "case_ids": CASES}
+
+
+def test_the_frozen_file_is_hashed_and_checked_rather_than_trusted():
+    result = compare(arm(BASE), arm(WIDER), cohort_file=DECLARATION, cohort_file_sha256="file-1")
+    assert result["cohort_file_verification"] == {
+        "benchmark": "dabstep-dev",
+        "cohort_hash": "cohort-1",
+        "file_sha256": "file-1",
+        "declared_case_ids": 10,
+        "runs": 6,
+        "case_hashes_present": False,
+    }
+
+
+def test_a_file_that_is_not_the_one_the_runs_declared_is_refused():
+    with pytest.raises(ValueError, match="not the file the run declared"):
+        compare(arm(BASE), arm(WIDER), cohort_file=DECLARATION, cohort_file_sha256="file-2")
+
+
+def test_a_file_from_another_benchmark_is_refused():
+    other = {**DECLARATION, "benchmark": "bird-mini-dev-sqlite"}
+    with pytest.raises(ValueError, match="declared for 'bird-mini-dev-sqlite'"):
+        compare(arm(BASE), arm(WIDER), cohort_file=other, cohort_file_sha256="file-1")
+
+
+def test_a_file_without_its_hash_is_refused_rather_than_half_verified():
+    with pytest.raises(ValueError, match="both the file and its hash"):
+        compare(arm(BASE), arm(WIDER), cohort_file=DECLARATION)
+
+
+def test_an_unverified_comparison_says_so():
+    assert compare(arm(BASE), arm(WIDER))["cohort_file_verification"] is None

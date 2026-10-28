@@ -1,9 +1,53 @@
 {
-  "benchmark": "bird-mini-dev-sqlite",
-  "seed": 20261028,
-  "limit": 45,
-  "excluded_seen": 60,
   "available_unseen": 440,
+  "benchmark": "bird-mini-dev-sqlite",
+  "case_hashes": {
+    "1037": "fde483f31e9baddc7011f14dd2fec0e24bf5bda5362b3b31c1a4304895a09012",
+    "1044": "4c572523e028b430ac3af9abac71045d1633232c3b684663b175f5ed688f5957",
+    "1113": "ebd3634997f6e7553589c07368192ff817ce122193284a2fe55af19a377db35e",
+    "115": "4fca2cb70a137fec1a9aeb7c5063c52bb068ed25bd52c750060e845d18143d11",
+    "1169": "e84a1550df2706ac2a1e6ac9ec3323cc591028f27d9d455ca60a849170725e24",
+    "117": "57f935d39a04aa27f4c23c5bd25f4bd2a943df180e4e8f842bbcfae9c7b0d517",
+    "1175": "b26a37312a9e462ae02059dc184254cff05318e45dd84e368ee2b2ed13914aa7",
+    "12": "8cf84aec3470af3186fe28fcc3fc6e32edb83664c09f887ab7f11b56f3e86bdb",
+    "1220": "11591dfb0316cfe080ce4c5a82adf6e9dc4d788fc678354818f1adc618d6a31b",
+    "1247": "fa077e530edafc072416c669db3f306d2b3e8d8112278c89ea813f1e3bce6db4",
+    "1251": "255a8eee6a5d29a9ccf3b6892897544cf31796032c9288a70373a4ecb4672452",
+    "1359": "95d9409bc1d769d0011dd55074a4cfd71b2493ae1675f1a28c031ce448f675a3",
+    "1392": "02b1d4fa23aee07eceeed79ba98bc8a408a0bfb4664fd9242a3d54bbe91c2948",
+    "1409": "58b168b2068bdbad01a4dd49ca67df61bf25956b7be7a74ab7dfb816aaa75ca1",
+    "1432": "aad2cdc6bccab33128d5ba00a6fc9268929a53b466ebf877a297c55c34a2dc11",
+    "1481": "8b8fdc12ff1c805743a468001d261f6a505b67d0b19289ccb50bf475853addac",
+    "1514": "be14a60579ccedf7752fb355b4d96358427200fc812d1049d2a17ab324a2721c",
+    "1526": "339f2704ae46c041e620c889a72d298314b7a82a7ae0f2025e8c477d755c663c",
+    "1528": "8cd59e1364669b9e949b45eb11c34f7b64ac3aab43b33967c85ad4868421c5f2",
+    "1529": "1e8d8b439faf5d6ef97be1f0831377934f767591f0537f7c1ba559b94c239c86",
+    "195": "aba3e6da6d5435031875a8cd056704bd4a1ac03f09c10b2ade97b50b5201e6a8",
+    "198": "5b1df85cb6449e62c37bcee815cf345fc48ea49c33b9b66e80e9474bfc86d112",
+    "226": "7f2f6c923969264831aa67fb9e7358200623969bbdb6e323d401faa7456415b7",
+    "239": "00249c0246a58399c82eb72d0c2199249ccd02cf8c3029276abc7dcf89530a75",
+    "247": "8de51e2c75e6dc0d479140b6c708138dafd860ed8a0754c43d7202e0bab65b12",
+    "327": "a9a3c1852a1b9a3d4685b008734b75c2702b3bfe283abe3da42602644c377202",
+    "366": "cba5e2d9bc3150afff73c40370eb75d0b02a0705d620b3713715264e3717eef2",
+    "465": "74037f2fdfcbcc2d7783e5eb9a547daa4536e63a20dca79b6654ebe8270ea65a",
+    "473": "c87453780249f1fe522bac5ad1f67729f9e522a65b8ef60ca50a4756ab34d001",
+    "477": "c25c6dec93b7854d07c8de4d11a5c458dd284333e82dfa3495f35301d08c7726",
+    "5": "7e7809fd23b9b10cedfa9cf67f11fc62037ebb610904db2d17d5b5b2ef7e1b1f",
+    "572": "5b1f318b0eac9bbd470cd9220977b164a8dbb5fdf6efe7008123c441acd62408",
+    "62": "8b77fa124a1f6a7ba42dcf0a1f520e9d4ef274b3912a398dba546c4e5967046a",
+    "687": "352e8027bb28b38af8002ae7cad88d6815b054f3c79d260c24f09335db8325c9",
+    "701": "942fa3bc43e23b64fdf0418d3532a1956d62a12eef989c5597663e98f29e2f0b",
+    "717": "bb5f417fc419b1976d14629ea97969f7a61d33c9352af0cb09ec19745fb8303e",
+    "744": "2371721b15f6458a20627af6e6a2ad8cd997c853ede89b1dc9f6ac6963498f33",
+    "79": "fd837613370b93fe0a6d2c61e8f11e9af729d52c1a860c4a053768709d893e2f",
+    "796": "405b7c5253c79692d1809f3140306a83c0f057a0da8291a012c762b2fd6bdeec",
+    "82": "248192a53aa4255794f8c0c19f5584847deeb2c816a462bb774a36766e7baac3",
+    "865": "7913386e2aac5df89019626cb6ee4f5453086f4a835d0d53d568a985e33fb07b",
+    "896": "ec4be4817da7dc1ad51e21686c7d67602fe6005d305a8ada840bc45062feeca0",
+    "902": "b6e9ab185638121a292a8bf0419db9d287f8c5a81249502513f1c406d7ea06a7",
+    "92": "21943632625a3076b1aaa768888e8e555822daadfa572fbea0a99ce6daee7642",
+    "967": "3f5718fa0afb4da09958901b6e38ec5e112eff6d0ff2ae3fab3823c5092457cc"
+  },
   "case_ids": [
     "195",
     "1251",
@@ -52,6 +96,9 @@
     "247"
   ],
   "cohort_hash": "206a5abbbef3ca9a515a74062bcd3f41e630493d449c903b91ea50b18f00b472",
+  "declaration": "IDs and per-case content hashes only; no question text, reference SQL or answers. The aggregate hash covers the exact ordered tasks, so a changed source fails the runner's check and the per-case hashes name which task moved. Per-case hashes were added on 2026-10-29 after re-deriving cohort_hash from the pinned BIRD source; the declared case list and aggregate hash are unchanged and the cohort is still unrun.",
+  "excluded_seen": 60,
+  "limit": 45,
   "prior_reports": {
     "cohort_hashes": [
       "0cd1ab6ac9936fd1f7931b77c371863be475fd8c0cbbf48a72b30d833d4491b5",
@@ -131,5 +178,5 @@
       "fe8997a28043e6eef188bb514822d5ad524ac5440aee8ac7f1f8adf30ffb7471"
     ]
   },
-  "declaration": "IDs only; no question text, reference SQL or answers. The hash covers the exact ordered tasks, so a changed source fails the runner's check."
+  "seed": 20261028
 }
