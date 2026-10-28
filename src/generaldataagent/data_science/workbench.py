@@ -26,11 +26,15 @@ from generaldataagent.contracts import (
 from generaldataagent.data_science.experiment import prepare_experiment, run_prepared_experiment
 from generaldataagent.data_science.sandbox import FixedTemplateSandbox, OCIContainerSandbox
 from generaldataagent.data_science.snapshot import load_snapshot_rows
-from generaldataagent.data_science.tracking import SQLiteExperimentTracker
+from generaldataagent.data_science.tracking import (
+    MirroringExperimentTracker,
+    SQLiteExperimentTracker,
+)
 from generaldataagent.observability import JsonlAuditSink
 from generaldataagent.observability.verified_audit import VerifiedAuditSink
 from generaldataagent.orchestration.composition import ExecutionComposition
 from generaldataagent.policy import PolicyEngine
+from generaldataagent.security.science_scope import ScienceWorkloadScope, require_science_scope
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,9 +54,10 @@ class DataScienceWorkbench:
         policy: PolicyEngine | None = None,
         sandbox: FixedTemplateSandbox | OCIContainerSandbox | None = None,
         audit: JsonlAuditSink | VerifiedAuditSink | None = None,
-        tracker: SQLiteExperimentTracker | None = None,
+        tracker: SQLiteExperimentTracker | MirroringExperimentTracker | None = None,
         production_mode: bool = False,
         composition: ExecutionComposition | None = None,
+        workload_scope: ScienceWorkloadScope | None = None,
     ) -> None:
         if composition is not None:
             if composition.artifacts is not artifact_store or (
@@ -63,6 +68,8 @@ class DataScienceWorkbench:
                 raise ValueError("science_production_mode_requires_a_product_composition")
             production_mode = composition.mode == "product"
             audit = composition.audit
+            if workload_scope is not None and composition.workload_scope != workload_scope:
+                raise ValueError("science_workload_scope_disagrees_with_composition")
         if production_mode and (
             not isinstance(artifact_store, GovernedArtifactStore)
             or not isinstance(audit, VerifiedAuditSink)
@@ -73,6 +80,9 @@ class DataScienceWorkbench:
             )
         self.production_mode = production_mode
         self.composition = composition
+        self.workload_scope = workload_scope or (
+            composition.workload_scope if composition else None
+        )
         self.artifact_store = artifact_store
         self.policy = policy or PolicyEngine()
         self.sandbox = sandbox or FixedTemplateSandbox()
@@ -111,6 +121,21 @@ class DataScienceWorkbench:
                 # The task owns its budget; an unregistered or expired task is
                 # refused here, before any policy decision is recorded.
                 self.composition.budgets.ensure_active(spec.task_id, bound)
+        if self.workload_scope is not None:
+            # A service identity reaches one task on one snapshot; the scope is
+            # checked before the artifact store, the policy engine or the sandbox
+            # is touched, so a refused experiment leaves no trace of work behind.
+            require_science_scope(
+                self.workload_scope,
+                actor=ActorContext(
+                    user_id=user_id,
+                    tenant_id=tenant_id,
+                    project_id=project_id,
+                    data_domains=(data_domain,),
+                ),
+                task_id=spec.task_id,
+                snapshot_id=spec.snapshot_id,
+            )
         require_artifact_scope(
             self.artifact_store,
             ActorContext(
