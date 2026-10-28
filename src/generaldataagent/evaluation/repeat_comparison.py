@@ -147,6 +147,52 @@ def _sign_test(gains: int, regressions: int) -> float:
     return min(1.0, 2 * tail / 2**discordant)
 
 
+def tasks_for_power(
+    discordance_rate: float,
+    *,
+    target_power: float = 0.8,
+    alpha: float = 0.05,
+    direction_share: float = 0.8,
+    max_discordant: int = 200,
+) -> dict | None:
+    """Estimate the task count a one-directional gain would need to be detected.
+
+    The comparison's exact test is two-sided with p = 2 * 0.5**m when all m
+    discordant tasks move the same way, so it cannot reject below six discordant
+    tasks at alpha 0.05. Dividing that count by the observed discordance rate
+    gives the task count, under the assumption that both the rate and the share
+    of discordant tasks that move the same way stay as observed. It is a planning
+    aid, not evidence, and it is None when no rate was observed.
+    """
+    if not 0 <= discordance_rate <= 1:
+        raise ValueError("invalid discordance rate")
+    if not 0.5 < direction_share <= 1:
+        raise ValueError("direction share must exceed chance")
+    if not 0 < target_power < 1 or not 0 < alpha < 1:
+        raise ValueError("invalid power policy")
+    if not discordance_rate:
+        return None
+    critical = next(m for m in range(1, 1000) if 2 * 0.5**m <= alpha)
+    for discordant in range(critical, max_discordant + 1):
+        probability = sum(
+            math.comb(discordant, k)
+            * direction_share**k
+            * (1 - direction_share) ** (discordant - k)
+            for k in range(critical, discordant + 1)
+        )
+        if probability >= target_power:
+            return {
+                "discordant_tasks_needed": discordant,
+                "tasks_needed": math.ceil(discordant / discordance_rate),
+                "critical_discordant_tasks": critical,
+                "observed_discordance_rate": discordance_rate,
+                "direction_share": direction_share,
+                "target_power": target_power,
+                "alpha": alpha,
+            }
+    return None
+
+
 def compare_repeated_runs(
     baseline: list[dict],
     candidate: list[dict],
@@ -236,6 +282,10 @@ def compare_repeated_runs(
             "sign_test_exact_two_sided_p": _sign_test(gains, regressions),
         },
         "service_error_rates": service_rates,
+        "design": {
+            "discordance_rate": len(paired) / len(rows),
+            "tasks_for_target_power": tasks_for_power(len(paired) / len(rows)),
+        },
         "design_blockers": blockers,
         "criteria_met": not blockers,
         "independent_review": "not_supplied",
@@ -246,6 +296,8 @@ def compare_repeated_runs(
             "the interval resamples tasks, so repeats of one task are not treated as "
             "independent observations",
             "a failed or unattempted run counts as a failed observation; nothing is excluded",
+            "tasks_for_target_power divides a discordant-task requirement by the observed "
+            "discordance rate; it is a planning estimate, not evidence",
             "independent review and production shadow validation are external gates and "
             "are never supplied by this comparison",
         ],
