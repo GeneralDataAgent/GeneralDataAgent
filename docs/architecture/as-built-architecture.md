@@ -140,7 +140,7 @@ flowchart TD
     EXEC --> ART["immutable artifact + hash"]
 ```
 
-Implemented in `tools/gateway.py:53-140`. Properties worth stating precisely:
+Implemented in `tools/gateway.py:47-140`. Properties worth stating precisely:
 
 - Policy is a static table (`policy/engine.py`, `DEFAULT_RULES`, 22 rules), not a model call. Levels
   run `r0` (metadata read) to `r4`; `production.write` is `r3` with an approval and a rollback-plan
