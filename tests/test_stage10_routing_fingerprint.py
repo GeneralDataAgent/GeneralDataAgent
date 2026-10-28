@@ -71,7 +71,13 @@ def run_manifest(tmp_path, monkeypatch):
     sequence = 0
 
     def run(
-        questions, *, routing=True, profile="sql", experience_actor=None, experience_database=None
+        questions,
+        *,
+        routing=True,
+        profile="sql",
+        experience_actor=None,
+        experience_database=None,
+        receipt_actor=None,
     ):
         nonlocal sequence
         sequence += 1
@@ -96,6 +102,8 @@ def run_manifest(tmp_path, monkeypatch):
         ]
         if routing:
             arguments.append("--routing")
+        if receipt_actor is not None:
+            arguments.extend(["--receipt-actor", json.dumps(receipt_actor)])
         if experience_actor is not None:
             experience_database = experience_database or tmp_path / "experience.sqlite"
             if not experience_database.exists():
@@ -115,6 +123,37 @@ def run_manifest(tmp_path, monkeypatch):
         return report, executed_profiles[-len(cases) :]
 
     return runner, run
+
+
+def test_receipt_opt_in_passes_distinct_explicit_identity_to_every_worker(
+    run_manifest, monkeypatch
+):
+    from uuid import UUID
+
+    runner, run = run_manifest
+    execute = runner.run_isolated
+    configs = []
+
+    def capture(*args, **kwargs):
+        configs.append(kwargs.get("receipt_config"))
+        return execute(*args, **kwargs)
+
+    monkeypatch.setattr(runner, "run_isolated", capture)
+    actor = ActorContext(
+        user_id="operator", tenant_id="research", project_id="receipts", data_domains=("test",)
+    )
+    report, _ = run(["Count payments", "Mean payment"], receipt_actor=actor.model_dump())
+    assert all(config["actor"] == actor.model_dump(mode="json") for config in configs)
+    assert len({UUID(config["task_id"]) for config in configs}) == 2
+    assert len({config["trace_id"] for config in configs}) == 2
+    assert all(Path(config["artifact_root"]).name == "artifacts" for config in configs)
+    assert (
+        report["system_fingerprint"]["execution_receipts"]["adapter_version"]
+        == "evaluation-step-v1"
+    )
+    off, _ = run(["Count payments"])
+    assert configs[-1] is None
+    assert off["system_fingerprint"]["execution_receipts"] is None
 
 
 @pytest.mark.parametrize(

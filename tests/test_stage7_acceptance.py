@@ -117,3 +117,42 @@ def test_sql_output_receipts_require_matching_execution_and_every_column_depende
     assert answer_receipt_errors(report) == ["synthetic:unverified_sql_data_dependency"]
     row["passed"] = False
     assert not answer_receipt_errors(report)
+
+
+def _rule_row(method_id: str) -> dict:
+    return {
+        "case_id": "synthetic",
+        "passed": True,
+        "answers": {"fee": 0.12},
+        "answer_evidence": {
+            "fee": {
+                "step": 2,
+                "path": ["average_fee"],
+                "method_id": method_id,
+                "result_hash": "same",
+                "submitted_value": 0.12,
+            }
+        },
+        "trace": [
+            {"step": 1, "status": "ok", "tool": "document_search", "result_hash": "doc"},
+            {"step": 2, "status": "ok", "tool": "fee_rules", "result_hash": "same"},
+        ],
+    }
+
+
+def test_rule_tool_field_receipt_is_not_reported_as_a_relabelled_sql_method():
+    from generaldataagent.evaluation.stage_seven_acceptance import answer_receipt_errors
+
+    report = {"benchmark": "dabstep-dev", "results": [_rule_row("fee_rules")]}
+    assert answer_receipt_errors(report) == []
+    report["results"] = [_rule_row("sql")]
+    assert answer_receipt_errors(report) == ["synthetic:receipt_method_mismatch"]
+
+
+def test_field_receipt_from_an_unlisted_tool_fails_closed():
+    from generaldataagent.evaluation.stage_seven_acceptance import answer_receipt_errors
+
+    row = _rule_row("fee_rules")
+    row["trace"][1]["tool"] = "unlisted_tool"
+    report = {"benchmark": "dabstep-dev", "results": [row]}
+    assert answer_receipt_errors(report) == ["synthetic:receipt_method_mismatch"]

@@ -174,6 +174,19 @@ def execution_hint(exc: Exception) -> str:
             "compute_sql or fixed_analysis for the remaining scalar fields, then submit_answers "
             "binding every key to those successful steps. submit_sql_answers is scalar-only."
         )
+    if "answer_sql_requires_public_column_aliases" in text:
+        return (
+            "The final SQL must return exactly the public answer columns, each aliased with "
+            "its public key. An alias that is not a public key, or a public key that is "
+            "missing, is refused even when the values are right. Rename every column to its "
+            "public key and submit one row."
+        )
+    if "answer_sql_requires_one_row" in text:
+        return (
+            "The final SQL returned more than one row. This submission binds one row to the "
+            "public scalar keys, so aggregate in SQL until exactly one row is returned; do not "
+            "add LIMIT to hide extra rows."
+        )
     if "public_age_order_direction" in text:
         return (
             "The public instructions explicitly relate this field's value to age. "

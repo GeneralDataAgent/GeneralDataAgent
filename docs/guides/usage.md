@@ -48,6 +48,12 @@ Ordinary resume still refuses changed sources. Rule delivery responses include a
 `rules.deliver` receipt; rule Supervisor results retain execution and delivery receipts in
 `receipts`, without changing the `DeliveryPackage` schema.
 
+## Record research evaluation receipts
+
+Fresh benchmark runs can opt in to persisted step receipts using an explicit research
+actor. See the [evaluation receipt guide](evaluation-receipts.md) for identity, readback,
+legacy compatibility and qualification requirements.
+
 ## Run the real-data and real-model validation
 
 Prerequisites:

@@ -791,3 +791,129 @@ def test_runner_rejects_invalid_denominator_before_model_access(tmp_path, monkey
     )
     with pytest.raises(ValueError, match="limit"):
         asyncio.run(runner.main())
+
+
+def _completed_row(**overrides):
+    row = dict(
+        outcome="model_run",
+        status="completed",
+        passed=False,
+        delegated_roles=["discovery", "data-analyst", "verifier", "reporter"],
+        roles_complete=True,
+        evidence_present=True,
+        answer_matches_published=False,
+    )
+    row.update(overrides)
+    return row
+
+
+def test_completed_delivery_with_a_wrong_answer_is_not_a_delivery_failure():
+    # Observed in a real paired run: the rule workflow, all four roles and the
+    # three artifacts were intact, only the published-answer comparison failed.
+    assert stop_diagnostic(_completed_row())["code"] == "answer_mismatch"
+    assert stop_diagnostic(_completed_row(answer_matches_published=True, passed=True))["code"] == (
+        "completed"
+    )
+
+
+def test_completed_delivery_with_a_missing_role_or_artifact_still_fails_the_check():
+    assert stop_diagnostic(_completed_row(roles_complete=False))["code"] == "delivery_check_failed"
+    assert stop_diagnostic(_completed_row(evidence_present=False))["code"] == (
+        "delivery_check_failed"
+    )
+
+
+def test_unreported_delivery_fields_keep_the_stricter_delivery_failure_code():
+    # Older rows may predate these fields; an unknown delivery state must not be
+    # reported as a confirmed wrong answer.
+    row = _completed_row()
+    del row["roles_complete"], row["evidence_present"]
+    assert stop_diagnostic(row)["code"] == "delivery_check_failed"
+
+
+def _refused_row(**overrides):
+    # Observed in a real supervisor run: the workflow recorded a declared refusal
+    # and the Supervisor reported it, so the cause is known rather than unknown.
+    # The data-analyst never reported, so no specialist stop is on record.
+    row = dict(
+        outcome="model_run",
+        status="failed",
+        passed=False,
+        delegated_roles=["discovery", "data-analyst"],
+        roles_complete=False,
+        evidence_present=False,
+        answer_matches_published=False,
+        specialist_reports=[{"role": "discovery", "status": "completed"}],
+        limitations=["deterministic workflow refusal: annex_workflow_requires_payments_source"],
+    )
+    row.update(overrides)
+    return row
+
+
+def test_a_reported_specialist_stop_outranks_the_refusal_code():
+    # A specialist that explicitly reports failed/needs_human is direct evidence
+    # of where the sequence stopped, so it keeps its own code.
+    row = _refused_row(
+        specialist_reports=[
+            {"role": "discovery", "status": "completed"},
+            {"role": "data-analyst", "status": "needs_human"},
+        ]
+    )
+    assert stop_diagnostic(row)["code"] == "specialist_stop_reported"
+
+
+def test_a_specialist_status_cannot_contradict_a_confirmed_delivery():
+    # Observed in the real supervisor run on 1681: the verifier declared
+    # needs_human, yet the deterministic sequence still ran the reporter and the
+    # package read back. The status is the model's declaration, not a control, so
+    # the stop category is the published-answer comparison rather than a stop
+    # that demonstrably did not happen.
+    row = _completed_row(
+        specialist_reports=[
+            {"role": "discovery", "status": "completed"},
+            {"role": "data-analyst", "status": "completed"},
+            {"role": "verifier", "status": "needs_human"},
+        ]
+    )
+    assert stop_diagnostic(row)["code"] == "answer_mismatch"
+    assert (
+        stop_diagnostic({**row, "answer_matches_published": True, "passed": True})["code"]
+        == "completed"
+    )
+    # An unconfirmed delivery keeps the specialist's report as the better code.
+    assert stop_diagnostic({**row, "evidence_present": False})["code"] == (
+        "specialist_stop_reported"
+    )
+
+
+def test_a_recorded_workflow_refusal_is_not_left_as_an_unknown_stop():
+    diagnostic = stop_diagnostic(_refused_row())
+    assert diagnostic["code"] == "workflow_refusal"
+    # The refusal explains the stop; it does not establish the request's meaning.
+    assert diagnostic["semantic_root_cause"] == "not_established"
+
+
+def test_the_run_summary_uses_the_refusal_code_the_rows_report():
+    summary = summarize_rule_run([_refused_row()], planned_n=1)
+    assert summary["stop_diagnostics"] == {"workflow_refusal": 1}
+    assert summary["passed_over_all_questions"] == 0
+
+
+def test_a_prefixed_limitation_without_a_code_is_not_a_refusal():
+    # Only the repository's own prefix with a non-empty code counts; a bare or
+    # foreign line must not be read as evidence of a declared refusal.
+    for limitations in (
+        ["deterministic workflow refusal: "],
+        ["model invocation failed: OSError"],
+        ["a model wrote: deterministic workflow refusal: made_up"],
+    ):
+        assert stop_diagnostic(_refused_row(limitations=limitations))["code"] == (
+            "incomplete_sequence_reason_unknown"
+        )
+
+
+def test_a_reported_refusal_does_not_outrank_observed_provider_failures():
+    # A provider error is stronger evidence than the refusal the workflow also
+    # recorded, so the fault keeps its own code.
+    row = _refused_row(model_errors=[{"status": "error", "error": "OSError"}])
+    assert stop_diagnostic(row)["code"] == "model_error_observed"

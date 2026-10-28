@@ -5,6 +5,16 @@ from generaldataagent.evaluation.stage_six_gates import REQUIRED_TRACKS, validat
 
 TARGETS = {"bird-mini-dev-sqlite": 36, "infiagent-dabench": 32, "dabstep-dev": 1}
 
+# A tool whose result is an answer field must declare the method that tool
+# produces. ``fixed_analysis`` additionally names its operation in the action.
+# Tools absent here cannot carry a field receipt, so an unlisted tool fails closed.
+_METHOD_BY_TOOL = {
+    "sql": "sql",
+    "sql_crosscheck": "sql",
+    "complete_collection": "complete_collection",
+    "fee_rules": "fee_rules",
+}
+
 
 def historical_protection(historical: dict, candidate: dict) -> dict:
     """A regression guard across protocols, explicitly not paired causal attribution."""
@@ -34,8 +44,17 @@ def historical_protection(historical: dict, candidate: dict) -> dict:
     }
 
 
-def answer_receipt_errors(report: dict) -> list[str]:
+def answer_receipt_errors(report: dict, *, read_bytes=None) -> list[str]:
+    from generaldataagent.evaluation.receipts import validate_evaluation_receipts
+
     errors = []
+    for row in report["results"]:
+        try:
+            if ("execution_receipts" in row or "receipt_context" in row) and read_bytes is None:
+                raise ValueError("evaluation_receipt_readback_required")
+            validate_evaluation_receipts(row, read_bytes=read_bytes)
+        except (ValueError, TypeError, KeyError, AttributeError, IndexError, OSError):
+            errors.append(row["case_id"] + ":invalid_execution_receipt")
     if report["benchmark"] == "bird-mini-dev-sqlite":
         import re
 
@@ -89,11 +108,7 @@ def answer_receipt_errors(report: dict) -> list[str]:
             expected_method = (
                 event.get("action", {}).get("analysis", {}).get("operation")
                 if tool == "fixed_analysis"
-                else "sql"
-                if tool in {"sql", "sql_crosscheck"}
-                else "complete_collection"
-                if tool == "complete_collection"
-                else None
+                else _METHOD_BY_TOOL.get(tool)
             )
             if expected_method is None or receipt.get("method_id") != expected_method:
                 errors.append(row["case_id"] + ":receipt_method_mismatch")
@@ -140,7 +155,9 @@ def answer_receipt_errors(report: dict) -> list[str]:
     return sorted(set(errors))
 
 
-def qualify_stage7(baselines: list[dict], candidates: list[dict], historical: list[dict]) -> dict:
+def qualify_stage7(
+    baselines: list[dict], candidates: list[dict], historical: list[dict], *, read_bytes=None
+) -> dict:
     def index(reports):
         output = {report["benchmark"]: report for report in reports}
         if len(output) != len(reports) or set(output) != set(REQUIRED_TRACKS):
@@ -152,7 +169,7 @@ def qualify_stage7(baselines: list[dict], candidates: list[dict], historical: li
     for name, expected in REQUIRED_TRACKS.items():
         paired = review_comparison(before[name], after[name], [])
         protection = historical_protection(history[name], after[name])
-        errors = answer_receipt_errors(after[name])
+        errors = answer_receipt_errors(after[name], read_bytes=read_bytes)
         comparison = paired["strict_comparison"]
         reasons = []
         if comparison["n"] != expected:

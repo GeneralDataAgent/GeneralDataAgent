@@ -54,6 +54,8 @@ profile declares 6 steps and 3 repairs, while a routed run declares the largest 
 the ceiling actually granted. All of these enter the protocol hash, so two runs that differ here
 cannot be paired as the same evaluator. Current evaluation defaults impose neither a cumulative token cap nor a per-call output cap; consumption remains fully recorded. An explicitly requested cumulative cap is checked after a response and is not a provider-side billing guarantee.
 
+A case's `failure` names how the agent loop ended, not the last thing that went wrong inside it. A rejected action that the model then corrects is kept in the trace with its own error code, but it does not label the finished run: a case that spends its remaining steps on successful observations and never submits ends as `step_budget`, and a case that later submits successfully ends with `failure: null`. The one exception is a final step whose action itself raised, which is reported as `execution_or_model_error`; the specific code remains on the trace entry. Before this rule, an earlier corrected error stayed latched for the rest of the loop, so unsubmitted runs were reported as execution failures.
+
 The original `sql` profile provides controlled SQL only. DABstep documents/JSON are data, not authority to expand tools. Legacy CSV import converts finite numeric columns to REAL and empty fields to NULL, which can change leading zeros, large integers, or missing-value semantics; use `identifier-v2` for the declared preservation policy. Modeling tasks do not install dependencies or execute arbitrary Python.
 
 Each run writes `report.partial.json` and, when complete, `report.json` with case results, protocol and source fingerprints. Partial runs are not complete scores. Preserve failures; never combine best cases across protocols/models. Source byte hashes identify actual code; a starting commit alone does not prove a clean frozen run.
@@ -74,6 +76,21 @@ Use Stage 1–5 runners and `uv run --frozen pytest --cov=generaldataagent --cov
 UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/run_stage6_acceptance.py --report .artifacts/stage6/bird-run/report.json --report .artifacts/stage6/infi-run/report.json --report .artifacts/stage6/dabstep-run/report.json --output .artifacts/stage6/acceptance.json
 ```
 
+## Checking stored failure labels
+
+A report keeps the failure label its run assigned. When the loop's labelling rules change,
+stored rows can name an ending the current code no longer produces — for example
+`execution_or_model_error` on a row whose trace ends with a successful observation. This
+read-only checker re-derives the reachable ending from each row's own trace and lists the
+rows that do not match. Rows without a readable trace are listed separately as unverifiable
+rather than counted as agreeing. Labels decided outside the loop (`answer_mismatch`,
+`unsupported_capability`, `repair_budget_exhausted`) are not judged here. It calls no model,
+changes no score, refuses an existing output and refuses to write over the report.
+
+```bash
+UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/check_stage6_failure_labels.py --report .artifacts/stage6/dabstep-run/report.json --output .artifacts/stage6/dabstep-labels.json
+```
+
 ## Offline replay without model calls
 
 Replace the report path for InfiAgent or DABstep. Replay reconstructs the cohort, verifies source/database digests, and rescores stored predictions without model requests. Reproduced scoring is not independent semantic correctness or production acceptance.
@@ -81,6 +98,22 @@ Replace the report path for InfiAgent or DABstep. Replay reconstructs the cohort
 ```bash
 UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/replay_stage6.py --report .artifacts/stage6/bird-run/report.json --output .artifacts/stage6/bird-replay.json
 ```
+
+## Execution-receipt readback
+
+A run started with `--receipt-actor` stores per-step result artifacts next to its
+report. Readback rehashes those stored bytes without a model call and without
+rescoring, and records the report hash, per-case receipt counts and any receipt or
+Stage 7 qualification errors. It refuses to overwrite an existing output.
+
+```bash
+UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/verify_evaluation_receipts.py --report .artifacts/stage6/bird-run/report.json --artifact-root .artifacts/stage6/bird-run/artifacts --output .artifacts/stage6/bird-readback.json
+```
+
+Legacy reports without receipt metadata still read back, contributing zero
+receipts. Readback proves byte identity and binding consistency only; use
+`replay_stage6.py` separately for scoring replay, and keep each dataset's
+denominator separate.
 
 ## Explicit model and tool selection
 
@@ -131,10 +164,15 @@ protocol/system/model-route checks. A mismatch raises `incomparable repeated-run
 or `incomparable repeated-run model`, including through release diagnostics. Equality checks
 consistency of the supplied provenance; it does not authenticate which runner or model executed.
 
+Repeated arms are compared with `evals/compare_repeated_runs.py`. It pairs tasks, not task-runs: each task contributes one vector of repeat outcomes per arm, so a task that flips between repeats cannot inflate the sample. Per-task rows carry pass counts, rates, mean tokens and mean seconds for both arms. The 95% interval resamples tasks with replacement (2,000 deterministic samples, seed 20261020); the exact two-sided test counts tasks whose pass count moved. The arm summary adds tokens per pass and p50/p95 latency, and sums cost only when every task-run in that arm carries a measured `cost_usd`; otherwise cost is reported as unknown, never as zero. Failures and unattempted runs stay in the denominator.
+
+The tool never certifies a gain. `design_blockers` records a single-run arm (one run cannot establish its own comparability), fewer than three runs in an arm, a development cohort, provider failures above 5%, unmeasured cost, any per-task regression, a non-positive delta, and an interval that includes zero. `--cohort-status` is a caller declaration (`development` by default, `held_out` when a frozen unused cohort is claimed) and the tool cannot verify that the cohort was never used. Independent review and production shadow validation stay external gates; `production_accepted` is always false. Incomparable inputs raise instead of averaging: a different cohort, source manifest, model, route or planned denominator, a different per-task database snapshot, a system or protocol change within one arm, or one copied report supplied as two.
+
 ```bash
 UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/qualify_stage6_analysis.py
 UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/compare_stage6.py --baseline BASELINE_REPORT --candidate CANDIDATE_REPORT --output COMPARISON_JSON
 UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/qualify_stage6_stability.py --report RUN1 --report RUN2 --report RUN3 --output STABILITY_JSON
+UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/compare_repeated_runs.py --baseline B1 --baseline B2 --baseline B3 --candidate C1 --candidate C2 --candidate C3 --cohort-status held_out --output REPEATS_JSON
 ```
 
 ## Identifier-preserving import and counterfactual scorer checks
@@ -196,7 +234,18 @@ Named requirements also check the requested name; calling a different tool does 
 Malformed tool arguments are recorded separately and do not count as an absent required call.
 Without an unmet requirement or a higher-priority stop, a final text reply with no tool call is
 `response_without_tool_call`; empty and malformed final replies stay
-`incomplete_sequence_reason_unknown`. Every non-completed row keeps
+`incomplete_sequence_reason_unknown`. A completed delivery whose role sequence or artifact readback
+is not confirmed is `delivery_check_failed`; a completed delivery with all four roles and readable
+artifacts that merely disagrees with the published answer is `answer_mismatch`, so a wrong answer is
+not filed as a delivery fault. A row whose Supervisor reported a declared deterministic refusal
+(`deterministic workflow refusal: <code>` in its limitations) is `workflow_refusal`: the stop has a
+recorded cause, so it is not left as reason-unknown. The refusal is only read back from that exact
+prefix with a non-empty code; free text that happens to resemble one is not accepted. An observed
+model or tool error still outranks it. A specialist's own `failed`/`needs_human` declaration is a
+model report, not a control: it gives `specialist_stop_reported` only when the delivery is not
+confirmed. If the deterministic sequence ran through the reporter and the package read back, the
+team demonstrably did not stop there, so the row is `answer_mismatch` (or `completed`) instead.
+Every non-completed row keeps
 `semantic_root_cause: not_established`. These classifications describe associated callback evidence,
 not a verified wire capture or an endpoint root cause. A local payload simulation cannot establish
 what an earlier live run sent; old reports without request metadata remain unqualified. A later
@@ -208,6 +257,38 @@ Model attempts, responses, errors and finite specialist role/status reports are 
 separately. Specialist declarations never authorize execution. Missing or failed-call token usage
 remains unknown even when known totals are zero. Costs remain null without independent billing
 telemetry.
+
+A stored report keeps the classifier it ran under. When the classifier is corrected, an old
+`summary.stop_diagnostics` still carries the old code and can disagree with the row it summarizes.
+`evals/reclassify_stage10_diagnostics.py` re-derives every row and the run summary with the current
+classifier and records the differences:
+
+```bash
+uv run python evals/reclassify_stage10_diagnostics.py \
+  --report .artifacts/supervisor-10/report.json \
+  --output .artifacts/supervisor-10/reclassification.json
+```
+
+It prints the stored and recomputed counts, lists each changed row with both codes, and refuses to
+overwrite an existing output or to write over the report it reads. The report itself is never
+edited: a reclassification says what the current classifier supports, while the stored summary
+remains the record of that run.
+
+Two runs of the same commit are not a paired experiment: the model is stochastic, so a difference in
+role sequence belongs to that run, not to any change between them. `evals/compare_stage10_rule_runs.py`
+compares them row by row and keeps both scores separate:
+
+```bash
+uv run python evals/compare_stage10_rule_runs.py \
+  --baseline .artifacts/supervisor-10/report.json \
+  --candidate .artifacts/supervisor-11/report.json \
+  --output .artifacts/comparison.json
+```
+
+It refuses an incomplete run, a different planned task set, dataset, model route or annex
+semantics, and reports `paired_effect_claimed: false`. Identity hashes that may legitimately differ
+(an added report field, a corrected classifier) are recorded side by side rather than treated as a
+mismatch. Use it to describe what changed between runs, never to derive an improvement.
 
 This runner reuses `ServiceCircuitBreaker`: HTTP 401/402/403/404 opens the circuit immediately;
 three consecutive other model-service failures also open it. Later parseable cases are
@@ -393,6 +474,18 @@ computed IDs, average fee, or rate delta. Unspecified facets in `select`/`averag
 constraints; `applicable`/`counterfactual` derive merchant thresholds from the full natural
 month even for a day-scoped transaction set. Null and empty-list wildcard declarations remain
 separate and are recorded with the caller's exact document excerpt.
+
+Every rule result reports the other empty-list reading without choosing it. The DABstep annex
+stores "applies to every value" as `[]` for most rules while the manual defines only `null`, so
+`empty_list_is_wildcard` is a caller declaration, not a derived fact. `empty_list_reading` carries
+the facet counts under both readings plus, when `applicable`/`counterfactual` narrow by merchant
+thresholds and transaction facets, the counts after that stage (`selection_stage`,
+`selected_under_declared_reading`, `selected_under_alternate_reading`). Facet counts alone are not
+enough there: both readings can select all 1000 rules and still return 0 versus 34 applicable
+rules. `reading_changes_selection` describes the stage that decides the returned rules, and an
+alternate reading whose applicability is indeterminate is reported as
+`alternate_reading_indeterminate` instead of "no change". The declared reading still decides the
+result; the default is unchanged and relaxing it still requires independent review.
 
 The development rule workflow retains `Decimal` values when passing monthly volume and
 fraud amount ratio from its context checkpoint to threshold matching. Converting them to
@@ -789,3 +882,9 @@ LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false UV_CACHE_DIR=/tmp/deepagents-
 UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/qualify_stage6_repair.py --report .artifacts/stage6/dabstep-nvidia-enhanced-v5/report.json --output .artifacts/stage6/feedback-replay-fresh.json
 UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/build_stage6_iteration_report.py --manifest evals/stage6_iteration_v7.json --output ../docs/validation/stage6-iteration-v7-results
 ```
+
+Documents are opt-in and are exercised only when `search_documents` is called. In a paired run,
+evidence of use comes from persisted `rule.document.evidence` artifacts under each task's thread
+directory — one per search, carrying `status` (`matches` or `gap`), query and citations — not from
+the model's narration. Compare those counts between the two arms before attributing any answer
+change to the treatment; a treatment arm that made no searches has not tested documents.

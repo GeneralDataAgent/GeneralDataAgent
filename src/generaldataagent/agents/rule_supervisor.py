@@ -44,7 +44,9 @@ from generaldataagent.business.extensions import ExtensionAdmission, SkillDefini
 from generaldataagent.business.rules.delivery import RuleDeliveryRuntime, answer_rows
 from generaldataagent.business.rules.document_context import DocumentContext
 from generaldataagent.business.rules.governed import GovernedRuleRunner
+from generaldataagent.business.rules.payments import PaymentsSourceError
 from generaldataagent.business.rules.semantics import AnnexSemanticsDeclaration
+from generaldataagent.business.rules.workflow import REFUSAL_CODES
 from generaldataagent.contracts import ActorContext, AgentRole, ExecutionReceipt, ToolRequest
 from generaldataagent.contracts.rule_tools import RuleAnalysisRequest
 from generaldataagent.llm.orchestration import OrchestrationRouter
@@ -274,6 +276,21 @@ class RuleSupervisorRuntime:
                 limitations=("explicit specialist stop or human review required",),
             )
         except Exception as exc:
+            # A deterministic refusal of the bound request (for example a
+            # counterfactual whose target rule does not apply to the merchant
+            # month) is not a model or provider fault. Reporting it as one hides
+            # the actual cause behind "model invocation failed".
+            code = _workflow_refusal_code(exc)
+            if code is not None:
+                return SupervisorResult(
+                    status="failed",
+                    summary="The governed rule workflow refused the bound request.",
+                    task_id=str(self.task_id),
+                    receipts=_receipts(candidates),
+                    delegated_roles=tuple(role_events),
+                    artifact_uris=_artifact_uris(candidates),
+                    limitations=(f"deterministic workflow refusal: {code}",),
+                )
             return SupervisorResult(
                 status="failed",
                 summary="The model provider did not complete the governed rule workflow.",
@@ -538,6 +555,22 @@ class RuleSupervisorRuntime:
         thread = result["thread_id"]
         state = self.workflow.state_of(thread, self.request, actor)
         return {**state, "thread_id": thread, "receipt": result.get("receipt")}
+
+
+def _workflow_refusal_code(exc: BaseException) -> str | None:
+    """Return a declared deterministic refusal code, never a model/provider fault.
+
+    The rule handlers refuse a bound request with a code from a closed, declared
+    set when the request cannot be answered from the supplied evidence:
+    ``REFUSAL_CODES`` for the annex stages and ``PaymentsSourceError.CODES`` for
+    the payment source. Membership — not a message prefix — is what counts, so
+    arbitrary exception text can never be surfaced, even if it happens to look
+    like a code.
+    """
+    if isinstance(exc, PaymentsSourceError):
+        return exc.code
+    message = str(exc)
+    return message if message in REFUSAL_CODES else None
 
 
 def _receipts(candidates: dict[str, dict[str, Any]]) -> tuple[ExecutionReceipt, ...]:

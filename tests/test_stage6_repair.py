@@ -58,6 +58,27 @@ def test_only_known_execution_diagnostics_are_returned():
     assert "secret-token" not in execution_hint(RuntimeError("no such column: bad\nsecret-token"))
 
 
+@pytest.mark.parametrize(
+    "check,expected",
+    [
+        # Naming the fix the checker wants, not a generic "revise the action".
+        ("answer_sql_requires_public_column_aliases", "public key"),
+        ("answer_sql_requires_one_row", "exactly one row"),
+    ],
+)
+def test_each_atomic_sql_check_names_its_own_repair(check, expected):
+    hint = execution_hint(ValueError(check))
+    assert expected in hint
+    assert hint != "Revise the action using the visible schema and supported tools."
+
+
+def test_an_unknown_check_still_falls_back_to_the_generic_hint():
+    """Only recognised codes get specific advice; no guess from arbitrary text."""
+    assert execution_hint(ValueError("answer_sql_requires_something_new")) == (
+        "Revise the action using the visible schema and supported tools."
+    )
+
+
 class Model:
     def __init__(self, actions):
         self.actions = iter(actions)
@@ -108,6 +129,32 @@ def test_missing_evidence_is_repaired_but_never_accepted_unobserved(tmp_path):
     bad = Model([{"answers": {"n": "2"}, "evidence_steps": [1]}] * 3)
     result = BoundedSQLAgent(bad, max_steps=3, tool_profile="sql-repair").run(task, db)
     assert result["failure"] == "missing_evidence" and result["answers"] == {}
+
+
+def test_the_specific_alias_hint_reaches_the_model_that_must_repair(tmp_path):
+    """The helper's text is worth nothing unless the refused call receives it."""
+    db = tmp_path / "data.sqlite"
+    with sqlite3.connect(db) as connection:
+        connection.execute("CREATE TABLE data(x REAL)")
+        connection.executemany("INSERT INTO data VALUES (?)", [(2,), (4,)])
+    model = Model(
+        [
+            {"sql": "SELECT 1"},
+            {"submit_sql_answers": {"sql": "SELECT AVG(x) AS wrong FROM data"}},
+            {"submit_sql_answers": {"sql": "SELECT AVG(x) AS mean FROM data"}},
+        ]
+    )
+    task = Task("infiagent-dabench", "fixture", "mean?", "@mean[value]", "easy", "data.csv")
+    result = BoundedSQLAgent(model, max_steps=3, tool_profile="sql-semantic").run(task, db)
+    assert result["failure"] is None and result["answers"] == {"mean": 3.0}
+    feedback = [json.loads(text) for role, text in model.messages if role == "human"]
+    refused = [
+        item
+        for item in feedback
+        if item.get("checks") == ("answer_sql_requires_public_column_aliases")
+    ]
+    assert len(refused) == 1
+    assert "public key" in refused[0]["hint"]
 
 
 def test_unknown_column_feedback_enables_a_valid_retry(tmp_path):

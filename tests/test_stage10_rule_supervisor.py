@@ -8,6 +8,9 @@ from generaldataagent.agents.rule_supervisor import (
     RULE_SUPERVISOR_PROMPT,
     RuleSupervisorRuntime,
 )
+from generaldataagent.agents.rule_supervisor import (
+    _workflow_refusal_code as _refusal_code,
+)
 from generaldataagent.artifacts import LocalArtifactStore
 from generaldataagent.business.governance import FeedbackRegistry
 from generaldataagent.business.rules.delivery import RuleDeliveryRuntime
@@ -395,3 +398,94 @@ def test_supervisor_result_accepts_legacy_payload_without_receipts():
         "limitations": [],
     }
     assert SupervisorResult.model_validate(legacy).receipts == ()
+
+
+def test_deterministic_workflow_refusal_is_not_reported_as_a_model_failure(tmp_path, monkeypatch):
+    """A counterfactual naming a rule that does not apply stops deterministically.
+
+    Observed in a real paired run as "model invocation failed: ValueError" with
+    `semantic_root_cause: not_established`, which hid an annex refusal.
+    """
+
+    def script(groups):
+        groups["discovery"][0].invoke({})
+        # Let the refusal propagate: the Supervisor must classify it, not swallow it.
+        groups["data_analysis"][0].invoke({})
+
+    request_value = request(
+        operation="counterfactual",
+        merchant="Belles_cookbook_store",
+        year=2023,
+        month=1,
+        rule_id="not-in-annex",
+        alternate_rate="1",
+        transaction_value="10",
+    )
+    _, result, _ = run(tmp_path, monkeypatch, script, request_value=request_value)
+    assert result.status == "failed"
+    assert result.summary == "The governed rule workflow refused the bound request."
+    assert result.limitations == (
+        "deterministic workflow refusal: annex_workflow_requires_payments_source",
+    )
+
+
+def test_provider_failure_keeps_its_model_invocation_label(tmp_path, monkeypatch):
+    def script(groups):
+        groups["discovery"][0].invoke({})
+        raise OSError("synthetic provider failure")
+
+    _, result, _ = run(tmp_path, monkeypatch, script)
+    assert result.summary == "The model provider did not complete the governed rule workflow."
+    assert result.limitations == ("model invocation failed: OSError",)
+
+
+def test_payment_source_refusal_is_not_reported_as_a_model_failure(tmp_path, monkeypatch):
+    """Two stored rows said "model invocation failed: PaymentsSourceError".
+
+    A scoped payment lookup refuses with a declared, stable code; that is a
+    source refusal and must not be attributed to the provider.
+    """
+    from generaldataagent.business.rules.payments import PaymentsSourceError
+
+    def script(groups):
+        groups["discovery"][0].invoke({})
+        raise PaymentsSourceError("payments_month_empty")
+
+    _, result, _ = run(tmp_path, monkeypatch, script)
+    assert result.summary == "The governed rule workflow refused the bound request."
+    assert result.limitations == ("deterministic workflow refusal: payments_month_empty",)
+
+
+def test_an_undeclared_value_error_is_still_not_echoed(tmp_path, monkeypatch):
+    """Only a declared code is surfaced; arbitrary exception text never is."""
+
+    def script(groups):
+        groups["discovery"][0].invoke({})
+        raise ValueError("merchant Belles_cookbook_store row 12 is malformed")
+
+    _, result, _ = run(tmp_path, monkeypatch, script)
+    assert result.limitations == ("model invocation failed: ValueError",)
+    assert "Belles_cookbook_store" not in result.summary
+    assert not any("Belles_cookbook_store" in line for line in result.limitations)
+
+
+def test_a_message_that_merely_resembles_a_code_is_not_surfaced(tmp_path, monkeypatch):
+    """Membership in the declared set decides, not a message prefix."""
+
+    def script(groups):
+        groups["discovery"][0].invoke({})
+        raise ValueError("annex_workflow_invented_by_a_caller: secret payload")
+
+    _, result, _ = run(tmp_path, monkeypatch, script)
+    assert result.limitations == ("model invocation failed: ValueError",)
+    assert not any("secret" in line for line in result.limitations)
+
+
+def test_every_declared_refusal_code_is_attributed_to_the_workflow():
+    from generaldataagent.business.rules.payments import PaymentsSourceError
+    from generaldataagent.business.rules.workflow import REFUSAL_CODES
+
+    for code in REFUSAL_CODES:
+        assert _refusal_code(ValueError(code)) == code
+    for code in PaymentsSourceError.CODES:
+        assert _refusal_code(PaymentsSourceError(code)) == code

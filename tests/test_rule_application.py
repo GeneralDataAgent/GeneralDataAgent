@@ -368,3 +368,18 @@ def test_local_demo_reuses_shared_operations_without_evaluation():
     assert lines[5] == "average_fee: 0.18"
     assert lines[6] == "affected_by_demo_foreign: (Decimal('1200.00'),)"
     assert lines[-1] == "BANNED []"
+
+
+def test_declared_refusal_codes_match_every_raise_site():
+    """A code the handlers raise must be declared, or the supervisor would call it
+    a model failure; a declared code nobody raises is dead policy."""
+    import inspect
+    import re
+
+    from generaldataagent.business.rules import workflow as module
+    from generaldataagent.business.rules.workflow import REFUSAL_CODES
+
+    # Locate the module from its own import, not the process working directory.
+    source = inspect.getsource(module)
+    raised = set(re.findall(r'raise ValueError\("(annex_workflow_[a-z_]+)"', source))
+    assert raised == set(REFUSAL_CODES)

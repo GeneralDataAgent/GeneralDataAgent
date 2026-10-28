@@ -12,6 +12,7 @@ from contextlib import closing
 from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
+from uuid import uuid4
 
 from generaldataagent.contracts import ActorContext
 from generaldataagent.evaluation.routing import route_task
@@ -123,7 +124,14 @@ def main():
     parser.add_argument("--transport", choices=["configured", "openai-chat"], default="configured")
     parser.add_argument("--bird-databases", type=Path)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--receipt-actor",
+        help="Opt in to research step receipts with an explicit ActorContext JSON declaration",
+    )
     args = parser.parse_args()
+    receipt_actor = (
+        ActorContext.model_validate_json(args.receipt_actor) if args.receipt_actor else None
+    )
     if args.max_tokens is not None and args.max_tokens < 1:
         parser.error("max tokens must be positive")
     if args.tool_profile in {
@@ -398,6 +406,13 @@ def main():
         "worker_hash": digest(ROOT / "src/generaldataagent/evaluation/stage_six_worker.py"),
         "dependency_lock_hash": digest(ROOT / "uv.lock"),
         "tool_profile": "routed" if args.routing else args.tool_profile,
+        "execution_receipts": {
+            "adapter_version": "evaluation-step-v1",
+            "adapter_hash": digest(ROOT / "src/generaldataagent/evaluation/receipts.py"),
+            "contract_hash": digest(ROOT / "src/generaldataagent/contracts/receipt.py"),
+        }
+        if receipt_actor is not None
+        else None,
         "routing": routing_manifest,
         "experience": {
             "enabled": args.experience_database is not None,
@@ -514,6 +529,18 @@ def main():
                 experience_database=experience_database,
                 experience_actor=experience_actor,
                 experience_store_hash=protocol.get("experience_store_hash"),
+                **(
+                    {
+                        "receipt_config": {
+                            "artifact_root": str((args.output / "artifacts").resolve()),
+                            "actor": receipt_actor.model_dump(mode="json"),
+                            "task_id": str(uuid4()),
+                            "trace_id": str(uuid4()),
+                        }
+                    }
+                    if receipt_actor is not None
+                    else {}
+                ),
             )
             if route_plan is not None:
                 result["route"] = route_plan.as_dict()

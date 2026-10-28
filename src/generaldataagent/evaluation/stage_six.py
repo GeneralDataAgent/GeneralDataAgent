@@ -394,7 +394,9 @@ class BoundedSQLAgent:
             max_tokens,
         )
 
-    def run(self, task: Task, database: Path, *, documents: str = "") -> dict:
+    def run(
+        self, task: Task, database: Path, *, documents: str = "", receipt_recorder=None
+    ) -> dict:
         from generaldataagent.evaluation.stage_six_analysis import (
             document_outline,
             fixed_analysis,
@@ -402,6 +404,8 @@ class BoundedSQLAgent:
             retrieve_documents,
         )
 
+        if receipt_recorder is not None:
+            receipt_recorder.require_inputs(task, database, documents, self.tool_profile)
         context, relations = database_context(
             database.resolve(),
             public_text=task.question
@@ -1382,7 +1386,16 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     break
                 if tool == "fee_rules":
                     event["rule_evidence"] = result_data
+                if receipt_recorder is not None:
+                    receipt_recorder.record(event, result_data)
                 trace.append(event)
+                # An observation that succeeded means whatever went wrong at an
+                # earlier step was recovered from. Keep that entry in the trace
+                # for diagnosis, but do not let it label the run: otherwise a
+                # corrected error stays latched, and a case that simply spends
+                # its remaining steps observing is reported as an execution
+                # failure instead of a spent step budget.
+                failure = "step_budget"
                 automatic_spec = False
                 if semantic and tool != "document_search":
                     evidence[step] = dict(result_data)
@@ -1440,6 +1453,10 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                         }
                 messages.append(("human", json.dumps({"step": step, **feedback}, default=str)))
             except Exception as exc:
+                from generaldataagent.evaluation.receipts import EvaluationReceiptError
+
+                if isinstance(exc, EvaluationReceiptError):
+                    raise
                 if semantic:
                     task_spec = previous_task_spec
                     automatic_spec = previous_automatic_spec
@@ -1513,10 +1530,21 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                             from generaldataagent.evaluation.experience_extraction import (
                                 rule_repair_context_hash,
                             )
+                            from generaldataagent.evaluation.stage_nine import (
+                                excerpt_rejection_diagnostic,
+                            )
 
                             event["rule_repair_context_hash"] = rule_repair_context_hash(
                                 action["rules"]
                             )
+                            # How the rejected excerpt differed, never the excerpt
+                            # itself. Without this a "not verbatim" refusal cannot
+                            # be distinguished from a paraphrase by any reviewer.
+                            rejected = action["rules"].get("semantics_excerpt")
+                            if isinstance(rejected, str):
+                                event["excerpt_diagnostic"] = excerpt_rejection_diagnostic(
+                                    rejected, documents
+                                )
                         event.update(code=exc.code, repair_type="correct_rule_context")
                         feedback.update(
                             code=exc.code,
@@ -1679,6 +1707,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
             "cost_status": "provider_reported" if cost_complete else "partial_or_unknown",
             "repair_budget": repairs.report(),
             "experience_used": experience_used,
+            **(receipt_recorder.export() if receipt_recorder is not None else {}),
         }
 
 
@@ -1815,6 +1844,7 @@ def run_isolated(
     experience_actor: dict | None = None,
     experience_store_hash: str | None = None,
     max_experience: int = 2,
+    receipt_config: dict | None = None,
 ) -> dict:
     """Kill a stuck model/tool worker at the OS process boundary; send no golden data."""
     if max_tokens is not None and (type(max_tokens) is not int or max_tokens < 1):
@@ -1877,6 +1907,7 @@ def run_isolated(
         "experience_actor": experience_actor,
         "experience_store_hash": experience_store_hash,
         "max_experience": max_experience,
+        **({"receipt_config": receipt_config} if receipt_config is not None else {}),
     }
     environment = {
         k: v for k, v in os.environ.items() if k not in {"LANGSMITH_API_KEY", "LANGCHAIN_API_KEY"}
