@@ -211,6 +211,12 @@ tool scope. Historical rule records keep their bytes. This broadens bounded extr
 neither arbitrary-tool learning nor proof that an executed replacement is semantically correct.
 Trace assertions remain unauthenticated and all new candidates still require independent review.
 
+Review preparation now has a bounded, read-only inventory for one actor scope. One SQLite snapshot
+retains all record/source/vote evidence and groups exact lesson bodies under a versioned policy;
+schema versions, text and tuple order remain significant. This reduces repeated display without
+merging records or transferring acceptance. The inventory is not semantic consolidation, source
+authentication or a bulk review API, and its content hash does not establish any of those claims.
+
 `ValidatedRunReport` now provides the shared envelope below treatment comparison, repeat stability,
 and service readiness. The existing case validator already was shared; the remaining duplication
 was repeated summary recomputation in the paired-repeat path and reopening caller-owned dictionaries
