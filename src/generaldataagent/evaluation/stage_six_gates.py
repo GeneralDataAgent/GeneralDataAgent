@@ -1,9 +1,9 @@
 """Fail-closed release diagnostics for public development evaluation evidence."""
 
-import math
 from collections import Counter
 
-from generaldataagent.evaluation.stage_six import paired_gate, summarize
+from generaldataagent.evaluation.run_report import RunReportInput, ValidatedRunReport
+from generaldataagent.evaluation.stage_six import paired_gate
 
 REQUIRED_TRACKS = {
     "bird-mini-dev-sqlite": 60,
@@ -12,44 +12,9 @@ REQUIRED_TRACKS = {
 }
 
 
-def validate_report(report: dict) -> dict:
-    """Recompute statistics; reject duplicates, nonfinite telemetry and missing provenance."""
-    for key in ("cohort_hash", "protocol_hash", "source_manifest_hash", "runner_hash", "model"):
-        if not report.get(key):
-            raise ValueError(f"missing provenance: {key}")
-    results = report["results"]
-    for row in results:
-        if not isinstance(row["passed"], bool):
-            raise ValueError("passed must be a boolean")
-        if (
-            type(row["elapsed_seconds"]) not in {int, float}
-            or not math.isfinite(row["elapsed_seconds"])
-            or row["elapsed_seconds"] < 0
-        ):
-            raise ValueError("invalid latency")
-        if type(row["tokens"]) is not int or row["tokens"] < 0:
-            raise ValueError("invalid token telemetry")
-        if (
-            not isinstance(row["case_id"], str)
-            or not row["case_id"]
-            or type(row["sub_hits"]) is not int
-            or type(row["sub_total"]) is not int
-            or not 0 <= row["sub_hits"] <= row["sub_total"]
-        ):
-            raise ValueError("invalid case or subquestion evidence")
-        if row["passed"] and (row["sub_total"] == 0 or row["sub_hits"] != row["sub_total"]):
-            raise ValueError("successful task has incomplete subquestion evidence")
-        cost = row.get("cost_usd")
-        if cost is not None and (
-            type(cost) not in {int, float} or not math.isfinite(cost) or cost < 0
-        ):
-            raise ValueError("invalid cost telemetry")
-        if row["passed"] and (row["failure"] or row.get("severe_incident")):
-            raise ValueError("contradictory success")
-    expected = summarize(results)
-    if expected != report["summary"]:
-        raise ValueError("summary does not match case-level evidence")
-    return expected
+def validate_report(report: RunReportInput) -> dict:
+    """Compatibility entry point returning a detached, recomputed summary."""
+    return ValidatedRunReport.from_report(report).summary
 
 
 def release_diagnostics(

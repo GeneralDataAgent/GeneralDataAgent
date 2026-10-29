@@ -19,8 +19,8 @@ import random
 from collections import Counter
 
 from generaldataagent.evaluation.frozen_cohort import verify_cohort_file
+from generaldataagent.evaluation.run_report import RunReportInput, ValidatedRunReport
 from generaldataagent.evaluation.stage_six_comparison import SERVICE_FAILURES
-from generaldataagent.evaluation.stage_six_gates import validate_report
 from generaldataagent.evaluation.stage_six_stability import repeated_evidence
 
 REPEATS_REQUIRED = 3
@@ -36,7 +36,7 @@ SAME_ACROSS_ARMS = (
 )
 
 
-def _stability(runs: list[dict]) -> dict | None:
+def _stability(runs: list[RunReportInput]) -> dict | None:
     """Within-arm repeat evidence; one run cannot establish its own comparability."""
     return repeated_evidence(runs) if len(runs) >= 2 else None
 
@@ -339,8 +339,8 @@ def _cost_report(baseline: list[dict], candidate: list[dict], arms: dict) -> dic
 
 
 def compare_repeated_runs(
-    baseline: list[dict],
-    candidate: list[dict],
+    baseline: list[RunReportInput],
+    candidate: list[RunReportInput],
     *,
     bootstrap_samples: int = 2000,
     bootstrap_seed: int = 20261020,
@@ -360,9 +360,10 @@ def compare_repeated_runs(
         raise ValueError("too few bootstrap samples for an interval")
     if not 0 <= max_service_error_rate <= 1:
         raise ValueError("invalid service-error policy")
-    for runs in (baseline, candidate):
-        for report in runs:
-            validate_report(report)
+    baseline_runs = [ValidatedRunReport.from_report(report) for report in baseline]
+    candidate_runs = [ValidatedRunReport.from_report(report) for report in candidate]
+    baseline = [run.to_dict() for run in baseline_runs]
+    candidate = [run.to_dict() for run in candidate_runs]
     left, right = baseline[0], candidate[0]
     for key in SAME_ACROSS_ARMS:
         if left.get(key) != right.get(key):
@@ -381,7 +382,7 @@ def compare_repeated_runs(
         else None
     )
 
-    evidence = {"baseline": _stability(baseline), "candidate": _stability(candidate)}
+    evidence = {"baseline": _stability(baseline_runs), "candidate": _stability(candidate_runs)}
     arms = {"baseline": _arm("baseline", baseline), "candidate": _arm("candidate", candidate)}
     cohort_files = {
         name: {run.get("cohort_file_hash") for run in runs}

@@ -3,15 +3,19 @@
 import math
 from collections import Counter
 
+from generaldataagent.evaluation.run_report import RunReportInput, ValidatedRunReport
 from generaldataagent.evaluation.stage_six import paired_gate
-from generaldataagent.evaluation.stage_six_gates import validate_report
 
 SERVICE_FAILURES = {"model_error", "worker_error", "worker_deadline", "service_circuit_open"}
 
 
-def compare_runs(baseline: dict, candidate: dict, *, max_service_error_rate: float = 0.05) -> dict:
-    before = validate_report(baseline)
-    after = validate_report(candidate)
+def compare_runs(
+    baseline: RunReportInput, candidate: RunReportInput, *, max_service_error_rate: float = 0.05
+) -> dict:
+    baseline_run = ValidatedRunReport.from_report(baseline)
+    candidate_run = ValidatedRunReport.from_report(candidate)
+    before, after = baseline_run.summary, candidate_run.summary
+    baseline, candidate = baseline_run.to_dict(), candidate_run.to_dict()
     paired = paired_gate(baseline, candidate)
     old = {r["case_id"]: r for r in baseline["results"]}
     new = {r["case_id"]: r for r in candidate["results"]}
