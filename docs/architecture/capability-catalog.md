@@ -37,11 +37,14 @@ case in an isolated subprocess, with its own step, time, and token budgets.
 | Six-class failure attribution (capability gap and ambiguity do not consume repair budget) | `evaluation/routing.py::failure_cause` | Available |
 | Research step receipts with an explicit actor | `--receipt-actor`, `evals/verify_evaluation_receipts.py` | Opt-in |
 | Execution receipts with a declared verification level (`producer_self_check` … `human_attestation`) | `contracts/receipt.py`, [ADR 0010](../adr/0010-execution-receipt-contract.md) | Available |
+| Versioned receipt reader: an unstated or unsupported `receipt_version` is refused by name on every read path | `contracts/receipt.py::load_receipt` | Available |
 | Paired comparison of two single runs | `evals/compare_stage6.py` | Available |
 | Within-arm stability (flip rate, duplicate-report rejection) | `evaluation/stage_six_stability.py` | Available |
 | Task-clustered paired repeats with bootstrap interval and exact sign test | `evals/compare_repeated_runs.py` | Available |
+| Minimum detectable effect and honest cost degradation for a recorded cohort | `repeat_comparison.minimum_detectable_effect`, `cost` block | Available |
 | Power/task-count estimate from observed discordance | `repeat_comparison.tasks_for_power` | Available |
 | Frozen unseen cohort, enforced at run time | `evals/freeze_cohort.py`, `run_stage6.py --cohort-file` | Available (one 45-case BIRD cohort frozen, not yet run) |
+| Frozen cohort file re-verified against the stored runs (benchmark, aggregate hash, file bytes) | `freeze_cohort.verify_cohort_file` | Available |
 | Reviewed experience hints injected into the repair loop | `--experience-database/--experience-actor` | Opt-in, off by default |
 | Offline experience extraction and read-only audit | `evals/extract_stage10_experience.py`, `evals/audit_stage10_experience.py` | Available (candidates only; never auto-approved) |
 
@@ -67,6 +70,8 @@ case in an isolated subprocess, with its own step, time, and token budgets.
 | Digest-pinned OCI sandbox (pull-never, no network, read-only root, capability drop) | `evals/run_stage3_oci.py` | Adapter (needs a local Docker/Podman) |
 | Classification/regression baselines, EDA, subgroup errors, model cards | `DataScienceWorkbench` | Available |
 | Append-only experiment tracking | `SQLiteExperimentTracker` | Available |
+| Mirror to an external experiment index: local record first, explicit `pending` on failure | `MirroringExperimentTracker` | Adapter (needs an admitted external index) |
+| Workload scope binding one service run to an actor, task, snapshot and domain set | `security/science_scope.py`, `ExecutionComposition.workload_scope` | Available |
 | Model registry **draft only**, exact R2 approval, `deployment_approved=false` | `data_science/registration.py` | Available; deployment **Absent** |
 | Statistical tests and formula-bound analysis tools (Pearson, IQR, public formulas) | `tools/statistical_methods.py`, `tools/public_formulas.py` | Available |
 
@@ -79,9 +84,11 @@ case in an isolated subprocess, with its own step, time, and token budgets.
 | Reviewer console, `/review` | `services/approval_service.py` (separate app) | Opt-in |
 | Report schedules and restart-safe worker | `business/schedules.py`, `business/worker.py`, `services/report_worker.py` | Opt-in |
 | Feishu notification and frozen-report IM delivery with readback/reconciliation | `business/feishu.py` | Adapter |
+| Cloud-document publication with look-before-write, readback and an explicit ambiguous outcome | `business/feishu_document.py` | Adapter (no application registered; no consumer wired yet) |
 | GitHub scheduling draft PR and Issues review queues | `business/github.py` | Adapter |
 | Document rule model, Decimal computation, applicability semantics | `business/rules/` | Available |
 | Rule delivery as a `DeliveryPackage` with per-artifact authorization | `rules.deliver`, `RuleDeliveryRuntime` | Available |
+| Atomic rollback of a partially written delivery: reverse discard, `rule_delivery_rollback_incomplete` | `RuleDeliveryRuntime`, `LocalArtifactStore.discard` | Available |
 | Rule supervisor with the same four-role order as metrics | `agents/rule_supervisor.py` | Available (live-model reliability measured, not assumed) |
 | Feedback curation, capability admission (skill/agent/connector) | `business/governance.py`, `business/extensions.py` | Available |
 

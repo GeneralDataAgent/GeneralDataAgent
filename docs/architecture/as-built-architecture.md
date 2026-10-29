@@ -203,14 +203,14 @@ flowchart TB
 | Package | Modules | Responsibility | Main entry points |
 |---|---:|---|---|
 | `evaluation` | 44 | Benchmark harnesses (BIRD, InfiAgent-DABench, DABstep), deterministic scorers, receipts, repeat/stability comparison, routing, frozen cohorts | `stage_six.run_benchmark`, `compare_repeated_runs`, `freeze_cohort`, `routing.route_task` |
-| `business` | 28 | Business drafts, exact approvals, outbox, schedules, Feishu/GitHub receivers, capability admission, Skills | `actions.BusinessActionRuntime`, `extensions.SkillDefinition`, `governance.FeedbackRegistry` |
+| `business` | 29 | Business drafts, exact approvals, outbox, schedules, Feishu/GitHub receivers, capability admission, Skills | `actions.BusinessActionRuntime`, `extensions.SkillDefinition`, `governance.FeedbackRegistry` |
 | `tools` | 15 | Gateway, SQL guard, SQLite/DuckDB query, science, rules and delivery handlers | `ToolGateway`, `sql_guard`, `rules` |
 | `contracts` | 20 | Frozen boundary models (`extra="forbid"`) | `TaskPlan`, `ToolRequest`, `DeliveryPackage`, `ActorContext`, … |
 | `data_science` | 13 | Immutable snapshots, experiment contracts, fixed-template sandbox, tracking, model cards | `DataScienceWorkbench`, `sandbox` |
 | `data_engineering` | 13 | Profiling, schema diff, quality rules, transformation proposals, impact, dbt adapter | `governed runtime`, `dbt` |
 | `orchestration` | 8 | LangGraph workflows, checkpoints, metric runtime, execution composition | `MetricAnalysisRuntime`, `workflow`, `checkpoints` |
 | `agents` | 8 | Supervisor factory, specialist specs, supervision ordering, metric/rule supervisors | `factory`, `metric_supervisor`, `rule_supervisor`, `specs` |
-| `security` | 12 | OIDC/PKCE login, sessions, native RLS adapter, DLP, release admission | `identity.SessionBroker`, `login.OIDCLoginFlow`, `release` |
+| `security` | 13 | OIDC/PKCE login, sessions, native RLS adapter, DLP, release admission | `identity.SessionBroker`, `login.OIDCLoginFlow`, `release` |
 | `policy` | 6 | Static rules, approvals with exact grants, budgets, pending-action resume | `engine.PolicyEngine`, `approvals`, `budgets` |
 | `catalog` | 8 | Certified metric definitions and deterministic NL resolution | `resolve`, `MetricNotFoundError` |
 | `llm` | 6 | CC Switch and Magpie adapters, native routing, deadlines | `cc_switch`, `orchestration` |

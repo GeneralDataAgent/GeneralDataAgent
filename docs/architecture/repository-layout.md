@@ -1,6 +1,6 @@
 # Repository layout and ownership
 
-This is the actual layout of the repository as of commit `66139e5`, not a proposed one. For what each
+This is the actual layout of the repository as of commit `82b39da`, not a proposed one. For what each
 Python package does, see the [package map](as-built-architecture.md#5-package-map).
 
 ```text
@@ -9,7 +9,7 @@ GeneralDataAgent/
   Makefile                  # sync / test / lint / format / check / api wrappers
   uv.lock                   # pinned dependency resolution
   README.md                 # project entry and quick start
-  src/generaldataagent/     # 19 packages, 213 modules
+  src/generaldataagent/     # 19 packages, 215 modules
     contracts/              # frozen Pydantic boundary models
     catalog/                # certified metrics and deterministic NL resolution
     policy/                 # static rules, exact approvals, budgets, resume
@@ -32,7 +32,7 @@ GeneralDataAgent/
     api/                    # FastAPI assembly, business API and console
   evals/                    # 70 runnable gates, qualifiers, and acceptance runners
     cohorts/                # frozen cohort declarations (IDs and hashes only)
-  tests/                    # 191 flat test modules (no conftest, no subdirectories)
+  tests/                    # 192 flat test modules (no conftest, no subdirectories)
   examples/                 # demos and live-model evidence runs
     skills/                 # example skill admission manifests
   infra/sandbox/            # pinned OCI build for the science sandbox
