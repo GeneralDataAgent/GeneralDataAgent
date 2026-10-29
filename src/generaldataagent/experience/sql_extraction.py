@@ -7,6 +7,8 @@ import json
 import re
 from datetime import datetime
 
+from pydantic import ValidationError
+
 from generaldataagent.contracts.experience import (
     ExperienceRecord,
     ExtractedExperience,
@@ -122,11 +124,13 @@ def extract_sql_experiences(
         if not isinstance(failure, dict) or not isinstance(success, dict):
             continue
         receipt = observe_sql_repair(failure, success)
-        if (
-            receipt is None
-            or receipt.failure_code in seen
-            or success.get("sql_repair_evidence") != receipt.model_dump(mode="json")
-        ):
+        if receipt is None or receipt.failure_code in seen:
+            continue
+        try:
+            supplied = SqlRepairEvidence.model_validate(success.get("sql_repair_evidence"))
+        except ValidationError:
+            continue
+        if supplied != receipt:
             continue
         condition, repair = SQL_REPAIR_GUIDANCE[receipt.failure_code]
         record = ExperienceRecord(

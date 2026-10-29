@@ -131,6 +131,7 @@ def test_real_sql_errors_capture_candidates_with_exact_sources_and_review_gate(
         "query",
         "result",
         "receipt",
+        "receipt_types",
         "wrong_tool",
         "no_success",
         "interleaved",
@@ -156,6 +157,8 @@ def test_unbound_changed_or_unsupported_observations_produce_no_candidate(recove
         success["result_hash"] = "c" * 64
     elif change == "receipt":
         success.pop("sql_repair_evidence")
+    elif change == "receipt_types":
+        success["sql_repair_evidence"]["failure_step"] = True
     elif change == "wrong_tool":
         failure["tool"] = "rules"
     elif change == "no_success":
