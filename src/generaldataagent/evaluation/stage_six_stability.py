@@ -4,26 +4,33 @@ import hashlib
 import json
 import statistics
 
-from generaldataagent.evaluation.stage_six_gates import REQUIRED_TRACKS, validate_report
+from generaldataagent.evaluation.run_report import RunReportInput, ValidatedRunReport
+from generaldataagent.evaluation.stage_six_gates import REQUIRED_TRACKS
 
 
-def canonical_report_hash(report: dict) -> str:
+def canonical_report_hash(report: RunReportInput) -> str:
+    if isinstance(report, ValidatedRunReport):
+        return report.report_hash
     return hashlib.sha256(json.dumps(report, sort_keys=True, allow_nan=False).encode()).hexdigest()
 
 
 def repeated_evidence(
-    reports: list[dict], *, max_flip_rate: float = 0.1, max_service_error_rate: float = 0.05
+    reports: list[RunReportInput],
+    *,
+    max_flip_rate: float = 0.1,
+    max_service_error_rate: float = 0.05,
 ) -> dict:
     if not 0 <= max_flip_rate <= 1 or not 0 <= max_service_error_rate <= 1:
         raise ValueError("invalid repeat policy")
     if len(reports) < 2:
         raise ValueError("at least two independently recorded runs required")
-    hashes = [canonical_report_hash(r) for r in reports]
+    snapshots = [ValidatedRunReport.from_report(report) for report in reports]
+    hashes = [run.report_hash for run in snapshots]
+    reports = [run.to_dict() for run in snapshots]
     if len(set(hashes)) != len(hashes):
         raise ValueError("duplicate report is not an independent repeated run")
     first = reports[0]
     for report in reports:
-        validate_report(report)
         for key in [
             "benchmark",
             "cohort_hash",

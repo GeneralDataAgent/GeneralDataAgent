@@ -1021,3 +1021,34 @@ old reports and hashes are not rewritten, and cross-revision results are not a s
 This value does not include provider pricing, per-query row/cell limits, or the policy gateway's
 production quotas. Freezing a declared limit proves neither enforcement by an external provider
 nor answer quality. No live benchmark or production qualification follows from this refactor.
+
+### Reusing validated run evidence
+
+`evaluation/run_report.py::ValidatedRunReport` freezes one JSON report after validating its
+provenance fields, case telemetry, unique nonempty cohort and recomputed summary. It keeps
+immutable sorted-JSON bytes and returns detached dictionaries. A later edit to the input,
+a returned view, or a summary cannot change the frozen evidence. To diagnose an edited
+report, create a new snapshot so the new case evidence is validated again.
+
+Single-pair comparison, repeated comparison, repeat stability and service readiness accept
+either existing report dictionaries or these snapshots:
+
+```python
+from generaldataagent.evaluation.run_report import ValidatedRunReport
+from generaldataagent.evaluation.stage_six_control import service_readiness
+from generaldataagent.evaluation.stage_six_stability import repeated_evidence
+
+runs = [ValidatedRunReport(report) for report in loaded_reports]
+preflight = service_readiness(runs[0])
+stability = repeated_evidence(runs)
+```
+
+Paired-repeat comparison reuses each snapshot inside its stability checks instead of
+validating each supplied run twice. The legacy `stage_six_gates.validate_report` entry
+point still returns a detached recomputed summary. Canonical report hashes use the
+existing sorted-JSON representation; unknown historical JSON fields are retained, and
+input files are never rewritten. Nonfinite values and unserializable metadata are refused.
+
+The envelope validates internal consistency only. It does not authenticate a source,
+prove independent runs, or relax comparison, service, coverage, review or production
+gates. Unknown usage and cost stay unknown; service readiness does not establish quality.

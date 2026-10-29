@@ -1,0 +1,1787 @@
+{
+  "baseline_revision": "e19b407f62fac57a780c567bdea657ca92c75947",
+  "baseline": [
+    {
+      "benchmark": "dabstep-dev",
+      "cohort_hash": "cohort-1",
+      "protocol_hash": "p-1",
+      "source_manifest_hash": "src-1",
+      "runner_hash": "runner-1",
+      "model": "model-1",
+      "model_route": "route-1",
+      "system_fingerprint": {
+        "stage9_sources": {
+          "evaluation/stage_nine.py": "fp-1"
+        }
+      },
+      "run_status": "completed",
+      "cohort_file_hash": "file-1",
+      "started_at": "2026-10-28T00:00:00Z",
+      "requested_n": 10,
+      "population_n": 10,
+      "results": [
+        {
+          "case_id": "1",
+          "passed": false,
+          "difficulty": "easy",
+          "elapsed_seconds": 1.0,
+          "tokens": 100,
+          "usage_status": "partial_or_unknown",
+          "sub_hits": 0,
+          "sub_total": 1,
+          "failure": "answer_mismatch",
+          "severe_incident": false,
+          "cost_usd": null,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "2",
+          "passed": true,
+          "difficulty": "easy",
+          "elapsed_seconds": 2.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 1,
+          "sub_total": 1,
+          "failure": null,
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "3",
+          "passed": false,
+          "difficulty": "easy",
+          "elapsed_seconds": 3.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 0,
+          "sub_total": 1,
+          "failure": "answer_mismatch",
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "4",
+          "passed": true,
+          "difficulty": "easy",
+          "elapsed_seconds": 4.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 1,
+          "sub_total": 1,
+          "failure": null,
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "5",
+          "passed": false,
+          "difficulty": "easy",
+          "elapsed_seconds": 5.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 0,
+          "sub_total": 1,
+          "failure": "answer_mismatch",
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "6",
+          "passed": true,
+          "difficulty": "easy",
+          "elapsed_seconds": 6.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 1,
+          "sub_total": 1,
+          "failure": null,
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "7",
+          "passed": false,
+          "difficulty": "easy",
+          "elapsed_seconds": 7.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 0,
+          "sub_total": 1,
+          "failure": "answer_mismatch",
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "8",
+          "passed": true,
+          "difficulty": "easy",
+          "elapsed_seconds": 8.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 1,
+          "sub_total": 1,
+          "failure": null,
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "9",
+          "passed": false,
+          "difficulty": "easy",
+          "elapsed_seconds": 9.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 0,
+          "sub_total": 1,
+          "failure": "answer_mismatch",
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "10",
+          "passed": false,
+          "difficulty": "easy",
+          "elapsed_seconds": 10.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 0,
+          "sub_total": 1,
+          "failure": "answer_mismatch",
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        }
+      ],
+      "summary": {
+        "n": 10,
+        "passed": 4,
+        "pass_at_1": 0.4,
+        "wilson_95": [
+          0.16818032970623614,
+          0.6873262302663417
+        ],
+        "subquestion_accuracy": 0.4,
+        "p50_seconds": 5.5,
+        "p95_seconds": 10.0,
+        "tokens": 1000,
+        "token_telemetry_complete": false,
+        "failures": {
+          "answer_mismatch": 6
+        },
+        "difficulty": {
+          "easy": {
+            "n": 10,
+            "passed": 4,
+            "rate": 0.4
+          }
+        },
+        "official_leaderboard_comparable": false,
+        "production_accepted": false,
+        "cost_usd": null,
+        "attempted_n": 10,
+        "not_attempted_n": 0,
+        "attempted_p95_seconds": 10.0
+      },
+      "legacy_annotation": {
+        "text": "历史 JSON 保持读取",
+        "values": [
+          1,
+          null,
+          {
+            "a": false
+          }
+        ]
+      }
+    },
+    {
+      "benchmark": "dabstep-dev",
+      "cohort_hash": "cohort-1",
+      "protocol_hash": "p-1",
+      "source_manifest_hash": "src-1",
+      "runner_hash": "runner-1",
+      "model": "model-1",
+      "model_route": "route-1",
+      "system_fingerprint": {
+        "stage9_sources": {
+          "evaluation/stage_nine.py": "fp-1"
+        }
+      },
+      "run_status": "completed",
+      "cohort_file_hash": "file-1",
+      "started_at": "2026-10-28T00:00:01Z",
+      "requested_n": 10,
+      "population_n": 10,
+      "results": [
+        {
+          "case_id": "1",
+          "passed": false,
+          "difficulty": "easy",
+          "elapsed_seconds": 1.0,
+          "tokens": 100,
+          "usage_status": "partial_or_unknown",
+          "sub_hits": 0,
+          "sub_total": 1,
+          "failure": "model_error",
+          "severe_incident": false,
+          "cost_usd": null,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "2",
+          "passed": true,
+          "difficulty": "easy",
+          "elapsed_seconds": 2.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 1,
+          "sub_total": 1,
+          "failure": null,
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "3",
+          "passed": false,
+          "difficulty": "easy",
+          "elapsed_seconds": 3.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 0,
+          "sub_total": 1,
+          "failure": "answer_mismatch",
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "4",
+          "passed": true,
+          "difficulty": "easy",
+          "elapsed_seconds": 4.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 1,
+          "sub_total": 1,
+          "failure": null,
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "5",
+          "passed": false,
+          "difficulty": "easy",
+          "elapsed_seconds": 5.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 0,
+          "sub_total": 1,
+          "failure": "answer_mismatch",
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "6",
+          "passed": true,
+          "difficulty": "easy",
+          "elapsed_seconds": 6.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 1,
+          "sub_total": 1,
+          "failure": null,
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "7",
+          "passed": false,
+          "difficulty": "easy",
+          "elapsed_seconds": 7.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 0,
+          "sub_total": 1,
+          "failure": "answer_mismatch",
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "8",
+          "passed": true,
+          "difficulty": "easy",
+          "elapsed_seconds": 8.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 1,
+          "sub_total": 1,
+          "failure": null,
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "9",
+          "passed": false,
+          "difficulty": "easy",
+          "elapsed_seconds": 9.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 0,
+          "sub_total": 1,
+          "failure": "answer_mismatch",
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "10",
+          "passed": false,
+          "difficulty": "easy",
+          "elapsed_seconds": 10.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 0,
+          "sub_total": 1,
+          "failure": "answer_mismatch",
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        }
+      ],
+      "summary": {
+        "n": 10,
+        "passed": 4,
+        "pass_at_1": 0.4,
+        "wilson_95": [
+          0.16818032970623614,
+          0.6873262302663417
+        ],
+        "subquestion_accuracy": 0.4,
+        "p50_seconds": 5.5,
+        "p95_seconds": 10.0,
+        "tokens": 1000,
+        "token_telemetry_complete": false,
+        "failures": {
+          "model_error": 1,
+          "answer_mismatch": 5
+        },
+        "difficulty": {
+          "easy": {
+            "n": 10,
+            "passed": 4,
+            "rate": 0.4
+          }
+        },
+        "official_leaderboard_comparable": false,
+        "production_accepted": false,
+        "cost_usd": null,
+        "attempted_n": 10,
+        "not_attempted_n": 0,
+        "attempted_p95_seconds": 10.0
+      },
+      "legacy_annotation": {
+        "text": "历史 JSON 保持读取",
+        "values": [
+          1,
+          null,
+          {
+            "a": false
+          }
+        ]
+      }
+    },
+    {
+      "benchmark": "dabstep-dev",
+      "cohort_hash": "cohort-1",
+      "protocol_hash": "p-1",
+      "source_manifest_hash": "src-1",
+      "runner_hash": "runner-1",
+      "model": "model-1",
+      "model_route": "route-1",
+      "system_fingerprint": {
+        "stage9_sources": {
+          "evaluation/stage_nine.py": "fp-1"
+        }
+      },
+      "run_status": "completed",
+      "cohort_file_hash": "file-1",
+      "started_at": "2026-10-28T00:00:02Z",
+      "requested_n": 10,
+      "population_n": 10,
+      "results": [
+        {
+          "case_id": "1",
+          "passed": false,
+          "difficulty": "easy",
+          "elapsed_seconds": 1.0,
+          "tokens": 100,
+          "usage_status": "partial_or_unknown",
+          "sub_hits": 0,
+          "sub_total": 1,
+          "failure": "answer_mismatch",
+          "severe_incident": false,
+          "cost_usd": null,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "2",
+          "passed": true,
+          "difficulty": "easy",
+          "elapsed_seconds": 2.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 1,
+          "sub_total": 1,
+          "failure": null,
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "3",
+          "passed": false,
+          "difficulty": "easy",
+          "elapsed_seconds": 3.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 0,
+          "sub_total": 1,
+          "failure": "answer_mismatch",
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "4",
+          "passed": true,
+          "difficulty": "easy",
+          "elapsed_seconds": 4.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 1,
+          "sub_total": 1,
+          "failure": null,
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "5",
+          "passed": false,
+          "difficulty": "easy",
+          "elapsed_seconds": 5.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 0,
+          "sub_total": 1,
+          "failure": "answer_mismatch",
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "6",
+          "passed": true,
+          "difficulty": "easy",
+          "elapsed_seconds": 6.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 1,
+          "sub_total": 1,
+          "failure": null,
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "7",
+          "passed": false,
+          "difficulty": "easy",
+          "elapsed_seconds": 7.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 0,
+          "sub_total": 1,
+          "failure": "answer_mismatch",
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "8",
+          "passed": true,
+          "difficulty": "easy",
+          "elapsed_seconds": 8.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 1,
+          "sub_total": 1,
+          "failure": null,
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "9",
+          "passed": false,
+          "difficulty": "easy",
+          "elapsed_seconds": 9.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 0,
+          "sub_total": 1,
+          "failure": "answer_mismatch",
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "10",
+          "passed": false,
+          "difficulty": "easy",
+          "elapsed_seconds": 10.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 0,
+          "sub_total": 1,
+          "failure": "answer_mismatch",
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        }
+      ],
+      "summary": {
+        "n": 10,
+        "passed": 4,
+        "pass_at_1": 0.4,
+        "wilson_95": [
+          0.16818032970623614,
+          0.6873262302663417
+        ],
+        "subquestion_accuracy": 0.4,
+        "p50_seconds": 5.5,
+        "p95_seconds": 10.0,
+        "tokens": 1000,
+        "token_telemetry_complete": false,
+        "failures": {
+          "answer_mismatch": 6
+        },
+        "difficulty": {
+          "easy": {
+            "n": 10,
+            "passed": 4,
+            "rate": 0.4
+          }
+        },
+        "official_leaderboard_comparable": false,
+        "production_accepted": false,
+        "cost_usd": null,
+        "attempted_n": 10,
+        "not_attempted_n": 0,
+        "attempted_p95_seconds": 10.0
+      },
+      "legacy_annotation": {
+        "text": "历史 JSON 保持读取",
+        "values": [
+          1,
+          null,
+          {
+            "a": false
+          }
+        ]
+      }
+    }
+  ],
+  "candidate": [
+    {
+      "benchmark": "dabstep-dev",
+      "cohort_hash": "cohort-1",
+      "protocol_hash": "p-1",
+      "source_manifest_hash": "src-1",
+      "runner_hash": "runner-1",
+      "model": "model-1",
+      "model_route": "route-1",
+      "system_fingerprint": {
+        "stage9_sources": {
+          "evaluation/stage_nine.py": "fp-1"
+        }
+      },
+      "run_status": "completed",
+      "cohort_file_hash": "file-1",
+      "started_at": "2026-10-28T00:00:00Z",
+      "requested_n": 10,
+      "population_n": 10,
+      "results": [
+        {
+          "case_id": "1",
+          "passed": true,
+          "difficulty": "easy",
+          "elapsed_seconds": 1.0,
+          "tokens": 100,
+          "usage_status": "partial_or_unknown",
+          "sub_hits": 1,
+          "sub_total": 1,
+          "failure": null,
+          "severe_incident": false,
+          "cost_usd": null,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "2",
+          "passed": true,
+          "difficulty": "easy",
+          "elapsed_seconds": 2.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 1,
+          "sub_total": 1,
+          "failure": null,
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "3",
+          "passed": false,
+          "difficulty": "easy",
+          "elapsed_seconds": 3.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 0,
+          "sub_total": 1,
+          "failure": "answer_mismatch",
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "4",
+          "passed": true,
+          "difficulty": "easy",
+          "elapsed_seconds": 4.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 1,
+          "sub_total": 1,
+          "failure": null,
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "5",
+          "passed": false,
+          "difficulty": "easy",
+          "elapsed_seconds": 5.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 0,
+          "sub_total": 1,
+          "failure": "answer_mismatch",
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "6",
+          "passed": true,
+          "difficulty": "easy",
+          "elapsed_seconds": 6.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 1,
+          "sub_total": 1,
+          "failure": null,
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "7",
+          "passed": false,
+          "difficulty": "easy",
+          "elapsed_seconds": 7.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 0,
+          "sub_total": 1,
+          "failure": "answer_mismatch",
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "8",
+          "passed": true,
+          "difficulty": "easy",
+          "elapsed_seconds": 8.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 1,
+          "sub_total": 1,
+          "failure": null,
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "9",
+          "passed": false,
+          "difficulty": "easy",
+          "elapsed_seconds": 9.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 0,
+          "sub_total": 1,
+          "failure": "answer_mismatch",
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "10",
+          "passed": false,
+          "difficulty": "easy",
+          "elapsed_seconds": 10.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 0,
+          "sub_total": 1,
+          "failure": "answer_mismatch",
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        }
+      ],
+      "summary": {
+        "n": 10,
+        "passed": 5,
+        "pass_at_1": 0.5,
+        "wilson_95": [
+          0.236593090512564,
+          0.7634069094874361
+        ],
+        "subquestion_accuracy": 0.5,
+        "p50_seconds": 5.5,
+        "p95_seconds": 10.0,
+        "tokens": 1000,
+        "token_telemetry_complete": false,
+        "failures": {
+          "answer_mismatch": 5
+        },
+        "difficulty": {
+          "easy": {
+            "n": 10,
+            "passed": 5,
+            "rate": 0.5
+          }
+        },
+        "official_leaderboard_comparable": false,
+        "production_accepted": false,
+        "cost_usd": null,
+        "attempted_n": 10,
+        "not_attempted_n": 0,
+        "attempted_p95_seconds": 10.0
+      },
+      "legacy_annotation": {
+        "text": "历史 JSON 保持读取",
+        "values": [
+          1,
+          null,
+          {
+            "a": false
+          }
+        ]
+      }
+    },
+    {
+      "benchmark": "dabstep-dev",
+      "cohort_hash": "cohort-1",
+      "protocol_hash": "p-1",
+      "source_manifest_hash": "src-1",
+      "runner_hash": "runner-1",
+      "model": "model-1",
+      "model_route": "route-1",
+      "system_fingerprint": {
+        "stage9_sources": {
+          "evaluation/stage_nine.py": "fp-1"
+        }
+      },
+      "run_status": "completed",
+      "cohort_file_hash": "file-1",
+      "started_at": "2026-10-28T00:00:01Z",
+      "requested_n": 10,
+      "population_n": 10,
+      "results": [
+        {
+          "case_id": "1",
+          "passed": true,
+          "difficulty": "easy",
+          "elapsed_seconds": 1.0,
+          "tokens": 100,
+          "usage_status": "partial_or_unknown",
+          "sub_hits": 1,
+          "sub_total": 1,
+          "failure": null,
+          "severe_incident": false,
+          "cost_usd": null,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "2",
+          "passed": true,
+          "difficulty": "easy",
+          "elapsed_seconds": 2.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 1,
+          "sub_total": 1,
+          "failure": null,
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "3",
+          "passed": false,
+          "difficulty": "easy",
+          "elapsed_seconds": 3.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 0,
+          "sub_total": 1,
+          "failure": "answer_mismatch",
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "4",
+          "passed": true,
+          "difficulty": "easy",
+          "elapsed_seconds": 4.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 1,
+          "sub_total": 1,
+          "failure": null,
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "5",
+          "passed": false,
+          "difficulty": "easy",
+          "elapsed_seconds": 5.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 0,
+          "sub_total": 1,
+          "failure": "answer_mismatch",
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "6",
+          "passed": true,
+          "difficulty": "easy",
+          "elapsed_seconds": 6.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 1,
+          "sub_total": 1,
+          "failure": null,
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "7",
+          "passed": false,
+          "difficulty": "easy",
+          "elapsed_seconds": 7.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 0,
+          "sub_total": 1,
+          "failure": "answer_mismatch",
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "8",
+          "passed": true,
+          "difficulty": "easy",
+          "elapsed_seconds": 8.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 1,
+          "sub_total": 1,
+          "failure": null,
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "9",
+          "passed": false,
+          "difficulty": "easy",
+          "elapsed_seconds": 9.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 0,
+          "sub_total": 1,
+          "failure": "answer_mismatch",
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "10",
+          "passed": false,
+          "difficulty": "easy",
+          "elapsed_seconds": 10.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 0,
+          "sub_total": 1,
+          "failure": "answer_mismatch",
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        }
+      ],
+      "summary": {
+        "n": 10,
+        "passed": 5,
+        "pass_at_1": 0.5,
+        "wilson_95": [
+          0.236593090512564,
+          0.7634069094874361
+        ],
+        "subquestion_accuracy": 0.5,
+        "p50_seconds": 5.5,
+        "p95_seconds": 10.0,
+        "tokens": 1000,
+        "token_telemetry_complete": false,
+        "failures": {
+          "answer_mismatch": 5
+        },
+        "difficulty": {
+          "easy": {
+            "n": 10,
+            "passed": 5,
+            "rate": 0.5
+          }
+        },
+        "official_leaderboard_comparable": false,
+        "production_accepted": false,
+        "cost_usd": null,
+        "attempted_n": 10,
+        "not_attempted_n": 0,
+        "attempted_p95_seconds": 10.0
+      },
+      "legacy_annotation": {
+        "text": "历史 JSON 保持读取",
+        "values": [
+          1,
+          null,
+          {
+            "a": false
+          }
+        ]
+      }
+    },
+    {
+      "benchmark": "dabstep-dev",
+      "cohort_hash": "cohort-1",
+      "protocol_hash": "p-1",
+      "source_manifest_hash": "src-1",
+      "runner_hash": "runner-1",
+      "model": "model-1",
+      "model_route": "route-1",
+      "system_fingerprint": {
+        "stage9_sources": {
+          "evaluation/stage_nine.py": "fp-1"
+        }
+      },
+      "run_status": "completed",
+      "cohort_file_hash": "file-1",
+      "started_at": "2026-10-28T00:00:02Z",
+      "requested_n": 10,
+      "population_n": 10,
+      "results": [
+        {
+          "case_id": "1",
+          "passed": true,
+          "difficulty": "easy",
+          "elapsed_seconds": 1.0,
+          "tokens": 100,
+          "usage_status": "partial_or_unknown",
+          "sub_hits": 1,
+          "sub_total": 1,
+          "failure": null,
+          "severe_incident": false,
+          "cost_usd": null,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "2",
+          "passed": true,
+          "difficulty": "easy",
+          "elapsed_seconds": 2.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 1,
+          "sub_total": 1,
+          "failure": null,
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "3",
+          "passed": false,
+          "difficulty": "easy",
+          "elapsed_seconds": 3.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 0,
+          "sub_total": 1,
+          "failure": "answer_mismatch",
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "4",
+          "passed": true,
+          "difficulty": "easy",
+          "elapsed_seconds": 4.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 1,
+          "sub_total": 1,
+          "failure": null,
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "5",
+          "passed": false,
+          "difficulty": "easy",
+          "elapsed_seconds": 5.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 0,
+          "sub_total": 1,
+          "failure": "answer_mismatch",
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "6",
+          "passed": true,
+          "difficulty": "easy",
+          "elapsed_seconds": 6.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 1,
+          "sub_total": 1,
+          "failure": null,
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "7",
+          "passed": false,
+          "difficulty": "easy",
+          "elapsed_seconds": 7.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 0,
+          "sub_total": 1,
+          "failure": "answer_mismatch",
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "8",
+          "passed": true,
+          "difficulty": "easy",
+          "elapsed_seconds": 8.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 1,
+          "sub_total": 1,
+          "failure": null,
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "9",
+          "passed": false,
+          "difficulty": "easy",
+          "elapsed_seconds": 9.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 0,
+          "sub_total": 1,
+          "failure": "answer_mismatch",
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        },
+        {
+          "case_id": "10",
+          "passed": false,
+          "difficulty": "easy",
+          "elapsed_seconds": 10.0,
+          "tokens": 100,
+          "usage_status": "complete",
+          "sub_hits": 0,
+          "sub_total": 1,
+          "failure": "answer_mismatch",
+          "severe_incident": false,
+          "cost_usd": 0.0,
+          "database_hash": "db",
+          "attempted": true
+        }
+      ],
+      "summary": {
+        "n": 10,
+        "passed": 5,
+        "pass_at_1": 0.5,
+        "wilson_95": [
+          0.236593090512564,
+          0.7634069094874361
+        ],
+        "subquestion_accuracy": 0.5,
+        "p50_seconds": 5.5,
+        "p95_seconds": 10.0,
+        "tokens": 1000,
+        "token_telemetry_complete": false,
+        "failures": {
+          "answer_mismatch": 5
+        },
+        "difficulty": {
+          "easy": {
+            "n": 10,
+            "passed": 5,
+            "rate": 0.5
+          }
+        },
+        "official_leaderboard_comparable": false,
+        "production_accepted": false,
+        "cost_usd": null,
+        "attempted_n": 10,
+        "not_attempted_n": 0,
+        "attempted_p95_seconds": 10.0
+      },
+      "legacy_annotation": {
+        "text": "历史 JSON 保持读取",
+        "values": [
+          1,
+          null,
+          {
+            "a": false
+          }
+        ]
+      }
+    }
+  ],
+  "expected": {
+    "comparison": {
+      "benchmark": "dabstep-dev",
+      "n": 10,
+      "baseline_passed": 4,
+      "candidate_passed": 5,
+      "improvements": [
+        "1"
+      ],
+      "regressions": [],
+      "pass_rate_delta": 0.09999999999999998,
+      "service_failures": {
+        "baseline": 0,
+        "candidate": 0
+      },
+      "observed_cost_usd": {
+        "baseline": 0,
+        "candidate": 0
+      },
+      "efficiency": {
+        "baseline": {
+          "reported_tokens": 1000,
+          "token_telemetry_complete": false,
+          "p50_seconds": 5.5,
+          "p95_seconds": 10.0,
+          "cost_usd": null
+        },
+        "candidate": {
+          "reported_tokens": 1000,
+          "token_telemetry_complete": false,
+          "p50_seconds": 5.5,
+          "p95_seconds": 10.0,
+          "cost_usd": null
+        }
+      },
+      "failure_transitions": {
+        "answer_mismatch->passed": 1,
+        "passed->passed": 4,
+        "answer_mismatch->answer_mismatch": 5
+      },
+      "attribution_valid": true,
+      "blocked_by": [],
+      "mcnemar_exact_two_sided_p": 1.0,
+      "paired_release_gate": {
+        "passed": true,
+        "regressions": [],
+        "severe_incidents": [],
+        "production_accepted": false
+      },
+      "production_accepted": false
+    },
+    "service": {
+      "ready": false,
+      "n": 10,
+      "observed_model_replies": 10,
+      "service_errors": 1,
+      "service_error_rate": 0.1,
+      "blocked_by": [
+        "provider_error_rate_exceeded",
+        "incomplete_token_telemetry"
+      ],
+      "scope": "sampled service and telemetry preflight; not task quality qualification",
+      "production_accepted": false
+    },
+    "stability": {
+      "benchmark": "dabstep-dev",
+      "cohort_hash": "cohort-1",
+      "protocol_hash": "p-1",
+      "system_fingerprint": {
+        "stage9_sources": {
+          "evaluation/stage_nine.py": "fp-1"
+        }
+      },
+      "report_hashes": [
+        "aee643383bc97a7e2b655e6e099110e01da17fd76a2572a41e0b9a755d41bc5f",
+        "682ae6004ccf81152513d7f7b9a560b4ff303bf85704ae5bed5c3c5c29768580",
+        "ba2437bf9e60a8338f03bd055e0d8236c32a1cf39ce552510cbab185c96d38ee"
+      ],
+      "n": 10,
+      "repeats": 3,
+      "mean_pass_rate": 0.4,
+      "worst_pass_rate": 0.4,
+      "pass_rate_population_variance": 0.0,
+      "all_runs_pass_rate": 0.4,
+      "at_least_one_run_pass_rate": 0.4,
+      "flipped_case_ids": [],
+      "flip_rate": 0.0,
+      "service_error_rates": [
+        0.0,
+        0.1,
+        0.0
+      ],
+      "qualified": false,
+      "blocked_by": [
+        "service_unreliable"
+      ],
+      "production_accepted": false
+    },
+    "repeated_comparison": {
+      "benchmark": "dabstep-dev",
+      "cohort_hash": "cohort-1",
+      "cohort_status": "development",
+      "cohort_file_hashes": {
+        "baseline": [
+          "file-1"
+        ],
+        "candidate": [
+          "file-1"
+        ]
+      },
+      "cohort_file_verification": null,
+      "n": 10,
+      "case_ids": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10"
+      ],
+      "repeats_required": 3,
+      "arms": {
+        "baseline": {
+          "name": "baseline",
+          "runs": 3,
+          "n": 10,
+          "case_runs": 30,
+          "passes": 12,
+          "pooled_pass_rate": 0.4,
+          "per_run_pass_rates": [
+            0.4,
+            0.4,
+            0.4
+          ],
+          "tokens": 3000,
+          "mean_tokens_per_case": 100.0,
+          "tokens_per_pass": 250.0,
+          "p50_seconds": 5.0,
+          "p95_seconds": 10.0,
+          "cost_usd": null,
+          "cost_per_pass": null,
+          "cost_verified": false,
+          "failures": {
+            "answer_mismatch": 17,
+            "model_error": 1
+          },
+          "service_errors": 1,
+          "protocol_hashes": [
+            "p-1"
+          ],
+          "system_fingerprints": [
+            "{\"stage9_sources\": {\"evaluation/stage_nine.py\": \"fp-1\"}}",
+            "{\"stage9_sources\": {\"evaluation/stage_nine.py\": \"fp-1\"}}",
+            "{\"stage9_sources\": {\"evaluation/stage_nine.py\": \"fp-1\"}}"
+          ]
+        },
+        "candidate": {
+          "name": "candidate",
+          "runs": 3,
+          "n": 10,
+          "case_runs": 30,
+          "passes": 15,
+          "pooled_pass_rate": 0.5,
+          "per_run_pass_rates": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "tokens": 3000,
+          "mean_tokens_per_case": 100.0,
+          "tokens_per_pass": 200.0,
+          "p50_seconds": 5.0,
+          "p95_seconds": 10.0,
+          "cost_usd": null,
+          "cost_per_pass": null,
+          "cost_verified": false,
+          "failures": {
+            "answer_mismatch": 15
+          },
+          "service_errors": 0,
+          "protocol_hashes": [
+            "p-1"
+          ],
+          "system_fingerprints": [
+            "{\"stage9_sources\": {\"evaluation/stage_nine.py\": \"fp-1\"}}",
+            "{\"stage9_sources\": {\"evaluation/stage_nine.py\": \"fp-1\"}}",
+            "{\"stage9_sources\": {\"evaluation/stage_nine.py\": \"fp-1\"}}"
+          ]
+        }
+      },
+      "system_changed_between_arms": false,
+      "protocol_hash_changed": false,
+      "per_case": [
+        {
+          "case_id": "1",
+          "difficulty": "easy",
+          "baseline_passes": 0,
+          "baseline_repeats": 3,
+          "baseline_rate": 0.0,
+          "candidate_passes": 3,
+          "candidate_repeats": 3,
+          "candidate_rate": 1.0,
+          "rate_delta": 1.0,
+          "outcome": "gain",
+          "baseline_mean_tokens": 100.0,
+          "candidate_mean_tokens": 100.0,
+          "baseline_mean_seconds": 1.0,
+          "candidate_mean_seconds": 1.0
+        },
+        {
+          "case_id": "2",
+          "difficulty": "easy",
+          "baseline_passes": 3,
+          "baseline_repeats": 3,
+          "baseline_rate": 1.0,
+          "candidate_passes": 3,
+          "candidate_repeats": 3,
+          "candidate_rate": 1.0,
+          "rate_delta": 0.0,
+          "outcome": "stable",
+          "baseline_mean_tokens": 100.0,
+          "candidate_mean_tokens": 100.0,
+          "baseline_mean_seconds": 2.0,
+          "candidate_mean_seconds": 2.0
+        },
+        {
+          "case_id": "3",
+          "difficulty": "easy",
+          "baseline_passes": 0,
+          "baseline_repeats": 3,
+          "baseline_rate": 0.0,
+          "candidate_passes": 0,
+          "candidate_repeats": 3,
+          "candidate_rate": 0.0,
+          "rate_delta": 0.0,
+          "outcome": "stable",
+          "baseline_mean_tokens": 100.0,
+          "candidate_mean_tokens": 100.0,
+          "baseline_mean_seconds": 3.0,
+          "candidate_mean_seconds": 3.0
+        },
+        {
+          "case_id": "4",
+          "difficulty": "easy",
+          "baseline_passes": 3,
+          "baseline_repeats": 3,
+          "baseline_rate": 1.0,
+          "candidate_passes": 3,
+          "candidate_repeats": 3,
+          "candidate_rate": 1.0,
+          "rate_delta": 0.0,
+          "outcome": "stable",
+          "baseline_mean_tokens": 100.0,
+          "candidate_mean_tokens": 100.0,
+          "baseline_mean_seconds": 4.0,
+          "candidate_mean_seconds": 4.0
+        },
+        {
+          "case_id": "5",
+          "difficulty": "easy",
+          "baseline_passes": 0,
+          "baseline_repeats": 3,
+          "baseline_rate": 0.0,
+          "candidate_passes": 0,
+          "candidate_repeats": 3,
+          "candidate_rate": 0.0,
+          "rate_delta": 0.0,
+          "outcome": "stable",
+          "baseline_mean_tokens": 100.0,
+          "candidate_mean_tokens": 100.0,
+          "baseline_mean_seconds": 5.0,
+          "candidate_mean_seconds": 5.0
+        },
+        {
+          "case_id": "6",
+          "difficulty": "easy",
+          "baseline_passes": 3,
+          "baseline_repeats": 3,
+          "baseline_rate": 1.0,
+          "candidate_passes": 3,
+          "candidate_repeats": 3,
+          "candidate_rate": 1.0,
+          "rate_delta": 0.0,
+          "outcome": "stable",
+          "baseline_mean_tokens": 100.0,
+          "candidate_mean_tokens": 100.0,
+          "baseline_mean_seconds": 6.0,
+          "candidate_mean_seconds": 6.0
+        },
+        {
+          "case_id": "7",
+          "difficulty": "easy",
+          "baseline_passes": 0,
+          "baseline_repeats": 3,
+          "baseline_rate": 0.0,
+          "candidate_passes": 0,
+          "candidate_repeats": 3,
+          "candidate_rate": 0.0,
+          "rate_delta": 0.0,
+          "outcome": "stable",
+          "baseline_mean_tokens": 100.0,
+          "candidate_mean_tokens": 100.0,
+          "baseline_mean_seconds": 7.0,
+          "candidate_mean_seconds": 7.0
+        },
+        {
+          "case_id": "8",
+          "difficulty": "easy",
+          "baseline_passes": 3,
+          "baseline_repeats": 3,
+          "baseline_rate": 1.0,
+          "candidate_passes": 3,
+          "candidate_repeats": 3,
+          "candidate_rate": 1.0,
+          "rate_delta": 0.0,
+          "outcome": "stable",
+          "baseline_mean_tokens": 100.0,
+          "candidate_mean_tokens": 100.0,
+          "baseline_mean_seconds": 8.0,
+          "candidate_mean_seconds": 8.0
+        },
+        {
+          "case_id": "9",
+          "difficulty": "easy",
+          "baseline_passes": 0,
+          "baseline_repeats": 3,
+          "baseline_rate": 0.0,
+          "candidate_passes": 0,
+          "candidate_repeats": 3,
+          "candidate_rate": 0.0,
+          "rate_delta": 0.0,
+          "outcome": "stable",
+          "baseline_mean_tokens": 100.0,
+          "candidate_mean_tokens": 100.0,
+          "baseline_mean_seconds": 9.0,
+          "candidate_mean_seconds": 9.0
+        },
+        {
+          "case_id": "10",
+          "difficulty": "easy",
+          "baseline_passes": 0,
+          "baseline_repeats": 3,
+          "baseline_rate": 0.0,
+          "candidate_passes": 0,
+          "candidate_repeats": 3,
+          "candidate_rate": 0.0,
+          "rate_delta": 0.0,
+          "outcome": "stable",
+          "baseline_mean_tokens": 100.0,
+          "candidate_mean_tokens": 100.0,
+          "baseline_mean_seconds": 10.0,
+          "candidate_mean_seconds": 10.0
+        }
+      ],
+      "stability": {
+        "baseline": {
+          "benchmark": "dabstep-dev",
+          "cohort_hash": "cohort-1",
+          "protocol_hash": "p-1",
+          "system_fingerprint": {
+            "stage9_sources": {
+              "evaluation/stage_nine.py": "fp-1"
+            }
+          },
+          "report_hashes": [
+            "aee643383bc97a7e2b655e6e099110e01da17fd76a2572a41e0b9a755d41bc5f",
+            "682ae6004ccf81152513d7f7b9a560b4ff303bf85704ae5bed5c3c5c29768580",
+            "ba2437bf9e60a8338f03bd055e0d8236c32a1cf39ce552510cbab185c96d38ee"
+          ],
+          "n": 10,
+          "repeats": 3,
+          "mean_pass_rate": 0.4,
+          "worst_pass_rate": 0.4,
+          "pass_rate_population_variance": 0.0,
+          "all_runs_pass_rate": 0.4,
+          "at_least_one_run_pass_rate": 0.4,
+          "flipped_case_ids": [],
+          "flip_rate": 0.0,
+          "service_error_rates": [
+            0.0,
+            0.1,
+            0.0
+          ],
+          "qualified": false,
+          "blocked_by": [
+            "service_unreliable"
+          ],
+          "production_accepted": false
+        },
+        "candidate": {
+          "benchmark": "dabstep-dev",
+          "cohort_hash": "cohort-1",
+          "protocol_hash": "p-1",
+          "system_fingerprint": {
+            "stage9_sources": {
+              "evaluation/stage_nine.py": "fp-1"
+            }
+          },
+          "report_hashes": [
+            "aaf5a3de7a579e05599a873c600cddd03741452f86a9071d6c7d3486cb1e6846",
+            "3515afd91c83b04ff46e02a3c52e0a172f9760c4f888a51791f532769b646765",
+            "fbcc47c2d5aad33bc8c97d506fca226337ca535b70f0fa54a84541f9c8ed97cd"
+          ],
+          "n": 10,
+          "repeats": 3,
+          "mean_pass_rate": 0.5,
+          "worst_pass_rate": 0.5,
+          "pass_rate_population_variance": 0.0,
+          "all_runs_pass_rate": 0.5,
+          "at_least_one_run_pass_rate": 0.5,
+          "flipped_case_ids": [],
+          "flip_rate": 0.0,
+          "service_error_rates": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "qualified": true,
+          "blocked_by": [],
+          "production_accepted": false
+        }
+      },
+      "comparison": {
+        "pass_rate_delta": 0.09999999999999998,
+        "bootstrap_95": [
+          0.0,
+          0.30000000000000004
+        ],
+        "bootstrap_samples": 100,
+        "bootstrap_seed": 20261020,
+        "bootstrap_unit": "task",
+        "gains": 1,
+        "regressions": 0,
+        "discordant_tasks": 1,
+        "sign_test_exact_two_sided_p": 1.0
+      },
+      "service_error_rates": {
+        "baseline": 0.03333333333333333,
+        "candidate": 0.0
+      },
+      "cost": {
+        "status": "unavailable",
+        "measured_arms": [],
+        "unmeasured_arms": [
+          "baseline",
+          "candidate"
+        ],
+        "unmeasured_runs": {
+          "baseline": [
+            "2026-10-28T00:00:00Z",
+            "2026-10-28T00:00:01Z",
+            "2026-10-28T00:00:02Z"
+          ],
+          "candidate": [
+            "2026-10-28T00:00:00Z",
+            "2026-10-28T00:00:01Z",
+            "2026-10-28T00:00:02Z"
+          ]
+        },
+        "unmeasured_task_runs": {
+          "baseline": 3,
+          "candidate": 3
+        },
+        "degradation": "cost is unknown for baseline, candidate: cost per pass is null rather than zero, and tokens are reported as a proxy only because they are not a price",
+        "criteria_impact": "cost_not_verified stays in design_blockers and this tool cannot clear it; clearing it needs metered routing or an explicit external ruling that records the cost gate as unavailable"
+      },
+      "design": {
+        "discordance_rate": 0.1,
+        "tasks_for_target_power": {
+          "discordant_tasks_needed": 9,
+          "tasks_needed": 90,
+          "critical_discordant_tasks": 6,
+          "observed_discordance_rate": 0.1,
+          "direction_share": 0.8,
+          "target_power": 0.8,
+          "alpha": 0.05
+        },
+        "minimum_detectable_effect": {
+          "per_task_rate_shift": 0.68,
+          "expected_pooled_rate_delta": 0.40800000000000003,
+          "power": 0.8188115083051412,
+          "target_power": 0.8,
+          "alpha": 0.05,
+          "n": 10,
+          "repeats_per_arm": 3,
+          "decision_rule": "exact two-sided sign test over discordant tasks"
+        }
+      },
+      "design_blockers": [
+        "baseline:service_unreliable",
+        "cohort_not_held_out",
+        "cost_not_verified",
+        "confidence_interval_includes_zero"
+      ],
+      "criteria_met": false,
+      "independent_review": "not_supplied",
+      "production_accepted": false,
+      "notes": [
+        "cohort_status is a caller declaration; this tool cannot verify that the cohort was never used during development",
+        "cohort_file_verification is null until the frozen file is supplied; without it the two arms agree on a self-reported hash, which is not evidence that either ran the file a reviewer holds",
+        "the interval resamples tasks, so repeats of one task are not treated as independent observations",
+        "a failed or unattempted run counts as a failed observation; nothing is excluded",
+        "tasks_for_target_power divides a discordant-task requirement by the observed discordance rate; it is a planning estimate, not evidence",
+        "minimum_detectable_effect simulates a shift applied to the observed per-task baseline rates and asks how often the exact sign test would reject; it describes this cohort, not the treatment, and is null when no shift below 1.0 reaches the target power",
+        "cost is summed only when every task-run of an arm carries a measured cost_usd; a null cost is reported as unknown, never as zero",
+        "independent review and production shadow validation are external gates and are never supplied by this comparison"
+      ]
+    }
+  }
+}

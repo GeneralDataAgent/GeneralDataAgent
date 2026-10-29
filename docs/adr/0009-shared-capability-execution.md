@@ -202,10 +202,18 @@ markers only from surviving receipts and cannot authenticate their history. Reus
 validation and review-state reduction across reading, review, and audit while retaining scope
 authorization and source qualification as separate checks.
 
-Likewise, share a validated run envelope below treatment comparison, repeat stability, and service
-readiness; keep each consumer's purpose-specific blockers. Use a small immutable execution-budget
-value derived from a frozen route to generate both worker payload and protocol declarations.
-These are bounded foundations supporting the application migration, not separate frameworks.
+`ValidatedRunReport` now provides the shared envelope below treatment comparison, repeat stability,
+and service readiness. The existing case validator already was shared; the remaining duplication
+was repeated summary recomputation in the paired-repeat path and reopening caller-owned dictionaries
+after validation. The envelope retains immutable sorted-JSON bytes and a recomputed summary, and
+returns detached views. Paired-repeat comparison passes these same envelopes into stability checks,
+so each supplied run is validated once. Existing dictionaries and `validate_report` remain supported.
+The canonical report hash, unknown historical JSON fields, and purpose-specific blockers are retained.
+JSON evidence containing nonfinite or unserializable metadata is refused. This is an in-memory
+snapshot, not a new report schema, source authentication, or evidence of independent runs.
+
+`ExecutionBudget` derives both worker payload and protocol declarations from a frozen route.
+These bounded foundations support the application migration without creating another framework.
 
 The dependency direction is now part of this consolidation rather than an accident of history.
 Three runtime ports lived under `evaluation/`, so importing them pulled the eager package `__init__`

@@ -2,6 +2,8 @@
 
 from threading import Lock
 
+from generaldataagent.evaluation.run_report import RunReportInput, ValidatedRunReport
+
 
 class ServiceCircuitBreaker:
     def __init__(self, *, max_consecutive_failures: int = 3):
@@ -34,13 +36,15 @@ class ServiceCircuitBreaker:
                     self._reason = "repeated_provider_failure"
 
 
-def service_readiness(report: dict, *, min_tasks: int = 6, max_error_rate: float = 0.05) -> dict:
+def service_readiness(
+    report: RunReportInput, *, min_tasks: int = 6, max_error_rate: float = 0.05
+) -> dict:
     """A successful tiny request is insufficient evidence for a full-context batch."""
-    from generaldataagent.evaluation.stage_six_gates import validate_report
-
     if type(min_tasks) is not int or min_tasks < 1 or not 0 <= max_error_rate <= 1:
         raise ValueError("invalid service calibration policy")
-    summary = validate_report(report)
+    snapshot = ValidatedRunReport.from_report(report)
+    summary = snapshot.summary
+    report = snapshot.to_dict()
     rows = report["results"]
     errors = sum(
         row["failure"] in {"model_error", "worker_error", "worker_deadline", "service_circuit_open"}
