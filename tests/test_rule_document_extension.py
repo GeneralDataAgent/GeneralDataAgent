@@ -130,6 +130,33 @@ def test_real_rule_graph_retrieves_task_bound_advisory_evidence(tmp_path, docume
     assert all(row["task_id"] == str(runtime.task_id) for row in events)
 
 
+@pytest.mark.parametrize("tamper", ["other_task", "other_content"])
+def test_document_evidence_must_bind_this_task_and_exact_search_result(
+    tmp_path, monkeypatch, tamper
+):
+    from uuid import uuid4
+
+    value = extension(tmp_path, [MarkdownDocument("scope.md", "scope is local", "v1")])
+    with open_protected_checkpointer(tmp_path / "state", encryption_key=b"k" * 32) as saver:
+        runtime = attach(build(tmp_path, saver, governed=True), value)
+        original = runtime.runner.artifacts.put_json
+
+        def substitute(**kwargs):
+            if kwargs["artifact_type"] == "rule.document.evidence":
+                if tamper == "other_task":
+                    kwargs["task_id"] = uuid4()
+                else:
+                    kwargs["value"] = {**kwargs["value"], "documents": [], "matches": []}
+            return original(**kwargs)
+
+        monkeypatch.setattr(runtime.runner.artifacts, "put_json", substitute)
+        runtime.model = DocumentModel(model_script())
+        result = runtime.run(ACTOR, thread_id=str(runtime.task_id), max_runtime_seconds=10)
+        assert result.status == "failed"
+        assert result.delegated_roles == ("discovery",)
+        assert result.artifact_uris == ()
+
+
 def test_disabled_extension_exposes_no_document_tool(tmp_path):
     with open_protected_checkpointer(tmp_path / "state", encryption_key=b"k" * 32) as saver:
         runtime = build(tmp_path, saver, governed=True)

@@ -1,5 +1,6 @@
 """Development-only policy/audit/artifact adapter for rule workflow execution."""
 
+import json
 from uuid import UUID
 
 from generaldataagent.artifacts import LocalArtifactStore
@@ -100,13 +101,19 @@ class GovernedRuleRunner:
         gateway = self._gateway()
 
         def persist(arguments):
+            expected = json.dumps(
+                arguments, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+            ).encode()
             ref = self.artifacts.put_json(
                 task_id=request.task_id,
                 artifact_type="rule.document.evidence",
                 value=arguments,
                 created_by="rule-document-context",
             )
-            self.artifacts.read_bytes(ref)
+            if ref.task_id != request.task_id:
+                raise ValueError("rule_document_evidence_task_mismatch")
+            if self.artifacts.read_bytes(ref) != expected:
+                raise ValueError("rule_document_evidence_content_mismatch")
             return ref.model_dump(mode="json")
 
         def search(arguments):
