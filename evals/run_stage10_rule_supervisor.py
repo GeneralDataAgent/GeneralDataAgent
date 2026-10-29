@@ -36,6 +36,7 @@ from generaldataagent.business.extensions import ExtensionAdmission, SkillDefini
 from generaldataagent.business.governance import CapabilityRegistry, FeedbackRegistry
 from generaldataagent.business.rules.delivery import RuleDeliveryRuntime
 from generaldataagent.business.rules.document_context import DocumentContext, MarkdownDocument
+from generaldataagent.business.rules.document_verification import DocumentEvidenceVerifier
 from generaldataagent.business.rules.governed import GovernedRuleRunner
 from generaldataagent.business.rules.payments import SQLitePaymentsSource
 from generaldataagent.business.rules.question import RuleQuestionError, parse_rule_question
@@ -149,12 +150,12 @@ def load_document_extension(path: Path) -> RuleDocumentExtension:
     if path.stat().st_size > 128_000:
         raise ValueError("document configuration is too large")
     config = json.loads(path.read_text())
-    if not isinstance(config, dict) or set(config) != {
-        "registry_path",
-        "skill_path",
-        "skill_hash",
-        "documents",
-    }:
+    required = {"registry_path", "skill_path", "skill_hash", "documents"}
+    if (
+        not isinstance(config, dict)
+        or not required <= set(config)
+        or set(config) - required - {"verification_adapter"}
+    ):
         raise ValueError("invalid document extension configuration")
     entries = config["documents"]
     if not isinstance(entries, list) or len(entries) > 32:
@@ -193,7 +194,15 @@ def load_document_extension(path: Path) -> RuleDocumentExtension:
             _workspace_file(config["registry_path"]), clock=lambda: datetime.now(UTC)
         )
     )
-    extension = RuleDocumentExtension(DocumentContext(documents), admission, skill)
+    verifier = None
+    if "verification_adapter" in config:
+        verifier = DocumentEvidenceVerifier(
+            skill_name=skill.name,
+            skill_version=skill.version,
+            skill_hash=config["skill_hash"],
+            adapter=config["verification_adapter"],
+        )
+    extension = RuleDocumentExtension(DocumentContext(documents), admission, skill, verifier)
     # Check admission before resolving or invoking any provider. Request-specific
     # template validation is repeated by the runtime for every bound task.
     admission.require("skill", skill.name, skill.version, config["skill_hash"], ACTOR)
@@ -284,6 +293,9 @@ async def main() -> None:
         "factory_hash": digest(ROOT / "src/generaldataagent/agents/factory.py"),
         "document_context_hash": digest(
             ROOT / "src/generaldataagent/business/rules/document_context.py"
+        ),
+        "document_verifier_hash": digest(
+            ROOT / "src/generaldataagent/business/rules/document_verification.py"
         ),
         "governed_runner_hash": digest(ROOT / "src/generaldataagent/business/rules/governed.py"),
         "document_extension": document_extension.summary()
