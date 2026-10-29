@@ -999,3 +999,25 @@ not raw traces, document passages or exception messages. Candidates use the exis
 fixed excerpt-repair template and exact-byte source verification. They remain
 unreviewed and unavailable to runtime retrieval. This adds batch processing, not a
 general failure-learning algorithm, source authentication or proof of answer quality.
+
+### Frozen execution budgets
+
+`evaluation/execution_budget.py::ExecutionBudget` is the immutable resource value shared by
+protocol construction and isolated-worker payloads. It binds step, in-task time, repair,
+observed-token and per-call output-token ceilings, plus the process deadline. Tokens remain
+unbounded (`None`) unless explicitly capped; the process deadline defaults to five seconds
+above the in-task budget. Direct `run_isolated` callers retain finite explicit deadline
+overrides above that budget. Invalid steps, repairs and output caps now fail before worker
+startup, alongside the existing token, time and deadline checks.
+
+The Stage 6 runner freezes each lane once, declares aggregate ceilings from those values,
+and supplies each case's worker arguments from the matching frozen lane. A selected route
+whose profile or limits differ from its declared lane is refused before workers start.
+The routing manifest and protocol retain their existing field names and valid budget values;
+legacy protocol compatibility is checked against the frozen `507aa12` fixture. The new
+`execution_budget_hash` is part of the system fingerprint. New runs identify the new system;
+old reports and hashes are not rewritten, and cross-revision results are not a same-system pair.
+
+This value does not include provider pricing, per-query row/cell limits, or the policy gateway's
+production quotas. Freezing a declared limit proves neither enforcement by an external provider
+nor answer quality. No live benchmark or production qualification follows from this refactor.

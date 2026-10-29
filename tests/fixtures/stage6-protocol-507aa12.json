@@ -1,0 +1,93 @@
+{
+  "source_commit": "507aa12c030e74f580877f64087c5b3c67488c55",
+  "variants": [
+    {
+      "arguments": {},
+      "protocol": {
+        "version": "stage6-v7",
+        "max_output_tokens_per_call": null,
+        "python_runtime": "$PYTHON_RUNTIME",
+        "sqlite_runtime": "$SQLITE_RUNTIME",
+        "dependency_lock_hash": "eeff9ba466e3d58d0729337fe543d830fcb8b5b87ca22ea2bcaed526827f852b",
+        "service_circuit": "terminal_401_402_403_404_or_three_consecutive_provider_failures",
+        "scorer": "strict-infi-absolute1e-6-dab-local-1e-6",
+        "scorer_source_hash": "b44189f9848638755411912d4226ab61d435c20a59ffe5b20ac5ad0c284a0f9f",
+        "import_source_hash": "8790cc142eb00e279006e059f294e59a7ff8ab718daaed04a9624a2f4bf9a571",
+        "execution_source_hash": "d909a815c2cc64ca4530b11f46244aad8178090cc30e8aa724b5645abbf212d0",
+        "steps": 6,
+        "seconds": 120,
+        "hard_case_deadline_seconds": 125,
+        "tokens": null,
+        "max_cost_usd_per_case": 0.02,
+        "call_timeout_seconds": 30,
+        "result_row_limit": 200,
+        "final_and_crosscheck_row_limit": 10000,
+        "final_and_crosscheck_cell_limit": 10000,
+        "workers": 1,
+        "permitted_effects": "read-only",
+        "numeric_import": "finite REAL; empty NULL"
+      }
+    },
+    {
+      "arguments": {
+        "max_tokens": 24000,
+        "max_output_tokens": 3000
+      },
+      "protocol": {
+        "version": "stage6-v7",
+        "max_output_tokens_per_call": 3000,
+        "python_runtime": "$PYTHON_RUNTIME",
+        "sqlite_runtime": "$SQLITE_RUNTIME",
+        "dependency_lock_hash": "eeff9ba466e3d58d0729337fe543d830fcb8b5b87ca22ea2bcaed526827f852b",
+        "service_circuit": "terminal_401_402_403_404_or_three_consecutive_provider_failures",
+        "scorer": "strict-infi-absolute1e-6-dab-local-1e-6",
+        "scorer_source_hash": "b44189f9848638755411912d4226ab61d435c20a59ffe5b20ac5ad0c284a0f9f",
+        "import_source_hash": "8790cc142eb00e279006e059f294e59a7ff8ab718daaed04a9624a2f4bf9a571",
+        "execution_source_hash": "d909a815c2cc64ca4530b11f46244aad8178090cc30e8aa724b5645abbf212d0",
+        "steps": 6,
+        "seconds": 120,
+        "hard_case_deadline_seconds": 125,
+        "tokens": 24000,
+        "max_cost_usd_per_case": 0.02,
+        "call_timeout_seconds": 30,
+        "result_row_limit": 200,
+        "final_and_crosscheck_row_limit": 10000,
+        "final_and_crosscheck_cell_limit": 10000,
+        "workers": 1,
+        "permitted_effects": "read-only",
+        "numeric_import": "finite REAL; empty NULL"
+      }
+    },
+    {
+      "arguments": {
+        "steps": 8,
+        "seconds": 180,
+        "hard_case_deadline": 185
+      },
+      "protocol": {
+        "version": "stage6-v7",
+        "max_output_tokens_per_call": null,
+        "python_runtime": "$PYTHON_RUNTIME",
+        "sqlite_runtime": "$SQLITE_RUNTIME",
+        "dependency_lock_hash": "eeff9ba466e3d58d0729337fe543d830fcb8b5b87ca22ea2bcaed526827f852b",
+        "service_circuit": "terminal_401_402_403_404_or_three_consecutive_provider_failures",
+        "scorer": "strict-infi-absolute1e-6-dab-local-1e-6",
+        "scorer_source_hash": "b44189f9848638755411912d4226ab61d435c20a59ffe5b20ac5ad0c284a0f9f",
+        "import_source_hash": "8790cc142eb00e279006e059f294e59a7ff8ab718daaed04a9624a2f4bf9a571",
+        "execution_source_hash": "d909a815c2cc64ca4530b11f46244aad8178090cc30e8aa724b5645abbf212d0",
+        "steps": 8,
+        "seconds": 180,
+        "hard_case_deadline_seconds": 185,
+        "tokens": null,
+        "max_cost_usd_per_case": 0.02,
+        "call_timeout_seconds": 30,
+        "result_row_limit": 200,
+        "final_and_crosscheck_row_limit": 10000,
+        "final_and_crosscheck_cell_limit": 10000,
+        "workers": 1,
+        "permitted_effects": "read-only",
+        "numeric_import": "finite REAL; empty NULL"
+      }
+    }
+  ]
+}

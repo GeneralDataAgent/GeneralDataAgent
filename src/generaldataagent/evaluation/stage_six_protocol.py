@@ -7,10 +7,13 @@ import platform
 import sqlite3
 from pathlib import Path
 
-from generaldataagent.evaluation.stage_six import (
+from generaldataagent.evaluation.execution_budget import (
     DEADLINE_MARGIN_SECONDS,
     DEFAULT_WORKER_SECONDS,
     DEFAULT_WORKER_STEPS,
+    ExecutionBudget,
+)
+from generaldataagent.evaluation.stage_six import (
     _number,
     add_json_tables,
     build_csv_database,
@@ -32,23 +35,24 @@ def evaluation_protocol(
     steps: int = DEFAULT_WORKER_STEPS,
     seconds: int = DEFAULT_WORKER_SECONDS,
 ) -> dict:
-    if max_output_tokens is not None and (
-        type(max_output_tokens) is not int or max_output_tokens < 32
-    ):
-        raise ValueError("invalid per-call output token budget")
-    if max_tokens is not None and (type(max_tokens) is not int or max_tokens < 1):
-        raise ValueError("invalid total observed token budget")
-    if type(seconds) is not int or seconds < 1:
-        raise ValueError("invalid declared time budget")
-    if type(hard_case_deadline) is not int or hard_case_deadline <= seconds:
-        # A deadline at or below the in-task budget would report a budget
-        # timeout as a service failure, and the protocol would not describe
-        # the execution the reader is asked to trust.
+    if type(hard_case_deadline) is not int:
         raise ValueError("hard case deadline must exceed the worker time budget")
-    if type(steps) is not int or steps < 1:
-        # The declared step ceiling bounds how much work one case may do; it
-        # must be the ceiling actually granted, not a fixed placeholder.
-        raise ValueError("invalid declared step budget")
+    try:
+        budget = ExecutionBudget(
+            max_steps=steps,
+            max_seconds=seconds,
+            max_tokens=max_tokens,
+            max_output_tokens=max_output_tokens,
+            deadline_seconds=hard_case_deadline,
+        )
+    except ValueError as exc:
+        legacy = {
+            "invalid worker time budget": "invalid declared time budget",
+            "process deadline must exceed the worker time budget": (
+                "hard case deadline must exceed the worker time budget"
+            ),
+        }
+        raise ValueError(legacy.get(str(exc), str(exc))) from exc
     scoring = "\n".join(
         inspect.getsource(fn) for fn in [_number, compare_value, score_answers, equivalent_rows]
     )
@@ -58,7 +62,7 @@ def evaluation_protocol(
     execution = "\n".join(inspect.getsource(cls) for cls in [SqlGuard, SQLiteReadOnlyExecutor])
     return {
         "version": "stage6-v7",
-        "max_output_tokens_per_call": max_output_tokens,
+        "max_output_tokens_per_call": budget.max_output_tokens,
         "python_runtime": platform.python_version(),
         "sqlite_runtime": sqlite3.sqlite_version,
         "dependency_lock_hash": digest(Path(__file__).resolve().parents[3] / "uv.lock"),
@@ -67,10 +71,10 @@ def evaluation_protocol(
         "scorer_source_hash": hashlib.sha256(scoring.encode()).hexdigest(),
         "import_source_hash": hashlib.sha256(importing.encode()).hexdigest(),
         "execution_source_hash": hashlib.sha256(execution.encode()).hexdigest(),
-        "steps": steps,
-        "seconds": seconds,
-        "hard_case_deadline_seconds": hard_case_deadline,
-        "tokens": max_tokens,
+        "steps": budget.max_steps,
+        "seconds": budget.max_seconds,
+        "hard_case_deadline_seconds": budget.process_deadline,
+        "tokens": budget.max_tokens,
         "max_cost_usd_per_case": 0.02,
         "call_timeout_seconds": 30,
         "result_row_limit": 200,
