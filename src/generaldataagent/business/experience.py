@@ -35,8 +35,9 @@ from generaldataagent.contracts import ActorContext
 from generaldataagent.contracts.experience import ExperienceRecord
 from generaldataagent.contracts.experience import ExtractionSource as _ExtractionSource
 from generaldataagent.contracts.experience import FeedbackSource as _FeedbackSource
-from generaldataagent.experience.extraction import extract_rule_experience
+from generaldataagent.experience.extraction import extract_experiences
 from generaldataagent.experience.schema import initialize_schema, validate_schema
+from generaldataagent.experience.sql_extraction import SQL_REPAIR_GUIDANCE, SQL_REPAIR_TEMPLATE
 from generaldataagent.security.dlp import TextDLPScanner
 
 # Content shapes that mean "this is an answer, not a lesson". Rejecting these
@@ -245,7 +246,7 @@ class ExperienceStore:
         if not isinstance(trace, list) or not all(isinstance(event, dict) for event in trace):
             raise ExperienceError("experience_extraction_source_denied")
         record = candidate.record
-        produced = extract_rule_experience(
+        produced = extract_experiences(
             trace, documents=documents, owner=record.owner, created_at=record.created_at
         )
         expected = {**record.model_dump(mode="json")}
@@ -307,9 +308,22 @@ class ExperienceStore:
         body = source.model_dump(mode="json")
         if (
             source.experience_id != record.experience_id
-            or source.template_version != "rule-excerpt-v1"
+            or source.template_version not in {"rule-excerpt-v1", SQL_REPAIR_TEMPLATE}
             or source.recovery_step != source.failure_step + 1
             or content_hash(body) != row[1]
+            or (
+                source.template_version == "rule-excerpt-v1"
+                and (
+                    record.failure_class != "rule_semantics_excerpt_missing"
+                    or record.tool_scope != ("rules",)
+                )
+            )
+            or (
+                source.template_version == SQL_REPAIR_TEMPLATE
+                and (
+                    record.failure_class not in SQL_REPAIR_GUIDANCE or record.tool_scope != ("sql",)
+                )
+            )
         ):
             raise ExperienceError("experience_integrity_failure")
         return {**body, "origin": "extraction"}

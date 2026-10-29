@@ -36,7 +36,7 @@ from generaldataagent.evaluation.execution_budget import (
 )
 from generaldataagent.evaluation.execution_budget import ExecutionBudget
 from generaldataagent.evaluation.repair_budget import RepairBudget
-from generaldataagent.tools.sql_guard import SqlGuard
+from generaldataagent.tools.sql_guard import SqlGuard, SqlGuardError
 from generaldataagent.tools.sqlite import SQLiteReadOnlyExecutor
 
 
@@ -720,6 +720,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
             result_data = None
             calls = []
             tool = None
+            sql_repair_context = None
             if repair:
                 if semantic and previous_countdown is not None:
                     # Remove only the exact runtime-created stale countdown object.
@@ -1198,6 +1199,8 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     )
                     tool = "fixed_analysis"
                 else:
+                    if not semantic:
+                        tool = "sql"
                     sql = (
                         action["mixed_sql"]["sql"]
                         if "mixed_sql" in action
@@ -1205,6 +1208,21 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                             "final_sql", action.get("answer_sql", action.get("sql", ""))
                         )
                     )
+                    if not semantic and set(action) in ({"sql"}, {"final_sql"}):
+                        from generaldataagent.experience.sql_extraction import (
+                            sql_repair_context_hash,
+                        )
+
+                        sql_repair_context = sql_repair_context_hash(
+                            {
+                                "task": asdict(task),
+                                "visible_schema": context,
+                                "relations": sorted(relations),
+                                "profile": self.tool_profile,
+                                "action": next(iter(action)),
+                                "documents_hash": hashlib.sha256(documents.encode()).hexdigest(),
+                            }
+                        )
                     if (
                         semantic
                         and "answer_sql" in action
@@ -1385,6 +1403,13 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                         event["compiled_query_plan"] = compiled_plan.model_dump()
                 if tool == "sql":
                     event.update(sql=sql, row_count=len(result.rows), elapsed_ms=result.elapsed_ms)
+                    if sql_repair_context is not None:
+                        from generaldataagent.experience.sql_extraction import observe_sql_repair
+
+                        event["sql_repair_context_hash"] = sql_repair_context
+                        receipt = observe_sql_repair(trace[-1], event) if trace else None
+                        if receipt is not None:
+                            event["sql_repair_evidence"] = receipt.model_dump(mode="json")
                 else:
                     event["action"] = action
                 action_key = json.dumps(action, sort_keys=True)
@@ -1493,6 +1518,12 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     ),
                     "invalid_action",
                 )
+                if (
+                    sql_repair_context is not None
+                    and isinstance(exc, SqlGuardError)
+                    and str(exc).startswith("SQL parsing failed:")
+                ):
+                    code = "sql_syntax"
                 event = {"step": step, "status": "error", "error": kind, "code": code}
                 if tool is not None:
                     event["tool"] = tool
@@ -1521,6 +1552,8 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                     attempted_sql = action.get("final_sql", action.get("sql"))
                     if isinstance(attempted_sql, str):
                         event["attempted_sql"] = attempted_sql[:10000]
+                        if sql_repair_context is not None and len(attempted_sql) <= 10000:
+                            event["sql_repair_context_hash"] = sql_repair_context
                 trace.append(event)
                 if semantic and isinstance(exc, ColumnScopeError):
                     event.update(code="unknown_column", field_candidates=exc.candidates)

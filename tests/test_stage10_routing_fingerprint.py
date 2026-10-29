@@ -284,6 +284,7 @@ def test_routed_fingerprint_covers_executed_profiles(run_manifest, questions, pr
     for stage in (7, 8, 9):
         assert bool(fingerprint[f"stage{stage}_sources"]) is (stage in stages)
     assert bool(fingerprint["experience_extraction_hash"]) is (9 in stages)
+    assert bool(fingerprint["sql_repair_evidence_hash"]) is ("sql-repair" in profiles)
     assert report["summary"]["n"] == len(questions)
     assert report["summary"]["tokens"] == 0
     assert report["production_accepted"] is False
@@ -351,6 +352,19 @@ def test_fixed_profile_fingerprint_stays_scoped(run_manifest, profile, stages):
     assert executed == [profile]
     for stage in (7, 8, 9):
         assert bool(report["system_fingerprint"][f"stage{stage}_sources"]) is (stage in stages)
+    assert bool(report["system_fingerprint"]["sql_repair_evidence_hash"]) is (profile == "sql")
+
+
+def test_sql_repair_evidence_source_change_is_an_explicit_system_change(run_manifest, monkeypatch):
+    runner, run = run_manifest
+    before, _ = run(["How many payments?"], routing=False, profile="sql-repair")
+    monkeypatch.setattr(runner, "extraction_source_hash", lambda root: "changed-extractor")
+    after, _ = run(["How many payments?"], routing=False, profile="sql-repair")
+    assert before["protocol_hash"] == after["protocol_hash"]
+    assert (
+        before["system_fingerprint"]["sql_repair_evidence_hash"]
+        != (after["system_fingerprint"]["sql_repair_evidence_hash"])
+    )
 
 
 @pytest.mark.parametrize(

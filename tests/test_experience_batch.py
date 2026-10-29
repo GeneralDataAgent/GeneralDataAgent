@@ -115,7 +115,7 @@ def test_unexpected_interruption_leaves_running_ledger(inputs, monkeypatch):
     def stop(*args, **kwargs):
         raise RuntimeError("stop")
 
-    monkeypatch.setattr(module, "extract_rule_experience", stop)
+    monkeypatch.setattr(module, "extract_experiences", stop)
     with pytest.raises(RuntimeError):
         run(inputs, [item("a"), item("b")])
     report = json.loads((inputs / "out/report.json").read_text())

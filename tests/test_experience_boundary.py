@@ -107,9 +107,22 @@ assert not any(name.startswith('generaldataagent.evaluation') for name in sys.mo
     subprocess.run([sys.executable, "-c", script], check=True, capture_output=True, text=True)
 
 
-@pytest.mark.parametrize("changed", ["contracts/experience.py", "experience/extraction.py"])
+@pytest.mark.parametrize(
+    "changed",
+    [
+        "contracts/experience.py",
+        "experience/extraction.py",
+        "experience/sql_extraction.py",
+        "tools/sql_guard.py",
+    ],
+)
 def test_source_fingerprint_covers_contract_and_implementation(tmp_path, changed):
-    for relative in ("contracts/experience.py", "experience/extraction.py"):
+    for relative in (
+        "contracts/experience.py",
+        "experience/extraction.py",
+        "experience/sql_extraction.py",
+        "tools/sql_guard.py",
+    ):
         target = tmp_path / "src/generaldataagent" / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes((ROOT / "src/generaldataagent" / relative).read_bytes())

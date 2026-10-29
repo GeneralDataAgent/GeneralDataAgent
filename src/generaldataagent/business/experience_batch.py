@@ -12,7 +12,7 @@ from pathlib import Path
 
 from generaldataagent.business.experience import ExperienceStore
 from generaldataagent.contracts import ActorContext
-from generaldataagent.experience.extraction import extract_rule_experience
+from generaldataagent.experience.extraction import extract_experiences
 
 MAX_ITEMS = 100
 MAX_FILE_BYTES = 1024 * 1024
@@ -125,7 +125,7 @@ def capture_batch(
                 trace = json.loads(trace_bytes)
                 if not isinstance(trace, list) or not all(isinstance(item, dict) for item in trace):
                     raise ValueError("invalid_trace")
-                candidates = extract_rule_experience(
+                candidates = extract_experiences(
                     trace,
                     documents=document_bytes.decode("utf-8"),
                     owner=actor.user_id,

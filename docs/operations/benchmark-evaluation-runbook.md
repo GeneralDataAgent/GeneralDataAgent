@@ -907,7 +907,8 @@ text or expected answers. Such records are marked `origin='extraction'`; `extrac
 returns the validated receipt for review, and any read or review of a record whose receipt is
 missing, malformed or inconsistent raises `experience_integrity_failure`. Extraction provenance
 does not replace independent experience review and does not by itself qualify a record for runtime
-retrieval. Deleting both the receipt and its origin marker still looks like an older manual record.
+retrieval. The versioned store rejects missing origin markers; unversioned legacy layouts need
+the explicit copy migration described above.
 
 The first template supports only `rule_semantics_excerpt_missing` followed immediately by a
 successful `fee_rules` call at the next step. The failure trace must contain the hash of all
@@ -922,9 +923,35 @@ binding live in `experience/extraction.py`, which imports neither business store
 modules. Product capture and evaluation use this same service. The former business record import
 and `evaluation.experience_extraction` exports remain compatible aliases.
 
+`extract_experiences` also supports the `sql-repair-v1` template family: unknown columns,
+ambiguous columns, SQL syntax, unavailable functions and invalid function argument counts.
+The nonsemantic `sql`, `sql-analysis`, `sql-repair` and `sql-precision` agent paths emit a
+`SqlRepairEvidence` observation only for adjacent failed/successful direct SQL actions in the
+same declared task, visible schema, relation set, profile, documents and action kind. The
+observation binds both exact query hashes, both steps and the successful event's result hash.
+Recovery SQL must pass the read-only guard, and a merely reformatted identical AST is skipped.
+Guard parse failures are identified as `sql_syntax` even when their text omits that word;
+nonsemantic SQL errors now identify their tool as `sql` for scoped reviewed-hint lookup.
+
+This family checks an observed change followed by tool acceptance. It does not re-execute the
+query, verify a semantic repair, or bind the context hash to a full database snapshot or
+authenticated execution. Raw SQL, identifiers, literals and arbitrary trace text never enter
+the fixed lesson. Each trace yields at most one candidate per supported SQL failure class,
+plus the existing single rule candidate: at most six in total, ordered by failure step.
+Old unbound traces, changed contexts, interleaved observations and unsupported failure classes
+produce no SQL candidate. Semantic/science/rule action protocols are outside this SQL family.
+
+The single-trace and batch CLIs use this same dispatcher. `--documents` remains required; an
+empty UTF-8 file is sufficient for SQL-only inputs. Stores rederive each candidate from the
+exact input bytes and verify the template family, failure class and tool scope when reading
+receipts. Existing `rule-excerpt-v1` records and bytes remain unchanged. The SQLite layout
+stays at version 1; older readers reject the new extraction template rather than upgrading it.
+
 New CLI `extractor_hash` receipts and rule-profile `experience_extraction_hash` fingerprints are
 SHA-256 digests of a canonical, sorted path-to-file-hash manifest covering both the shared contract
-and extraction implementation. Moving implementation behind a compatibility export must not leave
+and extraction implementations, including the SQL read-only guard. Nonsemantic runner profiles
+also identify that manifest as `sql_repair_evidence_hash`. Moving implementation behind a
+compatibility export must not leave
 provenance hashing only that export. Historical single-file digests are retained without rewriting;
 new fingerprints differ and must not be paired with old runs as an unchanged system.
 Only repository-owned generic prose enters the lesson; trace content is not
@@ -937,8 +964,8 @@ not authenticate their origin or persist a copy of potentially sensitive raw inp
 This is development evidence from caller-supplied traces, not authenticated production proof.
 A successful tool call establishes neither answer correctness nor the correctness of the
 chosen semantic interpretation. Independent review remains `not_run`, and retrieval cannot
-see the candidate until the existing review gate accepts it. Other failure classes, automatic
-batch report ingestion, unseen-task benefit and production qualification remain unimplemented.
+see the candidate until the existing review gate accepts it. Arbitrary-tool failure learning,
+scored-report ingestion, unseen-task benefit and production qualification remain unimplemented.
 
 ## Historical v7 reproduction
 
@@ -996,7 +1023,7 @@ update. Start a new batch rather than treating the partial run as completed.
 
 The ledger contains input digests, candidate IDs, counts and stable refusal codes,
 not raw traces, document passages or exception messages. Candidates use the existing
-fixed excerpt-repair template and exact-byte source verification. They remain
+built-in rule and SQL repair templates and exact-byte source verification. They remain
 unreviewed and unavailable to runtime retrieval. This adds batch processing, not a
 general failure-learning algorithm, source authentication or proof of answer quality.
 

@@ -14,6 +14,7 @@ from pydantic import ValidationError
 
 from generaldataagent.contracts.experience import ExperienceRecord, ExtractedExperience
 from generaldataagent.contracts.rule_tools import RuleAnalysisRequest
+from generaldataagent.experience.sql_extraction import extract_sql_experiences
 
 
 def extraction_source_hash(root: Path) -> str:
@@ -21,6 +22,8 @@ def extraction_source_hash(root: Path) -> str:
     paths = (
         "src/generaldataagent/contracts/experience.py",
         "src/generaldataagent/experience/extraction.py",
+        "src/generaldataagent/experience/sql_extraction.py",
+        "src/generaldataagent/tools/sql_guard.py",
     )
     manifest = {path: hashlib.sha256((root / path).read_bytes()).hexdigest() for path in paths}
     raw = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
@@ -126,3 +129,13 @@ def extract_rule_experience(
             ),
         )
     return ()
+
+
+def extract_experiences(
+    trace: list[dict], *, documents: str, owner: str, created_at: datetime
+) -> tuple[ExtractedExperience, ...]:
+    """Derive at most six unreviewed candidates from built-in, bounded templates."""
+    candidates = extract_rule_experience(
+        trace, documents=documents, owner=owner, created_at=created_at
+    ) + extract_sql_experiences(trace, owner=owner, created_at=created_at)
+    return tuple(sorted(candidates, key=lambda candidate: candidate.failure_step))

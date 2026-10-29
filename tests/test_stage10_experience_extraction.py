@@ -250,7 +250,7 @@ def test_cli_hashes_the_exact_input_bytes_used_for_extraction(
     document_bytes = DOCUMENTS.encode()
     trace.write_bytes(trace_bytes)
     documents.write_bytes(document_bytes)
-    original = module.extract_rule_experience
+    original = module.extract_experiences
 
     def extract_then_change(*args, **kwargs):
         candidates = original(*args, **kwargs)
@@ -262,7 +262,7 @@ def test_cli_hashes_the_exact_input_bytes_used_for_extraction(
             documents.unlink()
         return candidates
 
-    monkeypatch.setattr(module, "extract_rule_experience", extract_then_change)
+    monkeypatch.setattr(module, "extract_experiences", extract_then_change)
     output = tmp_path / "extraction"
     monkeypatch.setattr(
         sys,

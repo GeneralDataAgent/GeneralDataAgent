@@ -202,6 +202,15 @@ markers only from surviving receipts and cannot authenticate their history. Reus
 validation and review-state reduction across reading, review, and audit while retaining scope
 authorization and source qualification as separate checks.
 
+The pure extraction dispatcher now adds five SQL failure classes to the original excerpt-repair
+template. Nonsemantic direct SQL calls emit a versioned repair observation binding declared
+context, exact before/after query hashes, steps and the successful result digest. Only fixed
+generic guidance enters candidates, at most once per class per trace. Capture rederives candidates
+from exact trace/document bytes, and reads check the template family against failure class and
+tool scope. Historical rule records keep their bytes. This broadens bounded extraction; it is
+neither arbitrary-tool learning nor proof that an executed replacement is semantically correct.
+Trace assertions remain unauthenticated and all new candidates still require independent review.
+
 `ValidatedRunReport` now provides the shared envelope below treatment comparison, repeat stability,
 and service readiness. The existing case validator already was shared; the remaining duplication
 was repeated summary recomputation in the paired-repeat path and reopening caller-owned dictionaries
