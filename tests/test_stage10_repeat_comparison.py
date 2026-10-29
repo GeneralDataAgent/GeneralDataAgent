@@ -8,6 +8,7 @@ import pytest
 
 from generaldataagent.evaluation.repeat_comparison import (
     compare_repeated_runs,
+    minimum_detectable_effect,
     tasks_for_power,
 )
 from generaldataagent.evaluation.stage_six import summarize
@@ -166,6 +167,96 @@ def test_no_discordant_task_means_no_power_estimate():
     assert result["design"]["tasks_for_target_power"] is None
 
 
+def test_the_cohort_reports_the_smallest_effect_it_could_detect():
+    design = compare(arm(BASE), arm(WIDER))["design"]["minimum_detectable_effect"]
+    assert design["n"] == 10
+    assert design["repeats_per_arm"] == 3
+    assert 0 < design["per_task_rate_shift"] < 1
+    assert design["power"] >= design["target_power"]
+    assert design["expected_pooled_rate_delta"] <= design["per_task_rate_shift"]
+    assert design["decision_rule"] == "exact two-sided sign test over discordant tasks"
+
+
+def test_a_cohort_whose_tasks_are_all_at_ceiling_cannot_detect_any_effect():
+    # Every task passes every repeat in the baseline, so no task can improve and
+    # the sign test never rejects whatever the shift.
+    result = compare(arm(set(CASES)), arm(set(CASES)))
+    assert result["design"]["minimum_detectable_effect"] is None
+
+
+def test_more_tasks_lower_the_detectable_effect():
+    rows = [
+        {
+            "baseline_passes": 0,
+            "baseline_repeats": 3,
+            "candidate_passes": 0,
+            "candidate_repeats": 3,
+        }
+    ]
+    small = minimum_detectable_effect(rows * 6)
+    large = minimum_detectable_effect(rows * 30)
+    assert small["per_task_rate_shift"] > large["per_task_rate_shift"]
+    assert large["power"] >= large["target_power"]
+
+
+def test_an_effect_estimate_needs_equal_repeats_per_arm():
+    with pytest.raises(ValueError, match="equal repeats"):
+        minimum_detectable_effect(
+            [
+                {
+                    "baseline_passes": 1,
+                    "baseline_repeats": 3,
+                    "candidate_passes": 1,
+                    "candidate_repeats": 2,
+                }
+            ]
+        )
+
+
+def test_the_effect_estimate_is_deterministic():
+    first = minimum_detectable_effect(
+        [
+            {
+                "baseline_passes": 0,
+                "baseline_repeats": 3,
+                "candidate_passes": 1,
+                "candidate_repeats": 3,
+            }
+        ]
+        * 8
+    )
+    assert first == minimum_detectable_effect(
+        [
+            {
+                "baseline_passes": 0,
+                "baseline_repeats": 3,
+                "candidate_passes": 1,
+                "candidate_repeats": 3,
+            }
+        ]
+        * 8
+    )
+
+
+def test_unmeasured_cost_names_the_runs_that_lost_it():
+    result = compare(arm(BASE), arm(WIDER, cost=None))
+    assert result["cost"]["status"] == "unavailable"
+    assert result["cost"]["unmeasured_arms"] == ["candidate"]
+    assert result["cost"]["unmeasured_runs"] == {
+        "candidate": ["2026-10-28T00:00:00Z", "2026-10-28T00:00:01Z", "2026-10-28T00:00:02Z"]
+    }
+    assert result["cost"]["unmeasured_task_runs"] == {"candidate": 30}
+    assert "cost_not_verified stays in design_blockers" in result["cost"]["criteria_impact"]
+    assert "candidate" in result["cost"]["degradation"]
+
+
+def test_a_measured_cost_reports_no_degradation():
+    result = compare(arm(BASE), arm(WIDER))
+    assert result["cost"]["status"] == "measured"
+    assert result["cost"]["unmeasured_arms"] == []
+    assert result["cost"]["degradation"] is None
+
+
 def test_a_small_discordance_rate_implies_a_large_cohort():
     design = compare(arm(BASE), arm(WIDER))["design"]["tasks_for_target_power"]
     assert design["critical_discordant_tasks"] == 6
@@ -212,3 +303,38 @@ def test_a_held_out_cohort_with_a_clear_gain_meets_only_the_internal_criteria():
     assert result["independent_review"] == "not_supplied"
     assert result["production_accepted"] is False
     assert json.dumps(result)  # the result stays serialisable evidence
+
+
+DECLARATION = {"benchmark": "dabstep-dev", "cohort_hash": "cohort-1", "case_ids": CASES}
+
+
+def test_the_frozen_file_is_hashed_and_checked_rather_than_trusted():
+    result = compare(arm(BASE), arm(WIDER), cohort_file=DECLARATION, cohort_file_sha256="file-1")
+    assert result["cohort_file_verification"] == {
+        "benchmark": "dabstep-dev",
+        "cohort_hash": "cohort-1",
+        "file_sha256": "file-1",
+        "declared_case_ids": 10,
+        "runs": 6,
+        "case_hashes_present": False,
+    }
+
+
+def test_a_file_that_is_not_the_one_the_runs_declared_is_refused():
+    with pytest.raises(ValueError, match="not the file the run declared"):
+        compare(arm(BASE), arm(WIDER), cohort_file=DECLARATION, cohort_file_sha256="file-2")
+
+
+def test_a_file_from_another_benchmark_is_refused():
+    other = {**DECLARATION, "benchmark": "bird-mini-dev-sqlite"}
+    with pytest.raises(ValueError, match="declared for 'bird-mini-dev-sqlite'"):
+        compare(arm(BASE), arm(WIDER), cohort_file=other, cohort_file_sha256="file-1")
+
+
+def test_a_file_without_its_hash_is_refused_rather_than_half_verified():
+    with pytest.raises(ValueError, match="both the file and its hash"):
+        compare(arm(BASE), arm(WIDER), cohort_file=DECLARATION)
+
+
+def test_an_unverified_comparison_says_so():
+    assert compare(arm(BASE), arm(WIDER))["cohort_file_verification"] is None

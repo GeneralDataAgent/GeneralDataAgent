@@ -47,7 +47,13 @@ from generaldataagent.business.rules.governed import GovernedRuleRunner
 from generaldataagent.business.rules.payments import PaymentsSourceError
 from generaldataagent.business.rules.semantics import AnnexSemanticsDeclaration
 from generaldataagent.business.rules.workflow import REFUSAL_CODES
-from generaldataagent.contracts import ActorContext, AgentRole, ExecutionReceipt, ToolRequest
+from generaldataagent.contracts import (
+    ActorContext,
+    AgentRole,
+    ExecutionReceipt,
+    ToolRequest,
+    load_receipt,
+)
 from generaldataagent.contracts.rule_tools import RuleAnalysisRequest
 from generaldataagent.llm.orchestration import OrchestrationRouter
 from generaldataagent.orchestration.rule_workflow import RuleWorkflowRuntime
@@ -401,7 +407,10 @@ class RuleSupervisorRuntime:
             candidates["analysis"] = {
                 "state": state,
                 "tool_result": tool_result,
-                "receipt": ExecutionReceipt.model_validate(state["receipt"])
+                # Read through the versioned entry point, so a receipt handed in
+                # by a resumed or foreign producer is refused by name instead of
+                # being defaulted into this version's reading.
+                "receipt": load_receipt(state["receipt"])
                 if state.get("receipt") is not None
                 else None,
             }
@@ -447,7 +456,7 @@ class RuleSupervisorRuntime:
             package = result["delivery"]
             candidates["delivery"] = {
                 "package": package,
-                "receipt": ExecutionReceipt.model_validate(result["receipt"])
+                "receipt": load_receipt(result["receipt"])
                 if result.get("receipt") is not None
                 else None,
             }

@@ -11,7 +11,11 @@ from uuid import uuid4
 import pytest
 
 from generaldataagent.artifacts import LocalArtifactStore
-from generaldataagent.contracts import ActorContext, ExecutionReceipt
+from generaldataagent.contracts import (
+    ActorContext,
+    ExecutionReceipt,
+    ReceiptVersionUnsupported,
+)
 from generaldataagent.evaluation.receipts import (
     EvaluationReceiptError,
     EvaluationReceiptRecorder,
@@ -331,3 +335,47 @@ def test_readback_detects_changed_artifact_bytes(setup):
     assert hashlib.sha256(path.read_bytes()).hexdigest() != ref["content_hash"].removeprefix(
         "sha256:"
     )
+
+
+def test_a_stored_step_from_another_receipt_version_is_refused_by_name(setup):
+    result = run(setup, recorder(setup))
+    result["execution_receipts"][0]["receipt"]["receipt_version"] = "1.1"
+    with pytest.raises(ReceiptVersionUnsupported):
+        validate_evaluation_receipts(result)
+
+
+def test_a_stored_step_that_does_not_state_its_version_is_refused(setup):
+    result = run(setup, recorder(setup))
+    del result["execution_receipts"][0]["receipt"]["receipt_version"]
+    with pytest.raises(ValueError, match="must state its receipt_version"):
+        validate_evaluation_receipts(result)
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"scope": "independent_implementation", "verifier": "outside-auditor"},
+        {"scope": "human_attestation", "verifier": "named-reviewer"},
+        {"passed": False},
+        {"scope": "none", "passed": False},
+    ],
+)
+def test_a_stored_step_with_another_verification_strength_is_refused_by_name(setup, changes):
+    result = run(setup, recorder(setup))
+    result["execution_receipts"][0]["receipt"]["verification"].update(changes)
+    # The refusal is the strength, not a generic binding drift: a producer self
+    # check read as an independent or human check would be a stronger claim.
+    with pytest.raises(ValueError, match="evaluation_receipt_verification_mismatch"):
+        validate_evaluation_receipts(result)
+
+
+def test_reading_a_stored_row_neither_upgrades_nor_rewrites_it(setup):
+    result = run(setup, recorder(setup))
+    before = copy.deepcopy(result)
+    validate_evaluation_receipts(result, read_bytes=setup[2].read_bytes)
+    assert result == before
+
+
+def test_a_legacy_row_reads_without_adapter_metadata(setup):
+    row = {"case_id": "legacy", "passed": True, "final_sql": "SELECT 1"}
+    assert validate_evaluation_receipts(row) == ()

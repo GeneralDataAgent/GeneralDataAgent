@@ -16,9 +16,20 @@ from generaldataagent.contracts import (
     ObservedUsage,
     ReceiptVerification,
     SourceBinding,
+    load_receipt,
 )
 
 ADAPTER_VERSION = "evaluation-step-v1"
+
+# One definition of the check this adapter performs, shared by the writer and the
+# reader. A stored step whose verification differs from this in strength is a
+# different claim, not an equivalent one, so the reader refuses it by name rather
+# than reporting the same generic binding failure it uses for identity drift.
+ADAPTER_VERIFICATION = ReceiptVerification(
+    scope="producer_self_check",
+    passed=True,
+    check_codes=("result_artifact_readback", "step_result_hash"),
+)
 
 
 class EvaluationReceiptError(ValueError):
@@ -145,11 +156,7 @@ class EvaluationReceiptRecorder:
                 result_refs=(ref,),
                 completeness="partial" if result.get("complete") is False else "complete",
                 usage=ObservedUsage(tool_calls=1),
-                verification=ReceiptVerification(
-                    scope="producer_self_check",
-                    passed=True,
-                    check_codes=("result_artifact_readback", "step_result_hash"),
-                ),
+                verification=ADAPTER_VERIFICATION,
             )
             self.check_sources()
             self.steps.append(
@@ -220,7 +227,15 @@ def validate_evaluation_receipts(
         if type(step) is not int or step < 1 or step in seen:
             raise ValueError("evaluation_receipt_step_invalid")
         seen.add(step)
-        receipt = ExecutionReceipt.model_validate(entry["receipt"])
+        # Stored steps are read through the versioned entry point, so a step
+        # written by another receipt version is refused by name instead of
+        # failing as generic validation.
+        receipt = load_receipt(entry["receipt"])
+        # Strength is checked before identity: a step that claims an independent
+        # or human verification is not this adapter's evidence, and reporting it
+        # as a generic binding mismatch would hide that the claim itself differs.
+        if receipt.verification != ADAPTER_VERIFICATION:
+            raise ValueError("evaluation_receipt_verification_mismatch")
         if (
             any(getattr(receipt, key) != context[key] for key in identity)
             or receipt.sources != sources
@@ -230,12 +245,6 @@ def validate_evaluation_receipts(
             or receipt.method.runtime_fingerprint != context["runtime_fingerprint"]
             or len(receipt.result_refs) != 1
             or receipt.result_refs[0].content_hash != "sha256:" + entry["result_hash"]
-            or receipt.verification
-            != ReceiptVerification(
-                scope="producer_self_check",
-                passed=True,
-                check_codes=("result_artifact_readback", "step_result_hash"),
-            )
         ):
             raise ValueError("evaluation_receipt_binding_mismatch")
         if "database_hash" in row and not any(
@@ -274,6 +283,11 @@ def validate_evaluation_receipts(
     }:
         raise ValueError("evaluation_receipt_missing_step")
     by_step = {entry["step"]: entry for entry in entries}
+    # Answer bindings resolve through the receipts the versioned reader has
+    # already accepted, never through a second parse of the stored dict.
+    receipts_by_step = {
+        entry["step"]: receipt for entry, receipt in zip(entries, receipts, strict=True)
+    }
     for binding in row.get("answer_evidence", {}).values():
         entry = by_step.get(binding.get("step"))
         if entry is None or any(
@@ -281,9 +295,7 @@ def validate_evaluation_receipts(
         ):
             raise ValueError("evaluation_receipt_answer_binding_mismatch")
         if read_bytes is not None:
-            value = json.loads(
-                read_bytes(ExecutionReceipt.model_validate(entry["receipt"]).result_refs[0])
-            )
+            value = json.loads(read_bytes(receipts_by_step[binding["step"]].result_refs[0]))
             for part in binding["path"]:
                 value = value[part]
             if result_bytes({"value": value}) != result_bytes({"value": binding["raw_value"]}):

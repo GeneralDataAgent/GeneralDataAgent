@@ -8,6 +8,7 @@ from pydantic import ValidationError
 
 from generaldataagent.artifacts import LocalArtifactStore
 from generaldataagent.contracts import (
+    ActorContext,
     AgentRole,
     ExperimentSpec,
     ModelRegistrationDraft,
@@ -27,11 +28,14 @@ from generaldataagent.data_science.sandbox import (
 from generaldataagent.data_science.snapshot import create_dataset_snapshot
 from generaldataagent.data_science.tracking import (
     ExperimentTrackingError,
+    MirroringExperimentTracker,
     SQLiteExperimentTracker,
 )
 from generaldataagent.data_science.workbench import DataScienceWorkbench, ScienceGateError
 from generaldataagent.observability import JsonlAuditSink
+from generaldataagent.orchestration.composition import ExecutionComposition
 from generaldataagent.policy import ApprovalError, InMemoryApprovalStore, PolicyEngine
+from generaldataagent.security.science_scope import ScienceWorkloadScope
 
 
 def _classification_rows() -> list[dict[str, object]]:
@@ -556,3 +560,245 @@ def test_workbench_runs_the_injected_sandbox_through_the_shared_preparation(
     rows, spec, train, test = sandbox.calls[0]
     assert len(rows) == 20 and sorted(train + test) == list(range(20))
     assert spec.task_id == task_id
+
+
+def _rewrite_stored_record(tracker, experiment_id, mutate):
+    """Rewrite one stored record the way another producer could have written it."""
+    import hashlib
+    import sqlite3
+
+    with sqlite3.connect(tracker.path) as connection:
+        (content,) = connection.execute(
+            "SELECT record_json FROM experiments WHERE experiment_id = ?",
+            (str(experiment_id),),
+        ).fetchone()
+    record = json.loads(content)
+    mutate(record)
+    rewritten = json.dumps(record, sort_keys=True)
+    with sqlite3.connect(tracker.path) as connection:
+        connection.execute(
+            "UPDATE experiments SET record_json = ?, content_hash = ? WHERE experiment_id = ?",
+            (
+                rewritten,
+                "sha256:" + hashlib.sha256(rewritten.encode()).hexdigest(),
+                str(experiment_id),
+            ),
+        )
+
+
+def _rewrite_stored_version(tracker, experiment_id, version):
+    def mutate(record):
+        if version is None:
+            del record["report"]["receipt"]["receipt_version"]
+        else:
+            record["report"]["receipt"]["receipt_version"] = version
+
+    _rewrite_stored_record(tracker, experiment_id, mutate)
+
+
+def test_a_stored_experiment_from_another_receipt_version_is_refused_by_name(tmp_path: Path):
+    from generaldataagent.contracts import ReceiptVersionUnsupported
+
+    task_id, store, snapshot = _snapshot(tmp_path)
+    tracker = SQLiteExperimentTracker(tmp_path / "tracking.sqlite")
+    spec = _spec(task_id, snapshot.snapshot_id)
+    _run(DataScienceWorkbench(artifact_store=store, tracker=tracker), snapshot, spec)
+    _rewrite_stored_version(tracker, spec.experiment_id, "1.1")
+    with pytest.raises(ReceiptVersionUnsupported):
+        tracker.get(spec.experiment_id)
+
+
+def test_a_stored_experiment_without_a_receipt_version_is_refused(tmp_path: Path):
+    task_id, store, snapshot = _snapshot(tmp_path)
+    tracker = SQLiteExperimentTracker(tmp_path / "tracking.sqlite")
+    spec = _spec(task_id, snapshot.snapshot_id)
+    _run(DataScienceWorkbench(artifact_store=store, tracker=tracker), snapshot, spec)
+    _rewrite_stored_version(tracker, spec.experiment_id, None)
+    with pytest.raises(ValueError, match="must state its receipt_version"):
+        tracker.get(spec.experiment_id)
+
+
+def test_a_stored_experiment_with_a_stronger_verification_is_refused_by_name(tmp_path: Path):
+    from generaldataagent.data_science.tracking import ExperimentTrackingError
+
+    task_id, store, snapshot = _snapshot(tmp_path)
+    tracker = SQLiteExperimentTracker(tmp_path / "tracking.sqlite")
+    spec = _spec(task_id, snapshot.snapshot_id)
+    _run(DataScienceWorkbench(artifact_store=store, tracker=tracker), snapshot, spec)
+    _rewrite_stored_record(
+        tracker,
+        spec.experiment_id,
+        lambda record: record["report"]["receipt"]["verification"].update(
+            scope="independent_implementation", verifier="outside-auditor"
+        ),
+    )
+    # This tracker writes producer self-checks only, so a stronger claim is
+    # refused as its own named failure rather than as an internal schema error.
+    with pytest.raises(
+        ExperimentTrackingError, match="experiment_receipt_verification_scope_mismatch"
+    ):
+        tracker.get(spec.experiment_id)
+
+
+def test_a_record_without_a_receipt_stays_readable_and_unrewritten(tmp_path: Path):
+    import sqlite3
+
+    task_id, store, snapshot = _snapshot(tmp_path)
+    tracker = SQLiteExperimentTracker(tmp_path / "tracking.sqlite")
+    spec = _spec(task_id, snapshot.snapshot_id)
+    _run(DataScienceWorkbench(artifact_store=store, tracker=tracker), snapshot, spec)
+    _rewrite_stored_record(
+        tracker, spec.experiment_id, lambda record: record["report"].pop("receipt")
+    )
+
+    def stored():
+        with sqlite3.connect(tracker.path) as connection:
+            return connection.execute(
+                "SELECT record_json, content_hash FROM experiments WHERE experiment_id = ?",
+                (str(spec.experiment_id),),
+            ).fetchone()
+
+    before = stored()
+    tracked = tracker.get(spec.experiment_id)
+    assert tracked.report.receipt is None
+    assert stored() == before
+
+
+class _Mirror:
+    backend_name = "fake-index"
+
+    def __init__(self, *, admitted=True, fail=False):
+        self._admitted = admitted
+        self.fail = fail
+        self.published = []
+
+    def admitted(self):
+        return self._admitted
+
+    def publish(self, tracked):
+        if self.fail:
+            raise RuntimeError("service down")
+        self.published.append(tracked.experiment_id)
+        return f"ext-{tracked.experiment_id}"
+
+
+def test_a_mirror_failure_never_changes_the_local_record(tmp_path: Path) -> None:
+    task_id, store, snapshot = _snapshot(tmp_path)
+    local = SQLiteExperimentTracker(tmp_path / "tracking.sqlite")
+    tracker = MirroringExperimentTracker(local, _Mirror(fail=True))
+    workbench = DataScienceWorkbench(artifact_store=store, tracker=tracker)
+    spec = _spec(task_id, snapshot.snapshot_id)
+    report = _run(workbench, snapshot, spec)
+    # The experiment happened; the mirror lost its copy, not the evidence.
+    assert local.get(spec.experiment_id).report == report
+    status = tracker.mirror_status(spec.experiment_id)
+    assert status["status"] == "pending"
+    assert status["attempts"] == 1
+    assert status["last_error"] == "RuntimeError: service down"
+
+
+def test_a_pending_mirror_write_is_retried_and_then_delivered(tmp_path: Path) -> None:
+    task_id, store, snapshot = _snapshot(tmp_path)
+    local = SQLiteExperimentTracker(tmp_path / "tracking.sqlite")
+    mirror = _Mirror(fail=True)
+    tracker = MirroringExperimentTracker(local, mirror)
+    spec = _spec(task_id, snapshot.snapshot_id)
+    _run(DataScienceWorkbench(artifact_store=store, tracker=tracker), snapshot, spec)
+    mirror.fail = False
+    assert tracker.publish_pending() == 1
+    assert tracker.mirror_status(spec.experiment_id)["status"] == "delivered"
+    assert mirror.published == [spec.experiment_id]
+    assert tracker.publish_pending() == 0
+
+
+def test_a_delivered_mirror_still_leaves_the_local_record_authoritative(tmp_path: Path) -> None:
+    task_id, store, snapshot = _snapshot(tmp_path)
+    local = SQLiteExperimentTracker(tmp_path / "tracking.sqlite")
+    tracker = MirroringExperimentTracker(local, _Mirror())
+    spec = _spec(task_id, snapshot.snapshot_id)
+    report = _run(DataScienceWorkbench(artifact_store=store, tracker=tracker), snapshot, spec)
+    assert tracker.mirror_status(spec.experiment_id)["status"] == "delivered"
+    assert tracker.get(spec.experiment_id).report == report
+    assert tracker.list_for_snapshot(snapshot.snapshot_id)[0].experiment_id == spec.experiment_id
+
+
+def test_a_mirror_must_be_admitted_before_it_is_wired(tmp_path: Path) -> None:
+    local = SQLiteExperimentTracker(tmp_path / "tracking.sqlite")
+    with pytest.raises(ValueError, match="not admitted"):
+        MirroringExperimentTracker(local, _Mirror(admitted=False))
+
+
+def test_an_unmirrored_experiment_reports_no_attempt(tmp_path: Path) -> None:
+    local = SQLiteExperimentTracker(tmp_path / "tracking.sqlite")
+    tracker = MirroringExperimentTracker(local, _Mirror())
+    assert tracker.mirror_status(uuid4()) == {
+        "status": "not_attempted",
+        "attempts": 0,
+        "last_error": None,
+    }
+
+
+def _scope(task_id, snapshot_id, **overrides):
+    return ScienceWorkloadScope(
+        user_id=overrides.get("user_id", "scientist"),
+        tenant_id=overrides.get("tenant_id", "tenant-a"),
+        project_id=overrides.get("project_id", "project-a"),
+        data_domains=frozenset(overrides.get("data_domains", {"commerce"})),
+        task_id=overrides.get("task_id", task_id),
+        snapshot_id=overrides.get("snapshot_id", snapshot_id),
+    )
+
+
+def test_a_workload_scope_lets_the_bound_snapshot_run(tmp_path: Path) -> None:
+    task_id, store, snapshot = _snapshot(tmp_path)
+    scope = _scope(task_id, snapshot.snapshot_id)
+    workbench = DataScienceWorkbench(artifact_store=store, workload_scope=scope)
+    report = _run(workbench, snapshot, _spec(task_id, snapshot.snapshot_id))
+    assert report.passed is True
+
+
+def test_a_workload_scope_refuses_another_snapshot(tmp_path: Path) -> None:
+    task_id, store, snapshot = _snapshot(tmp_path)
+    scope = _scope(task_id, uuid4())
+    workbench = DataScienceWorkbench(artifact_store=store, workload_scope=scope)
+    with pytest.raises(PermissionError, match="science_workload_snapshot_mismatch"):
+        _run(workbench, snapshot, _spec(task_id, snapshot.snapshot_id))
+
+
+def test_a_workload_scope_refuses_another_task(tmp_path: Path) -> None:
+    task_id, store, snapshot = _snapshot(tmp_path)
+    workbench = DataScienceWorkbench(
+        artifact_store=store, workload_scope=_scope(uuid4(), snapshot.snapshot_id)
+    )
+    with pytest.raises(PermissionError, match="science_workload_task_mismatch"):
+        _run(workbench, snapshot, _spec(task_id, snapshot.snapshot_id))
+
+
+def test_a_workload_scope_refuses_another_actor(tmp_path: Path) -> None:
+    task_id, store, snapshot = _snapshot(tmp_path)
+    scope = _scope(task_id, snapshot.snapshot_id, user_id="someone-else")
+    workbench = DataScienceWorkbench(artifact_store=store, workload_scope=scope)
+    with pytest.raises(PermissionError, match="science_workload_actor_mismatch"):
+        _run(workbench, snapshot, _spec(task_id, snapshot.snapshot_id))
+
+
+def test_a_scope_that_contradicts_the_composition_is_refused(tmp_path: Path) -> None:
+    task_id, store, snapshot = _snapshot(tmp_path)
+    composition = ExecutionComposition(
+        mode="research",
+        actor=ActorContext(
+            user_id="scientist",
+            tenant_id="tenant-a",
+            project_id="project-a",
+            data_domains=("commerce",),
+        ),
+        artifacts=store,
+        audit=JsonlAuditSink(tmp_path / "audit.jsonl"),
+        workload_scope=_scope(task_id, snapshot.snapshot_id),
+    )
+    with pytest.raises(ValueError, match="disagrees_with_composition"):
+        DataScienceWorkbench(
+            artifact_store=store,
+            composition=composition,
+            workload_scope=_scope(task_id, uuid4()),
+        )

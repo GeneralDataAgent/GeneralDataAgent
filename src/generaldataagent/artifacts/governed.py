@@ -158,6 +158,25 @@ class GovernedArtifactStore(LocalArtifactStore):
                 (int(held), str(ref.artifact_id)),
             )
 
+    def discard(self, ref: ArtifactRef) -> bool:
+        """Remove an artifact written by a delivery that then failed.
+
+        The index row becomes a tombstone rather than disappearing, so the
+        rollback stays visible to audit and the artifact ID is never reused.
+        A legal hold blocks it: once an operator has pinned the content, a failed
+        package must not erase it silently.
+        """
+        with closing(sqlite3.connect(self.index_path, timeout=5)) as db, db:
+            db.execute("BEGIN IMMEDIATE")
+            row = self._authorized_record(db, ref)
+            if row[5]:
+                raise PermissionError("artifact_hold_blocks_discard")
+            db.execute(
+                "UPDATE governed_artifacts SET deleted = 1 WHERE artifact_id = ?",
+                (str(ref.artifact_id),),
+            )
+        return super().discard(ref)
+
     def delete_expired(self) -> tuple[UUID, ...]:
         deleted = []
         with closing(sqlite3.connect(self.index_path, timeout=5)) as db, db:
