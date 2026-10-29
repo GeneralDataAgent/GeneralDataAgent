@@ -1534,11 +1534,11 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                             feedback["rule_repair_hints"] = hints
                     if isinstance(exc, RuleToolError):
                         if exc.code == "rule_semantics_excerpt_missing":
-                            from generaldataagent.evaluation.experience_extraction import (
-                                rule_repair_context_hash,
-                            )
                             from generaldataagent.evaluation.stage_nine import (
                                 excerpt_rejection_diagnostic,
+                            )
+                            from generaldataagent.experience.extraction import (
+                                rule_repair_context_hash,
                             )
 
                             event["rule_repair_context_hash"] = rule_repair_context_hash(

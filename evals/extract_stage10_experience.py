@@ -8,8 +8,7 @@ from pathlib import Path
 
 from generaldataagent.business.experience import ExperienceStore
 from generaldataagent.contracts import ActorContext
-from generaldataagent.evaluation.experience_extraction import extract_rule_experience
-from generaldataagent.evaluation.stage_six import digest
+from generaldataagent.experience.extraction import extract_rule_experience, extraction_source_hash
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -42,7 +41,7 @@ def main():
     )
     output.mkdir(parents=True)
     store = ExperienceStore(output / "candidates.sqlite", clock=lambda: datetime.now(UTC))
-    extractor_hash = digest(ROOT / "src/generaldataagent/evaluation/experience_extraction.py")
+    extractor_hash = extraction_source_hash(ROOT)
     for candidate in candidates:
         # Binding re-runs the template over these exact bytes; a candidate that
         # does not match them is refused rather than stored unbound.

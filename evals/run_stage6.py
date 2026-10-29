@@ -50,6 +50,7 @@ from generaldataagent.evaluation.stage_six_import import (
 )
 from generaldataagent.evaluation.stage_six_models import resolve_evaluation_model
 from generaldataagent.evaluation.stage_six_protocol import evaluation_protocol
+from generaldataagent.experience.extraction import extraction_source_hash
 from generaldataagent.tools import SQLiteReadOnlyExecutor
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -416,9 +417,7 @@ def main():
         "repair_tools_hash": digest(ROOT / "src/generaldataagent/evaluation/stage_six_repair.py"),
         "repair_budget_hash": digest(ROOT / "src/generaldataagent/evaluation/repair_budget.py"),
         "retry_policy_hash": digest(ROOT / "src/generaldataagent/evaluation/routing.py"),
-        "experience_extraction_hash": digest(
-            ROOT / "src/generaldataagent/evaluation/experience_extraction.py"
-        )
+        "experience_extraction_hash": extraction_source_hash(ROOT)
         if "sql-rules" in active_profiles
         else None,
         "model_adapter_hash": digest(ROOT / "src/generaldataagent/evaluation/stage_six_models.py"),
