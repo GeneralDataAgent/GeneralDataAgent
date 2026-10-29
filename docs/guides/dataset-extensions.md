@@ -43,14 +43,40 @@ for the intended actor before use. Its examples and procedure are guidance, not 
 
 `evals/run_stage10_rule_supervisor.py --document-extension <config.json>` selects this treatment
 explicitly; omit it for a separately recorded disabled run. The JSON configuration requires
-`registry_path`, `skill_path`, `skill_hash`, and `documents`, and accepts only one optional key,
-`verification_adapter`. Each document entry has `path`,
+`registry_path`, `skill_path`, `skill_hash`, and `documents`, with optional
+`verification_adapter` and `skill_dependencies`. Each document entry has `path`,
 `source`, `version`, and `content_hash`. Paths resolve from the implementation repository and must
 stay inside it. Both document hashes (exact UTF-8 bytes) and the canonical Skill hash are pinned
 and checked before provider construction. The registry must already contain an active reviewed
 Skill for the evaluation actor; the runner never enrolls or activates it. Reports retain enabled
 state, configuration hash, Skill identity/hash, corpus manifest and runtime hashes. No live run
 or quality improvement is implied by this integration.
+
+For a root with declared prerequisites, provide the complete definitions explicitly:
+
+```json
+{
+  "skill_dependencies": [
+    {"path": "skills/citation-policy.json", "skill_hash": "sha256:<canonical-skill-digest>"}
+  ]
+}
+```
+
+This is a fragment to add to the required configuration. The dependency list defaults to empty;
+explicit null, duplicate names/versions, unknown entry keys, outside paths and more than 64 entries
+fail. Each Skill file has the same 128,000-byte limit and canonical hash pin as the root. The complete
+closure passes the bounded assembly rules below before provider construction, using an empty request
+placeholder plus the real corpus manifest; every actual request is rendered and checked again.
+No registry records are created or activated. Missing or revoked dependencies refuse the treatment.
+
+In Python, pass `skill_dependencies={"citation-policy@v1": citation_skill}` to
+`RuleDocumentExtension`. It copies that mapping into an immutable snapshot and passes the definitions
+to the Supervisor factory. All reachable references are checked during graph use, before and after
+governed search, and after the optional document check. Extension summaries include the supplied
+dependency identities/hashes when nonempty; omitting dependencies preserves the old summary shape.
+Runner reports also retain `skill_admission_hash` and `skill_bundle_hash`. The document verifier
+remains explicitly bound to the root Skill and verifies retrieval structure; dependency verification
+prose is not executed or independently accepted.
 
 ### Optional executable document check
 
@@ -142,9 +168,9 @@ legacy single-Skill `render_skill` API now refuses a nonempty dependency declara
 requires the normal reviewed versioning flow; existing records are not rewritten.
 
 This is instruction assembly, not a generic Skill execution language or a semantic conflict solver.
-Verification/failure prose does not run as code. The rule document extension and `BoundedSQLAgent`
-do not accept dependency bundles through their current configurations; the former refuses such a
-root through its single-Skill boundary. No tool authority, production admission or quality gain
+Verification/failure prose does not run as code. The rule document extension accepts explicit pinned
+bundles through the opt-in configuration above; `BoundedSQLAgent` still has no Skill injection.
+No tool authority, production admission or quality gain
 follows from composing instructions.
 
 Run the synthetic real-graph wiring example with:

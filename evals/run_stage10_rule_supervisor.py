@@ -42,6 +42,7 @@ from generaldataagent.business.rules.payments import SQLitePaymentsSource
 from generaldataagent.business.rules.question import RuleQuestionError, parse_rule_question
 from generaldataagent.business.rules.semantics import AnnexSemanticsDeclaration
 from generaldataagent.business.rules.workflow import AnnexWorkflowServices
+from generaldataagent.business.skill_bundle import MAX_DEFINITIONS
 from generaldataagent.contracts import ActorContext
 from generaldataagent.evaluation.rule_diagnostics import (
     RuleCallDiagnostics,
@@ -154,7 +155,7 @@ def load_document_extension(path: Path) -> RuleDocumentExtension:
     if (
         not isinstance(config, dict)
         or not required <= set(config)
-        or set(config) - required - {"verification_adapter"}
+        or set(config) - required - {"verification_adapter", "skill_dependencies"}
     ):
         raise ValueError("invalid document extension configuration")
     entries = config["documents"]
@@ -183,12 +184,19 @@ def load_document_extension(path: Path) -> RuleDocumentExtension:
         if document.content_hash != entry["content_hash"]:
             raise ValueError("document content differs from pinned hash")
         documents.append(document)
-    skill_path = _workspace_file(config["skill_path"])
-    if skill_path.stat().st_size > 128_000:
-        raise ValueError("document skill input is too large")
-    skill = SkillDefinition.model_validate_json(skill_path.read_bytes())
-    if ExtensionAdmission.skill_hash(skill) != config["skill_hash"]:
-        raise ValueError("document skill differs from pinned hash")
+    skill = _load_pinned_skill(config["skill_path"], config["skill_hash"])
+    dependency_entries = config.get("skill_dependencies", [])
+    if not isinstance(dependency_entries, list) or len(dependency_entries) > MAX_DEFINITIONS:
+        raise ValueError("document skill dependencies require at most 64 explicit entries")
+    dependencies = {}
+    for entry in dependency_entries:
+        if not isinstance(entry, dict) or set(entry) != {"path", "skill_hash"}:
+            raise ValueError("invalid pinned skill dependency entry")
+        dependency = _load_pinned_skill(entry["path"], entry["skill_hash"])
+        key = f"{dependency.name}@{dependency.version}"
+        if key in dependencies:
+            raise ValueError("duplicate skill dependency definition")
+        dependencies[key] = dependency
     admission = ExtensionAdmission(
         CapabilityRegistry(
             _workspace_file(config["registry_path"]), clock=lambda: datetime.now(UTC)
@@ -202,11 +210,29 @@ def load_document_extension(path: Path) -> RuleDocumentExtension:
             skill_hash=config["skill_hash"],
             adapter=config["verification_adapter"],
         )
-    extension = RuleDocumentExtension(DocumentContext(documents), admission, skill, verifier)
-    # Check admission before resolving or invoking any provider. Request-specific
-    # template validation is repeated by the runtime for every bound task.
-    admission.require("skill", skill.name, skill.version, config["skill_hash"], ACTOR)
+    extension = RuleDocumentExtension(
+        DocumentContext(documents), admission, skill, verifier, skill_dependencies=dependencies
+    )
+    # Resolve and admit the complete closure before provider construction. The
+    # empty request is only a preflight placeholder; each real request is
+    # rendered and checked again before graph construction and around search.
+    admission.render_skill_bundle(
+        skill,
+        ACTOR,
+        {"bound_request": "", "document_manifest": json.dumps(extension.context.manifest())},
+        dependencies=extension.skill_dependencies,
+    )
     return extension
+
+
+def _load_pinned_skill(path: str, expected_hash: str) -> SkillDefinition:
+    skill_path = _workspace_file(path)
+    if skill_path.stat().st_size > 128_000:
+        raise ValueError("document skill input is too large")
+    skill = SkillDefinition.model_validate_json(skill_path.read_bytes())
+    if ExtensionAdmission.skill_hash(skill) != expected_hash:
+        raise ValueError("document skill differs from pinned hash")
+    return skill
 
 
 async def main() -> None:
@@ -291,6 +317,8 @@ async def main() -> None:
         "completion_hash": digest(ROOT / "src/generaldataagent/agents/completion.py"),
         "diagnostics_hash": digest(ROOT / "src/generaldataagent/evaluation/rule_diagnostics.py"),
         "factory_hash": digest(ROOT / "src/generaldataagent/agents/factory.py"),
+        "skill_admission_hash": digest(ROOT / "src/generaldataagent/business/extensions.py"),
+        "skill_bundle_hash": digest(ROOT / "src/generaldataagent/business/skill_bundle.py"),
         "document_context_hash": digest(
             ROOT / "src/generaldataagent/business/rules/document_context.py"
         ),
