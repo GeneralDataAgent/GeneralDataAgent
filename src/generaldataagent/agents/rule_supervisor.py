@@ -20,8 +20,9 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import Callable
-from dataclasses import dataclass
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
+from types import MappingProxyType
 from typing import Any
 from uuid import UUID
 
@@ -92,6 +93,7 @@ class RuleDocumentExtension:
     admission: ExtensionAdmission
     skill: SkillDefinition
     verifier: DocumentEvidenceVerifier | None = None
+    skill_dependencies: Mapping[str, SkillDefinition] = field(default_factory=dict)
 
     def __post_init__(self):
         if not isinstance(self.context, DocumentContext) or not isinstance(
@@ -103,6 +105,15 @@ class RuleDocumentExtension:
             "search_documents",
         }:
             raise ValueError("document skill must retain discovery and document search only")
+        if not isinstance(self.skill_dependencies, Mapping):
+            raise ValueError("skill_dependency_definitions_invalid")
+        definitions = dict(self.skill_dependencies)
+        if any(
+            not isinstance(value, SkillDefinition) or key != f"{value.name}@{value.version}"
+            for key, value in definitions.items()
+        ):
+            raise ValueError("skill_dependency_definition_mismatch")
+        object.__setattr__(self, "skill_dependencies", MappingProxyType(definitions))
         if self.verifier is not None:
             if type(self.verifier) is not DocumentEvidenceVerifier:
                 raise ValueError("document_verifier_adapter_unsupported")
@@ -127,10 +138,21 @@ class RuleDocumentExtension:
         }
         if self.verifier is not None:
             summary["verification_adapter"] = self.verifier.adapter
+        if self.skill_dependencies:
+            summary["skill_dependencies"] = [
+                {
+                    "name": value.name,
+                    "version": value.version,
+                    "content_hash": self.admission.skill_hash(value),
+                }
+                for _, value in sorted(self.skill_dependencies.items())
+            ]
         return summary
 
     def require(self, actor: ActorContext, request: RuleAnalysisRequest):
-        self.admission.render_skill(self.skill, actor, self.skill_context(request))
+        self.admission.render_skill_bundle(
+            self.skill, actor, self.skill_context(request), dependencies=self.skill_dependencies
+        )
         if self.verifier is not None:
             self.verifier.require_binding(self.skill)
 
@@ -248,6 +270,9 @@ class RuleSupervisorRuntime:
             admission=self.document_extension.admission if self.document_extension else None,
             actor=actor,
             specialist_skills={"discovery": self.document_extension.skill}
+            if self.document_extension
+            else None,
+            skill_dependencies=self.document_extension.skill_dependencies
             if self.document_extension
             else None,
             skill_context=self.document_extension.skill_context(self.request)

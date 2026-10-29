@@ -224,6 +224,13 @@ The factory composes instructions without executing verification prose, installi
 new tools. This is separate from generic Skill execution and semantic conflict adjudication;
 the legacy single-Skill renderer rejects unresolved prerequisite declarations.
 
+The rule document consumer accepts the same explicitly supplied definitions through its Python
+extension and opt-in pinned-file configuration. It snapshots the mapping, preflights the closure
+before provider construction and rechecks all members around governed retrieval and its optional
+root-bound structural verifier. Reports retain dependency hashes and the assembly implementation
+hashes. The existing no-dependency configuration/summary remains compatible; this does not enable
+Skills in `BoundedSQLAgent` or extend the verifier's `producer_self_check` scope.
+
 `ValidatedRunReport` now provides the shared envelope below treatment comparison, repeat stability,
 and service readiness. The existing case validator already was shared; the remaining duplication
 was repeated summary recomputation in the paired-repeat path and reopening caller-owned dictionaries
