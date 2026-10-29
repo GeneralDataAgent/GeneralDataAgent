@@ -20,6 +20,7 @@ class FakeTransport:
         self.fail_publish = fail_publish
         self.read_back_mode = read_back
         self.published = []
+        self.sizes = {}
         self.identities = 0
 
     def identity(self):
@@ -36,6 +37,7 @@ class FakeTransport:
             raise self.fail_publish
         token = f"tok-{len(self.published) + 1}"
         self.files[name] = {"name": name, "token": token, "url": f"https://example/{token}"}
+        self.sizes[token] = len(content)
         self.published.append((name, content, key))
         return {"token": token, "url": f"https://example/{token}"}
 
@@ -44,10 +46,10 @@ class FakeTransport:
             return None
         for record in self.files.values():
             if record["token"] == token:
-                return {
-                    "size_bytes": len(self.published[-1][1]) if self.published else 0,
-                    **record,
-                }
+                if self.read_back_mode == "no_size":
+                    return {key: value for key, value in record.items() if key != "size_bytes"}
+                # A document the service only knows by name has no size to report.
+                return {**record, "size_bytes": self.sizes.get(token, record.get("size_bytes"))}
         return None
 
 
@@ -165,3 +167,54 @@ def test_a_read_back_hash_must_match_the_sent_bytes():
         "content_hash": "sha256:" + hashlib.sha256(b"report body").hexdigest(),
     }
     assert publish(fresh).reused is False
+
+
+def test_a_found_document_whose_bytes_differ_is_a_mismatch():
+    name = publication_name("weekly-report", "run-2026-10-29")
+    transport = FakeTransport(existing=[{"name": name, "token": "tok-old", "size_bytes": 3}])
+    # The name matched but the document is not this content; reporting success
+    # would attribute someone else's bytes to this publication.
+    with pytest.raises(PublicationMismatch, match="size"):
+        publish(transport)
+    assert transport.published == []
+
+
+def test_a_found_document_with_the_same_size_but_another_hash_is_a_mismatch():
+    name = publication_name("weekly-report", "run-2026-10-29")
+    transport = FakeTransport(
+        existing=[
+            {
+                "name": name,
+                "token": "tok-old",
+                "size_bytes": len(b"report body"),
+                "content_hash": "sha256:" + hashlib.sha256(b"edited body").hexdigest(),
+            }
+        ]
+    )
+    with pytest.raises(PublicationMismatch, match="hash"):
+        publish(transport)
+    assert transport.published == []
+
+
+def test_a_found_document_that_cannot_be_read_back_is_ambiguous():
+    name = publication_name("weekly-report", "run-2026-10-29")
+    transport = FakeTransport(existing=[{"name": name, "token": "tok-old"}], read_back="missing")
+    with pytest.raises(PublicationAmbiguous, match="cannot read back"):
+        publish(transport)
+    assert transport.published == []
+
+
+def test_a_reuse_reports_no_size_the_service_never_stated():
+    name = publication_name("weekly-report", "run-2026-10-29")
+    transport = FakeTransport(existing=[{"name": name, "token": "tok-old"}])
+    result = publish(transport)
+    assert result.reused is True
+    # The intended length is not an observation of the stored document.
+    assert result.size_bytes is None
+
+
+def test_a_write_whose_read_back_states_no_size_reports_none():
+    transport = FakeTransport(read_back="no_size")
+    result = publish(transport)
+    assert result.reused is False
+    assert result.size_bytes is None
