@@ -217,6 +217,13 @@ schema versions, text and tuple order remain significant. This reduces repeated 
 merging records or transferring acceptance. The inventory is not semantic consolidation, source
 authentication or a bulk review API, and its content hash does not establish any of those claims.
 
+Skill prerequisites now have a bounded assembly path. Explicit complete definitions resolve a
+reviewed root's `name@version` closure; each edge narrows tools, required domains and declared
+resource ceilings. Every member has current exact-hash admission and a retained use-time reference.
+The factory composes instructions without executing verification prose, installing code or creating
+new tools. This is separate from generic Skill execution and semantic conflict adjudication;
+the legacy single-Skill renderer rejects unresolved prerequisite declarations.
+
 `ValidatedRunReport` now provides the shared envelope below treatment comparison, repeat stability,
 and service readiness. The existing case validator already was shared; the remaining duplication
 was repeated summary recomputation in the paired-repeat path and reopening caller-owned dictionaries

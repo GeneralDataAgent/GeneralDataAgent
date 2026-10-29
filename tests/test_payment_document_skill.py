@@ -112,3 +112,26 @@ def test_retrieval_never_falls_back_to_the_whole_document(tmp_path):
     assert result["truncated"] is False
     with pytest.raises(PassageError, match="searchable term"):
         tool.invoke({"query": "---"})
+
+
+def test_dependency_bundle_reaches_the_real_graph_and_live_admission(tmp_path):
+    demo = demo_module.build_demo(tmp_path / "bundle", with_dependencies=True)
+    result = demo_module.invoke_demo(demo)
+    assert [ref[1] for ref in demo.graph.references] == [
+        "payment-document-analyst",
+        "payment-citation-policy",
+        "payment-document-context",
+    ]
+    assert result["skill_reference"][1] == "payment-document-context"
+    assert result["dependency_references"][0][1] == "payment-citation-policy"
+    assert len(result["retrievals"]) == 1
+    prompts = [prompt[0].content for prompt in demo.model.prompts]
+    assert any(
+        "Citation prerequisite for" in prompt and "Use the supplied public documents" in prompt
+        for prompt in prompts
+    )
+    demo.registry.revoke("payment-citation-policy", "v1")
+    calls = len(demo.model.prompts)
+    with pytest.raises(PermissionError, match="capability_not_admitted"):
+        demo_module.invoke_demo(demo)
+    assert len(demo.model.prompts) == calls

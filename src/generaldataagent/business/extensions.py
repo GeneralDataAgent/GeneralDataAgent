@@ -162,6 +162,27 @@ class ExtensionAdmission:
         *,
         task_budget: Any | None = None,
     ):
+        if skill.dependencies:
+            raise ValueError("skill_dependencies_require_bundle")
+        return self._render_skill_leaf(skill, actor, context, task_budget=task_budget)
+
+    def render_skill_bundle(
+        self,
+        skill: SkillDefinition,
+        actor: ActorContext,
+        context: Mapping[str, str],
+        *,
+        dependencies: Mapping[str, SkillDefinition] | None = None,
+        task_budget: Any | None = None,
+    ):
+        """Render an explicit, bounded dependency closure and return all pinned references."""
+        from generaldataagent.business.skill_bundle import render_skill_bundle
+
+        return render_skill_bundle(
+            self, skill, actor, context, dependencies=dependencies, task_budget=task_budget
+        )
+
+    def _render_skill_leaf(self, skill, actor, context, *, task_budget=None):
         reference = ("skill", skill.name, skill.version, self.skill_hash(skill))
         self.require(*reference, actor)
         if any(type(value) is not str for value in context.values()):
