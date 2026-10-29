@@ -174,6 +174,22 @@ def test_corrupted_evidence_bytes_prevent_receipt_return(tmp_path, monkeypatch):
             service.invoke(request(), trace_id="corrupted")
 
 
+@pytest.mark.parametrize("field", ["computation", "verification", "source_hashes"])
+def test_self_consistent_substituted_workflow_evidence_is_refused(tmp_path, monkeypatch, field):
+    with open_protected_checkpointer(tmp_path / "state", encryption_key=b"k" * 32) as saver:
+        service = runner(saver, tmp_path)
+        original = service.artifacts.put_json
+
+        def substitute(**arguments):
+            if arguments["artifact_type"] == "rule.workflow.evidence":
+                arguments["value"] = {**arguments["value"], field: {"substituted": True}}
+            return original(**arguments)
+
+        monkeypatch.setattr(service.artifacts, "put_json", substitute)
+        with pytest.raises(ValueError, match="rule_workflow_evidence_content_mismatch"):
+            service.invoke(request(), trace_id="substituted")
+
+
 def test_receipt_uses_composed_task_and_trace_with_governed_storage(tmp_path):
     from test_execution_composition import ACTOR as PRODUCT_ACTOR
     from test_execution_composition import TASK, product_composition, proposal, runtime
