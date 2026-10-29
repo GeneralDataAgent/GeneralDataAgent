@@ -8,7 +8,7 @@ from pathlib import Path
 
 from generaldataagent.business.experience import ExperienceStore
 from generaldataagent.contracts import ActorContext
-from generaldataagent.experience.extraction import extract_rule_experience, extraction_source_hash
+from generaldataagent.experience.extraction import extract_experiences, extraction_source_hash
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -33,7 +33,7 @@ def main():
     trace = json.loads(trace_bytes.decode("utf-8"))
     if not isinstance(trace, list) or not all(isinstance(event, dict) for event in trace):
         parser.error("input must be a trace array")
-    candidates = extract_rule_experience(
+    candidates = extract_experiences(
         trace,
         documents=document_bytes.decode("utf-8"),
         owner=actor.user_id,

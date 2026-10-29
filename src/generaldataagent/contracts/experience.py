@@ -75,3 +75,18 @@ class ExtractedExperience(ContractModel):
     recovery_step: int = Field(ge=1)
     result_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
     record: ExperienceRecord
+
+
+class SqlRepairEvidence(BaseModel):
+    """An observed query repair, not proof of source authenticity or answer correctness."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    schema_version: Literal["sql-repair.v1"] = "sql-repair.v1"
+    context_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
+    failure_code: str = Field(pattern=r"^[a-z][a-z0-9_]{1,63}$")
+    failure_step: int = Field(ge=1, strict=True)
+    recovery_step: int = Field(ge=1, strict=True)
+    failed_query_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
+    recovered_query_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
+    result_hash: str = Field(pattern=r"^[a-f0-9]{64}$")

@@ -444,6 +444,9 @@ def main():
         "experience_extraction_hash": extraction_source_hash(ROOT)
         if "sql-rules" in active_profiles
         else None,
+        "sql_repair_evidence_hash": extraction_source_hash(ROOT)
+        if active_profiles & {"sql", "sql-analysis", "sql-repair", "sql-precision"}
+        else None,
         "model_adapter_hash": digest(ROOT / "src/generaldataagent/evaluation/stage_six_models.py"),
         "worker_hash": digest(ROOT / "src/generaldataagent/evaluation/stage_six_worker.py"),
         "dependency_lock_hash": digest(ROOT / "uv.lock"),
