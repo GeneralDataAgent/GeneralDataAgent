@@ -6,6 +6,7 @@ It demonstrates wiring and exact-span retrieval only: it is not a live-model
 run, benchmark integration, or acceptance evidence.
 """
 
+import argparse
 import asyncio
 import json
 import tempfile
@@ -228,13 +229,32 @@ class Demo:
     retrievals: list[dict[str, Any]]
 
 
-def build_demo(root: Path) -> Demo:
+def build_demo(root: Path, *, with_dependencies: bool = False) -> Demo:
     """Admit the synthetic specialist and Skill, then build the real supervisor."""
     root = Path(root)
     root.mkdir(parents=True, exist_ok=True)
     registry = CapabilityRegistry(root / "admission.sqlite3", clock=lambda: datetime.now(UTC))
     admission = ExtensionAdmission(registry)
     skill = load_skill()
+    dependencies = {}
+    if with_dependencies:
+        dependency = SkillDefinition.model_validate(
+            skill.model_dump(mode="json")
+            | {
+                "name": "payment-citation-policy",
+                "prompt_template": "Citation prerequisite for $question: quote exact source spans; "
+                "report missing public evidence without inventing an interpretation.",
+                "inputs": ["question"],
+                "budget": {"max_tool_calls": 2, "max_tokens": 1000, "max_seconds": 30},
+            }
+        )
+        dependencies[f"{dependency.name}@{dependency.version}"] = dependency
+        skill = skill.model_copy(
+            update={"dependencies": (f"{dependency.name}@{dependency.version}",)}
+        )
+        enroll_synthetic_capability(
+            registry, kind="skill", name=dependency.name, digest=admission.skill_hash(dependency)
+        )
     enroll_synthetic_capability(
         registry,
         kind="agent",
@@ -260,6 +280,7 @@ def build_demo(root: Path) -> Demo:
         actor=ACTOR,
         agent_versions={PAYMENT_DOCUMENT_SPEC.name: "v1"},
         specialist_skills={PAYMENT_DOCUMENT_SPEC.name: skill},
+        skill_dependencies=dependencies,
         skill_context={"question": DEMO_QUESTION, "documents": SYNTHETIC_MANUAL},
         skill_budget=SKILL_BUDGET,
     )
@@ -295,29 +316,46 @@ def invoke_demo(demo: Demo) -> dict:
                 },
             )
         )
-    return {
+    output = {
         "synthetic": True,
         "agent_reference": demo.graph.references[0],
-        "skill_reference": demo.graph.references[1],
+        "skill_reference": next(
+            ref for ref in demo.graph.references if ref[0] == "skill" and ref[1] == demo.skill.name
+        ),
         "retrievals": demo.retrievals,
         "final": result["messages"][-1].content,
     }
+    dependencies = [
+        ref for ref in demo.graph.references if ref[0] == "skill" and ref[1] != demo.skill.name
+    ]
+    if dependencies:
+        output["dependency_references"] = dependencies
+    return output
 
 
-def run_demo(root: Path) -> dict:
+def run_demo(root: Path, *, with_dependencies: bool = False) -> dict:
     """Run once against an empty admission directory.
 
     ``CapabilityRegistry`` pins each (name, version) permanently, so a rerun
     needs a new state directory rather than silently reusing an activation.
     """
-    return invoke_demo(build_demo(root))
+    return invoke_demo(build_demo(root, with_dependencies=with_dependencies))
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--with-dependencies", action="store_true")
+    args = parser.parse_args()
     state = Path(".state")
     state.mkdir(exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="payment-document-skill-", dir=state) as root:
-        print(json.dumps(run_demo(Path(root)), indent=2, default=str))
+        print(
+            json.dumps(
+                run_demo(Path(root), with_dependencies=args.with_dependencies),
+                indent=2,
+                default=str,
+            )
+        )
 
 
 if __name__ == "__main__":

@@ -103,6 +103,62 @@ evidence warrants it. A knowledge corpus is not an experience store: the latter 
 independently reviewed advisory repair patterns. The rule supervisor requires explicit admitted
 configuration; the benchmark SQL agent does not enable this port.
 
+## Bounded Skill dependency assembly
+
+`ExtensionAdmission.render_skill_bundle` resolves the root Skill's declared `name@version`
+prerequisites from an explicit mapping of those names to complete `SkillDefinition` objects.
+Pass the same mapping as `build_supervisor(..., skill_dependencies=definitions)` when assigning
+root Skills through `specialist_skills`. No definition is downloaded, inferred from a registry
+digest, enrolled or activated by this resolver. Each reachable definition needs its own current
+admission for the exact content hash, actor scope, name and version.
+
+```python
+text, references = admission.render_skill_bundle(
+    root_skill,
+    actor,
+    literal_context,
+    dependencies={"citation-policy@v1": citation_skill},
+    task_budget=task_budget,
+)
+```
+
+The closure is rendered in declared dependency order before the root; shared prerequisites appear
+once. Every edge must narrow its parent's tool list, required domains and declared call/token/time
+ceilings. A root therefore declares all transitive tool/domain needs. Each definition also passes
+the existing input, DLP, actor-domain and task-budget checks using one copied literal context.
+Budget checks compare declarations; they do not allocate additive sub-budgets or introduce a new
+per-Skill usage meter. Existing task/gateway/model controls still enforce actual work.
+
+The supplied cache is limited to 64 definitions, each closure to 32 Skills including the root,
+depth to 8 including the root, and combined rendered text to 16,000 characters. Missing definitions,
+cycles, two versions of one Skill name, key/content mismatches and wider child requirements fail
+during assembly. The factory also rejects root tools absent from the selected specialist. Unused valid cache entries are not rendered or admitted.
+The factory retains every reachable pinned reference in `AdmittedGraph`, which rechecks admission
+before and after invocation and during streams. Admission is also rechecked at the end of rendering.
+
+Without dependencies the rendered text, Skill hashes and reference format stay unchanged. The
+legacy single-Skill `render_skill` API now refuses a nonempty dependency declaration with
+`skill_dependencies_require_bundle` instead of silently ignoring it. A changed dependency or list
+requires the normal reviewed versioning flow; existing records are not rewritten.
+
+This is instruction assembly, not a generic Skill execution language or a semantic conflict solver.
+Verification/failure prose does not run as code. The rule document extension and `BoundedSQLAgent`
+do not accept dependency bundles through their current configurations; the former refuses such a
+root through its single-Skill boundary. No tool authority, production admission or quality gain
+follows from composing instructions.
+
+Run the synthetic real-graph wiring example with:
+
+```bash
+LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false \
+  uv run --frozen python examples/payment_document_skill_demo.py --with-dependencies
+```
+
+It enrolls a synthetic citation prerequisite as well as the root Skill, then uses the existing
+scripted model and real document search. Both procedures reach the specialist, every reference is
+pinned, and a revoked dependency blocks reuse. The example is fixture setup and wiring evidence,
+not live model, independent acceptance or production evidence.
+
 ## First knowledge inputs for payment analysis
 
 The downloaded public development assets include `data/stage6/dabstep/manual.md` and

@@ -44,6 +44,7 @@ def build_supervisor(
     actor: ActorContext | None = None,
     agent_versions: Mapping[str, str] | None = None,
     specialist_skills: Mapping[str, SkillDefinition] | None = None,
+    skill_dependencies: Mapping[str, SkillDefinition] | None = None,
     skill_context: Mapping[str, str] | None = None,
     skill_budget: Any | None = None,
     model_middleware: Sequence[Any] = (),
@@ -59,6 +60,7 @@ def build_supervisor(
     if admission is None and (
         any(s not in SPECIALIST_SPECS for s in specialist_specs)
         or specialist_skills
+        or skill_dependencies
         or agent_versions
     ):
         raise PermissionError("custom agents and skills require explicit admission")
@@ -66,6 +68,8 @@ def build_supervisor(
         actor is None or not set(specialist_skills) <= {s.name for s in specialist_specs}
     ):
         raise ValueError("skill assignments require an actor and a selected specialist")
+    if skill_dependencies and not specialist_skills:
+        raise ValueError("skill dependencies require an assigned root skill")
     references = (
         admission.agents(specialist_specs, actor, agent_versions or {}) if admission else []
     )
@@ -80,10 +84,14 @@ def build_supervisor(
         }
         if specialist_skills and spec.name in specialist_skills:
             skill = specialist_skills[spec.name]
-            rendered, reference = admission.render_skill(
-                skill, actor, skill_context or {}, task_budget=skill_budget
+            rendered, skill_references = admission.render_skill_bundle(
+                skill,
+                actor,
+                skill_context or {},
+                dependencies=skill_dependencies,
+                task_budget=skill_budget,
             )
-            references.append(reference)
+            references.extend(skill_references)
             tools_by_name = {getattr(tool, "name", ""): tool for tool in subagent["tools"]}
             if not set(skill.allowed_tools) <= tools_by_name.keys():
                 raise PermissionError("skill cannot grant tools absent from its specialist")
