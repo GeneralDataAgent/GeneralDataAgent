@@ -52,6 +52,27 @@ def test_runner_loads_explicit_reviewed_pinned_snapshot(tmp_path):
     assert loaded.context.search("scope")["matches"][0]["start_line"] == 2
 
 
+def test_runner_loads_explicit_skill_bound_verifier(tmp_path):
+    module, path, config, admitted = configuration(tmp_path)
+    config["verification_adapter"] = "document-evidence-v1"
+    path.write_text(json.dumps(config))
+    loaded = module.load_document_extension(path)
+    assert loaded.summary() == {
+        **admitted.summary(),
+        "verification_adapter": "document-evidence-v1",
+    }
+    loaded.verifier.require_binding(admitted.skill)
+
+
+@pytest.mark.parametrize("adapter", [None, "unknown", "", {}, [], True])
+def test_runner_rejects_invalid_explicit_verifier(tmp_path, adapter):
+    module, path, config, _ = configuration(tmp_path)
+    config["verification_adapter"] = adapter
+    path.write_text(json.dumps(config))
+    with pytest.raises(ValueError, match="adapter_unsupported"):
+        module.load_document_extension(path)
+
+
 @pytest.mark.parametrize("changed", ["manual.md", "skill.json"])
 def test_replaced_bytes_require_updated_pins(tmp_path, changed):
     module, path, _, _ = configuration(tmp_path)

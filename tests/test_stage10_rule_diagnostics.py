@@ -636,6 +636,7 @@ def test_runner_persists_refusal_and_exception_with_full_denominator(
         assert stored["role_controller_hash"] == "fixture-hash"
         assert stored["completion_hash"] == "fixture-hash"
         assert stored["document_context_hash"] == "fixture-hash"
+        assert stored["document_verifier_hash"] == "fixture-hash"
         assert stored["governed_runner_hash"] == "fixture-hash"
         assert stored["document_extension"] == {"enabled": False}
         assert stored["document_configuration_hash"] is None

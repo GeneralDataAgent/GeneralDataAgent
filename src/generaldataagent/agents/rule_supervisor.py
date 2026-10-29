@@ -43,6 +43,7 @@ from generaldataagent.agents.supervision import (
 from generaldataagent.business.extensions import ExtensionAdmission, SkillDefinition
 from generaldataagent.business.rules.delivery import RuleDeliveryRuntime, answer_rows
 from generaldataagent.business.rules.document_context import DocumentContext
+from generaldataagent.business.rules.document_verification import DocumentEvidenceVerifier
 from generaldataagent.business.rules.governed import GovernedRuleRunner
 from generaldataagent.business.rules.payments import PaymentsSourceError
 from generaldataagent.business.rules.semantics import AnnexSemanticsDeclaration
@@ -90,6 +91,7 @@ class RuleDocumentExtension:
     context: DocumentContext
     admission: ExtensionAdmission
     skill: SkillDefinition
+    verifier: DocumentEvidenceVerifier | None = None
 
     def __post_init__(self):
         if not isinstance(self.context, DocumentContext) or not isinstance(
@@ -101,6 +103,10 @@ class RuleDocumentExtension:
             "search_documents",
         }:
             raise ValueError("document skill must retain discovery and document search only")
+        if self.verifier is not None:
+            if type(self.verifier) is not DocumentEvidenceVerifier:
+                raise ValueError("document_verifier_adapter_unsupported")
+            self.verifier.require_binding(self.skill)
 
     def skill_context(self, request: RuleAnalysisRequest) -> dict[str, str]:
         return {
@@ -109,7 +115,7 @@ class RuleDocumentExtension:
         }
 
     def summary(self) -> dict[str, Any]:
-        return {
+        summary = {
             "enabled": True,
             "mode": "advisory",
             "skill": {
@@ -119,9 +125,14 @@ class RuleDocumentExtension:
             },
             "documents": self.context.manifest(),
         }
+        if self.verifier is not None:
+            summary["verification_adapter"] = self.verifier.adapter
+        return summary
 
     def require(self, actor: ActorContext, request: RuleAnalysisRequest):
         self.admission.render_skill(self.skill, actor, self.skill_context(request))
+        if self.verifier is not None:
+            self.verifier.require_binding(self.skill)
 
 
 class RuleSupervisorRuntime:
@@ -528,6 +539,17 @@ class RuleSupervisorRuntime:
                     proposal, extension.context, trace_id=f"rule-supervisor-{self.task_id}"
                 )
                 extension.require(actor, self.request)
+                if extension.verifier is not None:
+                    verification = extension.verifier.verify(
+                        context=extension.context,
+                        skill=extension.skill,
+                        query=query,
+                        result=result,
+                        task_id=self.task_id,
+                        read_bytes=self.runner.artifacts.read_bytes,
+                    )
+                    extension.require(actor, self.request)
+                    return {**result, "structural_verification": verification}
                 return result
 
             groups["discovery"].append(

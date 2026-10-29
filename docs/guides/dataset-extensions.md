@@ -42,14 +42,38 @@ matching this contract. Propose, review and activate its canonical `ExtensionAdm
 for the intended actor before use. Its examples and procedure are guidance, not acceptance evidence.
 
 `evals/run_stage10_rule_supervisor.py --document-extension <config.json>` selects this treatment
-explicitly; omit it for a separately recorded disabled run. The JSON configuration has exactly
-`registry_path`, `skill_path`, `skill_hash`, and `documents`. Each document entry has `path`,
+explicitly; omit it for a separately recorded disabled run. The JSON configuration requires
+`registry_path`, `skill_path`, `skill_hash`, and `documents`, and accepts only one optional key,
+`verification_adapter`. Each document entry has `path`,
 `source`, `version`, and `content_hash`. Paths resolve from the implementation repository and must
 stay inside it. Both document hashes (exact UTF-8 bytes) and the canonical Skill hash are pinned
 and checked before provider construction. The registry must already contain an active reviewed
 Skill for the evaluation actor; the runner never enrolls or activates it. Reports retain enabled
 state, configuration hash, Skill identity/hash, corpus manifest and runtime hashes. No live run
 or quality improvement is implied by this integration.
+
+### Optional executable document check
+
+Set `"verification_adapter": "document-evidence-v1"` to enable the repository-owned
+`DocumentEvidenceVerifier`. In Python, construct it with the admitted Skill's name, version and
+canonical content hash, and pass it as `RuleDocumentExtension(..., verifier=verifier)`. The binding
+must match the exact Skill revision; unknown adapter identifiers and explicit null values fail.
+Omitting this option retains the existing advisory treatment and extension summary.
+
+The adapter re-derives lexical retrieval using the same repository implementation and compares
+canonical JSON bytes for the entire result: query, corpus manifest, source versions/hashes,
+quotations, headings, line spans, citations, passage hashes, gap, hit count and truncation. It also
+checks the evidence artifact's task/type and exact readback body. Admission is checked before
+search and again before releasing the checked response. A mismatch aborts execution; a legitimate
+retrieval gap or conflicting quotations remain advisory and may coexist with a valid rule result.
+Skill `verification` and `failure_handling` prose does not select code or define failure policy.
+
+The returned `structural_verification` field records adapter identity, exact Skill binding,
+`producer_self_check` scope and check codes. It is tool-response metadata; it is not added to the
+stored retrieval artifact and is not an independently signed or durable verification receipt.
+The runner records `document_verifier_hash` alongside other source hashes. This check establishes
+consistency with the supplied snapshot, not source authenticity, business interpretation,
+independent implementation, benchmark improvement or production acceptance.
 
 `examples/payment_document_skill_demo.py` shows the local wiring path without a live model:
 it loads this JSON, enrolls a synthetic custom specialist and the Skill through the normal
