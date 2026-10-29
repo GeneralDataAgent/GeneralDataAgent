@@ -191,12 +191,16 @@ rule, and the composition validates through it while keeping its public failure 
 
 ## Supporting consolidation
 
-As these slices migrate, move extraction provenance contracts and pure validation below both
-business storage and evaluation adapters. `ExperienceStore.capture_from_extraction` currently
-imports the evaluator, which itself imports business experience contracts. Reuse evidence validation
-and review-state reduction across reading, review, and audit while retaining scope authorization
-and source qualification as separate checks. Declare schema/migration versions explicitly rather
-than inferring legacy provenance from missing tables.
+Experience contracts now live in `contracts/experience.py` and pure template derivation in
+`experience/extraction.py`; business capture and evaluation share those modules without importing
+each other. Storage now declares schema version 1. Normal readers and writers reject unversioned,
+unknown-version or incomplete layouts, and never infer provenance from a missing table or marker.
+An explicit operator-declared legacy layout can be migrated into a new file with the
+[copy migration command](../operations/benchmark-evaluation-runbook.md#experience-database-versions-and-copy-migration).
+Existing JSON, hashes, receipts, votes and states are preserved; pre-marker layouts reconstruct
+markers only from surviving receipts and cannot authenticate their history. Reuse evidence
+validation and review-state reduction across reading, review, and audit while retaining scope
+authorization and source qualification as separate checks.
 
 Likewise, share a validated run envelope below treatment comparison, repeat stability, and service
 readiness; keep each consumer's purpose-specific blockers. Use a small immutable execution-budget

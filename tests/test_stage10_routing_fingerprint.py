@@ -525,6 +525,29 @@ def test_database_without_experience_schema_stops_before_worker(
     assert not (tmp_path / "run-1" / "report.json").exists()
 
 
+@pytest.mark.parametrize("change", ["unversioned", "future", "missing_table"])
+def test_experience_schema_refusals_stop_before_worker(run_manifest, tmp_path, monkeypatch, change):
+    runner, run = run_manifest
+    source = tmp_path / "invalid-version.sqlite"
+    ExperienceStore(source, clock=lambda: datetime(2026, 10, 24, tzinfo=UTC))
+    with sqlite3.connect(source) as db:
+        if change == "unversioned":
+            db.execute("DROP TABLE experience_schema")
+        elif change == "future":
+            db.execute("UPDATE experience_schema SET version=2")
+        else:
+            db.execute("DROP TABLE experience_origins")
+    before, invoked = source.read_bytes(), []
+    monkeypatch.setattr(runner, "run_isolated", lambda *args, **kwargs: invoked.append(True))
+    actor = dict(user_id="u", tenant_id="t", project_id="p", data_domains=["payments"])
+    with pytest.raises(SystemExit) as refusal:
+        run(["What is the fee?"], experience_actor=actor, experience_database=source)
+    assert refusal.value.code == 2
+    assert invoked == []
+    assert source.read_bytes() == before
+    assert not (tmp_path / "run-1" / "report.json").exists()
+
+
 def test_experience_store_with_findings_blocks_the_run_before_worker(
     run_manifest, tmp_path, monkeypatch
 ):

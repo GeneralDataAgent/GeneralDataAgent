@@ -322,7 +322,10 @@ def test_extracted_candidate_keeps_a_byte_bound_source_receipt(recovered, tmp_pa
 
 
 @pytest.mark.parametrize("missing", ["row", "table"])
-def test_writable_reopen_preserves_extraction_origin_when_backfilling(recovered, tmp_path, missing):
+def test_reopen_never_backfills_missing_extraction_origins(recovered, tmp_path, missing):
+    from generaldataagent.business.experience import ExperienceError
+    from generaldataagent.experience.schema import ExperienceSchemaError
+
     (candidate,) = extract(recovered)
     path = tmp_path / "candidates.sqlite"
     store = ExperienceStore(path, clock=lambda: NOW)
@@ -335,18 +338,16 @@ def test_writable_reopen_preserves_extraction_origin_when_backfilling(recovered,
         else:
             db.execute("DROP TABLE experience_origins")
     before = path.read_bytes()
-    reader = ExperienceStore(path, clock=lambda: NOW, read_only=True)
-    receipt = reader.extraction_source(item.experience_id, ACTOR)
-    assert reader.audit()["consistent"] is True
-    assert path.read_bytes() == before
-
-    reopened = ExperienceStore(path, clock=lambda: NOW)
-    assert reopened.extraction_source(item.experience_id, ACTOR) == receipt
-    assert reopened.retrieve(failure_class=item.failure_class, tool="rules", actor=ACTOR) == (item,)
-    assert reopened.audit()["consistent"] is True
-    with sqlite3.connect(path) as db:
-        assert db.execute("SELECT origin FROM experience_origins").fetchall() == [("extraction",)]
-        assert db.execute("SELECT COUNT(*) FROM experience_reviews").fetchone()[0] == 1
+    for read_only in (True, False):
+        if missing == "table":
+            with pytest.raises(ExperienceSchemaError, match="experience_schema_invalid"):
+                ExperienceStore(path, clock=lambda: NOW, read_only=read_only)
+        else:
+            reopened = ExperienceStore(path, clock=lambda: NOW, read_only=read_only)
+            with pytest.raises(ExperienceError, match="experience_integrity_failure"):
+                reopened.extraction_source(item.experience_id, ACTOR)
+            assert reopened.audit()["consistent"] is False
+        assert path.read_bytes() == before
 
 
 def test_manual_capture_cannot_claim_extraction_provenance(recovered, tmp_path):

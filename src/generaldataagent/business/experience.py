@@ -36,6 +36,7 @@ from generaldataagent.contracts.experience import ExperienceRecord
 from generaldataagent.contracts.experience import ExtractionSource as _ExtractionSource
 from generaldataagent.contracts.experience import FeedbackSource as _FeedbackSource
 from generaldataagent.experience.extraction import extract_rule_experience
+from generaldataagent.experience.schema import initialize_schema, validate_schema
 from generaldataagent.security.dlp import TextDLPScanner
 
 # Content shapes that mean "this is an answer, not a lesson". Rejecting these
@@ -94,42 +95,27 @@ class ExperienceStore:
             raise ValueError("experience read_only must be boolean")
         self.path, self.clock, self.read_only = path, clock, read_only
         self.scanner = TextDLPScanner(max_bytes=65536)
-        if read_only:
-            with closing(self._connect()) as db:
-                db.execute("SELECT id,scope,body,hash,state FROM experiences LIMIT 0")
-                db.execute("SELECT id,reviewer,accepted FROM experience_reviews LIMIT 0")
-            return
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with closing(self._connect()) as db, db:
-            db.executescript(
-                "CREATE TABLE IF NOT EXISTS experiences "
-                "(id TEXT PRIMARY KEY, scope TEXT, body TEXT, hash TEXT, state TEXT);"
-                "CREATE TABLE IF NOT EXISTS experience_reviews "
-                "(id TEXT, reviewer TEXT, accepted INTEGER, PRIMARY KEY(id,reviewer));"
-                "CREATE TABLE IF NOT EXISTS experience_feedback_sources "
-                "(id TEXT PRIMARY KEY, body TEXT, hash TEXT);"
-                "CREATE TABLE IF NOT EXISTS experience_origins "
-                "(id TEXT PRIMARY KEY, origin TEXT);"
-                "CREATE TABLE IF NOT EXISTS experience_extraction_sources "
-                "(id TEXT PRIMARY KEY, body TEXT, hash TEXT);"
-            )
-            # Databases written before provenance existed get a marker derived
-            # from their receipts. This runs once per record and never rewrites
-            # an existing marker, so a later receipt deletion stays detectable.
-            db.execute(
-                "INSERT INTO experience_origins(id,origin) SELECT id,"
-                " CASE WHEN EXISTS(SELECT 1 FROM experience_feedback_sources s"
-                " WHERE s.id=experiences.id) THEN 'feedback'"
-                " WHEN EXISTS(SELECT 1 FROM experience_extraction_sources s"
-                " WHERE s.id=experiences.id) THEN 'extraction' ELSE 'manual' END"
-                " FROM experiences WHERE NOT EXISTS"
-                " (SELECT 1 FROM experience_origins o WHERE o.id=experiences.id)"
-            )
+        if not read_only:
+            path.parent.mkdir(parents=True, exist_ok=True)
+        with closing(self._open()) as db, db:
+            if read_only:
+                validate_schema(db)
+            else:
+                initialize_schema(db)
 
-    def _connect(self):
+    def _open(self):
         if self.read_only:
             return sqlite3.connect(self.path.resolve().as_uri() + "?mode=ro", uri=True, timeout=5)
         return sqlite3.connect(self.path, timeout=5)
+
+    def _connect(self):
+        db = self._open()
+        try:
+            validate_schema(db)
+        except Exception:
+            db.close()
+            raise
+        return db
 
     def _require_writable(self):
         if self.read_only:
@@ -307,7 +293,7 @@ class ExperienceStore:
 
     @staticmethod
     def _extraction_receipt(db, record: ExperienceRecord) -> dict:
-        """Validate the stored receipt; origin is derived, never stored twice."""
+        """Validate the stored receipt against its separately recorded origin."""
         row = db.execute(
             "SELECT body,hash FROM experience_extraction_sources WHERE id=?",
             (str(record.experience_id),),
@@ -443,13 +429,6 @@ class ExperienceStore:
 
     @staticmethod
     def _table_has_receipt(db, table: str, experience_id: UUID) -> bool:
-        if (
-            db.execute(
-                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)
-            ).fetchone()
-            is None
-        ):
-            return False
         return (
             db.execute(f"SELECT 1 FROM {table} WHERE id=?", (str(experience_id),)).fetchone()
             is not None
@@ -460,28 +439,11 @@ class ExperienceStore:
         """Record provenance; a missing receipt on a derived record is corruption."""
         feedback_present = cls._receipt_present(db, record.experience_id)
         extraction_present = cls._extraction_present(db, record.experience_id)
-        if (
-            db.execute(
-                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='experience_origins'"
-            ).fetchone()
-            is None
-        ):
-            # Snapshots taken before provenance existed derive it from receipts.
-            if feedback_present and extraction_present:
-                raise ExperienceError("experience_integrity_failure")
-            if feedback_present:
-                return "feedback"
-            return "extraction" if extraction_present else "manual"
         row = db.execute(
             "SELECT origin FROM experience_origins WHERE id=?", (str(record.experience_id),)
         ).fetchone()
         if row is None:
-            # A marker is written with every capture; losing it is not a manual record.
-            if feedback_present and extraction_present:
-                raise ExperienceError("experience_integrity_failure")
-            if feedback_present:
-                return "feedback"
-            return "extraction" if extraction_present else "manual"
+            raise ExperienceError("experience_integrity_failure")
         if row[0] not in {"manual", "feedback", "extraction"}:
             raise ExperienceError("experience_integrity_failure")
         expected = (
@@ -536,14 +498,6 @@ class ExperienceStore:
 
     @staticmethod
     def _feedback_source(db, record: ExperienceRecord) -> dict | None:
-        if (
-            db.execute(
-                "SELECT 1 FROM sqlite_master WHERE type='table' "
-                "AND name='experience_feedback_sources'"
-            ).fetchone()
-            is None
-        ):
-            return None
         row = db.execute(
             "SELECT body,hash FROM experience_feedback_sources WHERE id=?",
             (str(record.experience_id),),
@@ -644,13 +598,6 @@ class ExperienceStore:
                 ("experience_feedback_sources", "orphan_feedback_receipt"),
                 ("experience_extraction_sources", "orphan_extraction_receipt"),
             ):
-                if (
-                    db.execute(
-                        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)
-                    ).fetchone()
-                    is None
-                ):
-                    continue
                 # These table names are fixed above. One finding per missing
                 # parent suffices even when it had multiple reviewer rows.
                 orphans = db.execute(
@@ -707,14 +654,13 @@ class ExperienceStore:
 
     @classmethod
     def _origin_for_id(cls, db, experience_id: str) -> str:
-        """Provenance for a record too corrupt to decode; receipts decide it."""
-        feedback = cls._table_has_receipt(db, "experience_feedback_sources", experience_id)
-        extraction = cls._table_has_receipt(db, "experience_extraction_sources", experience_id)
-        if feedback and extraction:
+        """Read the explicit marker even when the record body cannot be decoded."""
+        row = db.execute(
+            "SELECT origin FROM experience_origins WHERE id=?", (str(experience_id),)
+        ).fetchone()
+        if row is None or row[0] not in {"manual", "feedback", "extraction"}:
             raise ExperienceError("experience_integrity_failure")
-        if feedback:
-            return "feedback"
-        return "extraction" if extraction else "manual"
+        return row[0]
 
 
 def experience_brief(records) -> tuple[dict, ...]:
