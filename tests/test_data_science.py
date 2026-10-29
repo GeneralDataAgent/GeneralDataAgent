@@ -562,7 +562,8 @@ def test_workbench_runs_the_injected_sandbox_through_the_shared_preparation(
     assert spec.task_id == task_id
 
 
-def _rewrite_stored_version(tracker, experiment_id, version):
+def _rewrite_stored_record(tracker, experiment_id, mutate):
+    """Rewrite one stored record the way another producer could have written it."""
     import hashlib
     import sqlite3
 
@@ -572,10 +573,7 @@ def _rewrite_stored_version(tracker, experiment_id, version):
             (str(experiment_id),),
         ).fetchone()
     record = json.loads(content)
-    if version is None:
-        del record["report"]["receipt"]["receipt_version"]
-    else:
-        record["report"]["receipt"]["receipt_version"] = version
+    mutate(record)
     rewritten = json.dumps(record, sort_keys=True)
     with sqlite3.connect(tracker.path) as connection:
         connection.execute(
@@ -586,6 +584,16 @@ def _rewrite_stored_version(tracker, experiment_id, version):
                 str(experiment_id),
             ),
         )
+
+
+def _rewrite_stored_version(tracker, experiment_id, version):
+    def mutate(record):
+        if version is None:
+            del record["report"]["receipt"]["receipt_version"]
+        else:
+            record["report"]["receipt"]["receipt_version"] = version
+
+    _rewrite_stored_record(tracker, experiment_id, mutate)
 
 
 def test_a_stored_experiment_from_another_receipt_version_is_refused_by_name(tmp_path: Path):
@@ -608,6 +616,52 @@ def test_a_stored_experiment_without_a_receipt_version_is_refused(tmp_path: Path
     _rewrite_stored_version(tracker, spec.experiment_id, None)
     with pytest.raises(ValueError, match="must state its receipt_version"):
         tracker.get(spec.experiment_id)
+
+
+def test_a_stored_experiment_with_a_stronger_verification_is_refused_by_name(tmp_path: Path):
+    from generaldataagent.data_science.tracking import ExperimentTrackingError
+
+    task_id, store, snapshot = _snapshot(tmp_path)
+    tracker = SQLiteExperimentTracker(tmp_path / "tracking.sqlite")
+    spec = _spec(task_id, snapshot.snapshot_id)
+    _run(DataScienceWorkbench(artifact_store=store, tracker=tracker), snapshot, spec)
+    _rewrite_stored_record(
+        tracker,
+        spec.experiment_id,
+        lambda record: record["report"]["receipt"]["verification"].update(
+            scope="independent_implementation", verifier="outside-auditor"
+        ),
+    )
+    # This tracker writes producer self-checks only, so a stronger claim is
+    # refused as its own named failure rather than as an internal schema error.
+    with pytest.raises(
+        ExperimentTrackingError, match="experiment_receipt_verification_scope_mismatch"
+    ):
+        tracker.get(spec.experiment_id)
+
+
+def test_a_record_without_a_receipt_stays_readable_and_unrewritten(tmp_path: Path):
+    import sqlite3
+
+    task_id, store, snapshot = _snapshot(tmp_path)
+    tracker = SQLiteExperimentTracker(tmp_path / "tracking.sqlite")
+    spec = _spec(task_id, snapshot.snapshot_id)
+    _run(DataScienceWorkbench(artifact_store=store, tracker=tracker), snapshot, spec)
+    _rewrite_stored_record(
+        tracker, spec.experiment_id, lambda record: record["report"].pop("receipt")
+    )
+
+    def stored():
+        with sqlite3.connect(tracker.path) as connection:
+            return connection.execute(
+                "SELECT record_json, content_hash FROM experiments WHERE experiment_id = ?",
+                (str(spec.experiment_id),),
+            ).fetchone()
+
+    before = stored()
+    tracked = tracker.get(spec.experiment_id)
+    assert tracked.report.receipt is None
+    assert stored() == before
 
 
 class _Mirror:

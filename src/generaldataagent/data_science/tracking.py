@@ -103,8 +103,16 @@ class SQLiteExperimentTracker:
         # record written by another receipt version is refused by name instead of
         # being folded into the current reading.
         receipt = data.get("report", {}).get("receipt")
-        if isinstance(receipt, dict):
-            load_receipt(receipt)
+        if receipt is not None and not isinstance(receipt, dict):
+            raise ExperimentTrackingError("experiment_receipt_shape_invalid")
+        if receipt is not None:
+            stored = load_receipt(receipt)
+            # This adapter writes producer self-checks only. A record that
+            # declares an independent or human check is a stronger claim than
+            # this adapter can make, so it is refused by name rather than
+            # surfacing as an internal validation error from a report field.
+            if stored.verification.scope != "producer_self_check":
+                raise ExperimentTrackingError("experiment_receipt_verification_scope_mismatch")
         return TrackedExperiment.model_validate(data)
 
     def list_for_snapshot(self, snapshot_id: UUID) -> tuple[TrackedExperiment, ...]:

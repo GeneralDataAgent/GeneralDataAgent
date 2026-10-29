@@ -489,3 +489,41 @@ def test_every_declared_refusal_code_is_attributed_to_the_workflow():
         assert _refusal_code(ValueError(code)) == code
     for code in PaymentsSourceError.CODES:
         assert _refusal_code(PaymentsSourceError(code)) == code
+
+
+@pytest.mark.parametrize(
+    ("version", "message"),
+    [(None, "must state its receipt_version"), ("1.1", "is not supported")],
+)
+def test_a_receipt_that_cannot_be_read_as_written_stops_the_analysis(
+    tmp_path, monkeypatch, version, message
+):
+    """The supervisor reads the runner's receipt through the versioned entry point."""
+
+    class Unreadable:
+        def __init__(self, inner):
+            self.inner = inner
+
+        def invoke(self, proposal, trace_id):
+            result = dict(self.inner.invoke(proposal, trace_id=trace_id))
+            receipt = dict(result["receipt"])
+            if version is None:
+                del receipt["receipt_version"]
+            else:
+                receipt["receipt_version"] = version
+            result["receipt"] = receipt
+            return result
+
+    def script(groups):
+        groups["discovery"][0].invoke({})
+        with pytest.raises(ValueError, match=message):
+            groups["data_analysis"][0].invoke({})
+
+    builder, _ = fake_builder(script)
+    monkeypatch.setattr("generaldataagent.agents.rule_supervisor.build_supervisor", builder)
+    with open_protected_checkpointer(tmp_path / "state", encryption_key=b"k" * 32) as saver:
+        runtime = build(tmp_path, saver, governed=True)
+        runtime.runner = Unreadable(runtime.runner)
+        result = runtime.run(ACTOR, thread_id=str(runtime.task_id))
+    assert result.status == "failed"
+    assert result.receipts == ()
