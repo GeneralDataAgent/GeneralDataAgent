@@ -167,10 +167,15 @@ def test_revocation_during_verification_blocks_release(tmp_path, monkeypatch):
     with open_protected_checkpointer(tmp_path / "state", encryption_key=b"k" * 32) as saver:
         runtime = attach(build(tmp_path, saver, governed=True), value)
         original = runtime.runner.artifacts.read_bytes
+        reads = []
 
         def revoke(ref):
             content = original(ref)
-            value.admission.registry.revoke(value.skill.name, value.skill.version)
+            reads.append(ref)
+            # The first read is the runner's persistence check; revoke during
+            # the verifier's second read to exercise the final admission check.
+            if len(reads) == 2:
+                value.admission.registry.revoke(value.skill.name, value.skill.version)
             return content
 
         monkeypatch.setattr(runtime.runner.artifacts, "read_bytes", revoke)
@@ -178,3 +183,4 @@ def test_revocation_during_verification_blocks_release(tmp_path, monkeypatch):
         groups["discovery"][0].invoke({})
         with pytest.raises(PermissionError):
             groups["discovery"][1].invoke({"query": "scope"})
+        assert len(reads) == 2
