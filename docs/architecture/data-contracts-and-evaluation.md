@@ -2,6 +2,8 @@
 
 Versioned contracts connect system layers; layered evaluation checks whether work actually meets requirements. This is a design specification. Historical runs and acceptance progress are maintained [outside the implementation repository](../../../docs/validation/README.md).
 
+> Several tables below name design-stage contracts that were implemented under other names (`TransformationProposal`, `ExperimentSpec`/`ExperimentReport`, `GroundedClaim`). The implemented contract set, execution receipts, and the benchmark harness are documented in [As-built architecture](as-built-architecture.md) and the [capability catalog](capability-catalog.md).
+
 ## 1. Artifact contracts
 
 | Artifact | Producer | Required content | Consumers |

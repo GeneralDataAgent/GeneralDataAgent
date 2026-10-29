@@ -2,6 +2,8 @@
 
 The target architecture brings analytics, data engineering, and data science into one auditable task plane. Specialists collaborate under deterministic semantic, authorization, execution, and verification controls to produce reproducible results. This is an architecture specification, not a claim that every integration is implemented; see the [implementation inventory](../../../docs/progress/implementation-status.md).
 
+> For the architecture as it exists in the code — assembly topology, request paths, governance pipeline, agent ordering, evaluation chain — read [As-built architecture](as-built-architecture.md). Where the two differ, this page is the intent and that page is what runs.
+
 ## 1. Goals and scope
 
 ### 1.1 Business capabilities

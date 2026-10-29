@@ -15,6 +15,24 @@ uv run uvicorn generaldataagent.api.app:app --reload
 
 Then open `http://127.0.0.1:8000/health`.
 
+## Check what a deployment actually supports
+
+The development module-level app wires every optional runtime to `None`, so its feature routes answer
+`503` and only `/health`, `/v1/capabilities` and `/v1/contracts/task-plan/validate` respond. Ask the
+running service instead of guessing:
+
+```bash
+curl http://127.0.0.1:8000/v1/capabilities
+```
+
+The response lists the six specialists, which runtimes are configured, and the controls in effect
+(`production_writes` and `arbitrary_shell` are always `false`). The full as-built capability list,
+including items that need external services, is in the [capability catalog](../architecture/capability-catalog.md).
+
+For the architecture behind these routes, read the [as-built architecture](../architecture/as-built-architecture.md)
+first; the [system architecture](../architecture/system-architecture.md) is the design target and
+differs where the code has not caught up.
+
 ## Run the synthetic metric demo
 
 The demo creates a local SQLite database with synthetic order data. It never connects to an external data source.
@@ -48,11 +66,62 @@ Ordinary resume still refuses changed sources. Rule delivery responses include a
 `rules.deliver` receipt; rule Supervisor results retain execution and delivery receipts in
 `receipts`, without changing the `DeliveryPackage` schema.
 
+Run the deterministic rule pipeline (no model) and the rule Supervisor (real model) separately:
+
+```bash
+uv run python evals/run_stage10_rule_pipeline.py --output .artifacts/rule-pipeline
+uv run python evals/run_stage10_rule_supervisor.py --model EXPLICIT_MODEL_ID \
+  --output .artifacts/rule-supervisor
+```
+
+The pipeline result is a parameter effect, not a capability gain, and cannot be spliced onto a
+model run. The Supervisor follows the same four-role order as the metric path.
+
 ## Record research evaluation receipts
 
 Fresh benchmark runs can opt in to persisted step receipts using an explicit research
 actor. See the [evaluation receipt guide](evaluation-receipts.md) for identity, readback,
-legacy compatibility and qualification requirements.
+legacy compatibility and qualification requirements, and
+[ADR 0010](../adr/0010-execution-receipt-contract.md) for the contract and its weaker verification
+levels.
+
+```bash
+uv run python evals/verify_evaluation_receipts.py --report .artifacts/run/report.json \
+  --output .artifacts/run/receipts.json
+```
+
+Receipts record `producer_self_check`, `authoritative_rederivation`, `independent_implementation`,
+or `human_attestation`; treat a self-check as provenance, not as verification.
+
+## Route a task and reuse reviewed experience
+
+Both switches live on `evals/run_stage6.py` and are off by default, so an existing paired baseline
+keeps one fixed profile. Each switch is part of the protocol fingerprint, so a run with routing on
+cannot be averaged with a run that had it off.
+
+```bash
+uv run python evals/run_stage6.py --benchmark dabstep --evaluation-protocol stage9-v1 \
+  --tool-profile sql-rules --routing --output .artifacts/run-routed/report.json
+
+uv run python evals/run_stage6.py --benchmark bird --limit 60 \
+  --experience-database path/to/experience.sqlite \
+  --experience-actor '{"user_id":"...","tenant_id":"...","project_id":"...","data_domains":["..."]}' \
+  --output .artifacts/run-experience/report.json
+```
+
+`--routing` records one lane decision per case; `--tool-profile` and `--routing` cannot be combined
+in one run. Experience hints are retrieved only from records that passed independent review; the
+store is preflighted read-only before the worker starts, and a store failure drops the hint without
+changing the case's outcome. Inspect a store without touching it:
+
+```bash
+uv run python evals/audit_stage10_experience.py --store path/to/experience.sqlite \
+  --output .artifacts/experience-audit.json
+```
+
+Dataset-specific vocabulary and manuals belong in a versioned Skill or knowledge input, not in core
+code. See [Dataset extensions](dataset-extensions.md) for the admission path and the worked
+`examples/skills/*.json` manifests.
 
 ## Run the real-data and real-model validation
 
@@ -118,7 +187,7 @@ uv run --frozen python evals/run_stage3_sandbox_probe.py --image-ref NAME@sha256
 ```
 
 The demo creates an immutable synthetic snapshot and runs the fixed majority-classification
-template. The frozen gate covers 20 accepted and rejected cases across classification, regression,
+template. The frozen gate covers 20 cases across classification, regression,
 random, temporal, and group splits. Unsafe inputs fail before experiment execution. See the
 [Stage 3 validation record](../../../docs/validation/stage3-data-science-workbench.md) and
 [sandbox decision](../adr/0005-fixed-template-data-science-sandbox.md).
@@ -131,6 +200,19 @@ at least two distinct trusted reviewers; see the [validation record](../../../do
 When a workbench is explicitly configured, `POST /v1/science/experiments` runs an existing immutable
 snapshot. The endpoint is disabled by default, accepts no code or command, and requires the caller's
 tenant, project, and data domain to match the snapshot's immutable scope.
+
+### Statistics and modeling tools
+
+The statistical tooling is usable without the workbench: deterministic tests, regression, and
+formula-bound analysis run as ordinary tools inside the policy gateway.
+
+```bash
+uv run python examples/statistics_modeling_demo.py
+uv run python evals/run_stage8_acceptance.py --include-sklearn --output .artifacts/stage8
+```
+
+See [Controlled statistics and modeling](statistics-and-modeling.md) for the method rules (sample vs
+population standard deviation, effect sizes, assumption checks) and the Stage 8 gates.
 
 ## Run the data-engineering foundation demo
 
@@ -396,21 +478,30 @@ stays disabled.
 
 ## Package map
 
+The full map with responsibilities and entry points is in the
+[as-built architecture](../architecture/as-built-architecture.md#5-package-map). In short:
+
 ```text
 src/generaldataagent/
-  contracts/       Versioned boundary models
-  catalog/         Certified metric definitions and resolution
-  policy/          Risk classification and authorization decisions
-  tools/           Tool gateway and SQL safety checks
-  artifacts/       Content-addressed task artifacts
-  orchestration/   LangGraph state and workflow skeleton
-  agents/          Deep Agents role definitions and factory
-  connectors/      Read-only source adapters and normalized failures
-  data_engineering/Profiling, quality, diff, proposals, impact, and governed runtime
-  datasets/        Reproducible open-data ingestion
-  llm/             Local provider resolution and model adapters
-  observability/   Audit event sink
-  api/             FastAPI application
+  contracts/        Frozen boundary models (extra="forbid")
+  catalog/          Certified metrics and deterministic NL resolution
+  policy/           Static rules, exact approvals, budgets, resume
+  tools/            ToolGateway, SQL guard, statistics and rule tools
+  agents/           Supervisor factory, specialist specs, role ordering
+  orchestration/    LangGraph workflows, checkpoints, metric runtime
+  artifacts/        Content-addressed and governed stores
+  connectors/       Read-only SQLite / DuckDB / PostgreSQL adapters
+  data_engineering/ Profiling, quality, diff, proposals, impact, dbt
+  data_science/     Snapshots, experiments, sandbox, tracking, model cards
+  datasets/         Reproducible open-data ingestion
+  business/         Outbox, approvals, schedules, receivers, rules, admission
+  review/           Runtime human-review stores
+  security/         OIDC, sessions, RLS adapter, DLP, release admission
+  observability/    Audit sinks, SLO, alerts, maintenance
+  llm/              CC Switch / Magpie adapters, routing, deadlines
+  evaluation/       Benchmark harnesses, receipts, comparison, routing
+  services/         Approval authority, audit collector, report worker
+  api/              FastAPI assembly and the two consoles
 ```
 
 System architecture and operations are documented in the [internal documentation index](../README.md). Planning and acceptance records are maintained in the [workspace documentation](../../../docs/README.md).
@@ -432,7 +523,8 @@ is missing or invalid. Deploy through the released factory, never the developmen
 For the real PostgreSQL adapter's 19 synthetic isolation checks, use
 `uv run --frozen python evals/run_stage4_postgres.py` after obtaining the pinned official image as
 documented in the runbook. Add `--pytest` to run the full coverage suite against a fresh disposable
-database. CI runs this integration on Python 3.11, 3.12 and 3.13.
+database. CI runs the pytest integration against its Postgres service on Python 3.11, 3.12 and
+3.13; the standalone runner above is not itself a CI step.
 
 
 ## Business-loop pilot
@@ -473,6 +565,25 @@ See the [runbook](../operations/business-loop-runbook.md) and
 `uv run --frozen python evals/run_stage5_acceptance.py`; missing independent external evidence keeps
 aggregate production acceptance incomplete.
 
+### Business API and consoles
+
+The business router is mounted only when `create_app(..., business_actions=...)` receives a runtime;
+the console is served from the same app at `/business`, and the reviewer console at `/review` comes
+from a separate approval-authority process. Endpoints (`GET`/`POST /v1/business/drafts`,
+`/drafts/{id}/execute|reconcile|cancel`, `/schedules`, `/schedules/{id}/tick|cancel`) all require a
+session whose scope matches the draft.
+
+Run the worker as a process when schedules are in use. It loads an operator-owned factory rather
+than taking connection details on the command line:
+
+```bash
+uv run python -m generaldataagent.services.report_worker --factory myorg.worker:build --check-config
+uv run python -m generaldataagent.services.report_worker --factory myorg.worker:build --once
+```
+
+Service templates live in `deploy/systemd/` and ship disabled.
+
+
 ## Public benchmark evaluation
 
 Both CC Switch and an existing Magpie gateway are supported without changing desktop settings.
@@ -484,3 +595,57 @@ SQL/statistical tools, case-level evidence, model-free replay, paired comparison
 release gates. Select one cohort, model, and resource policy per run; see the
 [evaluation runbook](../operations/benchmark-evaluation-runbook.md) for preparation and reproduction.
 Historical scores and qualification decisions are maintained in the [external validation index](../../../docs/validation/README.md).
+
+### Treat one run as one observation
+
+A single run pair is not evidence of a gain. The tools are arranged so the claim has to be earned:
+
+```bash
+# One arm, one protocol, one cohort.
+uv run python evals/run_stage6.py --benchmark bird --limit 60 \
+  --evaluation-protocol stage9-v1 --tool-profile sql-rules \
+  --output .artifacts/arm-a/report.json
+
+# Single run vs single run: reported, but blocked as evidence (single_run_arm).
+uv run python evals/compare_stage6.py --baseline .artifacts/arm-a/report.json \
+  --candidate .artifacts/arm-b/report.json --output .artifacts/pair.json
+
+# Three repeats per arm: paired by task, task-clustered bootstrap, exact sign test.
+uv run python evals/compare_repeated_runs.py \
+  --baseline .artifacts/arm-a/run-1.json --baseline .artifacts/arm-a/run-2.json \
+  --baseline .artifacts/arm-a/run-3.json \
+  --candidate .artifacts/arm-b/run-1.json --candidate .artifacts/arm-b/run-2.json \
+  --candidate .artifacts/arm-b/run-3.json \
+  --cohort-status development --output .artifacts/repeats.json
+```
+
+`compare_repeated_runs` resamples tasks rather than task-runs, refuses a single-run arm, a copied
+report, an arm whose outcomes flip beyond the stability limit, a cross-arm cohort or fingerprint
+change, and an unmeasured cost. Its output carries `design_blockers` and `criteria_met`;
+`production_accepted` is always `false`, and `--cohort-status held_out` is refused unless every run
+records the same frozen cohort file hash.
+
+### Freeze an unseen cohort before running it
+
+Choosing a cohort after seeing scores makes every result post-hoc. Declare it first:
+
+```bash
+uv run python evals/freeze_cohort.py --benchmark bird --limit 45 --seed 20261028 \
+  --report-dir .artifacts --output evals/cohorts/bird-unseen-45.json
+
+uv run python evals/run_stage6.py --benchmark bird --limit 45 \
+  --cohort-file evals/cohorts/bird-unseen-45.json --output .artifacts/arm-a/run-1.json
+```
+
+The declaration collects every case ID that prior reports already ran, samples only the remainder,
+and writes IDs, seed, report hashes and a `cohort_hash` — never question text or answers. The runner
+enforces the file: missing or duplicate IDs, a changed task, or a hash mismatch fails the run instead
+of falling back to sampling. Running the cohort consumes it.
+
+Verify a run's step receipts with:
+
+```bash
+uv run python evals/verify_evaluation_receipts.py --report .artifacts/arm-a/run-1.json \
+  --output .artifacts/arm-a/receipts.json
+```
+
