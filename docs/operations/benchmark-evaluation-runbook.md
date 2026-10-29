@@ -1079,3 +1079,39 @@ input files are never rewritten. Nonfinite values and unserializable metadata ar
 The envelope validates internal consistency only. It does not authenticate a source,
 prove independent runs, or relax comparison, service, coverage, review or production
 gates. Unknown usage and cost stay unknown; service readiness does not establish quality.
+
+### Scoped experience review inventories
+
+Prepare a complete review snapshot of one exact actor scope:
+
+```bash
+uv run --frozen python evals/inventory_stage10_experience.py \
+  --store .artifacts/experience-batch-new/candidates.sqlite \
+  --actor '{"user_id":"u","tenant_id":"t","project_id":"p","data_domains":["payments"]}' \
+  --output .artifacts/experience-review-new.json
+```
+
+The CLI opens the store read-only and exclusively creates a new report inside the implementation
+workspace. `ExperienceStore.review_inventory(actor, max_records=1000)` is the corresponding API.
+The limit must be 1–1000; a scope larger than the selected limit is refused with
+`experience_inventory_limit_exceeded`, without a partial report. A fresh batch output contains
+at most 600 candidates, so a complete batch fits the default. This is a bounded preparation tool,
+not a paginated export for an arbitrarily large runtime store.
+
+Counts, records, capture receipts and review votes are read in one SQLite transaction, including
+active, unreviewed and rejected members. All scoped records pass the existing integrity, owner,
+receipt and derived-state checks; an invalid member refuses the whole inventory. Other actor
+scopes are neither counted nor exposed. This does not perform the separate global orphan audit
+or requalify feedback against a current external registry.
+
+`exact-lesson.v1` groups the same record schema version and exact lesson fields within that scope.
+Identity, owner and creation time do not define the lesson; every condition, repair, counterexample,
+tool, tuple order and whitespace remains significant. Each group displays the lesson once but
+retains every member ID, record hash, creation time, origin, source receipt and accepted/rejected
+vote count. An active member does not activate another member or override its rejection.
+
+`inventory_hash` binds the report content. It does not authenticate its source, establish semantic
+equivalence, count independent supporting runs or approve a group. No rows, votes, source receipts
+or runtime hints are changed. Each record still uses the existing independent review gate, with
+feedback registry qualification when applicable. Semantic consolidation, source authentication
+and real reuse benefit remain separate work.

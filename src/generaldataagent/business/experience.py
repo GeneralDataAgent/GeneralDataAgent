@@ -579,6 +579,14 @@ class ExperienceStore:
             ).fetchone()
         return row[0]
 
+    def review_inventory(self, actor: ActorContext, *, max_records: int = 1000) -> dict:
+        """Prepare a complete scoped review snapshot without changing or reviewing records."""
+        from generaldataagent.business.experience_inventory import build_review_inventory
+
+        with closing(self._connect()) as db:
+            db.execute("BEGIN")
+            return build_review_inventory(self, db, actor, max_records)
+
     def audit(self) -> dict:
         """Read-only consistency sweep across every stored record.
 
