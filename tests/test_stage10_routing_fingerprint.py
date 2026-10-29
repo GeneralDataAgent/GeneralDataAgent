@@ -675,3 +675,56 @@ def test_clean_experience_store_passes_the_preflight(run_manifest, tmp_path, mon
         "findings": 0,
     }
     assert report["production_accepted"] is False
+
+
+def test_each_lane_policy_is_read_once_for_protocol_manifest_and_worker(run_manifest, monkeypatch):
+    from collections import Counter
+    from dataclasses import replace
+
+    runner, run = run_manifest
+    original = runner.route_task
+    calls = Counter()
+    seen = {}
+    execute = runner.run_isolated
+
+    def changing(question, instructions="", *, override=None):
+        route = original(question, instructions, override=override)
+        if override is not None:
+            calls[override] += 1
+            if calls[override] > 1:
+                return replace(route, max_seconds=999)
+        return route
+
+    def capture(task, *args, **kwargs):
+        seen[task.case_id] = kwargs
+        return execute(task, *args, **kwargs)
+
+    monkeypatch.setattr(runner, "route_task", changing)
+    monkeypatch.setattr(runner, "run_isolated", capture)
+    report, _ = run(["Count rows", "Find median", "What fee applies?"])
+    assert calls == {"short": 1, "analysis": 1, "governed": 1}
+    protocol = report["protocol"]
+    for case_id, route in report["system_fingerprint"]["routing"]["per_case"].items():
+        lane = route["lane"]
+        assert seen[case_id]["max_seconds"] == protocol["lane_time_budgets"][lane]
+        assert seen[case_id]["max_steps"] == protocol["lane_step_budgets"][lane]
+        assert seen[case_id]["max_repairs"] == protocol["lane_repair_budgets"][lane]
+        assert seen[case_id]["deadline_seconds"] == seen[case_id]["max_seconds"] + 5
+
+
+def test_route_drift_after_declaration_is_refused_before_workers(run_manifest, monkeypatch):
+    from dataclasses import replace
+
+    runner, run = run_manifest
+    original = runner.route_task
+    calls = []
+
+    def drifting(question, instructions="", *, override=None):
+        route = original(question, instructions, override=override)
+        return replace(route, max_seconds=route.max_seconds + 1) if override is None else route
+
+    monkeypatch.setattr(runner, "route_task", drifting)
+    monkeypatch.setattr(runner, "run_isolated", lambda *args, **kwargs: calls.append(True))
+    with pytest.raises(ValueError, match="routing policy changed after budget snapshot"):
+        run(["Count rows"])
+    assert calls == []

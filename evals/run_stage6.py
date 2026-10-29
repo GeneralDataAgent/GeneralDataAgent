@@ -9,11 +9,13 @@ import sqlite3
 import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
 from generaldataagent.contracts import ActorContext
+from generaldataagent.evaluation.execution_budget import ExecutionBudget
 from generaldataagent.evaluation.frozen_cohort import (
     frozen_file_hash,
     load_frozen_cohort,
@@ -21,10 +23,6 @@ from generaldataagent.evaluation.frozen_cohort import (
 )
 from generaldataagent.evaluation.routing import route_task
 from generaldataagent.evaluation.stage_six import (
-    DEADLINE_MARGIN_SECONDS,
-    DEFAULT_WORKER_REPAIRS,
-    DEFAULT_WORKER_SECONDS,
-    DEFAULT_WORKER_STEPS,
     SYSTEM_PROMPT,
     add_json_tables,
     build_csv_database,
@@ -259,44 +257,48 @@ def main():
     )
     args.output.mkdir(parents=True)
     code_hash = digest(Path(__file__).resolve())
-    # The protocol must state the deadline that will actually apply. Routed
-    # runs pick the lane per case, so the reported ceiling is the largest lane
-    # budget plus the same margin the worker process gets.
-    lane_budgets = {
-        lane: route_task("x", override=lane).max_seconds
-        for lane in ("short", "analysis", "governed")
+    fixed_budget = ExecutionBudget(
+        max_output_tokens=args.max_output_tokens, max_tokens=args.max_tokens
+    )
+    # Freeze each lane once. All declarations and worker arguments below use
+    # these same immutable values rather than reading the routing policy again.
+    lane_routes = {
+        lane: route_task("x", override=lane) for lane in ("short", "analysis", "governed")
     }
-    lane_steps = {
-        lane: route_task("x", override=lane).max_steps for lane in ("short", "analysis", "governed")
+    lane_execution_budgets = {
+        lane: replace(
+            fixed_budget,
+            max_steps=route.max_steps,
+            max_seconds=route.max_seconds,
+            max_repairs=route.max_repairs,
+        )
+        for lane, route in lane_routes.items()
     }
-    lane_repairs = {
-        lane: route_task("x", override=lane).max_repairs
-        for lane in ("short", "analysis", "governed")
-    }
-    mode_deadline = (
-        max(lane_budgets.values()) + DEADLINE_MARGIN_SECONDS
+    ceiling = (
+        replace(
+            fixed_budget,
+            max_steps=max(b.max_steps for b in lane_execution_budgets.values()),
+            max_seconds=max(b.max_seconds for b in lane_execution_budgets.values()),
+            max_repairs=max(b.max_repairs for b in lane_execution_budgets.values()),
+        )
         if args.routing
-        else DEFAULT_WORKER_SECONDS + DEADLINE_MARGIN_SECONDS
+        else fixed_budget
     )
-    protocol = evaluation_protocol(
-        workers=args.workers,
-        max_output_tokens=args.max_output_tokens,
-        max_tokens=args.max_tokens,
-        hard_case_deadline=mode_deadline,
-        steps=max(lane_steps.values()) if args.routing else DEFAULT_WORKER_STEPS,
-        seconds=max(lane_budgets.values()) if args.routing else DEFAULT_WORKER_SECONDS,
-    )
+    protocol = evaluation_protocol(workers=args.workers, **ceiling.protocol_kwargs())
     protocol["version"] = args.evaluation_protocol
     protocol["request_interval_seconds"] = args.request_interval_seconds
     protocol["hard_case_deadline_mode"] = "per_lane" if args.routing else "fixed"
-    protocol["max_repairs_per_case"] = (
-        max(lane_repairs.values()) if args.routing else DEFAULT_WORKER_REPAIRS
-    )
+    protocol["max_repairs_per_case"] = ceiling.max_repairs
     if args.routing:
-        # Recorded so a reader can recompute each case's limits from its lane.
-        protocol["lane_time_budgets"] = lane_budgets
-        protocol["lane_step_budgets"] = lane_steps
-        protocol["lane_repair_budgets"] = lane_repairs
+        protocol["lane_time_budgets"] = {
+            lane: budget.max_seconds for lane, budget in lane_execution_budgets.items()
+        }
+        protocol["lane_step_budgets"] = {
+            lane: budget.max_steps for lane, budget in lane_execution_budgets.items()
+        }
+        protocol["lane_repair_budgets"] = {
+            lane: budget.max_repairs for lane, budget in lane_execution_budgets.items()
+        }
     if args.csv_importer == "identifier-v2":
         protocol["csv_importer"] = args.csv_importer
         protocol["numeric_import"] = (
@@ -373,14 +375,27 @@ def main():
         if args.routing
         else None
     )
+    if case_routes is not None:
+        for plan in case_routes.values():
+            declared = lane_routes[plan.lane]
+            if (plan.tool_profile, plan.max_steps, plan.max_seconds, plan.max_repairs) != (
+                declared.tool_profile,
+                declared.max_steps,
+                declared.max_seconds,
+                declared.max_repairs,
+            ):
+                raise ValueError("routing policy changed after budget snapshot")
+    case_budgets = {
+        c.task.case_id: lane_execution_budgets[case_routes[c.task.case_id].lane]
+        if case_routes is not None
+        else fixed_budget
+        for c in selected
+    }
     routing_manifest = (
         {
             "mode": "public-text-marker",
             "source_hash": digest(ROOT / "src/generaldataagent/evaluation/routing.py"),
-            "lanes": {
-                lane: route_task("x", override=lane).as_dict()
-                for lane in ("short", "analysis", "governed")
-            },
+            "lanes": {lane: route.as_dict() for lane, route in lane_routes.items()},
             "per_case": {case_id: plan.as_dict() for case_id, plan in case_routes.items()},
         }
         if args.routing
@@ -422,6 +437,9 @@ def main():
         ),
         "repair_tools_hash": digest(ROOT / "src/generaldataagent/evaluation/stage_six_repair.py"),
         "repair_budget_hash": digest(ROOT / "src/generaldataagent/evaluation/repair_budget.py"),
+        "execution_budget_hash": digest(
+            ROOT / "src/generaldataagent/evaluation/execution_budget.py"
+        ),
         "retry_policy_hash": digest(ROOT / "src/generaldataagent/evaluation/routing.py"),
         "experience_extraction_hash": extraction_source_hash(ROOT)
         if "sql-rules" in active_profiles
@@ -544,13 +562,9 @@ def main():
                 tool_profile=route_plan.tool_profile if route_plan else args.tool_profile,
                 thinking_mode=args.thinking,
                 json_mode=args.json_mode,
-                max_output_tokens=args.max_output_tokens,
-                max_tokens=args.max_tokens,
+                **case_budgets[case.task.case_id].worker_kwargs(),
                 request_interval_seconds=args.request_interval_seconds,
                 pacing_database=ROOT / ".state/stage6/request-pacing.sqlite",
-                max_steps=route_plan.max_steps if route_plan else DEFAULT_WORKER_STEPS,
-                max_seconds=route_plan.max_seconds if route_plan else DEFAULT_WORKER_SECONDS,
-                max_repairs=route_plan.max_repairs if route_plan else DEFAULT_WORKER_REPAIRS,
                 experience_database=experience_database,
                 experience_actor=experience_actor,
                 experience_store_hash=protocol.get("experience_store_hash"),
