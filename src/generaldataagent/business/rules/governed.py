@@ -161,14 +161,18 @@ class GovernedRuleRunner:
         gateway = self._gateway()
 
         def persist(arguments):
+            expected = json.dumps(
+                arguments, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+            ).encode()
             ref = self.artifacts.put_json(
                 task_id=request.task_id,
                 artifact_type="rule.workflow.evidence",
                 value=arguments,
                 created_by="rule-workflow",
             )
-            # Verify the stored bytes before advertising the reference.
-            self.artifacts.read_bytes(ref)
+            # A valid stored hash alone does not bind evidence to this checkpoint.
+            if self.artifacts.read_bytes(ref) != expected:
+                raise ValueError("rule_workflow_evidence_content_mismatch")
             return ref.model_dump(mode="json")
 
         def execute(arguments):
