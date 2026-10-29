@@ -152,6 +152,41 @@ def test_composition_rejects_units_it_cannot_guarantee(tmp_path, change, code):
         ExecutionComposition(**values)
 
 
+@pytest.mark.parametrize(
+    "change", ["invalid_type", "user_id", "tenant_id", "project_id", "domains"]
+)
+def test_workload_composition_refusals_keep_their_declared_code(tmp_path, change):
+    from generaldataagent.security.science_scope import ScienceWorkloadScope
+
+    scope_values = dict(
+        user_id=ACTOR.user_id,
+        tenant_id=ACTOR.tenant_id,
+        project_id=ACTOR.project_id,
+        data_domains=frozenset(ACTOR.data_domains),
+        task_id=uuid4(),
+        snapshot_id=uuid4(),
+    )
+    if change in {"user_id", "tenant_id", "project_id"}:
+        scope_values[change] = "other"
+    elif change == "domains":
+        scope_values["data_domains"] = frozenset()
+    scope = object() if change == "invalid_type" else ScienceWorkloadScope(**scope_values)
+    code = (
+        "composition_workload_scope_invalid"
+        if change == "invalid_type"
+        else "composition_workload_scope_actor_mismatch"
+    )
+    with pytest.raises(CompositionError, match=code) as error:
+        ExecutionComposition(
+            mode="research",
+            actor=ACTOR,
+            artifacts=LocalArtifactStore(tmp_path / "artifacts"),
+            audit=JsonlAuditSink(tmp_path / "audit.jsonl"),
+            workload_scope=scope,
+        )
+    assert error.value.code == code
+
+
 def test_product_composition_refuses_each_missing_control(tmp_path):
     values = dict(
         mode="product",

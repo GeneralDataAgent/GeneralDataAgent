@@ -61,6 +61,8 @@ class CompositionError(ValueError):
             "composition_artifact_scope_mismatch",
             "composition_task_id_invalid",
             "composition_trace_id_invalid",
+            "composition_workload_scope_invalid",
+            "composition_workload_scope_actor_mismatch",
         }
     )
 
