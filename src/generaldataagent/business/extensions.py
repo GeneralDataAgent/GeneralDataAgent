@@ -76,6 +76,13 @@ class SkillDefinition(ContractModel):
             raise ValueError("skill declarations must be unique")
         return values
 
+    @field_validator("verification", "failure_handling")
+    @classmethod
+    def _required_behavior_text(cls, values):
+        if any(not value.strip() for value in values):
+            raise ValueError("skill declarations must not be blank")
+        return values
+
     @field_validator("dependencies")
     @classmethod
     def _dependencies_named(cls, values):

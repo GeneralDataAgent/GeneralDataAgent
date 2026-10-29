@@ -65,6 +65,36 @@ def test_definition_rejects_blank_duplicate_and_malformed_declarations():
         definition(verification=())
 
 
+@pytest.mark.parametrize("field", ["verification", "failure_handling"])
+@pytest.mark.parametrize("members", [("",), (" \t\n",), ("valid declaration", " ")])
+@pytest.mark.parametrize("from_json", [False, True])
+def test_blank_verification_and_failure_declarations_are_refused(field, members, from_json):
+    if from_json:
+        import json
+
+        stored = definition().model_dump(mode="json")
+        stored[field] = members
+        with pytest.raises(ValueError, match="skill declarations must not be blank"):
+            SkillDefinition.model_validate_json(json.dumps(stored))
+    else:
+        with pytest.raises(ValueError, match="skill declarations must not be blank"):
+            definition(**{field: members})
+
+
+def test_valid_verification_and_failure_text_keeps_its_exact_bytes_and_hash():
+    from generaldataagent.business.actions import content_hash
+
+    skill = definition(
+        verification=(" cite the catalog entry ",),
+        failure_handling=(" report ambiguity ", " report ambiguity "),
+    )
+    stored = skill.model_dump(mode="json")
+    assert stored["verification"] == [" cite the catalog entry "]
+    assert stored["failure_handling"] == [" report ambiguity ", " report ambiguity "]
+    assert ExtensionAdmission.skill_hash(skill) == content_hash({"kind": "skill", "spec": stored})
+    assert SkillDefinition.model_validate_json(skill.model_dump_json()) == skill
+
+
 def test_hash_covers_every_declared_field():
     base = ExtensionAdmission.skill_hash(definition())
     for change in (
