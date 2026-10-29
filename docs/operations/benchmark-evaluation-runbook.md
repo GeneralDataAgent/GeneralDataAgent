@@ -956,3 +956,46 @@ evidence of use comes from persisted `rule.document.evidence` artifacts under ea
 directory — one per search, carrying `status` (`matches` or `gap`), query and citations — not from
 the model's narration. Compare those counts between the two arms before attributing any answer
 change to the treatment; a treatment arm that made no searches has not tested documents.
+
+### Batch candidate extraction
+
+For offline development traces, provide a JSON manifest with 1–100 entries:
+
+```json
+[{"id":"repair-a","trace":"traces/a.json","documents":"manual.txt"}]
+```
+
+IDs must be unique ASCII letters/digits/underscores/hyphens (up to 64 characters).
+Input paths are relative to the manifest directory and must resolve within it,
+including symlinks. The manifest and each input file are limited to 1 MiB. The
+batch reads at most 20 MiB of trace/document inputs plus one size-probe byte;
+remaining entries are recorded as rejected when that budget is exhausted.
+
+```bash
+uv run --frozen python evals/extract_stage10_experience_batch.py \
+  --manifest path/to/manifest.json \
+  --actor '{"user_id":"u","tenant_id":"t","project_id":"p","data_domains":["payments"]}' \
+  --output .artifacts/experience-batch-new
+```
+
+The output directory must be new and inside the implementation workspace. It contains
+`candidates.sqlite` and `report.json`. Each planned ID remains in the report as
+`captured`, `no_candidate`, `duplicate` or `rejected`; exact trace/document byte pairs
+are deduplicated within this batch only. Duplicate entries reference the first
+successfully processed entry and do not insert another record. Deduplication does
+not equate different traces with the same lesson, and does not span batches.
+
+A rejected input does not discard successful siblings. The process exits 1 with
+`completed_with_errors` when any entry is rejected; otherwise it exits 0 with
+`completed`. An unexpected interruption leaves a `running` report with unfinished
+entries; this command does not resume partial output directories. The report is
+atomically replaced after each processed item, but its update and the candidate
+capture are not a single transaction. After an interruption, audit the candidate
+store before interpreting counts; a capture may have committed before its report
+update. Start a new batch rather than treating the partial run as completed.
+
+The ledger contains input digests, candidate IDs, counts and stable refusal codes,
+not raw traces, document passages or exception messages. Candidates use the existing
+fixed excerpt-repair template and exact-byte source verification. They remain
+unreviewed and unavailable to runtime retrieval. This adds batch processing, not a
+general failure-learning algorithm, source authentication or proof of answer quality.
