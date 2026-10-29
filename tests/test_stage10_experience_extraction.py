@@ -193,10 +193,9 @@ def cli(tmp_path, monkeypatch):
     spec = importlib.util.spec_from_file_location("extract_cli", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    source = module.ROOT / "src/generaldataagent/evaluation/experience_extraction.py"
-    source_digest = module.digest(source)
+    source_digest = module.extraction_source_hash(module.ROOT)
     monkeypatch.setattr(module, "ROOT", tmp_path)
-    monkeypatch.setattr(module, "digest", lambda _: source_digest)
+    monkeypatch.setattr(module, "extraction_source_hash", lambda _: source_digest)
     return module
 
 

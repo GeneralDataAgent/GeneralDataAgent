@@ -25,15 +25,17 @@ import sqlite3
 from collections import Counter
 from contextlib import closing
 from pathlib import Path
-from typing import Literal
-from uuid import UUID, uuid4
+from uuid import UUID
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationError
+from pydantic import ValidationError
 
 from generaldataagent.business.actions import content_hash
 from generaldataagent.business.governance import Feedback, FeedbackRegistry
 from generaldataagent.contracts import ActorContext
-from generaldataagent.contracts.models import ContractModel
+from generaldataagent.contracts.experience import ExperienceRecord
+from generaldataagent.contracts.experience import ExtractionSource as _ExtractionSource
+from generaldataagent.contracts.experience import FeedbackSource as _FeedbackSource
+from generaldataagent.experience.extraction import extract_rule_experience
 from generaldataagent.security.dlp import TextDLPScanner
 
 # Content shapes that mean "this is an answer, not a lesson". Rejecting these
@@ -77,69 +79,6 @@ class ExperienceError(ValueError):
             raise ValueError("unknown experience failure code")
         self.code = code
         super().__init__(code)
-
-
-class ExperienceRecord(ContractModel):
-    """One reusable lesson: what failed, when it applies, and how it was fixed.
-
-    There is deliberately no field for a question, an expected answer, a
-    reference query or a case identifier. A record that needs those is a
-    benchmark artefact, not reusable experience.
-    """
-
-    experience_id: UUID = Field(default_factory=uuid4)
-    failure_class: str = Field(pattern=r"^[a-z][a-z0-9_]{1,63}$")
-    applies_when: tuple[str, ...] = Field(min_length=1, max_length=10)
-    does_not_apply_when: tuple[str, ...] = Field(min_length=1, max_length=10)
-    repair: str = Field(min_length=1, max_length=2000)
-    counterexample: str = Field(min_length=1, max_length=2000)
-    tool_scope: tuple[str, ...] = Field(min_length=1, max_length=20)
-    owner: str = Field(min_length=1, max_length=128)
-    created_at: AwareDatetime
-
-    def text(self) -> str:
-        """Everything a reviewer or the DLP scanner needs to see."""
-        return json.dumps(
-            {
-                "failure_class": self.failure_class,
-                "applies_when": list(self.applies_when),
-                "does_not_apply_when": list(self.does_not_apply_when),
-                "repair": self.repair,
-                "counterexample": self.counterexample,
-                "tool_scope": list(self.tool_scope),
-            },
-            sort_keys=True,
-            ensure_ascii=False,
-        )
-
-
-class _FeedbackSource(BaseModel):
-    """Stored capture receipt; excluded from runtime lesson prompts."""
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    experience_id: UUID
-    dataset_id: UUID
-    dataset_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
-    feedback_id: UUID
-    task_id: UUID
-    result_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
-    split: Literal["training"]
-
-
-class _ExtractionSource(BaseModel):
-    """Stored extraction receipt; carries digests and steps, never trace prose."""
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    experience_id: UUID
-    template_version: str = Field(min_length=1, max_length=64)
-    failure_step: int = Field(ge=1)
-    recovery_step: int = Field(ge=1)
-    result_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
-    trace_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
-    documents_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
-    extractor_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
 
 
 class ExperienceStore:
@@ -312,8 +251,6 @@ class ExperienceStore:
             raise ExperienceError("experience_extraction_source_denied")
         if not isinstance(extractor_hash, str) or not re.fullmatch(r"[a-f0-9]{64}", extractor_hash):
             raise ExperienceError("experience_extraction_source_denied")
-        from generaldataagent.evaluation.experience_extraction import extract_rule_experience
-
         try:
             trace = json.loads(trace_bytes.decode("utf-8"))
             documents = document_bytes.decode("utf-8")

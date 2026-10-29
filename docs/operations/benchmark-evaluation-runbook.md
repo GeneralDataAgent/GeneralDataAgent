@@ -871,8 +871,17 @@ identify that same operation. A matching hash cannot substitute for valid typed 
 consistent operation evidence. The extractor checks the successful result hash, required rule
 checks, and verbatim null excerpt
 against the supplied documents. Old traces lacking the parameter binding produce no candidate.
-Rule profiles include the extraction module in their system fingerprint because it computes
-this binding. Only repository-owned generic prose enters the lesson; trace content is not
+The shared contracts live in `contracts/experience.py`; pure template derivation and repair-context
+binding live in `experience/extraction.py`, which imports neither business stores nor evaluation
+modules. Product capture and evaluation use this same service. The former business record import
+and `evaluation.experience_extraction` exports remain compatible aliases.
+
+New CLI `extractor_hash` receipts and rule-profile `experience_extraction_hash` fingerprints are
+SHA-256 digests of a canonical, sorted path-to-file-hash manifest covering both the shared contract
+and extraction implementation. Moving implementation behind a compatibility export must not leave
+provenance hashing only that export. Historical single-file digests are retained without rewriting;
+new fingerprints differ and must not be paired with old runs as an unchanged system.
+Only repository-owned generic prose enters the lesson; trace content is not
 copied into its repair or counterexample. The report records input hashes and step provenance.
 The CLI reads each input once as bytes, decodes UTF-8 for extraction and hashes those same
 bytes for provenance. Replacement or deletion after reading cannot change the reported input
