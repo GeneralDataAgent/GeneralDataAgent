@@ -51,7 +51,8 @@ class Publication:
     token: str
     url: str | None
     reused: bool
-    size_bytes: int
+    size_bytes: int | None
+    """The size the service reported, or ``None`` when it reported none."""
 
 
 def publication_name(report_name: str, idempotency_key: str) -> str:
@@ -98,12 +99,21 @@ def publish_document(
         raise PublicationAmbiguous("could not establish whether the document exists") from exc
     for record in existing:
         if record.get("name") == name and record.get("token"):
+            # Finding the name is not finding the bytes. A document edited,
+            # truncated or replaced after the earlier attempt would otherwise be
+            # reported as a fresh publication of what this call is holding.
+            current = _read_back(
+                transport,
+                token=record["token"],
+                content=content,
+                when_unreadable="the service lists an existing document it cannot read back",
+            )
             return Publication(
                 name=name,
                 token=record["token"],
-                url=record.get("url"),
+                url=current.get("url") or record.get("url"),
                 reused=True,
-                size_bytes=len(content),
+                size_bytes=current.get("size_bytes"),
             )
 
     try:
@@ -119,23 +129,47 @@ def publish_document(
         raise PublicationAmbiguous("the service accepted the call but returned no document token")
 
     # A token is not a document. Read it back before reporting success.
-    try:
-        identity = str(transport.identity().get("identity", ""))
-        record = transport.read_back(token=token, identity=identity)
-    except Exception as exc:
-        raise PublicationAmbiguous("the published document could not be read back") from exc
-    if record is None:
-        raise PublicationAmbiguous("the service does not list the document it just returned")
-    size = record.get("size_bytes")
-    if size is not None and size != len(content):
-        raise PublicationMismatch("the read-back document size differs from what was sent")
-    digest = record.get("content_hash")
-    if digest is not None and digest != f"sha256:{hashlib.sha256(content).hexdigest()}":
-        raise PublicationMismatch("the read-back content hash does not match what was sent")
+    record = _read_back(
+        transport,
+        token=token,
+        content=content,
+        when_unreadable="the service does not list the document it just returned",
+    )
     return Publication(
         name=name,
         token=token,
         url=record.get("url") or published.get("url"),
         reused=False,
-        size_bytes=len(content),
+        size_bytes=record.get("size_bytes"),
     )
+
+
+def _read_back(
+    transport: FeishuDocumentTransport,
+    *,
+    token: str,
+    content: bytes,
+    when_unreadable: str,
+) -> dict:
+    """Read the document behind a token and refuse if it is not what was sent.
+
+    Both the fresh write and the retry route through here: a token from the
+    service, or a name that matched, is not a document. Where the service reports
+    a size or a hash, they must describe the bytes this call is holding; where it
+    reports neither, the size stays unknown rather than being filled in from what
+    was intended.
+    """
+    try:
+        identity = str(transport.identity().get("identity", ""))
+        record = transport.read_back(token=token, identity=identity)
+    except Exception as exc:
+        raise PublicationAmbiguous(when_unreadable) from exc
+    if record is None:
+        raise PublicationAmbiguous(when_unreadable)
+    size = record.get("size_bytes")
+    if size is not None and size != len(content):
+        raise PublicationMismatch("the stored document size differs from what was sent")
+    digest = record.get("content_hash")
+    if digest is not None and digest != f"sha256:{hashlib.sha256(content).hexdigest()}":
+        raise PublicationMismatch("the stored content hash does not match what was sent")
+    return record
