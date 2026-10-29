@@ -192,6 +192,7 @@ def main():
         # error while still spending a full run. Require the store shape and
         # internal consistency up front; the audit is read-only.
         from generaldataagent.business.experience import ExperienceError, ExperienceStore
+        from generaldataagent.experience.schema import ExperienceSchemaError
 
         try:
             experience_audit = ExperienceStore(
@@ -203,7 +204,7 @@ def main():
         except sqlite3.DatabaseError as exc:
             # An unreadable file is an environment failure, not a bad argument.
             raise exc
-        except (ExperienceError, FileNotFoundError) as exc:
+        except (ExperienceError, ExperienceSchemaError, FileNotFoundError) as exc:
             parser.error(f"experience database is not a usable experience store: {exc}")
         if not experience_audit["consistent"]:
             parser.error(
@@ -325,7 +326,12 @@ def main():
             experience_audit = ExperienceStore(
                 experience_database, clock=lambda: None, read_only=True
             ).audit()
-        except (sqlite3.OperationalError, ExperienceError, FileNotFoundError) as exc:
+        except (
+            sqlite3.OperationalError,
+            ExperienceError,
+            ExperienceSchemaError,
+            FileNotFoundError,
+        ) as exc:
             parser.error(f"experience snapshot is not a usable experience store: {exc}")
         if not experience_audit["consistent"]:
             parser.error(

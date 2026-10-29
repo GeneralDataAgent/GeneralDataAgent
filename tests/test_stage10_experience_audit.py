@@ -248,14 +248,15 @@ def test_audit_detects_orphan_associations_without_modifying_the_store(tmp_path,
     assert store.path.read_bytes() == before
 
 
-def test_audit_handles_a_store_without_provenance_tables(tmp_path):
+def test_audit_reports_missing_manual_origin_without_guessing(tmp_path):
     store = ExperienceStore(tmp_path / "legacy.sqlite", clock=lambda: NOW)
     store.capture(record(), ACTOR)
     with sqlite3.connect(store.path) as db:
         db.execute("DELETE FROM experience_origins")
     report = store.audit()
-    assert report["consistent"] is True
-    assert report["by_origin"] == {"manual": 1}
+    assert report["consistent"] is False
+    assert report["by_origin"] == {"unknown": 1}
+    assert report["findings"][0]["code"] == "origin_mismatch"
 
 
 def cli():

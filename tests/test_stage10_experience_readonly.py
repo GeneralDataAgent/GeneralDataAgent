@@ -10,6 +10,7 @@ import pytest
 
 from generaldataagent.business.experience import ExperienceRecord, ExperienceStore
 from generaldataagent.contracts import ActorContext
+from generaldataagent.experience.schema import ExperienceSchemaError
 
 ACTOR = ActorContext(user_id="u", tenant_id="t", project_id="p", data_domains=("payments",))
 
@@ -72,7 +73,7 @@ def test_readonly_incomplete_schema_is_not_repaired(tmp_path):
     with sqlite3.connect(path) as db:
         db.execute("CREATE TABLE experiences (id TEXT PRIMARY KEY)")
     before = path.read_bytes()
-    with pytest.raises(sqlite3.OperationalError):
+    with pytest.raises(ExperienceSchemaError, match="experience_migration_required"):
         ExperienceStore(path, clock=clock, read_only=True)
     assert path.read_bytes() == before
 

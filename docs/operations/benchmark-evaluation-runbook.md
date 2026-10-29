@@ -680,15 +680,16 @@ separate `experience_feedback_sources` provenance row commit atomically. The row
 experience/dataset/feedback/task identifiers, dataset and result hashes, and the training split;
 feedback questions and expected outcomes are not copied. Existing capture filters and owner
 checks still apply, and feedback review never substitutes for independent experience review.
-Writable stores add this provenance table on opening; legacy read-only snapshots remain readable.
+New stores declare schema version 1; existing stores are validated without adding tables.
+Unversioned inputs require the explicit copy migration described below.
 This is an opt-in operator API: manual capture and offline extraction do not acquire split
 provenance automatically. The provenance row is a capture receipt, not a runtime authorization
 check or a cryptographic proof linking the supplied lesson to feedback or execution traces.
 `feedback_source(experience_id, actor)` exposes this receipt for operator review after scope and
 record validation. It verifies the exact receipt fields, training split, digest and experience ID
 within one read transaction. Malformed or mismatched receipts raise `experience_integrity_failure`.
-Manual records, missing receipt rows and legacy snapshots without the table return `None`; absence
-is not proof of training provenance. The method neither re-reads the source registry nor inserts
+Manual records return `None`; a missing receipt on a feedback-derived record is corruption.
+Absence is not proof of training provenance. The method neither re-reads the source registry nor inserts
 missing receipts, and source identifiers never enter runtime lesson briefs.
 `verify_feedback_source(experience_id, actor, registry=...)` additionally re-reads the scoped
 frozen dataset and checks its training split, exact dataset digest, unique feedback membership,
@@ -701,19 +702,18 @@ requires that same source verification before inserting a vote. The experience w
 holds its immediate lock while checking the receipt and registry, preventing concurrent local
 receipt replacement before the vote commits. Missing registry, malformed receipt, source mismatch
 or registry failure writes no vote. Rejection remains available without consulting the registry,
-so a source outage cannot prevent withdrawal. Manual and legacy records without receipts keep the
+so a source outage cannot prevent withdrawal. Records explicitly marked manual keep the
 manual review path.
 
 Capture now also records an `experience_origins` row (`manual`, `feedback` or `extraction`) in
 the same local transaction as the record and its receipt. Readers require the marker to agree
 with receipt presence: deleting only the receipt raises `experience_integrity_failure` on state,
 retrieval, receipt reads and both accept and reject reviews, instead of quietly restoring the
-manual path. Writable opening backfills missing markers from feedback and extraction receipts,
-falling back to manual only when neither exists. Existing markers are never overwritten, and
-conflicting receipts still fail integrity checks. Read-only legacy snapshots infer the origin
-from receipts without creating a table or marker. Removing both the receipt and its marker still looks like a legacy manual record, so this
-is tamper evidence for partial deletion, not an anti-deletion guarantee, and it gives no
-cross-database atomicity or runtime source recheck.
+manual path. Opening never backfills a missing marker, including for manual records. Missing
+markers fail record integrity checks, and missing tables fail schema validation. Conflicting
+receipts still fail integrity checks. A version marker is a format declaration, not external
+authentication: complete deletion or coordinated rewriting by a database writer cannot be
+proven absent. These checks give no cross-database atomicity or runtime source recheck.
 
 Every read path validates the receipt a record claims, not just that a receipt row exists. A
 feedback-derived record whose receipt is unreadable, fails its digest, or names another
@@ -721,6 +721,51 @@ experience raises `experience_integrity_failure` from `state()`, `retrieve()` an
 `feedback_source()`, even when the lesson body and review rows are intact. Extraction-derived
 records are checked the same way. An unreadable receipt is therefore never presented as an
 ordinary candidate awaiting review.
+
+### Experience database versions and copy migration
+
+`ExperienceStore` creates schema version 1 only for an empty database. The
+`experience_schema` singleton stores the version and declared source layout. Every connection,
+including existing handles opening a new transaction, validates the version and complete table
+structure. Opening an unversioned input raises `experience_migration_required`; unknown versions
+raise `experience_schema_unsupported`; incomplete or mismatched layouts raise
+`experience_schema_invalid`. Normal opening, review, retrieval and audit never migrate or repair.
+These schema refusals are `ExperienceSchemaError` values with a stable `.code`.
+
+To use a saved unversioned database, select its documented layout and create a **new** file:
+
+```bash
+uv run --frozen python -m generaldataagent.experience.migrations \
+  --source path/to/legacy.sqlite --output path/to/versioned.sqlite \
+  --legacy-layout complete-v0
+```
+
+| Explicit layout | Required legacy tables in addition to `experiences` and `experience_reviews` |
+| --- | --- |
+| `manual-v0` | None |
+| `feedback-v0` | `experience_feedback_sources` |
+| `receipts-v0` | `experience_feedback_sources`, `experience_extraction_sources` |
+| `origins-v0` | `experience_feedback_sources`, `experience_origins` |
+| `complete-v0` | All three provenance tables |
+
+The supplied layout must exactly match supported table structures; extra tables, views and
+triggers are refused during migration. A table set alone does not prove a database's history:
+choose from operator records, never by deleting tables to fit a profile. A SQLite backup reads a
+consistent committed snapshot, including WAL contents. Only a temporary destination is changed;
+the source is not checkpointed or rewritten. Existing record JSON, hashes, receipts, votes and
+states stay unchanged. For layouts predating origin markers, markers are reconstructed **only in
+the new copy** from surviving receipts; missing historical provenance cannot be recovered or
+certified. Existing markers are never repaired. Full record/receipt/review/orphan audit must pass
+before an atomic no-clobber publication. Failure removes the temporary database and publishes no
+output; an existing output, including one published concurrently, is preserved.
+
+The JSON result reports schema/source layout, record/origin/state counts, a
+`source_snapshot_hash` of the SQLite snapshot image and an `output_hash` of the published file.
+The snapshot digest may differ from a raw source-file hash, especially with WAL data. Neither
+digest authenticates sources; `source_authenticated` is always false. Migration never activates
+candidates or bypasses feedback-source review. Keep the old database and its historical report
+hashes; explicitly freeze the new database hash before any new off/on comparison. A migrated
+snapshot must not be substituted into an old protocol or reported as the same experiment.
 
 ### Read-only experience store audit
 
@@ -747,8 +792,9 @@ The same transaction also checks association rows whose parent experience is mis
 produce `orphan_review`, `orphan_origin`, `orphan_feedback_receipt` or
 `orphan_extraction_receipt` findings, one per table and missing parent ID; multiple reviewers do
 not multiply the finding. Orphans do not increase the main-record or scope counts, but do make
-`consistent` false, including when no main records remain. Missing optional provenance tables
-in legacy stores are still allowed. The audit never deletes orphan evidence or emits its body.
+`consistent` false, including when no main records remain. Schema validation requires every
+version-1 table; unversioned stores must first be migrated into a new file. The audit never
+deletes orphan evidence or emits its body.
 
 The audit opens the store read-only, never repairs it, and writes a new report inside the
 implementation workspace. Exit code is 0 when consistent and 1 when findings exist. It proves

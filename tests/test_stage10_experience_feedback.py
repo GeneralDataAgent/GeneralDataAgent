@@ -10,6 +10,7 @@ import pytest
 from generaldataagent.business.experience import ExperienceError, ExperienceRecord, ExperienceStore
 from generaldataagent.business.governance import Feedback, FeedbackRegistry
 from generaldataagent.contracts import ActorContext
+from generaldataagent.experience.schema import ExperienceSchemaError
 
 ACTOR = ActorContext(user_id="u", tenant_id="t", project_id="p", data_domains=("payments",))
 NOW = datetime(2026, 10, 24, tzinfo=UTC)
@@ -182,6 +183,11 @@ def test_manual_candidate_has_no_feedback_source_without_mutating_snapshot(sourc
         with sqlite3.connect(store.path) as db:
             db.execute("DROP TABLE experience_feedback_sources")
     before = store.path.read_bytes()
+    if legacy:
+        with pytest.raises(ExperienceSchemaError, match="experience_schema_invalid"):
+            ExperienceStore(store.path, clock=lambda: NOW, read_only=True)
+        assert store.path.read_bytes() == before
+        return
     reader = ExperienceStore(store.path, clock=lambda: NOW, read_only=True)
     assert reader.feedback_source(record.experience_id, ACTOR) is None
     assert store.path.read_bytes() == before
@@ -517,19 +523,13 @@ def test_contradictory_or_unreadable_origin_marker_is_an_integrity_failure(sourc
             db.execute("DELETE FROM experience_origins")
         else:
             db.execute("UPDATE experience_origins SET origin=?", (origin,))
-    if origin == "missing":
-        # The surviving receipt still marks this as feedback-derived: no bypass.
-        with pytest.raises(ExperienceError, match="experience_feedback_source_denied"):
-            store.review(record.experience_id, reviewer_id="reviewer", accepted=True, actor=ACTOR)
-        assert store.state(record.experience_id, ACTOR) == "candidate"
-        return
     with pytest.raises(ExperienceError, match="experience_integrity_failure"):
         store.state(record.experience_id, ACTOR)
     with pytest.raises(ExperienceError, match="experience_integrity_failure"):
         store.review(record.experience_id, reviewer_id="reviewer", accepted=False, actor=ACTOR)
 
 
-def test_removing_the_provenance_table_falls_back_to_the_legacy_path(sources):
+def test_removing_provenance_tables_is_refused_instead_of_inferred_as_legacy(sources):
     registry, item, store, record = sources
     dataset_id = uuid4()
     registry.freeze(dataset_id, (item.feedback_id,), split="training")
@@ -537,11 +537,17 @@ def test_removing_the_provenance_table_falls_back_to_the_legacy_path(sources):
     with sqlite3.connect(store.path) as db:
         db.execute("DROP TABLE experience_feedback_sources")
         db.execute("DROP TABLE experience_origins")
-    # Documented residual limit: deleting the whole provenance record set looks
-    # exactly like a snapshot taken before provenance existed.
-    assert store.feedback_source(record.experience_id, ACTOR) is None
-    store.review(record.experience_id, reviewer_id="reviewer", accepted=True, actor=ACTOR)
-    assert store.state(record.experience_id, ACTOR) == "active"
+    before = store.path.read_bytes()
+    for call in (
+        lambda: store.feedback_source(record.experience_id, ACTOR),
+        lambda: store.review(
+            record.experience_id, reviewer_id="reviewer", accepted=True, actor=ACTOR
+        ),
+        lambda: ExperienceStore(store.path, clock=lambda: NOW),
+    ):
+        with pytest.raises(ExperienceSchemaError, match="experience_schema_invalid"):
+            call()
+    assert store.path.read_bytes() == before
 
 
 def test_corrupt_feedback_receipt_fails_closed_on_every_read(sources):
