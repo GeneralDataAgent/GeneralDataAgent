@@ -238,6 +238,14 @@ use and final release. Terminal refusal clears submissions while retaining obser
 than consuming repair attempts. No-extension behavior remains compatible. The port does not enable
 the stage-six CLI/worker, add per-Skill meters or confer production database authority.
 
+An explicit stage-six CLI/worker treatment now carries a canonical snapshot of the complete Skill
+definitions and actor. The protocol binds that snapshot while admission remains a live read-only
+registry lookup, so revocations are not hidden by copied approval state. Every selected routed task
+must fit its own frozen budget/profile. Workers preflight before provider construction, and the
+parent refuses responses that drop treatment or instruction metadata. Worker loss preserves unknown
+delivery rather than inferring zero calls. This establishes runnable treatment plumbing only;
+source authenticity, a live comparison and independent acceptance require separate evidence.
+
 `ValidatedRunReport` now provides the shared envelope below treatment comparison, repeat stability,
 and service readiness. The existing case validator already was shared; the remaining duplication
 was repeated summary recomputation in the paired-repeat path and reopening caller-owned dictionaries

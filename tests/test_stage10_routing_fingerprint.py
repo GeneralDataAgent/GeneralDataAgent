@@ -78,6 +78,7 @@ def run_manifest(tmp_path, monkeypatch):
         experience_actor=None,
         experience_database=None,
         receipt_actor=None,
+        skill_treatment=None,
     ):
         nonlocal sequence
         sequence += 1
@@ -104,6 +105,8 @@ def run_manifest(tmp_path, monkeypatch):
             arguments.append("--routing")
         if receipt_actor is not None:
             arguments.extend(["--receipt-actor", json.dumps(receipt_actor)])
+        if skill_treatment is not None:
+            arguments.extend(["--skill-treatment", str(skill_treatment)])
         if experience_actor is not None:
             experience_database = experience_database or tmp_path / "experience.sqlite"
             if not experience_database.exists():

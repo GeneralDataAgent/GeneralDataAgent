@@ -190,8 +190,8 @@ not live model, independent acceptance or production evidence.
 `BoundedSQLAgent(..., skill_extension=BoundedAgentSkill(admission, actor, skill, dependencies))`
 accepts an explicitly admitted procedure and prerequisite cache. Import `BoundedAgentSkill` from
 `generaldataagent.evaluation.skill_extension`. There is no automatic enrollment, discovery or CLI
-configuration, and `evals/run_stage6.py`/its worker do not enable this port. A library integration
-does not constitute a benchmark treatment or an evaluated improvement.
+configuration in the library constructor. The CLI/worker opt-in below pins the same definitions;
+neither integration alone constitutes an evaluated improvement.
 
 This port's `allowed_tools` vocabulary is the agent's canonical dispatch keys, such as `sql`,
 `search`, `analysis`, `answers` and `final_sql`, rather than native function aliases or Supervisor
@@ -234,6 +234,61 @@ reports are not rewritten. Budget checks compare Skill declarations to existing 
 they do not introduce per-Skill consumption meters or automatically lower the task's configured
 limits. Verification/failure prose remains declarative. This development agent is still not a
 production-authorized database gateway or independent acceptance path.
+
+### Explicit CLI and worker treatment
+
+`evals/run_stage6.py --skill-treatment <config.json>` enables the same port for an explicitly
+selected run. Omitting it preserves the previous protocol and worker payload shape. The configuration
+has four required keys and one optional dependency list:
+
+```json
+{
+  "registry_path": ".state/reviewed-capabilities.sqlite",
+  "actor": {
+    "user_id": "researcher",
+    "tenant_id": "research",
+    "project_id": "sql-study",
+    "data_domains": ["analytics"]
+  },
+  "skill_path": "skills/sql-procedure.json",
+  "skill_hash": "sha256:<canonical-skill-digest>",
+  "dependencies": [
+    {"path": "skills/citation-policy.json", "skill_hash": "sha256:<canonical-skill-digest>"}
+  ]
+}
+```
+
+Paths resolve from the implementation repository and must remain inside it. Each config/definition
+file is bounded to 128,000 bytes, dependencies to 64 entries, and the canonical worker snapshot to
+2,000,000 bytes. Unknown fields, duplicate definitions, null dependency lists, mismatched pins and
+missing or unadmitted prerequisites fail preflight. All selected tasks must fit their actual frozen
+lane's action surface and declared budget; fitting only the largest routed ceiling is insufficient.
+Actual document headings and task inputs are checked again by each worker.
+
+The runner saves `skill-treatment.json` with complete definitions and actor. Its content hash binds
+the canonical snapshot, including the resolved registry location; it is part of the protocol and
+enabled system fingerprint, along with admission/assembly/configuration source hashes. Different
+configuration or actor hashes cannot be silently compared as the same treatment. This hash proves
+configuration identity, not review authenticity or causal benefit. Keep this local snapshot with
+the run artifacts; it is not a deployment or release artifact.
+
+Admission is deliberately **live**: `CapabilityRegistry(..., read_only=True)` opens the original
+registry through SQLite `mode=ro`, without creating tables/files or freezing approval state. It
+observes subsequent expiry/revocation through the existing exact-reference checks. The mutable
+registry's bytes are not locked by the configuration hash. A revoked treatment can therefore stop
+later cases; reports must retain these failures, not splice them into a different run.
+
+Before resolving or constructing a provider, the worker checks the snapshot hash, all definitions,
+actor, profile, task inputs, current admission and budget. It never reopens mutable Skill files.
+The parent requires matching treatment metadata and admitted-instruction metadata in a completed
+worker response, refusing silent fallback to the disabled path. Killed or failed workers retain the
+configured treatment hash with `delivery_status=unknown_worker_failure`; no zero model-delivery
+count is inferred. Explicitly unattempted cases are marked separately. Normal response counts remain
+the library port's observed evidence, not independent attestation.
+
+This adds a runnable opt-in treatment, not a live benchmark result. Skill prose still cannot execute
+callbacks, alter labels, expand the task's actions or grant production database access. Perform any
+real off/on comparison under a separately fixed protocol and full denominator.
 
 ## First knowledge inputs for payment analysis
 

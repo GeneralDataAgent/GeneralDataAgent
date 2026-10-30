@@ -216,8 +216,17 @@ class FeedbackRegistry:
 
 
 class CapabilityRegistry:
-    def __init__(self, path: Path, *, clock):
-        self.path, self.clock = path, clock
+    def __init__(self, path: Path, *, clock, read_only: bool = False):
+        if type(read_only) is not bool:
+            raise ValueError("capability registry read_only must be boolean")
+        self.path, self.clock, self.read_only = path, clock, read_only
+        if read_only:
+            with closing(self._connect()) as db:
+                db.execute("SELECT name,version,body,hash,state FROM capabilities LIMIT 0")
+                db.execute(
+                    "SELECT name,version,reviewer,discipline FROM capability_reviews LIMIT 0"
+                )
+            return
         path.parent.mkdir(parents=True, exist_ok=True)
         with closing(sqlite3.connect(path)) as db, db:
             db.executescript(
@@ -228,11 +237,16 @@ class CapabilityRegistry:
                 "UNIQUE(name,version,discipline));"
             )
 
+    def _connect(self):
+        if self.read_only:
+            return sqlite3.connect(self.path.resolve().as_uri() + "?mode=ro", uri=True, timeout=5)
+        return sqlite3.connect(self.path, timeout=5)
+
     def propose(self, capability: Capability) -> None:
         TextDLPScanner().check(capability.model_dump_json().encode())
         if capability.expires_at <= self.clock():
             raise ValueError("capability_expired")
-        with closing(sqlite3.connect(self.path, timeout=5)) as db, db:
+        with closing(self._connect()) as db, db:
             try:
                 db.execute(
                     "INSERT INTO capabilities VALUES(?,?,?,?,'pending')",
@@ -268,7 +282,7 @@ class CapabilityRegistry:
     ) -> None:
         if not reviewer_id.strip() or discipline not in {"quality", "security"}:
             raise ValueError("invalid_capability_review")
-        with closing(sqlite3.connect(self.path, timeout=5)) as db, db:
+        with closing(self._connect()) as db, db:
             db.execute("BEGIN IMMEDIATE")
             capability, state = self._row(db, name, version)
             if state != "pending" or reviewer_id == capability.owner:
@@ -282,7 +296,7 @@ class CapabilityRegistry:
                 raise ValueError("independent_distinct_reviews_required") from exc
 
     def activate(self, name: str, version: str) -> None:
-        with closing(sqlite3.connect(self.path, timeout=5)) as db, db:
+        with closing(self._connect()) as db, db:
             db.execute("BEGIN IMMEDIATE")
             capability, state = self._row(db, name, version)
             disciplines = {
@@ -303,7 +317,7 @@ class CapabilityRegistry:
             )
 
     def revoke(self, name: str, version: str) -> None:
-        with closing(sqlite3.connect(self.path, timeout=5)) as db, db:
+        with closing(self._connect()) as db, db:
             self._row(db, name, version)
             db.execute(
                 "UPDATE capabilities SET state='revoked' WHERE name=? AND version=?",
@@ -311,7 +325,7 @@ class CapabilityRegistry:
             )
 
     def require(self, name: str, version: str, digest: str, actor: ActorContext) -> Capability:
-        with closing(sqlite3.connect(self.path, timeout=5)) as db:
+        with closing(self._connect()) as db:
             capability, state = self._row(db, name, version)
         if (
             state != "active"

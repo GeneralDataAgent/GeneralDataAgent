@@ -1956,6 +1956,7 @@ def run_isolated(
     experience_store_hash: str | None = None,
     max_experience: int = 2,
     receipt_config: dict | None = None,
+    skill_treatment: dict | None = None,
 ) -> dict:
     """Kill a stuck model/tool worker at the OS process boundary; send no golden data."""
     budget = ExecutionBudget(
@@ -1989,6 +1990,13 @@ def run_isolated(
         or not re.fullmatch(r"[0-9a-f]{64}", experience_store_hash)
     ):
         raise ValueError("invalid experience snapshot hash")
+    treatment_summary = None
+    if skill_treatment is not None:
+        from generaldataagent.evaluation.skill_treatment import SkillTreatment
+
+        frozen_skill = SkillTreatment.from_payload(skill_treatment)
+        skill_treatment = frozen_skill.payload()
+        treatment_summary = frozen_skill.summary()
     payload = {
         "task": asdict(task),
         "database": str(database.resolve()),
@@ -2009,6 +2017,7 @@ def run_isolated(
         "experience_store_hash": experience_store_hash,
         "max_experience": max_experience,
         **({"receipt_config": receipt_config} if receipt_config is not None else {}),
+        **({"skill_treatment": skill_treatment} if skill_treatment is not None else {}),
     }
     environment = {
         k: v for k, v in os.environ.items() if k not in {"LANGSMITH_API_KEY", "LANGCHAIN_API_KEY"}
@@ -2033,6 +2042,12 @@ def run_isolated(
             or result["elapsed_seconds"] < 0
         ):
             raise ValueError("invalid worker response timing")
+        if treatment_summary is not None and (
+            result.get("skill_treatment") != treatment_summary
+            or not isinstance(result.get("skill_extension"), dict)
+            or result["skill_extension"].get("mode") != "admitted_instructions"
+        ):
+            raise ValueError("worker Skill treatment evidence mismatch")
         result["agent_elapsed_seconds"] = result["elapsed_seconds"]
         result["elapsed_seconds"] = time.monotonic() - started
         return result
@@ -2051,4 +2066,14 @@ def run_isolated(
             # A failed worker delivered no hints; say so explicitly so delivery
             # evidence is present for every case, not only completed ones.
             "experience_used": [],
+            **(
+                {
+                    "skill_treatment": {
+                        **treatment_summary,
+                        "delivery_status": "unknown_worker_failure",
+                    }
+                }
+                if treatment_summary is not None
+                else {}
+            ),
         }
