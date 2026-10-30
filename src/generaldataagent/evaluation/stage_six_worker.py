@@ -50,6 +50,9 @@ def _experience_port(payload: dict):
 
 def main():
     payload = json.loads(sys.stdin.read())
+    from generaldataagent.evaluation.skill_treatment import SkillTreatment, worker_skill
+
+    skill = worker_skill(payload)
     provider, route = resolve_evaluation_model(
         app_type=payload["app_type"],
         provider_id=payload["provider_id"],
@@ -104,12 +107,17 @@ def main():
         max_repairs=payload.get("max_repairs", 3),
         experience=experience,
         max_experience=payload.get("max_experience", 2),
+        **({"skill_extension": skill} if skill is not None else {}),
     ).run(
         Task(**payload["task"]),
         Path(payload["database"]),
         documents=payload["documents"],
         **({"receipt_recorder": recorder} if recorder is not None else {}),
     )
+    if skill is not None:
+        result["skill_treatment"] = SkillTreatment.from_payload(
+            payload["skill_treatment"]
+        ).summary()
     print(json.dumps(result))
 
 

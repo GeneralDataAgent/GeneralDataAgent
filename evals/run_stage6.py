@@ -137,6 +137,14 @@ def main():
     parser.add_argument("--bird-databases", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument(
+        "--skill-treatment",
+        type=Path,
+        help=(
+            "Explicit pinned Skill/actor configuration; off by default; "
+            "uses live read-only admission"
+        ),
+    )
+    parser.add_argument(
         "--receipt-actor",
         help="Opt in to research step receipts with an explicit ActorContext JSON declaration",
     )
@@ -213,6 +221,14 @@ def main():
         experience_actor = None
         experience_scope_hash = None
         experience_audit = None
+    skill_treatment = None
+    if args.skill_treatment is not None:
+        from generaldataagent.evaluation.skill_treatment import load_skill_treatment
+
+        try:
+            skill_treatment = load_skill_treatment(args.skill_treatment, root=ROOT)
+        except (ValueError, PermissionError, OSError, sqlite3.Error):
+            parser.error("invalid Skill treatment configuration or current admission")
     root = DATA_ROOT
     manifest = verify_sources(root)
     cases = (
@@ -313,6 +329,9 @@ def main():
     # Experience reuse changes the information the model receives, so it is part
     # of the protocol. Two runs that differ here are not a paired comparison.
     protocol["experience_reuse"] = args.experience_database is not None
+    if skill_treatment is not None:
+        protocol["skill_treatment"] = skill_treatment.summary()
+        (args.output / "skill-treatment.json").write_text(skill_treatment.snapshot_json + "\n")
     experience_database = None
     if args.experience_database is not None:
         experience_database = args.output / "experience-snapshot.sqlite"
@@ -391,6 +410,25 @@ def main():
         else fixed_budget
         for c in selected
     }
+    if skill_treatment is not None:
+        from types import SimpleNamespace
+
+        for case in selected:
+            budget = case_budgets[case.task.case_id]
+            try:
+                skill_treatment.preflight(
+                    profile=case_routes[case.task.case_id].tool_profile
+                    if case_routes is not None
+                    else args.tool_profile,
+                    budget=SimpleNamespace(
+                        max_tool_calls=budget.max_steps,
+                        max_tokens=budget.max_tokens,
+                        max_runtime_seconds=budget.max_seconds,
+                    ),
+                    task=case.task,
+                )
+            except (ValueError, PermissionError, OSError, sqlite3.Error):
+                parser.error("Skill treatment is incompatible with a selected task or lane budget")
     routing_manifest = (
         {
             "mode": "public-text-marker",
@@ -503,6 +541,20 @@ def main():
         "contamination": "public development data; no training-contamination guarantee",
         "production_accepted": False,
     }
+    if skill_treatment is not None:
+        report["skill_treatment"] = skill_treatment.summary()
+        system_fingerprint["skill_treatment"] = {
+            **skill_treatment.summary(),
+            "source_hashes": {
+                name: digest(ROOT / "src/generaldataagent" / name)
+                for name in (
+                    "evaluation/skill_treatment.py",
+                    "business/governance.py",
+                    "business/extensions.py",
+                    "business/skill_bundle.py",
+                )
+            },
+        }
     if experience_audit is not None:
         # Recorded with the run so a later reader can see the store passed only
         # an internal consistency check, not source qualification.
@@ -573,6 +625,11 @@ def main():
                 experience_actor=experience_actor,
                 experience_store_hash=protocol.get("experience_store_hash"),
                 **(
+                    {"skill_treatment": skill_treatment.payload()}
+                    if skill_treatment is not None
+                    else {}
+                ),
+                **(
                     {
                         "receipt_config": {
                             "artifact_root": str((args.output / "artifacts").resolve()),
@@ -589,6 +646,11 @@ def main():
                 result["route"] = route_plan.as_dict()
             result["attempted"] = True
             circuit.observe(result)
+        if skill_treatment is not None and not result.get("attempted", True):
+            result["skill_treatment"] = {
+                **skill_treatment.summary(),
+                "delivery_status": "not_attempted",
+            }
         if case.reference_sql:
             expected = None
             try:
