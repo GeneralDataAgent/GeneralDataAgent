@@ -15,6 +15,12 @@ from generaldataagent.evaluation.stage_six_analysis import document_outline
 VERSION = "bounded-agent-skill-v1"
 MAX_FILE_BYTES = 128_000
 MAX_SNAPSHOT_BYTES = 2_000_000
+TREATMENT_SOURCE_PATHS = (
+    "evaluation/skill_treatment.py",
+    "business/governance.py",
+    "business/extensions.py",
+    "business/skill_bundle.py",
+)
 
 
 def _canonical(value) -> str:
