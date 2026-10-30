@@ -21,6 +21,7 @@ import time
 from collections import Counter, defaultdict
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from types import SimpleNamespace
 
 from generaldataagent.evaluation.execution_budget import (
     DEADLINE_MARGIN_SECONDS as DEADLINE_MARGIN_SECONDS,
@@ -356,6 +357,7 @@ class BoundedSQLAgent:
         max_identical_repairs=2,
         experience=None,
         max_experience=2,
+        skill_extension=None,
     ):
         if (
             type(max_steps) is not int
@@ -397,6 +399,11 @@ class BoundedSQLAgent:
         self.tool_profile, self.max_cost_usd = tool_profile, max_cost_usd
         self.max_repairs, self.max_identical_repairs = max_repairs, max_identical_repairs
         self.experience, self.max_experience = experience, max_experience
+        from generaldataagent.evaluation.skill_extension import BoundedAgentSkill
+
+        if skill_extension is not None and not isinstance(skill_extension, BoundedAgentSkill):
+            raise ValueError("skill extension must be an explicit BoundedAgentSkill")
+        self.skill_extension = skill_extension
         self.model, self.max_steps, self.max_seconds, self.max_tokens = (
             model,
             max_steps,
@@ -407,12 +414,33 @@ class BoundedSQLAgent:
     def run(
         self, task: Task, database: Path, *, documents: str = "", receipt_recorder=None
     ) -> dict:
+        from generaldataagent.evaluation.skill_extension import SkillUseRefused, action_capabilities
         from generaldataagent.evaluation.stage_six_analysis import (
             document_outline,
             fixed_analysis,
             normalize_visible_answers,
             retrieve_documents,
         )
+
+        available_skill_actions = action_capabilities(self.tool_profile)
+        skill = (
+            self.skill_extension.bind(
+                {
+                    "question": task.question,
+                    "instructions": task.instructions,
+                    "document_outline": document_outline(documents),
+                },
+                available=available_skill_actions,
+                task_budget=SimpleNamespace(
+                    max_tool_calls=self.max_steps,
+                    max_tokens=self.max_tokens,
+                    max_runtime_seconds=self.max_seconds,
+                ),
+            )
+            if self.skill_extension is not None
+            else None
+        )
+        skill_model_responses = 0
 
         if receipt_recorder is not None:
             receipt_recorder.require_inputs(task, database, documents, self.tool_profile)
@@ -685,6 +713,15 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                 # Declared keys already appear in the complete precision schema context.
                 request["semantic_context"].pop("relationships", None)
             messages[1] = ("human", json.dumps(request))
+        if skill is not None:
+            messages[0] = (
+                "system",
+                messages[0][1]
+                + "\n\nAdmitted procedure:\n"
+                + skill.text
+                + "\nController action ceiling: "
+                + json.dumps(sorted(skill.allowed_actions | {"unsupported"})),
+            )
         if semantic:
             messages = ToolConversation(messages)
         executor = SQLiteReadOnlyExecutor(database, max_rows=200, timeout_seconds=5)
@@ -771,6 +808,8 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                 messages.append(countdown)
                 previous_countdown = countdown
             try:
+                if skill is not None:
+                    skill.require()
                 try:
                     active_model = (
                         bind_typed_tools(
@@ -807,6 +846,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                                     for field in task_spec.answer.fields.values()
                                 )
                             ),
+                            **({"allowed_actions": skill.allowed_actions} if skill else {}),
                         )
                         if semantic and not semantic_json
                         else self.model
@@ -833,6 +873,8 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                         usage_complete = cost_complete = False
                         failure = "model_error"
                     break
+                if skill is not None:
+                    skill_model_responses += 1
                 usage = response.usage_metadata or {}
                 usage_complete = usage_complete and "total_tokens" in usage
                 tokens += int(usage.get("total_tokens", 0))
@@ -863,6 +905,8 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                         else "time_budget"
                     )
                     break
+                if skill is not None:
+                    skill.require()
                 content = response.content
                 calls = getattr(response, "tool_calls", []) if semantic else []
                 if calls:
@@ -925,6 +969,8 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                             action[field].setdefault("question", task.question)
                             action[field].setdefault("public_requirements", task.instructions)
                     action = validate_action(action)
+                    if skill is not None:
+                        skill.require_action(action, available_skill_actions)
                     if "query_plan" in action:
                         if not plan_mode or task_spec is not None:
                             raise SemanticError("query_plan_requires_unplanned_opt_in_task")
@@ -996,6 +1042,8 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                         raise SemanticError("mixed_sql_requires_non_sql_task")
                     if "final_sql" in action and task.benchmark != "bird-mini-dev-sqlite":
                         raise SemanticError("this task requires evidence-bound answers")
+                if skill is not None and not semantic:
+                    skill.require_action(action, available_skill_actions)
                 allowed_actions = (
                     {"sql", "final_sql", "unsupported"}
                     if precision
@@ -1389,6 +1437,8 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                         atomic_bindings, {step: result_data}, answers, task_spec.answer.fields
                     )
                     raw_answers = {}
+                if skill is not None:
+                    skill.require()
                 event = {
                     "step": step,
                     "tool": tool,
@@ -1492,6 +1542,11 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
 
                 if isinstance(exc, EvaluationReceiptError):
                     raise
+                if isinstance(exc, SkillUseRefused):
+                    trace.append({"step": step, "status": "refused", "code": exc.code})
+                    answers, raw_answers, answer_evidence, final_sql = {}, None, {}, None
+                    failure = exc.code
+                    break
                 if semantic:
                     task_spec = previous_task_spec
                     automatic_spec = previous_automatic_spec
@@ -1732,6 +1787,14 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                 failure = "execution_or_model_error"
         if pending_experience is not None and pending_experience["dropped"]:
             experience_used.append({**pending_experience, "n": 0})
+        if skill is not None:
+            try:
+                skill.require()
+            except SkillUseRefused as exc:
+                answers, raw_answers, answer_evidence, final_sql = {}, None, {}, None
+                failure = exc.code
+                if not trace or trace[-1].get("code") != exc.code:
+                    trace.append({"status": "refused", "code": exc.code})
         return {
             "answers": answers,
             "raw_answers": raw_answers,
@@ -1750,6 +1813,11 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
             "cost_status": "provider_reported" if cost_complete else "partial_or_unknown",
             "repair_budget": repairs.report(),
             "experience_used": experience_used,
+            **(
+                {"skill_extension": skill.summary(model_responses=skill_model_responses)}
+                if skill is not None
+                else {}
+            ),
             **(receipt_recorder.export() if receipt_recorder is not None else {}),
         }
 

@@ -35,7 +35,7 @@ only after bound discovery and before analysis; each search rechecks admission, 
 `documents.search` gateway policy/audit/budgets, and persists a task-bound quotation artifact.
 Missing or contradictory text remains advisory evidence and cannot rewrite the bound request or
 approved rule semantics. Disabled configuration adds no document tool. The benchmark
-`BoundedSQLAgent` still has no `specialist_skills` injection.
+`BoundedSQLAgent` has a separate explicit library Skill port, described below.
 
 `examples/skills/rule-document-discovery.json` supplies an unadmitted combined discovery Skill
 matching this contract. Propose, review and activate its canonical `ExtensionAdmission.skill_hash`
@@ -169,7 +169,7 @@ requires the normal reviewed versioning flow; existing records are not rewritten
 
 This is instruction assembly, not a generic Skill execution language or a semantic conflict solver.
 Verification/failure prose does not run as code. The rule document extension accepts explicit pinned
-bundles through the opt-in configuration above; `BoundedSQLAgent` still has no Skill injection.
+bundles through the opt-in configuration above; the bounded agent uses the separate library port below.
 No tool authority, production admission or quality gain
 follows from composing instructions.
 
@@ -184,6 +184,56 @@ It enrolls a synthetic citation prerequisite as well as the root Skill, then use
 scripted model and real document search. Both procedures reach the specialist, every reference is
 pinned, and a revoked dependency blocks reuse. The example is fixture setup and wiring evidence,
 not live model, independent acceptance or production evidence.
+
+## Bounded agent library Skill port
+
+`BoundedSQLAgent(..., skill_extension=BoundedAgentSkill(admission, actor, skill, dependencies))`
+accepts an explicitly admitted procedure and prerequisite cache. Import `BoundedAgentSkill` from
+`generaldataagent.evaluation.skill_extension`. There is no automatic enrollment, discovery or CLI
+configuration, and `evals/run_stage6.py`/its worker do not enable this port. A library integration
+does not constitute a benchmark treatment or an evaluated improvement.
+
+This port's `allowed_tools` vocabulary is the agent's canonical dispatch keys, such as `sql`,
+`search`, `analysis`, `answers` and `final_sql`, rather than native function aliases or Supervisor
+tool names. The root must be a subset of its selected profile's capabilities. Dependencies use the
+same monotone bundle rules above. Native schemas are filtered to this surface, and normalized JSON
+and native actions are checked before dispatch, including planning and final submission actions.
+`unsupported` remains a controller-owned exit even if the Skill omits it. It grants no data access.
+
+```python
+from generaldataagent.evaluation.skill_extension import BoundedAgentSkill
+from generaldataagent.evaluation.stage_six import BoundedSQLAgent
+
+procedure = BoundedAgentSkill(admission, actor, root_skill, dependency_definitions)
+agent = BoundedSQLAgent(model, tool_profile="sql-analysis", skill_extension=procedure)
+result = agent.run(public_task, database, documents=public_documents)
+```
+
+The literal template context contains only `question`, `instructions` and `document_outline`
+(bounded document headings). It receives no labels, reference SQL, task identifier or host path.
+Definitions are copied into an immutable mapping. Assembly, exact-hash admission, actor-domain,
+declared-budget and literal/DLP checks happen before database inspection or model calls. The
+rendered instructions and controller action ceiling are added after profile-specific prompt
+selection, so profiles retain them.
+Actual document access continues through the existing bounded search implementation; its excerpts
+are advisory, and this port does not add the rule consumer's line citations or structural verifier.
+
+All reachable references are rechecked before each model invocation, after response usage is
+accounted, before dispatch, after tool execution and before releasing the final result. Missing
+admission or a disallowed action terminates with `skill_admission_refused` or
+`skill_action_not_allowed`, clears answer/SQL submission fields and spends no repair opportunity.
+Already observed tokens/cost remain recorded. Preflight configuration errors raise before any
+model call. No synchronous query or provider operation can be forcibly cancelled by this admission
+check; revocation prevents releasing its result after it returns.
+
+Enabled results include pinned references, allowed actions, rendered-text hash and the count of
+returned model responses in `skill_extension`. A returned response confirms that invocation received
+the prompt; failed calls are not counted as confirmed delivery. With no extension, the prompt and
+result shape remain unchanged. The runner fingerprints the new implementation file; historical
+reports are not rewritten. Budget checks compare Skill declarations to existing task ceilings;
+they do not introduce per-Skill consumption meters or automatically lower the task's configured
+limits. Verification/failure prose remains declarative. This development agent is still not a
+production-authorized database gateway or independent acceptance path.
 
 ## First knowledge inputs for payment analysis
 

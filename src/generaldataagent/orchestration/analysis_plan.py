@@ -116,26 +116,29 @@ def accept_contract(proposal: dict, *, question: str, instructions: str) -> Anal
     return spec
 
 
+PROTOCOL_ACTION_KEYS = {
+    "submit_mixed_sql_answers": "mixed_sql",
+    "plan_analysis": "contract",
+    "execute_sql": "sql",
+    "submit_sql": "final_sql",
+    "crosscheck_sql": "crosscheck",
+    "compute_sql": "sql",
+    "analyze_fee_rules": "rules",
+    "fixed_analysis": "analysis",
+    "compute_statistics": "analysis",
+    "evaluate_regression": "analysis",
+    "search_documents": "search",
+    "collect_values": "collect",
+    "submit_answers": "answers",
+    "declare_unsupported": "unsupported",
+    "submit_sql_answers": "answer_sql",
+    "submit_query_plan": "query_plan",
+}
+
+
 def normalize_protocol_action(action):
     """Normalize unambiguous function envelopes only; never choose between two actions."""
-    names = {
-        "submit_mixed_sql_answers": "mixed_sql",
-        "plan_analysis": "contract",
-        "execute_sql": "sql",
-        "submit_sql": "final_sql",
-        "crosscheck_sql": "crosscheck",
-        "compute_sql": "sql",
-        "analyze_fee_rules": "rules",
-        "fixed_analysis": "analysis",
-        "compute_statistics": "analysis",
-        "evaluate_regression": "analysis",
-        "search_documents": "search",
-        "collect_values": "collect",
-        "submit_answers": "answers",
-        "declare_unsupported": "unsupported",
-        "submit_sql_answers": "answer_sql",
-        "submit_query_plan": "query_plan",
-    }
+    names = PROTOCOL_ACTION_KEYS
     if not isinstance(action, dict):
         return action
     if set(action) == {"name", "arguments"} and action["name"] in names:

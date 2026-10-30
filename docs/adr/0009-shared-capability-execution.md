@@ -231,6 +231,13 @@ root-bound structural verifier. Reports retain dependency hashes and the assembl
 hashes. The existing no-dependency configuration/summary remains compatible; this does not enable
 Skills in `BoundedSQLAgent` or extend the verifier's `producer_self_check` scope.
 
+The bounded development agent now separately accepts an explicit `BoundedAgentSkill` library
+port. Canonical action keys narrow both native advertising and actual normalized dispatch;
+the unsupported exit remains available. All prerequisite admissions are checked around model/tool
+use and final release. Terminal refusal clears submissions while retaining observed usage, rather
+than consuming repair attempts. No-extension behavior remains compatible. The port does not enable
+the stage-six CLI/worker, add per-Skill meters or confer production database authority.
+
 `ValidatedRunReport` now provides the shared envelope below treatment comparison, repeat stability,
 and service readiness. The existing case validator already was shared; the remaining duplication
 was repeated summary recomputation in the paired-repeat path and reopening caller-owned dictionaries
