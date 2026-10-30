@@ -1,0 +1,9 @@
+{
+  "question": "What is the mean journey duration?",
+  "instructions": "Round the result to two decimal places.",
+  "proposal": {
+    "question": "What is the mean journey duration?",
+    "public_requirements": "Round the result to two decimal places.",
+    "answer": {"columns": ["mean_duration"], "shape": "scalar"}
+  }
+}

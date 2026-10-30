@@ -41,6 +41,7 @@ dev = [
 
 [project.scripts]
 generaldataagent-api = "generaldataagent.api.app:run"
+generaldataagent-task-contract = "generaldataagent.orchestration.task_contract_cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/generaldataagent"]
