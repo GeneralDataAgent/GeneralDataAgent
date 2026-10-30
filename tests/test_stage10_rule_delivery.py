@@ -460,6 +460,7 @@ def test_governed_store_scope_mismatch_prevents_delivery_writes(tmp_path, change
 
     with sqlite3.connect(service.artifacts.index_path) as db:
         assert db.execute("SELECT COUNT(*) FROM governed_artifacts").fetchone()[0] == 0
+        assert db.execute("SELECT COUNT(*) FROM governed_artifacts_v2").fetchone()[0] == 0
 
 
 @pytest.mark.parametrize("domains", [("payments",), ("payments", "sales")])

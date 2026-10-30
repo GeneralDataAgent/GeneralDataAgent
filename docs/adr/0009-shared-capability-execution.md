@@ -312,12 +312,12 @@ workbench actor check; `git show` of the pre-slice file shows the inline check n
 `user_id` either, so it is pre-existing rather than introduced, and it is recorded below as an open
 question rather than folded into this milestone's fix.
 
-Open, deliberately not changed: `GovernedArtifactStore._authorized_record` compares tenant,
-project and domains but not `user_id`. Widening it is a policy decision, not a bug fix, because the
-store is described everywhere as tenant/project/domain-bound, and `business/report_refresh.py`
-already applies a stricter owner check on the same read path. Until that decision is made, artifact
-reads are scoped to the tenant/project/domain, and per-user artifact confidentiality rests on the
-callers that add the owner check.
+The artifact read-policy decision was resolved by the user on 2026-10-30: explicitly support both
+project sharing and creator privacy. New records persist their policy and creator, legacy records
+remain project-shared without inferred ownership, and the runtime/store binding includes the user
+to prevent borrowing another principal's reader. Scheduled-report ownership remains a stricter
+application check. See [ADR 0011](0011-artifact-read-policies.md) for the versioned index and rollback
+boundary; this decision does not establish independent acceptance or production readiness.
 
 ## Admitted advisory document consumer
 
