@@ -411,6 +411,7 @@ def main():
         "stage8_sources": stage8_fingerprint(ROOT) if "sql-science" in active_profiles else None,
         "prompt_hash": hashlib.sha256(SYSTEM_PROMPT.encode()).hexdigest(),
         "agent_hash": digest(ROOT / "src/generaldataagent/evaluation/stage_six.py"),
+        "skill_extension_hash": digest(ROOT / "src/generaldataagent/evaluation/skill_extension.py"),
         "analysis_tools_hash": digest(
             ROOT / "src/generaldataagent/evaluation/stage_six_analysis.py"
         ),

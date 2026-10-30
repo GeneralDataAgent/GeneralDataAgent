@@ -172,6 +172,7 @@ def bind_typed_tools(
     answer_contract=None,
     evidence_steps=None,
     collection_steps=None,
+    allowed_actions=None,
 ):
     """Small native wire schemas; complete strict contracts remain enforced locally."""
     if not hasattr(model, "bind"):
@@ -522,6 +523,25 @@ def bind_typed_tools(
                 for item in tools
                 if item["function"]["name"] in {"collect_values", "declare_unsupported"}
             ]
+    if allowed_actions is not None:
+        from generaldataagent.orchestration.analysis_plan import PROTOCOL_ACTION_KEYS
+
+        tools = [
+            item
+            for item in tools
+            if PROTOCOL_ACTION_KEYS.get(item["function"]["name"])
+            in set(allowed_actions) | {"unsupported"}
+        ]
+        if not any(item["function"]["name"] == "declare_unsupported" for item in tools):
+            tools.append(
+                tool(
+                    "declare_unsupported",
+                    "Stop without executing a tool",
+                    {"reason": string},
+                    ["reason"],
+                )
+            )
+        choice = "required"
     return model.bind(tools=tools, tool_choice=choice, parallel_tool_calls=False)
 
 
