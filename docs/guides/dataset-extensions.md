@@ -290,6 +290,53 @@ This adds a runnable opt-in treatment, not a live benchmark result. Skill prose 
 callbacks, alter labels, expand the task's actions or grant production database access. Perform any
 real off/on comparison under a separately fixed protocol and full denominator.
 
+## Descriptive Skill off/on comparison
+
+The general `paired_gate` deliberately rejects different protocol hashes, including enabling a
+Skill. Use the explicit development adapter for this declared difference:
+
+```bash
+uv run --frozen python evals/compare_skill_runs.py \
+  --baseline .artifacts/skill-off/report.json \
+  --candidate .artifacts/skill-on/report.json \
+  --treatment-snapshot .artifacts/skill-on/skill-treatment.json \
+  --output .artifacts/skill-pair/comparison.json
+```
+
+The output must be new and inside the implementation workspace. The three inputs are read only.
+The Python entry point is `evaluation.skill_comparison.compare_skill_runs`; it also accepts
+`ValidatedRunReport` snapshots. Both entry points retain the original report and protocol hashes.
+They never rewrite historical reports or relax the general pairing gate.
+
+The adapter allows only the candidate's exact declared `skill_treatment` component in the protocol
+and system fingerprint. It binds the exported configuration, actor and complete definitions, checks
+the bounded dependency graph and exact ordered references, and checks the expected treatment source
+inventory. All other protocol/system components, commit, runner, model route, Python version,
+source/cohort identifiers, case order, database hashes, scoring dimensions and task routes must
+match. Both completed reports must retain the full planned denominator, including failed and
+unattempted cases. Run both arms from the same implementation revision; an older revision is not
+silently treated as a valid control.
+
+Each enabled case must retain its treatment and instruction metadata. Positive returned-response
+counts within the task's step ceiling are reported as `confirmed_response`; zero responses are
+`unconfirmed`. Killed-worker delivery remains unknown, with no invented zero count, and explicitly
+unattempted cases remain separate. Service failures, missing attempts, severe incidents, incomplete
+token telemetry, unconfirmed delivery and unavailable admission are recorded as attribution
+blockers. All cases still contribute to improvements, regressions and the pass-rate denominator.
+Action refusals are listed as possible treatment outcomes. Unknown monetary cost stays unknown.
+
+These are worker self-reports, not signed attestation or proof that the model followed the procedure.
+The offline reader checks snapshot integrity and declarations without opening today's registry,
+rendering prompts or asserting current admission. `ordered_skill_definitions` is the pure graph
+check shared with assembly; it grants no admission or execution authority. Actual execution keeps
+the live read-only admission checks described above.
+
+The effect being described combines instructions and an action ceiling; it is not an isolated
+estimate of knowledge benefit. Output is descriptive only: no significance test, unseen evaluation,
+three-repeat qualification, independent review or production acceptance is performed. A comparison
+without blockers still does not establish any of those claims. Collect real model pairs and their
+separate acceptance evidence before making benefit claims.
+
 ## First knowledge inputs for payment analysis
 
 The downloaded public development assets include `data/stage6/dabstep/manual.md` and

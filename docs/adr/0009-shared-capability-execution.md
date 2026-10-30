@@ -246,6 +246,14 @@ parent refuses responses that drop treatment or instruction metadata. Worker los
 delivery rather than inferring zero calls. This establishes runnable treatment plumbing only;
 source authenticity, a live comparison and independent acceptance require separate evidence.
 
+Skill off/on reports now have an explicit descriptive comparison adapter. It permits only the
+declared Skill component difference, validates archived definitions and per-case delivery evidence,
+and preserves original hashes and the full planned denominator. The shared pure dependency graph
+check does not open an admission registry. The generic same-protocol gate remains unchanged.
+Instructions and the action ceiling form one treatment; worker counters do not establish model
+compliance, causal benefit, repeat qualification or independent acceptance. See the dataset
+extension guide for the CLI and evidence limits.
+
 `ValidatedRunReport` now provides the shared envelope below treatment comparison, repeat stability,
 and service readiness. The existing case validator already was shared; the remaining duplication
 was repeated summary recomputation in the paired-repeat path and reopening caller-owned dictionaries

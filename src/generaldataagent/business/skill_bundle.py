@@ -26,10 +26,45 @@ def render_skill_bundle(
     Dependency ceilings are compatibility declarations, not additive execution
     allocations. The existing gateway/model controls still meter actual work.
     """
+    literal_context = dict(context)
+    definitions = _definitions(root, dependencies)
+    # Preserve the legacy single-Skill text and admission behavior, while never
+    # letting an unadmitted root borrow an admitted dependency's authority.
+    root_text, root_reference = admission._render_skill_leaf(
+        root, actor, literal_context, task_budget=task_budget
+    )
+    ordered = _dependency_order(root, definitions)
+    sections, references = [], []
+    for skill in ordered:
+        text, reference = (
+            (root_text, root_reference)
+            if skill is root
+            else admission._render_skill_leaf(
+                skill, actor, literal_context, task_budget=task_budget
+            )
+        )
+        sections.append(f"Skill {skill.name}@{skill.version}\n{text}")
+        references.append(reference)
+    rendered = root_text if len(ordered) == 1 else "\n\n".join(sections)
+    if len(rendered) > MAX_RENDERED_CHARS:
+        raise ValueError("rendered_skill_bundle_too_large")
+    # A revocation during rendering must refuse the assembled bundle too.
+    for reference in references:
+        admission.require(*reference, actor)
+    return rendered, tuple(references)
+
+
+def ordered_skill_definitions(
+    root: SkillDefinition, dependencies: Mapping[str, SkillDefinition] | None = None
+) -> tuple[SkillDefinition, ...]:
+    """Pure declaration checks and dependency order; never admission or rendering."""
+    return _dependency_order(root, _definitions(root, dependencies))
+
+
+def _definitions(root, dependencies):
     if dependencies is not None and not isinstance(dependencies, Mapping):
         raise ValueError("skill_dependency_definitions_invalid")
     definitions = dict(dependencies or {})
-    literal_context = dict(context)
     if len(definitions) > MAX_DEFINITIONS:
         raise ValueError("skill_dependency_definitions_limit")
     for key, value in definitions.items():
@@ -39,11 +74,10 @@ def render_skill_bundle(
     if root_key in definitions and definitions[root_key] != root:
         raise ValueError("skill_dependency_root_definition_mismatch")
     definitions[root_key] = root
-    # Preserve the legacy single-Skill text and admission behavior, while never
-    # letting an unadmitted root borrow an admitted dependency's authority.
-    root_text, root_reference = admission._render_skill_leaf(
-        root, actor, literal_context, task_budget=task_budget
-    )
+    return definitions
+
+
+def _dependency_order(root, definitions):
     ordered = []
     visiting, complete = set(), set()
     versions = {}
@@ -80,21 +114,4 @@ def render_skill_bundle(
         ordered.append(skill)
 
     visit(root, 1)
-    sections, references = [], []
-    for skill in ordered:
-        text, reference = (
-            (root_text, root_reference)
-            if skill is root
-            else admission._render_skill_leaf(
-                skill, actor, literal_context, task_budget=task_budget
-            )
-        )
-        sections.append(f"Skill {skill.name}@{skill.version}\n{text}")
-        references.append(reference)
-    rendered = root_text if len(ordered) == 1 else "\n\n".join(sections)
-    if len(rendered) > MAX_RENDERED_CHARS:
-        raise ValueError("rendered_skill_bundle_too_large")
-    # A revocation during rendering must refuse the assembled bundle too.
-    for reference in references:
-        admission.require(*reference, actor)
-    return rendered, tuple(references)
+    return tuple(ordered)

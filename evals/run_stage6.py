@@ -223,7 +223,10 @@ def main():
         experience_audit = None
     skill_treatment = None
     if args.skill_treatment is not None:
-        from generaldataagent.evaluation.skill_treatment import load_skill_treatment
+        from generaldataagent.evaluation.skill_treatment import (
+            TREATMENT_SOURCE_PATHS,
+            load_skill_treatment,
+        )
 
         try:
             skill_treatment = load_skill_treatment(args.skill_treatment, root=ROOT)
@@ -547,12 +550,7 @@ def main():
             **skill_treatment.summary(),
             "source_hashes": {
                 name: digest(ROOT / "src/generaldataagent" / name)
-                for name in (
-                    "evaluation/skill_treatment.py",
-                    "business/governance.py",
-                    "business/extensions.py",
-                    "business/skill_bundle.py",
-                )
+                for name in TREATMENT_SOURCE_PATHS
             },
         }
     if experience_audit is not None:
