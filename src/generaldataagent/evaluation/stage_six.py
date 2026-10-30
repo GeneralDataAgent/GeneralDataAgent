@@ -455,6 +455,11 @@ class BoundedSQLAgent:
             for item in (json.loads(line) for line in context.splitlines())
         }
         from generaldataagent.catalog.semantic_context import semantic_context
+        from generaldataagent.evaluation.action_protocol import (
+            ActionSchemaError,
+            normalize_protocol_action,
+            validate_action,
+        )
         from generaldataagent.evaluation.stage_seven import (
             STAGE7_ANALYSIS_PROMPT,
             STAGE7_INDEPENDENT_TEST_PROMPT,
@@ -476,12 +481,7 @@ class BoundedSQLAgent:
             SQL_PRECISION_PROMPT,
             schema_relationships,
         )
-        from generaldataagent.orchestration.analysis_plan import (
-            ActionSchemaError,
-            accept_contract,
-            normalize_protocol_action,
-            validate_action,
-        )
+        from generaldataagent.orchestration.task_semantics import accept_contract
         from generaldataagent.tools.independent_test import (
             independent_method_bindings,
             requests_independent_test,

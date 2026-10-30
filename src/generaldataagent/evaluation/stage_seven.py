@@ -60,6 +60,8 @@ def stage7_fingerprint(root: Path) -> dict:
         "tools/semantic_requirements.py",
         "tools/public_formulas.py",
         "orchestration/analysis_plan.py",
+        "orchestration/task_semantics.py",
+        "evaluation/action_protocol.py",
         "catalog/semantic_context.py",
         "catalog/schema_relationships.py",
         "catalog/field_evidence.py",
@@ -524,7 +526,7 @@ def bind_typed_tools(
                 if item["function"]["name"] in {"collect_values", "declare_unsupported"}
             ]
     if allowed_actions is not None:
-        from generaldataagent.orchestration.analysis_plan import PROTOCOL_ACTION_KEYS
+        from generaldataagent.evaluation.action_protocol import PROTOCOL_ACTION_KEYS
 
         tools = [
             item

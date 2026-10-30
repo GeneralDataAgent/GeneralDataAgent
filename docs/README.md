@@ -19,6 +19,7 @@ This directory contains English documentation for system architecture, design de
 ## Usage and operations
 
 - [Project usage guide](guides/usage.md)
+- [Public task contract acceptance](guides/public-task-contracts.md)
 - [Evaluation receipts](guides/evaluation-receipts.md)
 - [Rule recomputation](guides/rule-recomputation.md)
 - [Dataset extensions](guides/dataset-extensions.md)

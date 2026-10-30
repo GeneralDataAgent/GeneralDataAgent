@@ -86,6 +86,16 @@ migration. Extract an injected dispatcher only after the capability/receipt boun
 consumer. Demonstrate it through a non-benchmark local analysis entry point before adding a broad
 natural-language API.
 
+Public contract acceptance now lives in `orchestration.task_semantics`; native/JSON action
+normalization and wire validation live in `evaluation.action_protocol`. Existing `analysis_plan`
+imports are compatibility aliases, resolving wire names only when requested. The evaluator consumes
+the two boundaries explicitly, while
+`generaldataagent-task-contract` provides a non-benchmark local consumer accepting a caller's
+explicit public task/proposal. It does not invoke a model or execute analysis. New run fingerprints
+include both modules; moved function behavior and historical evidence remain unchanged. See the
+[public task guide](../guides/public-task-contracts.md). A general dispatcher remains deferred until
+there is a second execution consumer.
+
 ### 5. Extract only demonstrated supervisor lifecycle duplication
 
 After capability convergence, factor bounded team invocation, completion handling, timeout behavior,
