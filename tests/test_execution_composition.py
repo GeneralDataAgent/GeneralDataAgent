@@ -591,7 +591,12 @@ def test_one_artifact_authorization_boundary_serves_every_writer(tmp_path):
         tmp_path / "broad", actor=ACTOR.model_copy(update={"data_domains": ("payments", "extra")})
     )
     assert require_artifact_scope(broad_store, ACTOR) is None
-    for change in ({"tenant_id": "other"}, {"project_id": "other"}, {"data_domains": ("sales",)}):
+    for change in (
+        {"user_id": "other"},
+        {"tenant_id": "other"},
+        {"project_id": "other"},
+        {"data_domains": ("sales",)},
+    ):
         with pytest.raises(ArtifactScopeError, match="artifact_store_actor_scope_mismatch"):
             require_artifact_scope(governed, ACTOR.model_copy(update=change))
     wider = ACTOR.model_copy(update={"data_domains": ("payments", "extra")})
