@@ -66,6 +66,33 @@ LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false UV_CACHE_DIR=/tmp/deepagents-
 LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/run_stage6.py --benchmark dabstep --limit 10 --workers 1 --app-type codex --provider-id PROVIDER_ID --output .artifacts/stage6/dabstep-run
 ```
 
+## Local gateways and inherited HTTP proxies
+
+A Python evaluation process can inherit HTTP/HTTPS proxy settings that also forward
+requests to a loopback model gateway. An empty HTTP 502 from that proxy does not
+establish a model-service failure. Inspect the environment of the actual network-enabled
+process: it can differ from the default shell. Compare the same public local health
+endpoint with and without a loopback proxy exception before changing model routes.
+
+Preserve both existing spellings of the proxy exclusion list, append the loopback
+addresses, and pass the combined value to the runner and its workers:
+
+```bash
+gda_no_proxy="${NO_PROXY:-},${no_proxy:-},127.0.0.1,localhost,::1"
+NO_PROXY="$gda_no_proxy" no_proxy="$gda_no_proxy" \
+LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false \
+UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/run_stage6.py \
+  --benchmark dabstep --limit 10 --app-type magpie --provider-id magpie \
+  --model MODEL_ID --transport openai-chat --output .artifacts/stage6/fresh-local-run
+```
+
+Replace `MODEL_ID` with the existing pinned model selector. Keep the configured bearer
+and actor headers, upstream proxy settings, protocol, and model unchanged. Recheck one
+bounded authenticated request after the local health check; a successful tiny request
+does not establish full-context readiness or answer quality. Preserve failed probes
+and record the network-environment correction alongside the run. Missing usage or
+cost stays unknown, and failed benchmark tasks stay in the planned denominator.
+
 ## Aggregation and regression
 
 Exit 1 means release diagnostics found blockers; results are still saved. A first run without matching baseline, independent review, repetition, or online evidence is expected to fail admission. Supply complete same-track reports with repeated `--baseline PATH` options. Mismatched cohorts/protocols, altered summaries, duplicate cases, or invalid telemetry are rejected.
