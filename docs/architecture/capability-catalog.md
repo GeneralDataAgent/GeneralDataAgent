@@ -22,6 +22,7 @@ Status vocabulary:
 | `DeliveryPackage` with evidence-bound claims and charts | `contracts/`, `_deliver` node | Available |
 | Append-only human review with duplicate-reviewer rejection and pass summary | `POST /v1/reviews`, `GET /v1/reviews/{task_id}/summary` | Opt-in |
 | Checkpointed resume after interruption | `POST /v1/analysis/tasks/{thread_id}/resume` | Opt-in |
+| Creator-scoped progress journal and cursor replay for the metric graph | `GET /v1/analysis/tasks/{task_id}/events`, [guide](../guides/task-events.md) | Opt-in local pilot; no background submission or live SSE |
 | Capability self-description | `GET /v1/capabilities` | Available (always on) |
 
 ## 2. Open analysis and benchmark evaluation

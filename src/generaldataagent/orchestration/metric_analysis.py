@@ -37,6 +37,7 @@ from generaldataagent.observability.verified_audit import VerifiedAuditSink
 from generaldataagent.orchestration.checkpoints import ProtectedSqliteSaver
 from generaldataagent.orchestration.composition import ExecutionComposition
 from generaldataagent.orchestration.state import PhaseOneState
+from generaldataagent.orchestration.task_events import TaskEventJournal, TaskPhase
 from generaldataagent.orchestration.workflow import PhaseOneServices, build_phase_one_graph
 from generaldataagent.policy import PolicyEngine
 from generaldataagent.policy.budgets import TaskBudgetLedger
@@ -66,6 +67,7 @@ class MetricAnalysisRuntime:
         budgets: TaskBudgetLedger | None = None,
         checkpointer: ProtectedSqliteSaver | None = None,
         composition: ExecutionComposition | None = None,
+        task_events: TaskEventJournal | None = None,
     ) -> None:
         if composition is not None:
             if composition.artifacts is not artifacts or (
@@ -110,6 +112,9 @@ class MetricAnalysisRuntime:
         self.checkpointer = checkpointer
         self.budgets = budgets
         self.production_mode = production_mode
+        if production_mode and task_events is not None:
+            raise ValueError("local_task_events_not_qualified_for_production")
+        self.task_events = task_events
         self.composition = composition
         self.catalog = catalog
         self.executor = executor
@@ -127,11 +132,11 @@ class MetricAnalysisRuntime:
         self.gateway.register("sql.query", self._execute_query)
         self.graph = build_phase_one_graph(
             PhaseOneServices(
-                discover=self._discover,
-                plan=self._plan,
-                analyze=self._analyze,
-                validate=self._validate,
-                deliver=self._deliver,
+                discover=self._observed(self._discover, "discover"),
+                plan=self._observed(self._plan, "plan"),
+                analyze=self._observed(self._analyze, "analyze"),
+                validate=self._observed(self._validate, "validate"),
+                deliver=self._observed(self._deliver, "deliver"),
             ),
             checkpointer=checkpointer or InMemorySaver(),
         )
@@ -177,6 +182,8 @@ class MetricAnalysisRuntime:
             "trace_id": trace_id,
             "status": "created",
         }
+        if self.task_events is not None:
+            self.task_events.start(UUID(task_id), actor)
         self._emit(
             "analysis.started",
             state,
@@ -194,6 +201,7 @@ class MetricAnalysisRuntime:
                     {"configurable": {"thread_id": actual_thread_id}},
                 )
         except Exception as exc:
+            self._progress(state, "interrupted")
             self._emit(
                 "analysis.failed",
                 state,
@@ -201,7 +209,24 @@ class MetricAnalysisRuntime:
             )
             raise
         self._emit("analysis.finished", result, {"status": result["status"]})
+        self._progress(result, "finished", outcome=result["status"])
         return result
+
+    def _observed(self, handler, phase: TaskPhase):
+        def observed(state):
+            self._progress(state, "phase", phase=phase)
+            return handler(state)
+
+        return observed
+
+    def _progress(self, state, kind, **metadata):
+        if self.task_events is not None:
+            self.task_events.append(
+                UUID(state["task_id"]),
+                ActorContext.model_validate(state["actor_context"]),
+                kind,
+                **metadata,
+            )
 
     def _invoke_graph(self, state, config):
         # Production raw state/results never enter an environment-enabled external tracer.
@@ -234,8 +259,20 @@ class MetricAnalysisRuntime:
             if self.budgets is not None:
                 self.budgets.ensure_active(UUID(snapshot.values["task_id"]), actor)
             if not snapshot.next:
+                if self.task_events is not None:
+                    page = self.task_events.read(UUID(snapshot.values["task_id"]), actor)
+                    if not page.terminal:
+                        self._progress(
+                            snapshot.values, "finished", outcome=snapshot.values["status"]
+                        )
                 return dict(snapshot.values)
-            return self._invoke_graph(None, config)
+            try:
+                result = self._invoke_graph(None, config)
+            except Exception:
+                self._progress(snapshot.values, "interrupted")
+                raise
+            self._progress(result, "finished", outcome=result["status"])
+            return result
 
     def resolve_question(
         self,
