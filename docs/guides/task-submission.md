@@ -51,7 +51,8 @@ resume takes thread ID; queue retry takes task ID. Workers own queue retries; do
 resume concurrently for a queued task.
 
 The service adds metadata, graph progress, listing and completed JSON delivery reads, not raw artifact
-downloads, live SSE, cancellation or a workbench. Queue status includes admission/attempt/resource failures; journal events describe
+downloads, cancellation or a workbench. [Bounded SSE](task-streaming.md) adds live metadata and journal
+replay. Queue status includes admission/attempt/resource failures; journal events describe
 graph execution. Use queue status as the job state, including when a terminal resource failure leaves
 an interrupted graph journal.
 

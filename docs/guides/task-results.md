@@ -56,7 +56,8 @@ these common bindings to construct a runtime and attach the provided guard. Exis
 retain their extra lease/grant fields. The read path does not call execution methods on that runtime.
 
 These are producer evidence integrity checks, not independent correctness acceptance. No production
-qualification, live SSE, cancellation, cross-project sharing or raw artifact download is added here.
+qualification, cancellation, cross-project sharing or raw artifact download is added here. The separate
+[bounded SSE endpoint](task-streaming.md) streams metadata and persisted progress, never result rows.
 
 Run `uv run python examples/task_submission_demo.py` for API acceptance, a separate worker process,
 reopened task listing and authenticated final table retrieval, using only synthetic data.

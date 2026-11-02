@@ -7,7 +7,7 @@ from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import FastAPI, Header, HTTPException, Query, Request
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict
 
 from generaldataagent import __version__
@@ -44,6 +44,7 @@ from generaldataagent.orchestration.task_queue import (
 )
 from generaldataagent.orchestration.task_results import MetricTaskResult
 from generaldataagent.orchestration.task_service import MetricTaskService
+from generaldataagent.orchestration.task_streams import MetricTaskStreams, TaskStreamBusy
 from generaldataagent.policy.resume import PendingActionCoordinator
 from generaldataagent.review import (
     DuplicateReviewError,
@@ -84,7 +85,14 @@ def create_app(
     feedback_registry: FeedbackRegistry | None = None,
     task_events: TaskEventJournal | None = None,
     metric_tasks: MetricTaskService | None = None,
+    task_streams: MetricTaskStreams | None = None,
 ) -> FastAPI:
+    if task_streams is not None and (
+        task_streams.service is not metric_tasks or task_streams.enabled is not service_enabled
+    ):
+        raise ValueError("task_streams_must_share_task_service_and_gate")
+    if metric_tasks is not None and task_streams is None:
+        task_streams = MetricTaskStreams(metric_tasks, enabled=service_enabled)
     if metric_tasks is not None:
         if session_broker is None or metric_tasks.broker is not session_broker:
             raise ValueError("metric_tasks_must_share_identity_broker")
@@ -526,6 +534,42 @@ def create_app(
             raise HTTPException(status_code=404, detail="task_unavailable") from exc
         except TaskQueueConflict as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @application.get(
+        "/v1/analysis/tasks/{task_id}/stream",
+        response_class=StreamingResponse,
+        responses={200: {"content": {"text/event-stream": {}}}},
+    )
+    def stream_metric_task(
+        task_id: UUID,
+        request: Request,
+        after: Annotated[int | None, Query(ge=0)] = None,
+        last_event_id: Annotated[str | None, Header(max_length=80)] = None,
+    ) -> StreamingResponse:
+        if task_streams is None:
+            raise HTTPException(status_code=503, detail="task_streams_not_configured")
+        actor, token = task_credentials(request)
+        try:
+            prepared = task_streams.prepare(
+                task_id, actor, token, after=after, last_event_id=last_event_id
+            )
+        except PermissionError as exc:
+            raise HTTPException(status_code=404, detail="task_stream_unavailable") from exc
+        except TaskQueueConflict as exc:
+            raise HTTPException(status_code=409, detail="task_stream_cursor_invalid") from exc
+        except TaskStreamBusy as exc:
+            raise HTTPException(
+                status_code=429,
+                detail="task_stream_capacity_exhausted",
+                headers={"Retry-After": "1"},
+            ) from exc
+        except Exception as exc:
+            raise HTTPException(status_code=503, detail="task_stream_unavailable") from exc
+        return StreamingResponse(
+            prepared.iterate(request.is_disconnected),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
+        )
 
     @application.get("/v1/analysis/tasks/{task_id}/events", response_model=TaskEventPage)
     def analysis_events(
