@@ -38,7 +38,8 @@ cannot use the route. Responses disable caching.
 with `after=next_cursor`; while `has_more` is true, read the next page. Stop polling only after
 `terminal=true` **and** all pages are drained. A later empty page preserves the cursor. A cursor
 past the latest sequence is rejected with 409; page sizes outside 1–200 are rejected with 422.
-This is a finite JSON polling interface. No live SSE is implemented here. The separate
+This is a finite JSON polling interface. The separate [bounded SSE endpoint](task-streaming.md)
+adds live metadata and progress replay. The separate
 [task service](task-submission.md) adds durable background submission for local development.
 
 The analysis `task_id` differs from a caller-supplied checkpoint `thread_id`; the resume route
