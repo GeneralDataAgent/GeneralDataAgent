@@ -116,13 +116,28 @@ class SessionBroker:
     def authenticate(self, token: str) -> SessionIdentity:
         if not isinstance(token, str) or not re.fullmatch(r"[A-Za-z0-9_-]{32,128}", token):
             raise PermissionError("invalid_or_expired_session")
+        return self.authenticate_reference(self._digest(token))
+
+    def session_reference(self, token: str) -> str:
+        """Trusted worker reference, never accepted as an HTTP bearer credential."""
+        self.authenticate(token)
+        return self._digest(token)
+
+    def authenticate_reference(self, reference: str) -> SessionIdentity:
+        """Recheck an internal reference against the live session/revocation store.
+
+        Only trusted background consumers call this. The HTTP authenticate method still
+        hashes its input, so knowledge of a reference cannot log in as its bearer token.
+        """
+        if not isinstance(reference, str) or not re.fullmatch(r"[0-9a-f]{64}", reference):
+            raise PermissionError("invalid_or_expired_session")
         now = self._clock()
         if now.tzinfo is None:
             raise PermissionError("invalid_identity_clock")
         with self._lock:
-            identity = self._load(self._digest(token))
+            identity = self._load(reference)
             if identity is None or identity.expires_at <= now:
-                self._remove(self._digest(token))
+                self._remove(reference)
                 raise PermissionError("invalid_or_expired_session")
             return identity
 

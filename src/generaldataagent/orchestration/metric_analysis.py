@@ -1,6 +1,6 @@
 """Certified metric analysis wired through the phase-one LangGraph."""
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from contextlib import nullcontext
 from typing import Any, Protocol
 from uuid import UUID, uuid4
@@ -68,6 +68,7 @@ class MetricAnalysisRuntime:
         checkpointer: ProtectedSqliteSaver | None = None,
         composition: ExecutionComposition | None = None,
         task_events: TaskEventJournal | None = None,
+        execution_guard: Callable[[], None] | None = None,
     ) -> None:
         if composition is not None:
             if composition.artifacts is not artifacts or (
@@ -115,6 +116,7 @@ class MetricAnalysisRuntime:
         if production_mode and task_events is not None:
             raise ValueError("local_task_events_not_qualified_for_production")
         self.task_events = task_events
+        self.execution_guard = execution_guard
         self.composition = composition
         self.catalog = catalog
         self.executor = executor
@@ -147,7 +149,18 @@ class MetricAnalysisRuntime:
         actor: ActorContext,
         *,
         thread_id: str | None = None,
+        recover_registered: bool = False,
     ) -> dict[str, Any]:
+        self._guard_execution()
+        if recover_registered and (
+            self.composition is None
+            or self.composition.task_id is None
+            or self.checkpointer is None
+            or self.task_events is None
+            or self.execution_guard is None
+            or thread_id is None
+        ):
+            raise ValueError("registered_execution_requires_bound_durable_ports")
         require_artifact_scope(self.artifacts, actor)
         composed = None
         if self.composition is not None:
@@ -165,7 +178,12 @@ class MetricAnalysisRuntime:
                 self.budgets.register(UUID(task_id), actor, Budget())
         actual_thread_id = thread_id or task_id
         if self.checkpointer is not None:
-            self.checkpointer.register_thread(actual_thread_id, actor)
+            try:
+                self.checkpointer.register_thread(actual_thread_id, actor)
+            except PermissionError as exc:
+                if not recover_registered or str(exc) != "thread_already_registered_use_resume":
+                    raise
+                self.checkpointer.authorize_thread(actual_thread_id, actor)
         trace_id = (
             self.composition.identity.resolve_trace(str(uuid4()))
             if self.composition is not None
@@ -183,7 +201,10 @@ class MetricAnalysisRuntime:
             "status": "created",
         }
         if self.task_events is not None:
-            self.task_events.start(UUID(task_id), actor)
+            if recover_registered:
+                self.task_events.ensure_started(UUID(task_id), actor)
+            else:
+                self.task_events.start(UUID(task_id), actor)
         self._emit(
             "analysis.started",
             state,
@@ -191,17 +212,37 @@ class MetricAnalysisRuntime:
         )
         try:
             execution = (
-                self.checkpointer.execution(actual_thread_id, actor)
+                self.checkpointer.execution(actual_thread_id, actor, guard=self.execution_guard)
                 if self.checkpointer is not None
                 else nullcontext()
             )
             with execution:
-                result = self._invoke_graph(
-                    state,
-                    {"configurable": {"thread_id": actual_thread_id}},
-                )
+                config = {"configurable": {"thread_id": actual_thread_id}}
+                snapshot = self.graph.get_state(config) if recover_registered else None
+                if snapshot is not None and snapshot.values:
+                    existing = snapshot.values
+                    if (
+                        existing.get("task_id") != task_id
+                        or existing.get("actor_context") != state["actor_context"]
+                        or existing.get("metric_query") != state["metric_query"]
+                    ):
+                        raise PermissionError("registered_checkpoint_request_mismatch")
+                    result = self._invoke_graph(None, config) if snapshot.next else dict(existing)
+                else:
+                    if recover_registered:
+                        cursor = 0
+                        while True:
+                            page = self.task_events.read(UUID(task_id), actor, after=cursor)
+                            if any(event.kind == "phase" for event in page.events):
+                                raise ValueError("registered_checkpoint_missing_after_execution")
+                            cursor = page.next_cursor
+                            if not page.has_more:
+                                break
+                    result = self._invoke_graph(state, config)
+                self._guard_execution()
         except Exception as exc:
-            self._progress(state, "interrupted")
+            if not recover_registered or not self.task_events.read(UUID(task_id), actor).terminal:
+                self._progress(state, "interrupted")
             self._emit(
                 "analysis.failed",
                 state,
@@ -209,13 +250,32 @@ class MetricAnalysisRuntime:
             )
             raise
         self._emit("analysis.finished", result, {"status": result["status"]})
-        self._progress(result, "finished", outcome=result["status"])
+        if recover_registered:
+            page = self.task_events.read(UUID(task_id), actor)
+            if page.terminal:
+                last = self.task_events.read(UUID(task_id), actor, after=page.latest_sequence - 1)
+                if last.events[0].outcome != result["status"]:
+                    raise ValueError("registered_terminal_outcome_mismatch")
+            else:
+                self._progress(result, "finished", outcome=result["status"])
+        else:
+            self._progress(result, "finished", outcome=result["status"])
+        self._guard_execution()
         return result
+
+    def _guard_execution(self):
+        if self.execution_guard is not None:
+            self.execution_guard()
+            if self.budgets is not None and self.composition is not None:
+                self.budgets.ensure_active(self.composition.task_id, self.composition.actor)
 
     def _observed(self, handler, phase: TaskPhase):
         def observed(state):
+            self._guard_execution()
             self._progress(state, "phase", phase=phase)
-            return handler(state)
+            result = handler(state)
+            self._guard_execution()
+            return result
 
         return observed
 
@@ -237,7 +297,9 @@ class MetricAnalysisRuntime:
     def resume(self, thread_id: str, actor: ActorContext) -> dict[str, Any]:
         if self.checkpointer is None:
             raise PermissionError("durable_checkpoint_not_configured")
-        with self.checkpointer.execution(thread_id, actor) as original_actor:
+        with self.checkpointer.execution(
+            thread_id, actor, guard=self.execution_guard
+        ) as original_actor:
             actor = original_actor
             config = {"configurable": {"thread_id": thread_id}}
             snapshot = self.graph.get_state(config)

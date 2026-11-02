@@ -23,6 +23,9 @@ from generaldataagent.contracts import ActorContext
 _EXECUTION_LEASE: ContextVar[tuple[str, str] | None] = ContextVar(
     "gda_checkpoint_lease", default=None
 )
+_EXECUTION_GUARD: ContextVar[Callable[[], None] | None] = ContextVar(
+    "gda_checkpoint_execution_guard", default=None
+)
 
 
 class CheckpointBusyError(RuntimeError):
@@ -84,7 +87,11 @@ class ProtectedSqliteSaver(SqliteSaver):
             )
 
     @contextmanager
-    def execution(self, thread_id: str, actor: ActorContext) -> Iterator[ActorContext]:
+    def execution(
+        self, thread_id: str, actor: ActorContext, *, guard: Callable[[], None] | None = None
+    ) -> Iterator[ActorContext]:
+        if guard is not None:
+            guard()
         original = self.authorize_thread(thread_id, actor)
         owner = str(uuid4())
         stopped, lost = Event(), Event()
@@ -119,6 +126,7 @@ class ProtectedSqliteSaver(SqliteSaver):
         heartbeat = Thread(target=renew, name="gda-checkpoint-lease", daemon=True)
         heartbeat.start()
         binding = _EXECUTION_LEASE.set((thread_id, owner))
+        guard_binding = _EXECUTION_GUARD.set(guard)
         try:
             yield original
             with self.lock:
@@ -134,7 +142,10 @@ class ProtectedSqliteSaver(SqliteSaver):
             ):
                 raise CheckpointLeaseLostError("checkpoint_execution_lease_lost")
             self.authorize_thread(thread_id, actor)
+            if guard is not None:
+                guard()
         finally:
+            _EXECUTION_GUARD.reset(guard_binding)
             _EXECUTION_LEASE.reset(binding)
             stopped.set()
             heartbeat.join(timeout=1)
@@ -153,6 +164,9 @@ class ProtectedSqliteSaver(SqliteSaver):
             raise PermissionError("checkpoint_expired_or_deleted")
         binding = _EXECUTION_LEASE.get()
         if binding is not None and binding[0] == thread_id:
+            guard = _EXECUTION_GUARD.get()
+            if guard is not None:
+                guard()
             with self.lock:
                 lease = self.conn.execute(
                     "SELECT owner, lease_until FROM thread_executions WHERE thread_id = ?",
