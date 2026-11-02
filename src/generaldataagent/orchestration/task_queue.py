@@ -17,12 +17,21 @@ from typing import Literal
 from uuid import UUID, uuid4
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from pydantic import AwareDatetime, Field
+from pydantic import AwareDatetime, Field, model_validator
 
 from generaldataagent.contracts import ActorContext, MetricQuery
 from generaldataagent.contracts.models import ContractModel
 
-JobStatus = Literal["queued", "running", "interrupted", "completed", "failed", "needs_human"]
+JobStatus = Literal[
+    "queued",
+    "running",
+    "interrupted",
+    "completed",
+    "failed",
+    "needs_human",
+    "cancel_requested",
+    "cancelled",
+]
 FailureCode = Literal[
     "authorization_unavailable",
     "execution_interrupted",
@@ -40,8 +49,12 @@ class TaskLeaseLost(RuntimeError):
     pass
 
 
+class TaskCancellationRequested(RuntimeError):
+    pass
+
+
 class MetricTaskRecord(ContractModel):
-    schema_version: Literal["1.0"] = "1.0"
+    schema_version: Literal["2.0"] = "2.0"
     task_id: UUID
     thread_id: UUID
     status: JobStatus
@@ -49,10 +62,23 @@ class MetricTaskRecord(ContractModel):
     created_at: AwareDatetime
     expires_at: AwareDatetime
     failure_code: FailureCode | None = None
+    cancel_requested_at: AwareDatetime | None = None
+    cancelled_at: AwareDatetime | None = None
+
+    @model_validator(mode="after")
+    def cancellation_state(self):
+        requested = self.status in {"cancel_requested", "cancelled"}
+        if requested != (self.cancel_requested_at is not None):
+            raise ValueError("task_cancellation_request_binding_invalid")
+        if (self.status == "cancelled") != (self.cancelled_at is not None):
+            raise ValueError("task_cancellation_stop_binding_invalid")
+        if self.cancelled_at is not None and self.cancelled_at < self.cancel_requested_at:
+            raise ValueError("task_cancellation_stop_precedes_request")
+        return self
 
 
 class MetricTaskPage(ContractModel):
-    schema_version: Literal["1.0"] = "1.0"
+    schema_version: Literal["2.0"] = "2.0"
     tasks: tuple[MetricTaskRecord, ...]
     next_cursor: str | None = None
 
@@ -113,6 +139,7 @@ class MetricTaskQueue:
         lease_seconds: int = 60,
         max_attempts: int = 3,
         max_pending_per_actor: int = 100,
+        migrate_v1_offline: bool = False,
     ):
         if not isinstance(encryption_key, bytes) or len(encryption_key) != 32:
             raise ValueError("task_queue_requires_aes256_key")
@@ -131,9 +158,16 @@ class MetricTaskQueue:
         self.scope_key = hmac.digest(encryption_key, b"gda-metric-task-scope-v1", "sha256")
         path.parent.mkdir(parents=True, exist_ok=True)
         with closing(sqlite3.connect(path)) as db, db:
-            db.execute("BEGIN IMMEDIATE")
+            db.execute("BEGIN EXCLUSIVE" if migrate_v1_offline else "BEGIN IMMEDIATE")
             version = db.execute("PRAGMA user_version").fetchone()[0]
-            if version not in (0, 1):
+            if migrate_v1_offline:
+                if version != 1:
+                    raise ValueError("task_queue_v1_migration_required")
+                self._migrate_v1(db)
+                version = 2
+            if version == 1:
+                raise ValueError("task_queue_v1_requires_offline_migration")
+            if version not in (0, 2):
                 raise ValueError("unsupported_task_queue_schema")
             if (
                 version == 0
@@ -142,14 +176,68 @@ class MetricTaskQueue:
                 ).fetchone()
             ):
                 raise ValueError("dedicated_task_queue_database_required")
+            if version == 2:
+                columns = [row[1] for row in db.execute("PRAGMA table_info(metric_jobs)")]
+                if columns != [
+                    "task_id",
+                    "scope",
+                    "idem",
+                    "request_hash",
+                    "body",
+                    "expires",
+                    "status",
+                    "attempts",
+                    "lease_token",
+                    "lease_until",
+                    "failure_code",
+                    "cancel_requested_at",
+                    "cancelled_at",
+                ]:
+                    raise ValueError("task_queue_v2_layout_unavailable")
             db.execute(
                 "CREATE TABLE IF NOT EXISTS metric_jobs ("
                 "task_id TEXT PRIMARY KEY, scope TEXT NOT NULL, idem TEXT NOT NULL, "
                 "request_hash TEXT NOT NULL, body BLOB NOT NULL, expires REAL NOT NULL, "
                 "status TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, "
-                "lease_token TEXT, lease_until REAL, failure_code TEXT, UNIQUE(scope, idem))"
+                "lease_token TEXT, lease_until REAL, failure_code TEXT, "
+                "cancel_requested_at REAL, cancelled_at REAL, UNIQUE(scope, idem))"
             )
-            db.execute("PRAGMA user_version = 1")
+            db.execute("PRAGMA user_version = 2")
+
+    def _migrate_v1(self, db):
+        """Explicit offline cutover only: stop ALL API/readers/workers before calling.
+
+        Refuse running jobs even after lease expiry: a lease is not proof of stopped SQL.
+        Never migrate automatically, downgrade, or acknowledge an orphaned cancellation.
+        """
+        expected = [
+            "task_id",
+            "scope",
+            "idem",
+            "request_hash",
+            "body",
+            "expires",
+            "status",
+            "attempts",
+            "lease_token",
+            "lease_until",
+            "failure_code",
+        ]
+        columns = [row[1] for row in db.execute("PRAGMA table_info(metric_jobs)")]
+        if columns != expected:
+            raise ValueError("task_queue_v1_layout_unavailable")
+        db.row_factory = sqlite3.Row
+        for row in db.execute("SELECT * FROM metric_jobs"):
+            if (
+                row["status"] not in {"queued", "interrupted", "completed", "failed", "needs_human"}
+                or row["lease_token"] is not None
+                or row["lease_until"] is not None
+            ):
+                raise ValueError("task_queue_migration_requires_stopped_jobs")
+            self._record(dict(row), self._decode(row))
+        db.execute("ALTER TABLE metric_jobs ADD COLUMN cancel_requested_at REAL")
+        db.execute("ALTER TABLE metric_jobs ADD COLUMN cancelled_at REAL")
+        db.execute("PRAGMA user_version = 2")
 
     def _now(self) -> datetime:
         now = self.clock()
@@ -207,6 +295,16 @@ class MetricTaskQueue:
             created_at=payload.created_at,
             expires_at=payload.expires_at,
             failure_code=row["failure_code"],
+            cancel_requested_at=(
+                datetime.fromtimestamp(value, UTC)
+                if (value := dict(row).get("cancel_requested_at")) is not None
+                else None
+            ),
+            cancelled_at=(
+                datetime.fromtimestamp(value, UTC)
+                if (value := dict(row).get("cancelled_at")) is not None
+                else None
+            ),
         )
 
     @contextmanager
@@ -214,6 +312,8 @@ class MetricTaskQueue:
         with closing(sqlite3.connect(self.path, timeout=5)) as db, db:
             db.row_factory = sqlite3.Row
             db.execute("BEGIN IMMEDIATE" if write else "BEGIN")
+            if db.execute("PRAGMA user_version").fetchone()[0] != 2:
+                raise ValueError("unsupported_task_queue_schema")
             yield db
 
     def submit(
@@ -240,7 +340,7 @@ class MetricTaskQueue:
                 return self._record(row, payload)
             pending = db.execute(
                 "SELECT COUNT(*) FROM metric_jobs WHERE scope = ? AND expires > ? "
-                "AND status IN ('queued', 'running', 'interrupted')",
+                "AND status IN ('queued', 'running', 'interrupted', 'cancel_requested')",
                 (scope, now.timestamp()),
             ).fetchone()[0]
             if pending >= self.max_pending_per_actor:
@@ -382,6 +482,26 @@ class MetricTaskQueue:
                 {"status": "queued", "attempts": row["attempts"], "failure_code": None}, payload
             )
 
+    def cancel(self, task_id: UUID, actor: ActorContext) -> MetricTaskRecord:
+        with self._db(write=True) as db:
+            row, payload = self._owned(db, task_id, actor)
+            if row["status"] in {"cancel_requested", "cancelled"}:
+                return self._record(row, payload)
+            if row["status"] not in {"queued", "interrupted", "running"}:
+                raise TaskQueueConflict("task_is_not_cancellable")
+            now = self._now().timestamp()
+            # Only an executing lease holder can acknowledge a running task's stop.
+            status = "cancel_requested" if row["status"] == "running" else "cancelled"
+            db.execute(
+                "UPDATE metric_jobs SET status = ?, cancel_requested_at = ?, "
+                "cancelled_at = ?, failure_code = NULL WHERE task_id = ?",
+                (status, now, now if status == "cancelled" else None, str(task_id)),
+            )
+            updated = db.execute(
+                "SELECT * FROM metric_jobs WHERE task_id = ?", (str(task_id),)
+            ).fetchone()
+            return self._record(updated, payload)
+
     def claim(self) -> MetricTaskClaim | None:
         now = self._now().timestamp()
         with self._db(write=True) as db:
@@ -422,7 +542,7 @@ class MetricTaskQueue:
         now = self._now().timestamp()
         if (
             row is None
-            or row["status"] != "running"
+            or row["status"] not in {"running", "cancel_requested"}
             or row["lease_token"] != claim.lease_token
             or row["lease_until"] <= now
             or row["expires"] <= now
@@ -440,7 +560,9 @@ class MetricTaskQueue:
 
     def check(self, claim: MetricTaskClaim) -> None:
         with self._db() as db:
-            self._leased(db, claim)
+            row, _ = self._leased(db, claim)
+            if row["status"] == "cancel_requested":
+                raise TaskCancellationRequested("task_cancellation_requested")
 
     def renew(self, claim: MetricTaskClaim) -> None:
         with self._db(write=True) as db:
@@ -460,16 +582,21 @@ class MetricTaskQueue:
             raise ValueError("invalid_task_settlement")
         with self._db(write=True) as db:
             row, payload = self._leased(db, claim)
+            cancelled_at = None
+            if row["status"] == "cancel_requested":
+                status, failure_code = "cancelled", None
+                cancelled_at = self._now().timestamp()
             if status == "interrupted" and row["attempts"] >= self.max_attempts:
                 status, failure_code = "failed", "attempts_exhausted"
             record = self._record(
-                {"status": status, "attempts": row["attempts"], "failure_code": failure_code},
+                dict(row)
+                | {"status": status, "failure_code": failure_code, "cancelled_at": cancelled_at},
                 payload,
             )
             db.execute(
                 "UPDATE metric_jobs SET status = ?, failure_code = ?, lease_token = NULL, "
-                "lease_until = NULL WHERE task_id = ?",
-                (status, failure_code, row["task_id"]),
+                "lease_until = NULL, cancelled_at = ? WHERE task_id = ?",
+                (status, failure_code, cancelled_at, row["task_id"]),
             )
             return record
 

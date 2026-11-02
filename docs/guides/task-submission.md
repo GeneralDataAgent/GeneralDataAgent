@@ -35,11 +35,12 @@ comes from the JSON body. Supply every task domain using repeated `x-data-domain
 | `GET /v1/analysis/tasks/{task_id}` | Creator-scoped metadata; unknown/expired/inaccessible tasks return 404 after authentication |
 | `GET /v1/analysis/tasks` | Bounded exact-domain-view [task listing](task-results.md) with opaque cursors |
 | `GET /v1/analysis/tasks/{task_id}/result` | Guarded completed [delivery read](task-results.md), without resuming work |
+| `POST /v1/analysis/tasks/{task_id}/cancel` | HTTP 202 with requested/confirmed [cancellation](task-cancellation.md) state |
 | `POST /v1/analysis/tasks/{task_id}/retry` | HTTP 202 for an interrupted task below its attempt limit, using a freshly checked session |
 | `GET /v1/analysis/tasks/{task_id}/events` | Existing [progress replay](task-events.md), immediately usable after acceptance |
 
-`MetricTaskRecord` v1 contains task/thread IDs, status, attempts, creation/expiry timestamps and a
-fixed failure code. Initial status is queued, attempts zero; server-generated IDs persist across
+`MetricTaskRecord` v2 contains task/thread IDs, status, attempts, creation/expiry timestamps and a
+fixed failure code, plus nullable cancellation request/stop timestamps. Initial status is queued, attempts zero; server-generated IDs persist across
 retries. Same normalized actor scope/key returns the same task; a changed query returns 409.
 Completed tasks are returned without rerunning. Keys permit 1–128 ASCII letters, digits, dot,
 underscore, colon and dash. Payloads are capped at 64 KiB. Running and terminal tasks cannot retry.
@@ -51,7 +52,7 @@ resume takes thread ID; queue retry takes task ID. Workers own queue retries; do
 resume concurrently for a queued task.
 
 The service adds metadata, graph progress, listing and completed JSON delivery reads, not raw artifact
-downloads, cancellation or a workbench. [Bounded SSE](task-streaming.md) adds live metadata and journal
+downloads or a workbench. [Explicit cancellation](task-cancellation.md) is creator scoped. [Bounded SSE](task-streaming.md) adds live metadata and journal
 replay. Queue status includes admission/attempt/resource failures; journal events describe
 graph execution. Use queue status as the job state, including when a terminal resource failure leaves
 an interrupted graph journal.
@@ -80,7 +81,7 @@ with the first worker, not while queued. No cross-store atomicity or exactly-onc
 This adapter executes read-only metrics and evidence generation; publishing remains in the approved
 outbox. Defaults are 24-hour retention, 60-second leases, three attempts and 100 pending tasks per
 exact actor scope. Operators call bounded `purge_expired()` batches; expiry denies reads before
-deletion. Mutable queue state is not a signed audit log. Schema upgrades require explicit migration.
+deletion. Mutable queue state is not a signed audit log. Queue schema v2 requires an explicit offline [v1 migration](task-cancellation.md#offline-v1-cutover).
 
 ```bash
 uv run python examples/task_submission_demo.py

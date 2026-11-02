@@ -535,6 +535,20 @@ def create_app(
         except TaskQueueConflict as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 
+    @application.post(
+        "/v1/analysis/tasks/{task_id}/cancel", status_code=202, response_model=MetricTaskRecord
+    )
+    def cancel_metric_task(task_id: UUID, request: Request) -> MetricTaskRecord:
+        if metric_tasks is None:
+            raise HTTPException(status_code=503, detail="metric_tasks_not_configured")
+        actor, token = task_credentials(request)
+        try:
+            return metric_tasks.cancel(task_id, actor, token)
+        except PermissionError as exc:
+            raise HTTPException(status_code=404, detail="task_unavailable") from exc
+        except TaskQueueConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
     @application.get(
         "/v1/analysis/tasks/{task_id}/stream",
         response_class=StreamingResponse,
