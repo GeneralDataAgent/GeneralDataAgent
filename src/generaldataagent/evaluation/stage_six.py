@@ -358,7 +358,33 @@ class BoundedSQLAgent:
         experience=None,
         max_experience=2,
         skill_extension=None,
+        sql_search="none",
+        generation_strategy=None,
+        repair_budget=None,
     ):
+        if repair_budget is not None and (
+            not isinstance(repair_budget, RepairBudget)
+            or repair_budget.max_repairs != max_repairs
+            or repair_budget.max_identical != max_identical_repairs
+        ):
+            raise ValueError("shared repair budget must match declared limits")
+        self.shared_repair_budget = repair_budget
+        if sql_search not in {"none", "diverse-tournament-v1"}:
+            raise ValueError("unknown SQL search strategy")
+        if sql_search != "none" and (
+            tool_profile != "sql-semantic-json"
+            or type(max_steps) is not int
+            or max_steps < 9
+            or skill_extension is not None
+            or experience is not None
+            or generation_strategy is not None
+        ):
+            raise ValueError("SQL search requires JSON SQL, at least nine calls and no extensions")
+        from generaldataagent.orchestration.sql_search import STRATEGIES
+
+        if generation_strategy is not None and generation_strategy not in STRATEGIES:
+            raise ValueError("unknown SQL generation strategy")
+        self.sql_search, self.generation_strategy = sql_search, generation_strategy
         if (
             type(max_steps) is not int
             or max_steps < 1
@@ -414,6 +440,16 @@ class BoundedSQLAgent:
     def run(
         self, task: Task, database: Path, *, documents: str = "", receipt_recorder=None
     ) -> dict:
+        if self.sql_search != "none":
+            if (
+                task.benchmark != "bird-mini-dev-sqlite"
+                or documents
+                or receipt_recorder is not None
+            ):
+                raise ValueError("SQL search adapter requires SQL output without optional ports")
+            from generaldataagent.evaluation.sql_search import run_sql_search
+
+            return run_sql_search(self, task, database)
         from generaldataagent.evaluation.skill_extension import SkillUseRefused, action_capabilities
         from generaldataagent.evaluation.stage_six_analysis import (
             document_outline,
@@ -713,6 +749,8 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
                 # Declared keys already appear in the complete precision schema context.
                 request["semantic_context"].pop("relationships", None)
             messages[1] = ("human", json.dumps(request))
+        if self.generation_strategy is not None:
+            messages[0] = ("system", messages[0][1] + "\nApproach: " + self.generation_strategy)
         if skill is not None:
             messages[0] = (
                 "system",
@@ -736,7 +774,7 @@ unbounded rows. You may cite successful search/analysis/SQL step numbers as evid
         failure, final_sql = "step_budget", None
         raw_answers = None
         previous_countdown = None
-        repairs = RepairBudget(
+        repairs = self.shared_repair_budget or RepairBudget(
             max_repairs=self.max_repairs if repair else 0,
             max_identical=self.max_identical_repairs,
         )
@@ -1957,6 +1995,7 @@ def run_isolated(
     max_experience: int = 2,
     receipt_config: dict | None = None,
     skill_treatment: dict | None = None,
+    sql_search: str = "none",
 ) -> dict:
     """Kill a stuck model/tool worker at the OS process boundary; send no golden data."""
     budget = ExecutionBudget(
@@ -2018,6 +2057,7 @@ def run_isolated(
         "max_experience": max_experience,
         **({"receipt_config": receipt_config} if receipt_config is not None else {}),
         **({"skill_treatment": skill_treatment} if skill_treatment is not None else {}),
+        **({"sql_search": sql_search} if sql_search != "none" else {}),
     }
     environment = {
         k: v for k, v in os.environ.items() if k not in {"LANGSMITH_API_KEY", "LANGCHAIN_API_KEY"}

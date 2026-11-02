@@ -107,6 +107,7 @@ def main():
         max_repairs=payload.get("max_repairs", 3),
         experience=experience,
         max_experience=payload.get("max_experience", 2),
+        **({"sql_search": payload["sql_search"]} if "sql_search" in payload else {}),
         **({"skill_extension": skill} if skill is not None else {}),
     ).run(
         Task(**payload["task"]),

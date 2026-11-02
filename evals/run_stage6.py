@@ -84,6 +84,9 @@ def main():
     )
     parser.add_argument("--request-interval-seconds", type=float, default=0)
     parser.add_argument("--max-output-tokens", type=int, default=None)
+    parser.add_argument("--max-steps", type=int, default=6)
+    parser.add_argument("--max-seconds", type=int, default=120)
+    parser.add_argument("--sql-search", choices=["none", "diverse-tournament-v1"], default="none")
     parser.add_argument(
         "--max-tokens",
         type=int,
@@ -149,6 +152,17 @@ def main():
         help="Opt in to research step receipts with an explicit ActorContext JSON declaration",
     )
     args = parser.parse_args()
+    if args.sql_search != "none" and (
+        args.benchmark != "bird"
+        or args.tool_profile != "sql-semantic-json"
+        or args.max_steps < 9
+        or args.skill_treatment is not None
+        or args.experience_database is not None
+        or args.receipt_actor is not None
+    ):
+        parser.error("SQL search requires BIRD, JSON SQL, >=9 steps and no optional extensions")
+    if args.routing and (args.max_steps != 6 or args.max_seconds != 120):
+        parser.error("explicit step/time budgets cannot override routing lanes")
     receipt_actor = (
         ActorContext.model_validate_json(args.receipt_actor) if args.receipt_actor else None
     )
@@ -277,7 +291,10 @@ def main():
     args.output.mkdir(parents=True)
     code_hash = digest(Path(__file__).resolve())
     fixed_budget = ExecutionBudget(
-        max_output_tokens=args.max_output_tokens, max_tokens=args.max_tokens
+        max_output_tokens=args.max_output_tokens,
+        max_tokens=args.max_tokens,
+        max_steps=args.max_steps,
+        max_seconds=args.max_seconds,
     )
     # Freeze each lane once. All declarations and worker arguments below use
     # these same immutable values rather than reading the routing policy again.
@@ -544,6 +561,11 @@ def main():
         "contamination": "public development data; no training-contamination guarantee",
         "production_accepted": False,
     }
+    system_fingerprint["sql_search"] = {
+        "strategy": args.sql_search,
+        "runtime_hash": digest(ROOT / "src/generaldataagent/orchestration/sql_search.py"),
+        "adapter_hash": digest(ROOT / "src/generaldataagent/evaluation/sql_search.py"),
+    }
     if skill_treatment is not None:
         report["skill_treatment"] = skill_treatment.summary()
         system_fingerprint["skill_treatment"] = {
@@ -610,6 +632,7 @@ def main():
                 app_type=args.app_type,
                 provider_id=provider.provider_id,
                 documents=docs,
+                **({"sql_search": args.sql_search} if args.sql_search != "none" else {}),
                 model_override=args.model,
                 transport=args.transport,
                 route_hash=route["route_hash"],
