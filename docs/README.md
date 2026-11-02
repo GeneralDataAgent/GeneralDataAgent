@@ -23,6 +23,7 @@ This directory contains English documentation for system architecture, design de
 - [Public task contract acceptance](guides/public-task-contracts.md)
 - [Authenticated task progress events](guides/task-events.md)
 - [Durable local task submission and worker](guides/task-submission.md)
+- [Task lists and completed results](guides/task-results.md)
 - [Evaluation receipts](guides/evaluation-receipts.md)
 - [Rule recomputation](guides/rule-recomputation.md)
 - [Dataset extensions](guides/dataset-extensions.md)

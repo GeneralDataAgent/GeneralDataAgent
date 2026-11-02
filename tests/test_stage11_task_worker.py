@@ -23,6 +23,8 @@ def test_actual_subprocess_acceptance_restart_worker_and_replay():
     assert report["worker"] == {"status": "completed"}
     assert report["attempts"] == 1 and report["events"] == 7
     assert report["model_calls"] == 0
+    assert report["listed_tasks"] == 1
+    assert report["result_rows"] == [[2]]
 
 
 def test_worker_requires_explicit_local_mode_and_hides_configuration_exception(capsys):

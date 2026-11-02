@@ -9,19 +9,22 @@ from generaldataagent.orchestration.checkpoints import ProtectedSqliteSaver
 from generaldataagent.orchestration.metric_analysis import MetricAnalysisRuntime
 from generaldataagent.orchestration.task_events import TaskEventJournal
 from generaldataagent.orchestration.task_queue import (
-    MetricTaskClaim,
+    MetricTaskContext,
+    MetricTaskPage,
     MetricTaskQueue,
     MetricTaskRecord,
     TaskLeaseLost,
+    TaskQueueConflict,
     canonical_actor,
 )
+from generaldataagent.orchestration.task_results import MetricTaskResult, read_metric_result
 from generaldataagent.policy.budgets import BudgetExceededError, TaskBudgetLedger
 from generaldataagent.security.identity import SessionBroker
 
 
 @dataclass(frozen=True)
 class MetricTaskExecution:
-    claim: MetricTaskClaim
+    claim: MetricTaskContext
     guard: Callable[[], None]
 
 
@@ -78,6 +81,33 @@ class MetricTaskService:
     def retry(self, task_id: UUID, actor: ActorContext, token: str) -> MetricTaskRecord:
         reference = self._reference(token, actor)
         return self.queue.retry(task_id, actor, reference)
+
+    def list_tasks(
+        self, actor: ActorContext, token: str, *, limit: int = 50, cursor: str | None = None
+    ) -> MetricTaskPage:
+        reference = self._reference(token, actor)
+        page = self.queue.list_tasks(actor, limit=limit, cursor=cursor)
+        self._authorize_reference(reference, actor)
+        return page
+
+    def result(self, task_id: UUID, actor: ActorContext, token: str) -> MetricTaskResult:
+        reference = self._reference(token, actor)
+        context = self.queue.result_context(task_id, actor)
+
+        def guard():
+            self._authorize_reference(reference, actor)
+            if self.queue.result_context(task_id, actor) != context:
+                raise PermissionError("task_result_context_changed")
+
+        try:
+            runtime = self._runtime(MetricTaskExecution(context, guard))
+            result = read_metric_result(runtime, context, guard)
+        except PermissionError:
+            raise
+        except Exception as exc:
+            raise TaskQueueConflict("task_result_unavailable") from exc
+        guard()
+        return result
 
     def _runtime(self, execution: MetricTaskExecution) -> MetricAnalysisRuntime:
         runtime = self.runtime_factory(execution)

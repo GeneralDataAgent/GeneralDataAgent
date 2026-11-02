@@ -1,5 +1,6 @@
 """Encrypted local metric-task acceptance and fenced, restartable worker claims."""
 
+import base64
 import hashlib
 import hmac
 import json
@@ -50,6 +51,21 @@ class MetricTaskRecord(ContractModel):
     failure_code: FailureCode | None = None
 
 
+class MetricTaskPage(ContractModel):
+    schema_version: Literal["1.0"] = "1.0"
+    tasks: tuple[MetricTaskRecord, ...]
+    next_cursor: str | None = None
+
+
+class _ListCursor(ContractModel):
+    schema_version: Literal["1.0"] = "1.0"
+    scope: str = Field(pattern=r"^[0-9a-f]{64}$")
+    after: int = Field(ge=0, le=2**63 - 1, strict=True)
+    upper: int = Field(ge=1, le=2**63 - 1, strict=True)
+    anchor: UUID
+    expires_at: AwareDatetime
+
+
 class _Payload(ContractModel):
     schema_version: Literal["1.0"] = "1.0"
     task_id: UUID
@@ -62,10 +78,14 @@ class _Payload(ContractModel):
 
 
 @dataclass(frozen=True)
-class MetricTaskClaim:
+class MetricTaskContext:
     record: MetricTaskRecord
     actor: ActorContext
     query: MetricQuery
+
+
+@dataclass(frozen=True)
+class MetricTaskClaim(MetricTaskContext):
     session_reference: str
     lease_token: str
 
@@ -265,6 +285,85 @@ class MetricTaskQueue:
     def read(self, task_id: UUID, actor: ActorContext) -> MetricTaskRecord:
         with self._db() as db:
             return self._record(*self._owned(db, task_id, actor))
+
+    def result_context(self, task_id: UUID, actor: ActorContext) -> MetricTaskContext:
+        """Read-only request binding, without exposing a stored grant or claiming execution."""
+        with self._db() as db:
+            row, payload = self._owned(db, task_id, actor)
+            record = self._record(row, payload)
+            if record.status != "completed":
+                raise TaskQueueConflict("task_result_not_ready")
+            return MetricTaskContext(record, payload.actor, payload.query)
+
+    def _encode_cursor(self, cursor: _ListCursor) -> str:
+        nonce = os.urandom(12)
+        raw = nonce + self.cipher.encrypt(
+            nonce, cursor.model_dump_json().encode(), b"gda-task-list-cursor-v1"
+        )
+        return base64.urlsafe_b64encode(raw).decode().rstrip("=")
+
+    def _decode_cursor(self, value: str, scope: str, now: datetime) -> _ListCursor:
+        try:
+            if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,2048}", value):
+                raise ValueError("encoding")
+            raw = base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
+            cursor = _ListCursor.model_validate_json(
+                self.cipher.decrypt(raw[:12], raw[12:], b"gda-task-list-cursor-v1")
+            )
+            if cursor.scope != scope or cursor.expires_at <= now or cursor.after >= cursor.upper:
+                raise ValueError("scope_or_expiry")
+            return cursor
+        except Exception as exc:
+            raise TaskQueueConflict("task_list_cursor_invalid") from exc
+
+    def list_tasks(
+        self, actor: ActorContext, *, limit: int = 50, cursor: str | None = None
+    ) -> MetricTaskPage:
+        """Exact domain-view listing, with an opaque scope-bound five-minute cursor.
+
+        A fixed upper row and identity exclude new submissions. Removing/replacing that
+        anchor invalidates the cursor, preventing SQLite rowid reuse from admitting new work.
+        """
+        if type(limit) is not int or not 1 <= limit <= 100:
+            raise ValueError("invalid_task_list_limit")
+        now, scope = self._now(), self._scope(actor)
+        bound = self._decode_cursor(cursor, scope, now) if cursor is not None else None
+        with self._db() as db:
+            if bound is None:
+                anchor = db.execute(
+                    "SELECT rowid, task_id FROM metric_jobs WHERE scope = ? AND expires > ? "
+                    "ORDER BY rowid DESC LIMIT 1",
+                    (scope, now.timestamp()),
+                ).fetchone()
+                if anchor is None:
+                    return MetricTaskPage(tasks=())
+                bound = _ListCursor(
+                    scope=scope,
+                    after=0,
+                    upper=anchor["rowid"],
+                    anchor=anchor["task_id"],
+                    expires_at=datetime.fromtimestamp(now.timestamp() + 300, UTC),
+                )
+            elif (
+                db.execute(
+                    "SELECT 1 FROM metric_jobs WHERE rowid = ? AND task_id = ? AND scope = ?",
+                    (bound.upper, str(bound.anchor), scope),
+                ).fetchone()
+                is None
+            ):
+                raise TaskQueueConflict("task_list_cursor_invalid")
+            rows = db.execute(
+                "SELECT rowid, * FROM metric_jobs WHERE scope = ? AND expires > ? "
+                "AND rowid > ? AND rowid <= ? ORDER BY rowid LIMIT ?",
+                (scope, now.timestamp(), bound.after, bound.upper, limit + 1),
+            ).fetchall()
+            tasks = tuple(self._record(row, self._decode(row)) for row in rows[:limit])
+            next_cursor = None
+            if len(rows) > limit:
+                next_cursor = self._encode_cursor(
+                    bound.model_copy(update={"after": rows[limit - 1]["rowid"]})
+                )
+            return MetricTaskPage(tasks=tasks, next_cursor=next_cursor)
 
     def retry(self, task_id: UUID, actor: ActorContext, session_reference: str) -> MetricTaskRecord:
         with self._db(write=True) as db:
