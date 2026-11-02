@@ -21,6 +21,7 @@ This directory contains English documentation for system architecture, design de
 - [Project usage guide](guides/usage.md)
 - [Project and creator artifact access](guides/artifact-access.md)
 - [Public task contract acceptance](guides/public-task-contracts.md)
+- [Authenticated task progress events](guides/task-events.md)
 - [Evaluation receipts](guides/evaluation-receipts.md)
 - [Rule recomputation](guides/rule-recomputation.md)
 - [Dataset extensions](guides/dataset-extensions.md)

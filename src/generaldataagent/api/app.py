@@ -6,7 +6,7 @@ from time import monotonic
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, ConfigDict
 
@@ -36,6 +36,7 @@ from generaldataagent.observability.maintenance import ServiceMaintenance
 from generaldataagent.observability.slo import ServiceSLO
 from generaldataagent.orchestration import MetricAnalysisRuntime
 from generaldataagent.orchestration.checkpoints import CheckpointBusyError, CheckpointLeaseLostError
+from generaldataagent.orchestration.task_events import TaskEventJournal, TaskEventPage
 from generaldataagent.policy.resume import PendingActionCoordinator
 from generaldataagent.review import (
     DuplicateReviewError,
@@ -74,7 +75,15 @@ def create_app(
     business_actions: BusinessActionRuntime | None = None,
     report_scheduler: ReportScheduler | None = None,
     feedback_registry: FeedbackRegistry | None = None,
+    task_events: TaskEventJournal | None = None,
 ) -> FastAPI:
+    if task_events is not None:
+        if session_broker is None:
+            raise ValueError("task_events_require_authenticated_sessions")
+        if production_mode:
+            raise ValueError("local_task_events_not_qualified_for_production")
+        if metric_runtime is not None and metric_runtime.task_events is not task_events:
+            raise ValueError("task_events_must_share_runtime_journal")
     if feedback_registry is not None and session_broker is None:
         raise ValueError("feedback requires authenticated sessions")
     if (
@@ -426,6 +435,25 @@ def create_app(
             "delivery": result.get("delivery_package"),
             "errors": result.get("errors", []),
         }
+
+    @application.get("/v1/analysis/tasks/{task_id}/events", response_model=TaskEventPage)
+    def analysis_events(
+        task_id: UUID,
+        request: Request,
+        after: Annotated[int, Query(ge=0)] = 0,
+        limit: Annotated[int, Query(ge=1, le=200)] = 100,
+    ) -> TaskEventPage:
+        if task_events is None:
+            raise HTTPException(status_code=503, detail="task_events_not_configured")
+        actor = authenticated_actor(request).model_copy(
+            update={"data_domains": tuple(request.headers.getlist("x-data-domain"))}
+        )
+        try:
+            return task_events.read(task_id, actor, after=after, limit=limit)
+        except PermissionError as exc:
+            raise HTTPException(status_code=404, detail="task_events_unavailable") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail="task_event_read_conflict") from exc
 
     @application.post("/v1/analysis/tasks/{thread_id}/resume")
     def resume_analysis(thread_id: UUID, request: Request) -> dict[str, Any]:
