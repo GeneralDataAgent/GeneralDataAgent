@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict
 from generaldataagent import __version__
 from generaldataagent.agents import SPECIALIST_SPECS
 from generaldataagent.api.business import business_router
+from generaldataagent.api.display_preferences import display_preference_router
 from generaldataagent.business.actions import BusinessActionRuntime, content_hash
 from generaldataagent.business.governance import Feedback, FeedbackRegistry
 from generaldataagent.business.production import QualifiedBusinessActionRuntime
@@ -37,6 +38,7 @@ from generaldataagent.observability.slo import ServiceSLO
 from generaldataagent.orchestration import MetricAnalysisRuntime
 from generaldataagent.orchestration.checkpoints import CheckpointBusyError, CheckpointLeaseLostError
 from generaldataagent.orchestration.task_events import TaskEventJournal, TaskEventPage
+from generaldataagent.orchestration.task_presentation import MetricDisplayPreferenceService
 from generaldataagent.orchestration.task_queue import (
     MetricTaskPage,
     MetricTaskRecord,
@@ -86,7 +88,13 @@ def create_app(
     task_events: TaskEventJournal | None = None,
     metric_tasks: MetricTaskService | None = None,
     task_streams: MetricTaskStreams | None = None,
+    display_preferences: MetricDisplayPreferenceService | None = None,
 ) -> FastAPI:
+    if display_preferences is not None:
+        if production_mode:
+            raise ValueError("local_display_preferences_not_qualified_for_production")
+        if metric_tasks is None or display_preferences.tasks is not metric_tasks:
+            raise ValueError("display_preferences_must_share_task_service")
     if task_streams is not None and (
         task_streams.service is not metric_tasks or task_streams.enabled is not service_enabled
     ):
@@ -464,6 +472,8 @@ def create_app(
             update={"data_domains": tuple(request.headers.getlist("x-data-domain"))}
         )
         return actor, request.headers["authorization"].split(" ", 1)[1]
+
+    application.include_router(display_preference_router(display_preferences, task_credentials))
 
     @application.post("/v1/analysis/tasks", status_code=202, response_model=MetricTaskRecord)
     def submit_metric_task(
