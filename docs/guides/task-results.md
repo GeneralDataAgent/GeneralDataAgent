@@ -5,7 +5,7 @@ It reuses the local durable task service and remains rejected by production asse
 
 ## Listing an exact domain view
 
-`GET /v1/analysis/tasks?limit=50` returns `MetricTaskPage` v1 with `tasks` and `next_cursor`.
+`GET /v1/analysis/tasks?limit=50` returns `MetricTaskPage` v2 with `tasks` and `next_cursor`.
 The existing bearer, user, tenant, project and requested domain headers apply. `analysis:run` is
 required. List membership is **the exact canonical domain set requested**, scoped to the creator,
 tenant and project. A broader domain view is not a union of narrower views. Individual status/result
@@ -23,7 +23,8 @@ reuse from admitting newly submitted tasks. A changed scope, malformed cursor, e
 missing anchor returns 409; restart from the first page. Overlong cursors or invalid limits return 422.
 
 This is not a frozen inventory or a guarantee that metadata cannot change between pages. SQLite
-reads are consistent within each page. No database migration is needed for this local v1 queue.
+reads are consistent within each page. The current queue uses schema v2; existing v1 databases require an explicit offline
+[cutover](task-cancellation.md#offline-v1-cutover).
 
 ## Reading a completed result
 
@@ -56,7 +57,8 @@ these common bindings to construct a runtime and attach the provided guard. Exis
 retain their extra lease/grant fields. The read path does not call execution methods on that runtime.
 
 These are producer evidence integrity checks, not independent correctness acceptance. No production
-qualification, cancellation, cross-project sharing or raw artifact download is added here. The separate
+qualification, cross-project sharing or raw artifact download is added here.
+[Cancellation](task-cancellation.md) is a separate creator-authorized command. The separate
 [bounded SSE endpoint](task-streaming.md) streams metadata and persisted progress, never result rows.
 
 Run `uv run python examples/task_submission_demo.py` for API acceptance, a separate worker process,

@@ -43,6 +43,7 @@ from generaldataagent.policy import PolicyEngine
 from generaldataagent.policy.budgets import TaskBudgetLedger
 from generaldataagent.security.source import ScopedQueryExecutor
 from generaldataagent.tools import SqlGuard, SQLiteReadOnlyExecutor, ToolGateway
+from generaldataagent.tools.sqlite_guarded import GuardedSQLiteReadOnlyExecutor
 
 
 class NarrativeGenerator(Protocol):
@@ -689,6 +690,9 @@ class MetricAnalysisRuntime:
         if isinstance(self.executor, ScopedQueryExecutor):
             actor = ActorContext.model_validate(arguments["actor_context"])
             return self.executor.execute_for_actor(sql, parameters, actor)
+        if isinstance(self.executor, GuardedSQLiteReadOnlyExecutor):
+            with self.executor.guarded(self._guard_execution):
+                return self.executor.execute(sql, parameters)
         return self.executor.execute(sql, parameters)
 
     @staticmethod

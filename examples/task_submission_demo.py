@@ -25,7 +25,7 @@ from generaldataagent.orchestration.task_queue import MetricTaskQueue
 from generaldataagent.orchestration.task_service import MetricTaskService
 from generaldataagent.policy.budgets import TaskBudgetLedger
 from generaldataagent.security.identity import SQLiteSessionBroker
-from generaldataagent.tools import SQLiteReadOnlyExecutor
+from generaldataagent.tools.sqlite_guarded import GuardedSQLiteReadOnlyExecutor
 
 _WORKER_STACK = ExitStack()
 atexit.register(_WORKER_STACK.close)
@@ -60,7 +60,7 @@ def demo_service(root: Path):
             )
         ]
     )
-    executor = SQLiteReadOnlyExecutor(database)
+    executor = GuardedSQLiteReadOnlyExecutor(database)
     with open_protected_checkpointer(root / "checkpoints.db", encryption_key=b"c" * 32) as saver:
 
         def factory(execution):

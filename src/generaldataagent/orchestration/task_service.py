@@ -13,6 +13,7 @@ from generaldataagent.orchestration.task_queue import (
     MetricTaskPage,
     MetricTaskQueue,
     MetricTaskRecord,
+    TaskCancellationRequested,
     TaskLeaseLost,
     TaskQueueConflict,
     canonical_actor,
@@ -77,6 +78,10 @@ class MetricTaskService:
     def read(self, task_id: UUID, actor: ActorContext, token: str) -> MetricTaskRecord:
         self._reference(token, actor)
         return self.queue.read(task_id, actor)
+
+    def cancel(self, task_id: UUID, actor: ActorContext, token: str) -> MetricTaskRecord:
+        self._reference(token, actor)
+        return self.queue.cancel(task_id, actor)
 
     def retry(self, task_id: UUID, actor: ActorContext, token: str) -> MetricTaskRecord:
         reference = self._reference(token, actor)
@@ -159,6 +164,9 @@ class MetricTaskService:
         except TaskLeaseLost:
             # An expired worker must not settle another worker's claim.
             raise
+        except TaskCancellationRequested:
+            # Execution has unwound; settlement atomically checks the request and lease.
+            status, failure = "interrupted", None
         except BudgetExceededError:
             status, failure = "failed", "budget_exhausted"
         except PermissionError:

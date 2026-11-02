@@ -9,7 +9,7 @@ No raw LangGraph events, model reasoning, prompts, SQL, result rows or credentia
 
 | Event | Payload | SSE ID |
 |---|---|---|
-| `task` | `MetricTaskRecord` v1, initial/current queue status and attempts | None |
+| `task` | `MetricTaskRecord` v2, initial/current queue status and attempts | None |
 | `progress` | `TaskEvent` v1, persisted phase history | `{task_id}:{sequence}` |
 | `stream_end` | `TaskStreamEnd` v1: `reason` and last delivered `after` | None |
 
@@ -45,7 +45,8 @@ independent polling, and each read page contains at most 50 progress events.
 
 Authorization, required task domains, task retention and the service kill switch are rechecked at
 poll boundaries and before each data frame. Ending a stream or disconnecting a client releases its
-slot and does **not** cancel the underlying task. Explicit cancellation is a separate pending slice.
+slot and does **not** cancel the underlying task. Use the separate [explicit cancellation](task-cancellation.md) command.
+`cancel_requested` keeps the stream open; only confirmed `cancelled` is terminal.
 Abandoned response setup slots are reaped after their application deadline plus five seconds.
 
 Application bounds are observed when the iterator can run. They are not a hard timeout on a stalled
@@ -73,4 +74,4 @@ No real model or enterprise service is called. Environments that prohibit socket
 for this local integration test; ASGI-only tests still exercise protocol and authorization paths.
 
 Rollback disables the local task service/stream route and retains durable jobs/journals. This slice
-adds no production qualification, explicit task cancellation, external publication or raw result stream.
+adds no production qualification, external publication or raw result stream.

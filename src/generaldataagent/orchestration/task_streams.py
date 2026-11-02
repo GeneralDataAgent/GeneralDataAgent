@@ -212,7 +212,10 @@ class PreparedTaskStream:
                 if count >= control.limits.max_frames:
                     reason = "frame_limit"
                     break
-                if record.status in {"completed", "failed", "needs_human"} and not page.has_more:
+                if (
+                    record.status in {"completed", "failed", "needs_human", "cancelled"}
+                    and not page.has_more
+                ):
                     # Recheck the tail after a queue/journal interleaving, before declaring drained.
                     _, tail = await asyncio.to_thread(control._snapshot, self, after)
                     if tail.events:
