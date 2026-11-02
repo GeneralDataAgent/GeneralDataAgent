@@ -25,6 +25,7 @@ Status vocabulary:
 | Creator-scoped progress journal and cursor replay for the metric graph | `GET /v1/analysis/tasks/{task_id}/events`, [guide](../guides/task-events.md) | Opt-in local pilot |
 | Durable metric task acceptance, metadata, retry and fenced worker | `POST /v1/analysis/tasks`, `services/metric_task_worker.py`, [guide](../guides/task-submission.md) | Opt-in local pilot; no production qualification |
 | Creator-authorized cancellation with pending/confirmed stop and offline v2 cutover | `POST /v1/analysis/tasks/{task_id}/cancel`, [guide](../guides/task-cancellation.md) | Opt-in local pilot; no orphan acknowledgement or provider kill |
+| Explicit private display preference CAS/history and evidence-bound result presentation | `/v1/analysis/preferences/display`, `/v1/analysis/tasks/{task_id}/presentation`, [guide](../guides/confirmed-display-preferences.md) | Opt-in local pilot; no free-form memory or execution-context injection |
 | Exact-domain-view task pages and evidence-rechecked completed results | `GET /v1/analysis/tasks`, `GET /v1/analysis/tasks/{task_id}/result`, [guide](../guides/task-results.md) | Opt-in local pilot; creator-private, no execution on result reads |
 | Bounded task status/progress SSE with live authorization and reconnect cursors | `GET /v1/analysis/tasks/{task_id}/stream`, [guide](../guides/task-streaming.md) | Opt-in local pilot; no raw graph/model stream |
 | Capability self-description | `GET /v1/capabilities` | Available (always on) |
