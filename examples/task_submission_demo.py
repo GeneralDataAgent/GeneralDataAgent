@@ -149,6 +149,15 @@ def demonstrate(root: Path) -> dict:
     with demo_service(root) as reopened:
         record = reopened.read(accepted["task_id"], owner, token)
         events = reopened.events.read(record.task_id, owner)
+        with TestClient(
+            create_app(
+                session_broker=reopened.broker, task_events=reopened.events, metric_tasks=reopened
+            )
+        ) as client:
+            listed = client.get("/v1/analysis/tasks", headers=headers)
+            listed.raise_for_status()
+            result = client.get(f"/v1/analysis/tasks/{record.task_id}/result", headers=headers)
+            result.raise_for_status()
         return {
             "accepted_status": accepted["status"],
             "status": record.status,
@@ -158,6 +167,8 @@ def demonstrate(root: Path) -> dict:
             "events": len(events.events),
             "worker": json.loads(worker.stdout),
             "model_calls": 0,
+            "listed_tasks": len(listed.json()["tasks"]),
+            "result_rows": result.json()["delivery"]["rows"],
         }
 
 

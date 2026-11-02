@@ -33,6 +33,8 @@ comes from the JSON body. Supply every task domain using repeated `x-data-domain
 |---|---|
 | `POST /v1/analysis/tasks` | MetricQuery body plus `Idempotency-Key`; HTTP 202 after durable acceptance |
 | `GET /v1/analysis/tasks/{task_id}` | Creator-scoped metadata; unknown/expired/inaccessible tasks return 404 after authentication |
+| `GET /v1/analysis/tasks` | Bounded exact-domain-view [task listing](task-results.md) with opaque cursors |
+| `GET /v1/analysis/tasks/{task_id}/result` | Guarded completed [delivery read](task-results.md), without resuming work |
 | `POST /v1/analysis/tasks/{task_id}/retry` | HTTP 202 for an interrupted task below its attempt limit, using a freshly checked session |
 | `GET /v1/analysis/tasks/{task_id}/events` | Existing [progress replay](task-events.md), immediately usable after acceptance |
 
@@ -48,8 +50,8 @@ a missing journal registration. Existing synchronous endpoints remain compatible
 resume takes thread ID; queue retry takes task ID. Workers own queue retries; do not invoke legacy
 resume concurrently for a queued task.
 
-This slice adds metadata and graph progress, not task listing/result downloads, live SSE, cancellation
-or a workbench. Queue status includes admission/attempt/resource failures; journal events describe
+The service adds metadata, graph progress, listing and completed JSON delivery reads, not raw artifact
+downloads, live SSE, cancellation or a workbench. Queue status includes admission/attempt/resource failures; journal events describe
 graph execution. Use queue status as the job state, including when a terminal resource failure leaves
 an interrupted graph journal.
 

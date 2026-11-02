@@ -24,6 +24,7 @@ Status vocabulary:
 | Checkpointed resume after interruption | `POST /v1/analysis/tasks/{thread_id}/resume` | Opt-in |
 | Creator-scoped progress journal and cursor replay for the metric graph | `GET /v1/analysis/tasks/{task_id}/events`, [guide](../guides/task-events.md) | Opt-in local pilot; no live SSE |
 | Durable metric task acceptance, metadata, retry and fenced worker | `POST /v1/analysis/tasks`, `services/metric_task_worker.py`, [guide](../guides/task-submission.md) | Opt-in local pilot; no production qualification or cancellation |
+| Exact-domain-view task pages and evidence-rechecked completed results | `GET /v1/analysis/tasks`, `GET /v1/analysis/tasks/{task_id}/result`, [guide](../guides/task-results.md) | Opt-in local pilot; creator-private, no execution on result reads |
 | Capability self-description | `GET /v1/capabilities` | Available (always on) |
 
 ## 2. Open analysis and benchmark evaluation

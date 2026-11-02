@@ -37,7 +37,12 @@ from generaldataagent.observability.slo import ServiceSLO
 from generaldataagent.orchestration import MetricAnalysisRuntime
 from generaldataagent.orchestration.checkpoints import CheckpointBusyError, CheckpointLeaseLostError
 from generaldataagent.orchestration.task_events import TaskEventJournal, TaskEventPage
-from generaldataagent.orchestration.task_queue import MetricTaskRecord, TaskQueueConflict
+from generaldataagent.orchestration.task_queue import (
+    MetricTaskPage,
+    MetricTaskRecord,
+    TaskQueueConflict,
+)
+from generaldataagent.orchestration.task_results import MetricTaskResult
 from generaldataagent.orchestration.task_service import MetricTaskService
 from generaldataagent.policy.resume import PendingActionCoordinator
 from generaldataagent.review import (
@@ -469,6 +474,34 @@ def create_app(
             raise HTTPException(status_code=403, detail="task_submission_denied") from exc
         except ValueError as exc:
             raise HTTPException(status_code=422, detail="invalid_task_submission") from exc
+
+    @application.get("/v1/analysis/tasks", response_model=MetricTaskPage)
+    def list_metric_tasks(
+        request: Request,
+        limit: Annotated[int, Query(ge=1, le=100)] = 50,
+        cursor: Annotated[str | None, Query(max_length=2048)] = None,
+    ) -> MetricTaskPage:
+        if metric_tasks is None:
+            raise HTTPException(status_code=503, detail="metric_tasks_not_configured")
+        actor, token = task_credentials(request)
+        try:
+            return metric_tasks.list_tasks(actor, token, limit=limit, cursor=cursor)
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail="task_list_access_denied") from exc
+        except TaskQueueConflict as exc:
+            raise HTTPException(status_code=409, detail="task_list_cursor_invalid") from exc
+
+    @application.get("/v1/analysis/tasks/{task_id}/result", response_model=MetricTaskResult)
+    def read_metric_task_result(task_id: UUID, request: Request) -> MetricTaskResult:
+        if metric_tasks is None:
+            raise HTTPException(status_code=503, detail="metric_tasks_not_configured")
+        actor, token = task_credentials(request)
+        try:
+            return metric_tasks.result(task_id, actor, token)
+        except PermissionError as exc:
+            raise HTTPException(status_code=404, detail="task_result_unavailable") from exc
+        except TaskQueueConflict as exc:
+            raise HTTPException(status_code=409, detail="task_result_unavailable") from exc
 
     @application.get("/v1/analysis/tasks/{task_id}", response_model=MetricTaskRecord)
     def read_metric_task(task_id: UUID, request: Request) -> MetricTaskRecord:
