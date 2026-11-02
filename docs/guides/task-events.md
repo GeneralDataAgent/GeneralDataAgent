@@ -38,11 +38,12 @@ cannot use the route. Responses disable caching.
 with `after=next_cursor`; while `has_more` is true, read the next page. Stop polling only after
 `terminal=true` **and** all pages are drained. A later empty page preserves the cursor. A cursor
 past the latest sequence is rejected with 409; page sizes outside 1–200 are rejected with 422.
-This is a finite JSON polling interface. No SSE or background task submission is implemented here.
+This is a finite JSON polling interface. No live SSE is implemented here. The separate
+[task service](task-submission.md) adds durable background submission for local development.
 
 The analysis `task_id` differs from a caller-supplied checkpoint `thread_id`; the resume route
-continues to take `thread_id`. The current synchronous submit route returns task ID with its
-result, so submission-time progress discovery requires the future asynchronous task registry.
+continues to take `thread_id`. Synchronous analysis returns task ID with its result; the separate
+task service returns it with HTTP 202 before execution for submission-time progress discovery.
 
 ## Recovery and limits
 

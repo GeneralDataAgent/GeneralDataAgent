@@ -179,6 +179,19 @@ class TaskEventJournal:
             )
         return event
 
+    def ensure_started(self, task_id: UUID, actor: ActorContext) -> TaskEvent:
+        """Recover registration without rebinding ownership or extending retention."""
+        try:
+            return self.start(task_id, actor)
+        except ValueError as exc:
+            if str(exc) != "task_event_task_already_exists":
+                raise
+        page = self.read(task_id, actor, limit=1)
+        event = page.events[0]
+        if event.kind != "started" or event.sequence != 1:
+            raise ValueError("task_event_registration_corrupt")
+        return event
+
     def read(
         self, task_id: UUID, actor: ActorContext, *, after: int = 0, limit: int = 100
     ) -> TaskEventPage:

@@ -37,6 +37,8 @@ from generaldataagent.observability.slo import ServiceSLO
 from generaldataagent.orchestration import MetricAnalysisRuntime
 from generaldataagent.orchestration.checkpoints import CheckpointBusyError, CheckpointLeaseLostError
 from generaldataagent.orchestration.task_events import TaskEventJournal, TaskEventPage
+from generaldataagent.orchestration.task_queue import MetricTaskRecord, TaskQueueConflict
+from generaldataagent.orchestration.task_service import MetricTaskService
 from generaldataagent.policy.resume import PendingActionCoordinator
 from generaldataagent.review import (
     DuplicateReviewError,
@@ -76,7 +78,15 @@ def create_app(
     report_scheduler: ReportScheduler | None = None,
     feedback_registry: FeedbackRegistry | None = None,
     task_events: TaskEventJournal | None = None,
+    metric_tasks: MetricTaskService | None = None,
 ) -> FastAPI:
+    if metric_tasks is not None:
+        if session_broker is None or metric_tasks.broker is not session_broker:
+            raise ValueError("metric_tasks_must_share_identity_broker")
+        if task_events is not metric_tasks.events:
+            raise ValueError("metric_tasks_must_share_event_journal")
+        if production_mode:
+            raise ValueError("local_metric_tasks_not_qualified_for_production")
     if task_events is not None:
         if session_broker is None:
             raise ValueError("task_events_require_authenticated_sessions")
@@ -435,6 +445,54 @@ def create_app(
             "delivery": result.get("delivery_package"),
             "errors": result.get("errors", []),
         }
+
+    def task_credentials(request: Request):
+        actor = authenticated_actor(request).model_copy(
+            update={"data_domains": tuple(request.headers.getlist("x-data-domain"))}
+        )
+        return actor, request.headers["authorization"].split(" ", 1)[1]
+
+    @application.post("/v1/analysis/tasks", status_code=202, response_model=MetricTaskRecord)
+    def submit_metric_task(
+        query: MetricQuery,
+        request: Request,
+        idempotency_key: Annotated[str, Header(min_length=1, max_length=128)],
+    ) -> MetricTaskRecord:
+        if metric_tasks is None:
+            raise HTTPException(status_code=503, detail="metric_tasks_not_configured")
+        actor, token = task_credentials(request)
+        try:
+            return metric_tasks.submit(query, actor, token, idempotency_key)
+        except TaskQueueConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail="task_submission_denied") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail="invalid_task_submission") from exc
+
+    @application.get("/v1/analysis/tasks/{task_id}", response_model=MetricTaskRecord)
+    def read_metric_task(task_id: UUID, request: Request) -> MetricTaskRecord:
+        if metric_tasks is None:
+            raise HTTPException(status_code=503, detail="metric_tasks_not_configured")
+        actor, token = task_credentials(request)
+        try:
+            return metric_tasks.read(task_id, actor, token)
+        except PermissionError as exc:
+            raise HTTPException(status_code=404, detail="task_unavailable") from exc
+
+    @application.post(
+        "/v1/analysis/tasks/{task_id}/retry", status_code=202, response_model=MetricTaskRecord
+    )
+    def retry_metric_task(task_id: UUID, request: Request) -> MetricTaskRecord:
+        if metric_tasks is None:
+            raise HTTPException(status_code=503, detail="metric_tasks_not_configured")
+        actor, token = task_credentials(request)
+        try:
+            return metric_tasks.retry(task_id, actor, token)
+        except PermissionError as exc:
+            raise HTTPException(status_code=404, detail="task_unavailable") from exc
+        except TaskQueueConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @application.get("/v1/analysis/tasks/{task_id}/events", response_model=TaskEventPage)
     def analysis_events(
