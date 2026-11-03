@@ -663,6 +663,7 @@ def test_actual_csv_asgi_demo_reopens_private_state_and_profiles_confirmed_sourc
     assert process.returncode == 0, process.stderr
     report = json.loads(process.stdout)
     assert report["asgi_api"] and report["state_reopened"] and report["scratch_clean"]
+    assert report["file_discovered_after_reopen"]
     assert report["preview_rows"] == 3 and report["empty_cells"] == [0, 0, 1]
     assert report["duplicate_rows"] == 1 and report["formula_like_cells"] == 2
     assert report["profile_status"] == "profiled" and report["text_only"]

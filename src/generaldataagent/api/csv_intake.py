@@ -5,7 +5,7 @@ import re
 from collections.abc import Callable
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import ClientDisconnect
 
@@ -16,6 +16,7 @@ from generaldataagent.datasets.csv_intake_contracts import (
     CsvProfileResult,
 )
 from generaldataagent.datasets.csv_intake_store import CsvIntakeConflict
+from generaldataagent.datasets.csv_listing import CsvFileListing, CsvFilePage
 from generaldataagent.datasets.csv_parser import CsvIntakeError, CsvIntakeLimit
 from generaldataagent.policy.budgets import BudgetExceededError
 
@@ -74,6 +75,19 @@ def csv_intake_router(service: CsvIntakeService | None, credentials: Callable) -
         try:
             raw, end = await collect(request, port, actor, token, port.limits.max_bytes)
             return await run_in_threadpool(port.stage, raw, actor, token, key, deadline=end)
+        except Exception as exc:
+            raise denied(exc) from exc
+
+    @router.get("/v1/analysis/files/csv", response_model=CsvFilePage)
+    def files(
+        request: Request,
+        limit: int = Query(default=10, ge=1, le=20),
+        cursor: str | None = Query(default=None, min_length=1, max_length=4096),
+    ):
+        port = configured()
+        actor, token = credentials(request)
+        try:
+            return CsvFileListing(port).list_files(actor, token, limit=limit, cursor=cursor)
         except Exception as exc:
             raise denied(exc) from exc
 

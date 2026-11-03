@@ -68,7 +68,13 @@ def demonstrate(root):
         )
     service = service_for(root)
     with client_for(service) as client:
-        url = "/v1/analysis/files/csv/" + preview["file"]["file_id"]
+        listing = client.get("/v1/analysis/files/csv")
+        listing.raise_for_status()
+        discovered = listing.json()["items"]
+        assert len(discovered) == 1 and discovered[0]["file_id"] == preview["file"]["file_id"]
+        assert discovered[0]["status"] == "staged"
+        assert discovered[0]["availability"] == "compatible"
+        url = "/v1/analysis/files/csv/" + discovered[0]["file_id"]
         assert client.get(url).json() == preview
         confirmation = {
             "confirmed": True,
@@ -80,6 +86,7 @@ def demonstrate(root):
         result = response.json()
         assert client.post(url + "/confirm", json=confirmation).json() == result
         assert client.get(url + "/profile").json() == result
+        assert client.get("/v1/analysis/files/csv").json()["items"][0]["status"] == "profiled"
         assert result["profile"]["columns"][0]["minimum"] == "001"
         assert result["profile"]["columns"][1]["minimum"] == "10"  # Text, not a numeric claim.
         assert all(
@@ -89,6 +96,7 @@ def demonstrate(root):
         return {
             "asgi_api": True,
             "state_reopened": True,
+            "file_discovered_after_reopen": True,
             "preview_rows": preview["data"]["row_count"],
             "empty_cells": preview["data"]["empty_cells"],
             "duplicate_rows": preview["data"]["duplicate_rows"],
