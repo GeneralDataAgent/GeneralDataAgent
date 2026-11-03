@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict
 from generaldataagent import __version__
 from generaldataagent.agents import SPECIALIST_SPECS
 from generaldataagent.api.business import business_router
+from generaldataagent.api.csv_intake import csv_intake_router
 from generaldataagent.api.display_preferences import display_preference_router
 from generaldataagent.business.actions import BusinessActionRuntime, content_hash
 from generaldataagent.business.governance import Feedback, FeedbackRegistry
@@ -32,6 +33,7 @@ from generaldataagent.contracts import (
 from generaldataagent.data_science.sandbox import SandboxError
 from generaldataagent.data_science.tracking import ExperimentTrackingError
 from generaldataagent.data_science.workbench import DataScienceWorkbench, ScienceGateError
+from generaldataagent.datasets.csv_intake import CsvIntakeService
 from generaldataagent.observability.alerts import CriticalAlertRouter
 from generaldataagent.observability.maintenance import ServiceMaintenance
 from generaldataagent.observability.slo import ServiceSLO
@@ -89,7 +91,13 @@ def create_app(
     metric_tasks: MetricTaskService | None = None,
     task_streams: MetricTaskStreams | None = None,
     display_preferences: MetricDisplayPreferenceService | None = None,
+    csv_intake: CsvIntakeService | None = None,
 ) -> FastAPI:
+    if csv_intake is not None:
+        if production_mode:
+            raise ValueError("local_csv_intake_not_qualified_for_production")
+        if session_broker is None or csv_intake.broker is not session_broker:
+            raise ValueError("csv_intake_must_share_identity_broker")
     if display_preferences is not None:
         if production_mode:
             raise ValueError("local_display_preferences_not_qualified_for_production")
@@ -474,6 +482,7 @@ def create_app(
         return actor, request.headers["authorization"].split(" ", 1)[1]
 
     application.include_router(display_preference_router(display_preferences, task_credentials))
+    application.include_router(csv_intake_router(csv_intake, task_credentials))
 
     @application.post("/v1/analysis/tasks", status_code=202, response_model=MetricTaskRecord)
     def submit_metric_task(
