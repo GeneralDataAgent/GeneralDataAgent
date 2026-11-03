@@ -114,7 +114,8 @@ class DisplayPreferenceState(ContractModel):
 class ConfirmedDisplayPreferenceStore:
     """Dedicated local store. Keys and DB must stay outside agent/artifact workspaces.
 
-    Append-only encrypted history is for citation, NOT active retrieval after revocation.
+    Encrypted history is for citation, NOT active retrieval after revocation.
+    Reviewed bounded maintenance may remove inactive historical rows, retaining the head.
     A local audit intent precedes commit; neither cross-store atomicity nor signed audit
     is claimed. Full-history rollback and production/shared-store qualification are separate.
     """
@@ -325,7 +326,10 @@ class ConfirmedDisplayPreferenceStore:
             latest = self._latest(db, actor)
             if request.expected_version != (latest.version if latest else 0):
                 raise PreferenceConflict("display_preference_version_conflict")
-            if latest is not None and latest.version >= self.max_versions:
+            retained = db.execute(
+                "SELECT COUNT(*) FROM display_preferences WHERE scope=?", (self._scope(actor),)
+            ).fetchone()[0]
+            if retained >= self.max_versions:
                 raise PreferenceConflict("display_preference_history_capacity_exhausted")
             return self._append(db, actor, latest, request.value, request.valid_for_seconds, guard)
 

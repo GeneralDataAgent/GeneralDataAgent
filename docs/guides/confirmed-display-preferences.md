@@ -74,9 +74,11 @@ no new active revision. An audit intent can remain if a later commit fails; it d
 changed. Presentation-intent audit can likewise remain on a denied read. No cross-store atomicity,
 external signed audit or full-database rollback detection is claimed.
 
-Revocation is **not physical erasure**: encrypted history remains available for private citations.
-Default history capacity is 1000 revisions per exact scope (operator configurable 1–10000); further
-confirmations fail closed, but revoking the last choice is still allowed. Automated purge, erasure,
+Revocation is **not physical erasure**: encrypted history remains available for private citations until the separately reviewed history
+retention policy removes an inactive historical row.
+Default history capacity is 1000 retained rows per exact scope (operator configurable 1–10000); further
+confirmations fail closed, but revoking the last choice is still allowed. Reviewed [local history-row maintenance](preference-history-maintenance.md) can retire inactive
+historical citations while preserving the latest revision. Secure erasure, latest-value redaction,
 key rotation, business-definition conflicts and shared/production storage remain later lifecycle work.
 Do not expose this store as a general agent write tool. Rollback disables preference assembly and
 retains the encrypted DB/key/audit; original analysis/result endpoints continue using their contracts.
