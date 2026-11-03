@@ -2,6 +2,7 @@
 
 import sqlite3
 import time
+from contextlib import closing
 from pathlib import Path
 from threading import Event
 from typing import Any
@@ -88,7 +89,7 @@ class SQLiteConnector:
         uri = f"file:{self.database_path.as_posix()}?mode=ro"
         deadline = time.monotonic() + self.timeout_seconds
         try:
-            with sqlite3.connect(uri, uri=True) as connection:
+            with closing(sqlite3.connect(uri, uri=True)) as connection:
                 connection.execute("PRAGMA query_only = ON")
                 connection.set_progress_handler(
                     lambda: (
