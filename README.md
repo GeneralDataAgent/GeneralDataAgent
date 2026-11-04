@@ -24,3 +24,5 @@ startup, data-science and data-engineering examples, provider configuration, and
 - [System architecture](docs/architecture/system-architecture.md).
 - [Workspace planning and progress](../docs/README.md): phase plans, development status, and acceptance records.
 - [Validation records](../docs/validation/README.md): historical runs and machine-readable evidence.
+- [Retained CSV inventory](docs/guides/csv-retention-inventory.md): explicit local read-only
+  planning/comparison, including expired owner sources; no deletion or quota release.

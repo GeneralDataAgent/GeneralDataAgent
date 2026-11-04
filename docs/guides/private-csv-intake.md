@@ -157,3 +157,7 @@ The synthetic ASGI demo uploads an actual client-selected CSV byte stream, reope
 discovers the private file through metadata listing, confirms text semantics, profiles through
 existing tools, and re-reads the same report/evidence with
 clean scratch. It uses no real enterprise data/platform, model or held-out benchmark question.
+
+Retained sources can now be inventoried through the separate explicit local
+[read-only operator plan/comparison](csv-retention-inventory.md). It includes expired owner-scoped
+metadata, keeps holds unknown and releases no capacity; physical/logical cleanup remains unavailable.

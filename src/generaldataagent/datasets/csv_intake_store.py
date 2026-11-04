@@ -50,21 +50,28 @@ class CsvUploadStore:
         clock=None,
         max_files_per_actor: int = 20,
         max_total_files: int = 200,
+        read_only: bool = False,
     ):
         if not isinstance(encryption_key, bytes) or len(encryption_key) != 32:
             raise ValueError("csv_intake_requires_aes256_key")
         for value, upper in ((max_files_per_actor, 20), (max_total_files, 200)):
             if type(value) is not int or not 1 <= value <= upper:
                 raise ValueError("invalid_csv_retained_capacity")
+        if type(read_only) is not bool:
+            raise ValueError("csv_read_only_must_be_boolean")
+        if read_only and (path.is_symlink() or not path.is_file()):
+            raise PermissionError("csv_intake_store_unavailable")
+        self.read_only = read_only
         self.path, self.clock = path, clock or (lambda: datetime.now(UTC))
         self.max_files_per_actor, self.max_total_files = max_files_per_actor, max_total_files
         self.cipher = AESGCM(encryption_key)
         self.scope_key = hmac.digest(encryption_key, b"gda-csv-intake-scope-v1", "sha256")
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with closing(sqlite3.connect(path)) as db, db:
-            db.execute("BEGIN IMMEDIATE")
+        if not read_only:
+            path.parent.mkdir(parents=True, exist_ok=True)
+        with closing(self.connect()) as db, db:
+            db.execute("BEGIN" if read_only else "BEGIN IMMEDIATE")
             version = db.execute("PRAGMA user_version").fetchone()[0]
-            if version not in (0, 1):
+            if version not in (0, 1) or (read_only and version != 1):
                 raise ValueError("unsupported_csv_intake_schema")
             if version == 0:
                 if db.execute("SELECT 1 FROM sqlite_master WHERE type='table'").fetchone():
@@ -82,17 +89,33 @@ class CsvUploadStore:
                     (self.seal(b"csv-intake-v1", b"csv-key-v1"),),
                 )
                 db.execute("PRAGMA user_version=1")
-            try:
-                key = db.execute("SELECT body FROM csv_key WHERE singleton=1").fetchone()
-                columns = [r[1] for r in db.execute("PRAGMA table_info(csv_uploads)")]
-                if (
-                    key is None
-                    or self.open(key[0], b"csv-key-v1") != b"csv-intake-v1"
-                    or columns != ["file_id", "scope", "idem", "request_hash", "body", "report"]
-                ):
-                    raise ValueError("layout_or_key")
-            except Exception as exc:
-                raise PermissionError("csv_intake_store_unavailable") from exc
+            self.check_layout(db)
+
+    def check_layout(self, db):
+        try:
+            key = db.execute("SELECT body FROM csv_key WHERE singleton=1").fetchone()
+            columns = [r[1] for r in db.execute("PRAGMA table_info(csv_uploads)")]
+            if (
+                key is None
+                or self.open(key[0], b"csv-key-v1") != b"csv-intake-v1"
+                or columns != ["file_id", "scope", "idem", "request_hash", "body", "report"]
+            ):
+                raise ValueError("layout_or_key")
+        except Exception as exc:
+            raise PermissionError("csv_intake_store_unavailable") from exc
+
+    def connect(self):
+        if not self.read_only:
+            return sqlite3.connect(self.path, timeout=5)
+        if self.path.is_symlink() or not self.path.is_file():
+            raise PermissionError("csv_intake_store_unavailable")
+        db = sqlite3.connect(
+            self.path.resolve(strict=True).as_uri() + "?mode=ro", uri=True, timeout=5
+        )
+        db.execute("PRAGMA query_only=ON")
+        db.execute("PRAGMA trusted_schema=OFF")
+        db.setlimit(sqlite3.SQLITE_LIMIT_LENGTH, 16 * 1024 * 1024)
+        return db
 
     def now(self):
         now = self.clock()
@@ -131,12 +154,16 @@ class CsvUploadStore:
 
     @contextmanager
     def db(self, *, write=False):
+        if write and self.read_only:
+            raise PermissionError("csv_read_only_store")
         try:
-            with closing(sqlite3.connect(self.path, timeout=5)) as db, db:
+            with closing(self.connect()) as db, db:
                 db.row_factory = sqlite3.Row
                 db.execute("BEGIN IMMEDIATE" if write else "BEGIN")
                 if db.execute("PRAGMA user_version").fetchone()[0] != 1:
                     raise CsvIntakeUnavailable("unsupported_csv_intake_schema")
+                if self.read_only:
+                    self.check_layout(db)
                 yield db
         except sqlite3.Error as exc:
             raise CsvIntakeUnavailable("csv_intake_store_unavailable") from exc
