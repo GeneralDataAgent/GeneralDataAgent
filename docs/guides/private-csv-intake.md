@@ -144,8 +144,8 @@ whole observation; no partial plan is emitted. Any blocked file makes the plan `
 `inventory_digest` covers immutable retained facts only, so repeating the inventory on an unchanged
 store yields the same digest at a later wall-clock time; a new upload, confirmation or changed
 report changes it. Expiry and hold state are observations, not part of that digest, and are always
-recomputed. The plan is a snapshot for review, never authorization to delete: physical/logical
-cleanup, tombstones, capacity release and crash recovery remain the separate 13.1B.2b slice.
+recomputed. The plan is a snapshot for review, never authorization to delete by itself; acting on it
+requires the separate one-time approval described below.
 
 ```bash
 uv run python -m generaldataagent.datasets.csv_maintenance \
@@ -159,6 +159,55 @@ base64 for exactly 32 bytes. Exit codes: `0` complete plan, `3` blocked plan (st
 review), `2` key/permission invalid, `4` store/index unobservable. Output contains codes, counts and
 digests rather than customer paths. This is a local operator CLI, not a browser or model tool. The
 design record is [ADR 0021](../adr/0021-read-only-expired-csv-inventory.md).
+
+## Reviewed physical cleanup
+
+`CsvSourceCleanup` is a separate operator port that consumes exactly one existing one-time approval
+and deletes only the selected expired rows. The approval must use tool `csv.maintenance.remove`,
+action `remove-expired-source`, resource equal to the plan's `inventory_digest`, and parameters
+containing only that digest and a sorted, unique list of 1–200 file IDs. The port re-observes the
+inventory, requires the same digest, and requires every selected entry to be
+`expired_review_required`, expired and unblocked. Drift, retained/held files, unsupported layout,
+wrong key or an unknown/pending/rejected/expired approval refuse the whole selection. A drift before
+execution is refused without consuming the grant.
+
+No browser, model or tenant-management endpoint exposes this port. After validation it consumes the
+one-time grant, then opens the intake database read-write (`BEGIN IMMEDIATE`; symlink or missing
+paths refused) and verifies `user_version`, exact table layouts and the key canary. For each selected
+file it writes one content-free v1 `CsvSourceTombstone` and deletes the `csv_uploads` row in the same
+transaction. The tombstone stores file/task IDs, the non-reversible owner reference, source hash and
+size, report digest, sorted evidence artifact IDs, approval ID, inventory digest and its own digest;
+it never stores CSV values, headers, report text or owner identity. Evidence artifacts, the artifact
+index and unselected rows are not touched.
+
+The v1 `CsvCleanupReceipt` reports per-file outcomes, bytes reclaimed by this run and remaining
+files/bytes observed after the transaction, plus fixed facts: `destructive_actions_performed=true`,
+`evidence_artifacts_removed=false`, `safe_erasure=false`. The receipt digest binds the approval,
+inventory digest, epoch and selected source facts but excludes outcomes, counts and observation
+times, so replaying the same approval yields the same digest with `already_removed` outcomes and no
+second deletion. A completed removal followed by store drift is replayed only when every selected
+file has an authenticated tombstone bound to the same approval and inventory digest and no row;
+other drift, missing rows without a matching tombstone or tampered/conflicting tombstones refuse or
+conflict without deleting. A crash after grant consumption but before the store transaction resumes
+on rerun because the unchanged plan still matches the approved digest.
+
+Cleanup does not erase free pages, WAL frames or backups, does not release legal holds, does not
+delete governed evidence and does not restore rows automatically. Capacity accounting covers only
+the removed rows. The design record is
+[ADR 0022](../adr/0022-reviewed-expired-csv-source-removal.md).
+
+```bash
+uv run python -m generaldataagent.datasets.csv_cleanup \
+  --store /private/operator/uploads.db \
+  --key-file /private/operator/cleanup.key \
+  --artifact-index /private/operator/artifact-index.db \
+  --approval-db /private/operator/approvals.db \
+  --approval-id <exact granted approval UUID>
+```
+
+Exit codes: `0` receipt (including idempotent replay), `2` key/approval/selection refused, `4`
+store or index unavailable, `5` conflicting row or tombstone. Output contains codes, IDs and digests
+rather than customer paths.
 
 ## Privacy, failures and limits
 
@@ -182,17 +231,20 @@ claimed. Orphan reconciliation and production maintenance remain later work.
 Default file TTL is 24 hours (only tighten); expiry denies all intake reads/confirms but does not
 physically erase encrypted source. Quotas include retained expired rows: at most 20 per exact actor
 view and 200 globally. The read-only inventory above reports retained/expired capacity and blocks
-unverifiable evidence; retention cleanup, sharing, raw download, safe erasure and production
-capacity are not implemented by this slice. Governed artifacts retain their own existing retention/
+unverifiable evidence; the approved cleanup port removes only reviewed eligible rows. Sharing, raw
+download, safe erasure, automatic retention jobs and production capacity are not implemented by this
+slice. Governed artifacts retain their own existing retention/
 hold rules; no global hold coordination or production data acceptance is implied. Rollback disables
 CSV assembly and retains encrypted state/keys and evidence; old metric endpoints remain unchanged.
 
 ```bash
 uv run python -m examples.csv_intake_demo
 uv run python examples/csv_maintenance_demo.py
+uv run python examples/csv_cleanup_demo.py
 uv run pytest tests/test_stage13_csv_intake.py
 uv run pytest tests/test_stage13_csv_listing.py
 uv run pytest tests/test_stage13_csv_maintenance.py
+uv run pytest tests/test_stage13_csv_cleanup.py
 ```
 
 The synthetic ASGI intake demo uploads an actual client-selected CSV byte stream, reopens durable
