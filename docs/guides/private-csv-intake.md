@@ -121,6 +121,45 @@ Each result includes immutable data-profile and CSV provenance ArtifactRefs. Cur
 source/config/preview bindings, report ciphertext, artifact scope/hash/size/content and text-profile
 shape are rechecked before first delivery and later reads. Artifact URIs are not public download URLs.
 
+## Read-only maintenance inventory
+
+`CsvMaintenanceInventory` is a separate operator port for reviewing retained/expired capacity. It
+opens one existing encrypted intake database with `mode=ro` (never creating schema, parents or an
+empty store), verifies the 32-byte key against the stored canary and rejects an unsupported layout.
+It never parses CSV, re-profiles, reads preview values or changes the store, artifact index or audit.
+
+The v1 `CsvMaintenancePlan` lists each retained file with file/task IDs, a non-reversible owner
+reference, staged/profiled status, release compatibility, source hash/size, creation/expiry,
+report state and digest, sorted evidence artifact IDs and a review state
+(`retain`, `expired_review_required`, `blocked`). `destructive_actions_performed` is always `false`.
+No raw rows, preview samples, headers, paths, artifact URIs or bearer credentials appear.
+
+For an expired file with a report, every evidence reference is checked read-only against the
+governed artifact index: missing, deleted, expired, scope-mismatched or held evidence blocks the
+file instead of producing an apparently complete cleanup permit. A report that cannot be decrypted
+or rebound is `report_unreadable` and also blocks. Corrupt retained records, wrong keys, an
+unreadable artifact index needed for verification, or more rows than the configured bound fail the
+whole observation; no partial plan is emitted. Any blocked file makes the plan `blocked`.
+
+`inventory_digest` covers immutable retained facts only, so repeating the inventory on an unchanged
+store yields the same digest at a later wall-clock time; a new upload, confirmation or changed
+report changes it. Expiry and hold state are observations, not part of that digest, and are always
+recomputed. The plan is a snapshot for review, never authorization to delete: physical/logical
+cleanup, tombstones, capacity release and crash recovery remain the separate 13.1B.2b slice.
+
+```bash
+uv run python -m generaldataagent.datasets.csv_maintenance \
+  --store /private/operator/uploads.db \
+  --key-file /private/operator/maintenance.key \
+  --artifact-index /private/operator/artifact-index.db --summary
+```
+
+The key file must be an operator-owned regular file (not a symlink, mode `0600` on POSIX) containing
+base64 for exactly 32 bytes. Exit codes: `0` complete plan, `3` blocked plan (still printed for
+review), `2` key/permission invalid, `4` store/index unobservable. Output contains codes, counts and
+digests rather than customer paths. This is a local operator CLI, not a browser or model tool. The
+design record is [ADR 0021](../adr/0021-read-only-expired-csv-inventory.md).
+
 ## Privacy, failures and limits
 
 DLP checks raw and semantic row JSON before staging and again on reads; common credential columns
@@ -142,18 +181,24 @@ claimed. Orphan reconciliation and production maintenance remain later work.
 
 Default file TTL is 24 hours (only tighten); expiry denies all intake reads/confirms but does not
 physically erase encrypted source. Quotas include retained expired rows: at most 20 per exact actor
-view and 200 globally. Retention cleanup, sharing, raw download, safe erasure and production
+view and 200 globally. The read-only inventory above reports retained/expired capacity and blocks
+unverifiable evidence; retention cleanup, sharing, raw download, safe erasure and production
 capacity are not implemented by this slice. Governed artifacts retain their own existing retention/
 hold rules; no global hold coordination or production data acceptance is implied. Rollback disables
 CSV assembly and retains encrypted state/keys and evidence; old metric endpoints remain unchanged.
 
 ```bash
 uv run python -m examples.csv_intake_demo
+uv run python examples/csv_maintenance_demo.py
 uv run pytest tests/test_stage13_csv_intake.py
 uv run pytest tests/test_stage13_csv_listing.py
+uv run pytest tests/test_stage13_csv_maintenance.py
 ```
 
-The synthetic ASGI demo uploads an actual client-selected CSV byte stream, reopens durable state,
-discovers the private file through metadata listing, confirms text semantics, profiles through
-existing tools, and re-reads the same report/evidence with
-clean scratch. It uses no real enterprise data/platform, model or held-out benchmark question.
+The synthetic ASGI intake demo uploads an actual client-selected CSV byte stream, reopens durable
+state, discovers the private file through metadata listing, confirms text semantics, profiles
+through existing tools, and re-reads the same report/evidence with clean scratch. The maintenance
+demo profiles and stages actual bytes, applies a legal hold, advances a fake clock past retention,
+then reads the plan twice and asserts stable digest, unchanged store/index bytes, blocked held
+evidence and drift after a new upload. Neither demo deletes source or evidence, releases capacity,
+or uses a real enterprise data source, model or held-out benchmark question.
