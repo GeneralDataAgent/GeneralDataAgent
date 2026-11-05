@@ -61,6 +61,13 @@ the exact result hash against the authenticated task scope. `POST /v1/business/f
 feedback for that registered task and result. DLP runs before persistence. The endpoint returns
 `awaiting_independent_review`, never an automatic promotion to training data.
 
+`GET /v1/business/feedback/tasks/{task_id}` lets the same creator read eligibility before submitting:
+the registered result hash and at most 50 submitted feedback IDs, categories, ratings and review
+counts. Free-text question/outcome fields never leave the registry. Unregistered and foreign-scope
+tasks are indistinguishable and return `eligible: false` with no hash, so the route cannot be used to
+probe task existence. Reads require `business:read`; qualified registries also verify the signed state
+and exact token scope, and fail closed without returning partial facts.
+
 Trusted operators call `review` with two distinct reviewer identities other than the feedback author,
 then `freeze` an immutable, hashed evaluation/training dataset. Any rejecting review blocks promotion.
 Both task IDs and evidence hashes are checked across splits; rewording the same result cannot bypass

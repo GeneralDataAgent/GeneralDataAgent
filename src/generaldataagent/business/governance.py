@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Literal
 from uuid import UUID, uuid4
 
-from pydantic import AwareDatetime, Field
+from pydantic import AwareDatetime, Field, model_validator
 
 from generaldataagent.business.actions import content_hash
 from generaldataagent.contracts import ActorContext
@@ -28,6 +28,40 @@ class Feedback(ContractModel):
     rating: int = Field(ge=1, le=5)
     redacted_question: str = Field(min_length=1, max_length=2000)
     expected_outcome: str = Field(min_length=1, max_length=4000)
+
+
+class SubmittedFeedback(ContractModel):
+    """Bounded creator-visible feedback facts; free text stays inside the registry."""
+
+    feedback_id: UUID
+    category: Literal["correctness", "grounding", "latency", "usability", "safety"]
+    rating: int = Field(ge=1, le=5)
+    review_count: int = Field(ge=0)
+    accepted_review_count: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def review_binding(self):
+        if self.accepted_review_count > self.review_count:
+            raise ValueError("feedback_review_count_invalid")
+        return self
+
+
+class FeedbackTaskStatus(ContractModel):
+    """Creator-private eligibility plus bounded submission facts for one task."""
+
+    task_id: UUID
+    eligible: bool
+    result_hash: str | None = Field(default=None, pattern=r"^sha256:[0-9a-f]{64}$")
+    feedback: tuple[SubmittedFeedback, ...] = Field(default=(), max_length=50)
+    has_more_feedback: bool = False
+
+    @model_validator(mode="after")
+    def status_binding(self):
+        if self.eligible != (self.result_hash is not None):
+            raise ValueError("feedback_status_binding_invalid")
+        if not self.eligible and (self.feedback or self.has_more_feedback):
+            raise ValueError("feedback_status_binding_invalid")
+        return self
 
 
 class Capability(ContractModel):
@@ -95,6 +129,48 @@ class FeedbackRegistry:
                 "SELECT scope FROM feedback_tasks WHERE task=?", (str(task_id),)
             ).fetchone()
         return row is not None and row[0] == actor_scope(actor)
+
+    def task_status(self, task_id: UUID, actor: ActorContext) -> FeedbackTaskStatus:
+        """Creator-visible eligibility and bounded submissions; foreign tasks stay opaque."""
+        scope = actor_scope(actor)
+        try:
+            with closing(sqlite3.connect(self.path, timeout=5)) as db:
+                row = db.execute(
+                    "SELECT scope,hash FROM feedback_tasks WHERE task=?", (str(task_id),)
+                ).fetchone()
+                if row is None or row[0] != scope:
+                    return FeedbackTaskStatus(task_id=task_id, eligible=False)
+                rows = db.execute(
+                    "SELECT f.body,f.hash,"
+                    "(SELECT count(*) FROM feedback_reviews r WHERE r.id=f.id),"
+                    "(SELECT count(*) FROM feedback_reviews r WHERE r.id=f.id AND r.accepted=1) "
+                    "FROM feedback f WHERE f.scope=? AND json_extract(f.body,'$.task_id')=? "
+                    "ORDER BY f.id LIMIT 51",
+                    (scope, str(task_id)),
+                ).fetchall()
+        except sqlite3.Error as exc:
+            raise ValueError("feedback_status_unavailable") from exc
+        items = []
+        for body, digest, reviews, accepted in rows[:50]:
+            item = Feedback.model_validate_json(body)
+            if item.task_id != task_id or content_hash(item.model_dump(mode="json")) != digest:
+                raise PermissionError("feedback_integrity_failure")
+            items.append(
+                SubmittedFeedback(
+                    feedback_id=item.feedback_id,
+                    category=item.category,
+                    rating=item.rating,
+                    review_count=reviews,
+                    accepted_review_count=accepted,
+                )
+            )
+        return FeedbackTaskStatus(
+            task_id=task_id,
+            eligible=True,
+            result_hash=row[1],
+            feedback=tuple(items),
+            has_more_feedback=len(rows) > 50,
+        )
 
     def submit(self, feedback: Feedback, actor: ActorContext) -> str:
         self.scanner.check(feedback.model_dump_json().encode())

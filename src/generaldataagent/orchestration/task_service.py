@@ -44,9 +44,15 @@ class MetricTaskService:
         events: TaskEventJournal,
         budgets: TaskBudgetLedger,
         runtime_factory: Callable[[MetricTaskExecution], MetricAnalysisRuntime],
+        feedback=None,
     ):
+        if feedback is not None:
+            from generaldataagent.business.governance import FeedbackRegistry
+
+            if not isinstance(feedback, FeedbackRegistry):
+                raise ValueError("task_feedback_registry_required")
         self.queue, self.broker, self.events = queue, broker, events
-        self.budgets, self.runtime_factory = budgets, runtime_factory
+        self.budgets, self.runtime_factory, self.feedback = budgets, runtime_factory, feedback
 
     def _authorize_reference(self, reference: str, actor: ActorContext) -> None:
         identity = self.broker.authenticate_reference(reference)
@@ -112,6 +118,12 @@ class MetricTaskService:
         except Exception as exc:
             raise TaskQueueConflict("task_result_unavailable") from exc
         guard()
+        if self.feedback is not None:
+            from generaldataagent.business.actions import content_hash
+
+            self.feedback.register_task(
+                task_id, actor, content_hash(result.delivery.model_dump(mode="json"))
+            )
         return result
 
     def _runtime(self, execution: MetricTaskExecution) -> MetricAnalysisRuntime:
@@ -136,7 +148,7 @@ class MetricTaskService:
         claim = self.queue.claim()
         if claim is None:
             return None
-        status, failure = "interrupted", "execution_interrupted"
+        status, failure, result = "interrupted", "execution_interrupted", None
         try:
             with self.queue.execution(claim) as check_lease:
 
@@ -175,4 +187,16 @@ class MetricTaskService:
             status, failure = "failed", "invalid_task"
         except Exception:
             status, failure = "interrupted", "execution_interrupted"
-        return self.queue.settle(claim, status, failure)
+        record = self.queue.settle(claim, status, failure)
+        if (
+            record.status == "completed"
+            and self.feedback is not None
+            and result is not None
+            and result.get("delivery_package")
+        ):
+            from generaldataagent.business.actions import content_hash
+
+            self.feedback.register_task(
+                record.task_id, claim.actor, content_hash(result["delivery_package"])
+            )
+        return record

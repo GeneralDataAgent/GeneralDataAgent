@@ -16,7 +16,7 @@ from generaldataagent.api.business import business_router
 from generaldataagent.api.csv_intake import csv_intake_router
 from generaldataagent.api.display_preferences import display_preference_router
 from generaldataagent.business.actions import BusinessActionRuntime, content_hash
-from generaldataagent.business.governance import Feedback, FeedbackRegistry
+from generaldataagent.business.governance import Feedback, FeedbackRegistry, FeedbackTaskStatus
 from generaldataagent.business.production import QualifiedBusinessActionRuntime
 from generaldataagent.business.production_feedback import QualifiedFeedbackRegistry
 from generaldataagent.business.schedules import ReportScheduler
@@ -103,6 +103,12 @@ def create_app(
             raise ValueError("local_display_preferences_not_qualified_for_production")
         if metric_tasks is None or display_preferences.tasks is not metric_tasks:
             raise ValueError("display_preferences_must_share_task_service")
+    if (
+        feedback_registry is not None
+        and metric_tasks is not None
+        and metric_tasks.feedback is not feedback_registry
+    ):
+        raise ValueError("feedback_registry_must_share_task_service")
     if task_streams is not None and (
         task_streams.service is not metric_tasks or task_streams.enabled is not service_enabled
     ):
@@ -309,6 +315,22 @@ def create_app(
         except ValueError as exc:
             raise HTTPException(status_code=409, detail="feedback_state_conflict") from exc
         return {"feedback_id": feedback_id, "state": "awaiting_independent_review"}
+
+    @application.get("/v1/business/feedback/tasks/{task_id}", response_model=FeedbackTaskStatus)
+    def feedback_status(task_id: UUID, request: Request):
+        if feedback_registry is None:
+            raise HTTPException(status_code=503, detail="feedback_not_configured")
+        try:
+            actor = authenticated_actor(request)
+            if isinstance(feedback_registry, QualifiedFeedbackRegistry):
+                return feedback_registry.task_status_authenticated(
+                    task_id, actor, request.headers["authorization"].split(" ", 1)[1]
+                )
+            return feedback_registry.task_status(task_id, actor)
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail="feedback_status_denied") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=503, detail="feedback_status_unavailable") from exc
 
     @application.get("/auth/login")
     def begin_login():
