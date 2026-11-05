@@ -32,7 +32,7 @@ atexit.register(_WORKER_STACK.close)
 
 
 @contextmanager
-def demo_service(root: Path):
+def demo_service(root: Path, *, feedback=None):
     root.mkdir(parents=True, exist_ok=True)
     database = root / "orders.db"
     with sqlite3.connect(database) as db:
@@ -84,14 +84,24 @@ def demo_service(root: Path):
             )
 
         yield MetricTaskService(
-            queue=queue, broker=broker, events=events, budgets=budgets, runtime_factory=factory
+            queue=queue,
+            broker=broker,
+            events=events,
+            budgets=budgets,
+            runtime_factory=factory,
+            feedback=feedback,
         )
 
 
 def worker_factory():
     """Trusted synthetic factory for --factory examples.task_submission_demo:worker_factory."""
     root = Path(os.environ["GDA_TASK_DEMO_ROOT"])
-    return _WORKER_STACK.enter_context(demo_service(root))
+    feedback = None
+    if path := os.environ.get("GDA_TASK_DEMO_FEEDBACK"):
+        from generaldataagent.business.governance import FeedbackRegistry
+
+        feedback = FeedbackRegistry(Path(path))
+    return _WORKER_STACK.enter_context(demo_service(root, feedback=feedback))
 
 
 def demonstrate(root: Path) -> dict:
