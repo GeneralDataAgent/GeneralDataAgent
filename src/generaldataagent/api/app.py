@@ -103,6 +103,12 @@ def create_app(
             raise ValueError("local_display_preferences_not_qualified_for_production")
         if metric_tasks is None or display_preferences.tasks is not metric_tasks:
             raise ValueError("display_preferences_must_share_task_service")
+    if (
+        feedback_registry is not None
+        and metric_tasks is not None
+        and metric_tasks.feedback is not feedback_registry
+    ):
+        raise ValueError("feedback_registry_must_share_task_service")
     if task_streams is not None and (
         task_streams.service is not metric_tasks or task_streams.enabled is not service_enabled
     ):

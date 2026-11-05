@@ -57,6 +57,7 @@ def assembly(
     max_attempts=3,
     max_pending=100,
     lease_seconds=60,
+    feedback=None,
 ):
     events = TaskEventJournal(tmp_path / "events.db", clock=clock)
     budgets = TaskBudgetLedger(tmp_path / "budgets.db", clock=clock)
@@ -94,7 +95,12 @@ def assembly(
             )
 
         service = MetricTaskService(
-            queue=queue, events=events, broker=broker, budgets=budgets, runtime_factory=factory
+            queue=queue,
+            events=events,
+            broker=broker,
+            budgets=budgets,
+            runtime_factory=factory,
+            feedback=feedback,
         )
         yield service, saver
 
