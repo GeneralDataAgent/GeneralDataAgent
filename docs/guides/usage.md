@@ -535,7 +535,10 @@ compensation, independent switches/rate limits and per-occurrence report approva
 The Chinese console at `/business` supports scoped browsing, cancellation, approved execution,
 receipt review, read-only recovery and separately approved compensation proposals.
 A separate approval authority serves the reviewer console at `/review`; the business process uses a
-verified HTTPS client without grant authority. Real reviewer/identity/audit enrollment is required.
+verified HTTPS client without grant authority. The authority also exposes
+`GET /v1/approval-requests/mine`, a bounded requester-only todo read with derived state and no
+request parameters, for read-only consumers such as the workspace. Real reviewer/identity/audit
+enrollment is required.
 Feedback curation and capability admission remain separate trusted review workflows. An opt-in
 async model executor adds budgeted routing and encrypted short-lived scoped caching.
 

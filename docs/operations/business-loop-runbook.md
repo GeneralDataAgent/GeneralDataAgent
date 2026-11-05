@@ -573,12 +573,19 @@ are checked against exact request/grant bindings. TLS hostname/certificate verif
 operators may supply a verified SSL context for mTLS. Origins are fixed, redirects are disabled,
 requests/responses/timeouts are bounded, errors are sanitized and no transport retry is automatic.
 
-`/v1/approval-requests` creates requests or lists a bounded reviewer queue. Requester-only inspect,
-validate, consume and cancel operations recheck current scope and requester/delegation. Grant
-consumption is atomic and one-time. Identity/enrollment is checked again after the pre-operation
-audit call. An audit failure prevents the mutation; a lost post-operation audit/response may leave
-an approval consumed and must be investigated without replaying an external delivery. Approval
-records do not themselves establish that any downstream action succeeded.
+`/v1/approval-requests` creates requests or lists a bounded reviewer queue.
+`/v1/approval-requests/mine` is the requester-only todo read: it requires `approvals:request`,
+matches the authenticated user's exact tenant/project and current data domains, and pages newest
+first with `before`/`limit`. Each item is a reduced `ApprovalStatus` projection (target, impact,
+cost, classification, fingerprint, expiry, derived state and decision facts); request `parameters`
+and `rollback_plan` are never returned. Unknown, foreign or no-longer-authorized requests are absent
+rather than distinguishable. This endpoint only reads; approve, reject, cancel, validate and consume
+stay on the separately authenticated authority. Requester-only inspect, validate, consume and cancel
+operations recheck current scope and requester/delegation. Grant consumption is atomic and one-time.
+Identity/enrollment is checked again after the pre-operation audit call. An audit failure prevents
+the mutation; a lost post-operation audit/response may leave an approval consumed and must be
+investigated without replaying an external delivery. Approval records do not themselves establish
+that any downstream action succeeded.
 
 Production authority construction requires `SQLiteSessionBroker`, `VerifiedAuditSink` and
 `FileReleaseAdmission`. Admission/kill switches are evaluated on every request; audit acknowledgements
