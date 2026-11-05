@@ -623,13 +623,15 @@ class SQLiteApprovalStore:
                 "FROM approvals WHERE approval_id = ?",
                 (str(approval_id),),
             ).fetchone()
-            if row is None or row[0] is None:
+            if row is None:
                 raise ApprovalError("approval grant was not found")
             if row[1] is not None:
                 raise ApprovalError("approval grant has already been consumed")
             if row[2] is not None:
                 disposition = ApprovalDisposition.model_validate_json(row[2]).disposition
                 raise ApprovalError(f"approval request was {disposition}")
+            if row[0] is None:
+                raise ApprovalError("approval grant was not found")
             grant = ApprovalGrant.model_validate_json(row[0])
             if grant.expires_at <= self._clock():
                 raise ApprovalError("approval grant has expired")
