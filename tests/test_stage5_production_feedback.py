@@ -243,3 +243,53 @@ def test_feedback_mutation_has_cross_process_and_thread_exclusion(feedback):
     finally:
         os.close(fd)
     assert f.registry.production_ready()
+
+
+def test_production_http_feedback_status_is_creator_private_and_bounded(feedback):
+    f = feedback
+    client = TestClient(
+        create_app(session_broker=f.q.broker, feedback_registry=f.registry, production_mode=True)
+    )
+
+    def headers(who="alice", tenant="t", permissions=("business:read",)):
+        token = f.q.broker.issue(
+            user_id=who,
+            tenant_id=tenant,
+            project_id="p",
+            data_domains=frozenset({"sales"}),
+            permissions=frozenset(permissions),
+        )
+        return {
+            "authorization": f"Bearer {token}",
+            "x-user-id": who,
+            "x-tenant-id": tenant,
+            "x-project-id": "p",
+            "x-data-domain": "sales",
+        }
+
+    path = f"/v1/business/feedback/tasks/{f.task}"
+    assert client.get(path, headers={}).status_code == 401
+    assert client.get(path, headers=headers(permissions=("reviews:submit",))).status_code == 403
+    current = client.get(path, headers=headers())
+    assert current.status_code == 200
+    assert current.json()["eligible"] is True
+    assert current.json()["result_hash"] == f.digest
+    assert current.json()["feedback"] == []
+    assert (
+        client.get(f"/v1/business/feedback/tasks/{uuid4()}", headers=headers()).json()["eligible"]
+        is False
+    )
+    assert client.get(path, headers=headers(who="bob", tenant="other")).json()["eligible"] is False
+    submit(f)
+    body = client.get(path, headers=headers()).json()
+    assert body["eligible"] is True
+    assert body["feedback"] == [
+        {
+            "schema_version": "1.0",
+            "feedback_id": str(f.item.feedback_id),
+            "category": "correctness",
+            "rating": 4,
+            "review_count": 0,
+            "accepted_review_count": 0,
+        }
+    ]

@@ -281,6 +281,13 @@ class QualifiedFeedbackRegistry(FeedbackRegistry):
             scope, item = self._feedback(db, feedback_id)
         return json.loads(scope), item
 
+    def task_status_authenticated(self, task_id, actor, token):
+        self._released()
+        if not self._verified():
+            raise PermissionError("feedback_signed_state_mismatch")
+        self._actor_matches(self._identity(token, "business:read"), actor)
+        return super().task_status(task_id, actor)
+
     def _reviewer(self, token, scope, operation):
         identity = self._identity(token, "reviews:submit")
         if (
