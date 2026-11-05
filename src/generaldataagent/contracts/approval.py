@@ -65,3 +65,52 @@ class ApprovalRecord(ContractModel):
     grant: ApprovalGrant | None = None
     disposition: ApprovalDisposition | None = None
     consumed: bool = False
+
+
+ApprovalState = Literal["pending", "approved", "rejected", "cancelled", "consumed", "expired"]
+
+
+class ApprovalStatus(ContractModel):
+    """Requester-scoped projection: exact target facts, no parameters or rollback text."""
+
+    approval_id: UUID
+    request_fingerprint: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    task_id: UUID
+    tool_name: str = Field(pattern=r"^[a-z][a-z0-9_.-]{0,127}$")
+    action: str = Field(min_length=1, max_length=128)
+    resource: str = Field(min_length=1, max_length=1_024)
+    data_domains: tuple[str, ...] = Field(default=(), max_length=100)
+    classification: ArtifactClassification
+    impact_scope: str = Field(min_length=1, max_length=2_000)
+    cost_estimate: str = Field(min_length=1, max_length=1_000)
+    state: ApprovalState
+    created_at: AwareDatetime
+    expires_at: AwareDatetime
+    decided_at: AwareDatetime | None = None
+    decided_by: str | None = Field(default=None, min_length=1, max_length=128)
+    reason: str | None = Field(default=None, min_length=1, max_length=2_000)
+
+    @model_validator(mode="after")
+    def decision_matches_state(self) -> "ApprovalStatus":
+        if self.expires_at <= self.created_at:
+            raise ValueError("approval status must expire after creation")
+        decided = self.decided_at is not None and self.decided_by is not None
+        if (self.decided_at is None) != (self.decided_by is None):
+            raise ValueError("approval decision must record both time and actor")
+        if self.state in {"rejected", "cancelled"}:
+            if not decided or self.reason is None:
+                raise ValueError("closed approval must record decision and reason")
+        elif self.state in {"approved", "consumed"}:
+            if not decided or self.reason is not None:
+                raise ValueError("approved approval must record only its decision")
+        else:
+            if self.reason is not None:
+                raise ValueError("pending or expired approval cannot carry a reason")
+            if self.state == "pending" and decided:
+                raise ValueError("pending approval cannot record a decision")
+        return self
+
+
+class ApprovalStatusPage(ContractModel):
+    items: tuple[ApprovalStatus, ...] = Field(default=(), max_length=100)
+    next_cursor: int | None = Field(default=None, ge=1)

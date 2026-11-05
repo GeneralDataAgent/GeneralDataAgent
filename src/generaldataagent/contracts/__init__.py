@@ -11,6 +11,8 @@ from generaldataagent.contracts.approval import (
     ApprovalDisposition,
     ApprovalGrant,
     ApprovalRequest,
+    ApprovalStatus,
+    ApprovalStatusPage,
 )
 from generaldataagent.contracts.data_engineering import (
     ColumnChange,
@@ -98,6 +100,8 @@ __all__ = [
     "ApprovalDisposition",
     "ApprovalGrant",
     "ApprovalRequest",
+    "ApprovalStatus",
+    "ApprovalStatusPage",
     "ArtifactClassification",
     "ArtifactRef",
     "AuditEvent",

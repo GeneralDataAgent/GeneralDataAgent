@@ -13,7 +13,7 @@ from pydantic import AwareDatetime, Field
 from generaldataagent.business.actions import content_hash
 from generaldataagent.business.production import QualifiedBusinessActionRuntime
 from generaldataagent.contracts import AuditEvent, ToolRequest
-from generaldataagent.contracts.approval import ApprovalRequest
+from generaldataagent.contracts.approval import ApprovalRequest, ApprovalStatusPage
 from generaldataagent.contracts.models import ContractModel
 from generaldataagent.contracts.types import ArtifactClassification
 from generaldataagent.observability.http import AuditHTTPTransport
@@ -292,6 +292,23 @@ def create_approval_service(
             and reviewer_admitted(identity, record.request) is True
         ]
         return page
+
+    @app.get("/v1/approval-requests/mine", response_model=ApprovalStatusPage)
+    def my_requests(
+        request: Request,
+        before: int | None = Query(default=None, gt=0),
+        limit: int = Query(default=25, ge=1, le=100),
+    ):
+        """Requester-only read of exact target facts; decides and grants stay elsewhere."""
+        identity = actor(request, "approvals:request")
+        return store.requester_page(
+            user_id=identity.user_id,
+            tenant=identity.tenant_id,
+            project=identity.project_id,
+            domains=identity.data_domains,
+            before=before,
+            limit=limit,
+        )
 
     @app.get("/v1/approval-requests/{approval_id}")
     def inspect(approval_id: UUID, request: Request):

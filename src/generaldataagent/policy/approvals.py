@@ -14,6 +14,7 @@ from generaldataagent.contracts import (
     ApprovalDisposition,
     ApprovalGrant,
     ApprovalRequest,
+    ApprovalStatus,
     ArtifactClassification,
     ToolRequest,
 )
@@ -150,6 +151,44 @@ def _disposition(
         disposition=disposition,
         actor_id=actor_id,
         tenant_id=request.tenant_id,
+        reason=reason,
+    )
+
+
+def approval_status(record: ApprovalRecord, *, now: datetime) -> ApprovalStatus:
+    """Derive one requester-facing state without exposing approval authority."""
+    request = record.request
+    if record.consumed:
+        state = "consumed"
+    elif record.disposition is not None:
+        state = record.disposition.disposition
+    elif record.grant is not None:
+        state = "expired" if record.grant.expires_at <= now else "approved"
+    else:
+        state = "expired" if request.expires_at <= now else "pending"
+    decided_at = decided_by = reason = None
+    if record.grant is not None:
+        decided_at, decided_by = record.grant.approved_at, record.grant.approver_id
+    if record.disposition is not None:
+        decided_at = record.disposition.recorded_at
+        decided_by = record.disposition.actor_id
+        reason = record.disposition.reason
+    return ApprovalStatus(
+        approval_id=request.approval_id,
+        request_fingerprint=request.request_fingerprint,
+        task_id=request.task_id,
+        tool_name=request.tool_name,
+        action=request.action,
+        resource=request.resource,
+        data_domains=request.data_domains,
+        classification=request.classification,
+        impact_scope=request.impact_scope,
+        cost_estimate=request.cost_estimate,
+        state=state,
+        created_at=request.created_at,
+        expires_at=request.expires_at,
+        decided_at=decided_at,
+        decided_by=decided_by,
         reason=reason,
     )
 
@@ -410,6 +449,41 @@ class SQLiteApprovalStore:
             ).fetchall()
         return {
             "items": [self.inspect(UUID(row[1])) for row in rows[:limit]],
+            "next_cursor": rows[limit - 1][0] if len(rows) > limit else None,
+        }
+
+    def requester_page(
+        self,
+        *,
+        user_id: str,
+        tenant: str,
+        project: str,
+        domains: frozenset[str],
+        before: int | None = None,
+        limit: int = 25,
+    ) -> dict:
+        """Exact requester scope only; lost domain access removes visibility."""
+        if (
+            type(limit) is not int
+            or not 1 <= limit <= 100
+            or (before is not None and (type(before) is not int or before <= 0))
+        ):
+            raise ValueError("invalid_approval_page")
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT rowid,approval_id FROM approvals "
+                "WHERE json_extract(request_json,'$.user_id')=? "
+                "AND json_extract(request_json,'$.tenant_id')=? "
+                "AND json_extract(request_json,'$.project_id')=? "
+                "AND json_array_length(json_extract(request_json,'$.data_domains'))>0 "
+                "AND NOT EXISTS (SELECT 1 FROM json_each(request_json,'$.data_domains') d "
+                "WHERE d.value NOT IN (SELECT value FROM json_each(?))) "
+                "AND (? IS NULL OR rowid<?) ORDER BY rowid DESC LIMIT ?",
+                (user_id, tenant, project, json.dumps(sorted(domains)), before, before, limit + 1),
+            ).fetchall()
+        now = self._clock()
+        return {
+            "items": [approval_status(self.inspect(UUID(row[1])), now=now) for row in rows[:limit]],
             "next_cursor": rows[limit - 1][0] if len(rows) > limit else None,
         }
 
