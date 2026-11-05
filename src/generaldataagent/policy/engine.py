@@ -194,6 +194,14 @@ DEFAULT_RULES = (
         obligations=("audit", "dlp_scan", "approval"),
     ),
     PolicyRule(
+        tool_name="csv.maintenance.remove",
+        risk_level=RiskLevel.R2,
+        allowed_actions=frozenset({"remove-expired-source"}),
+        allowed_roles=frozenset({"data_engineer"}),
+        requires_approval=True,
+        obligations=("audit", "approval", "tombstone", "retention"),
+    ),
+    PolicyRule(
         tool_name="production.write",
         risk_level=RiskLevel.R3,
         allowed_actions=frozenset({"insert", "update", "delete", "deploy"}),

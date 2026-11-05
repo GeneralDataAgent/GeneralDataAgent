@@ -43,6 +43,8 @@ class ApprovalStore(Protocol):
 
     def consume(self, approval_id: UUID, request: ToolRequest) -> ApprovalGrant: ...
 
+    def consume_granted(self, approval_id: UUID) -> ApprovalGrant: ...
+
     def reject(
         self,
         approval_id: UUID,
@@ -269,6 +271,24 @@ class InMemoryApprovalStore:
             except KeyError as exc:
                 raise ApprovalError("approval grant was not found") from exc
             _validate_grant(approval_request, grant, request, now=self._clock())
+            self._consumed.add(approval_id)
+            return grant
+
+    def consume_granted(self, approval_id: UUID) -> ApprovalGrant:
+        """Trusted operator port; the caller must bind the approved action itself."""
+
+        with self._lock:
+            if approval_id in self._consumed:
+                raise ApprovalError("approval grant has already been consumed")
+            if approval_id in self._dispositions:
+                disposition = self._dispositions[approval_id].disposition
+                raise ApprovalError(f"approval request was {disposition}")
+            try:
+                grant = self._grants[approval_id]
+            except KeyError as exc:
+                raise ApprovalError("approval grant was not found") from exc
+            if grant.expires_at <= self._clock():
+                raise ApprovalError("approval grant has expired")
             self._consumed.add(approval_id)
             return grant
 
@@ -588,6 +608,35 @@ class SQLiteApprovalStore:
                 "UPDATE approvals SET consumed_at = ? "
                 "WHERE approval_id = ? AND consumed_at IS NULL AND disposition_json IS NULL",
                 (consumed_at, str(approval_id)),
+            )
+            if updated.rowcount != 1:
+                raise ApprovalError("approval grant has already been consumed")
+        return grant
+
+    def consume_granted(self, approval_id: UUID) -> ApprovalGrant:
+        """Trusted operator port; the caller must bind the approved action itself."""
+
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                "SELECT grant_json, consumed_at, disposition_json "
+                "FROM approvals WHERE approval_id = ?",
+                (str(approval_id),),
+            ).fetchone()
+            if row is None or row[0] is None:
+                raise ApprovalError("approval grant was not found")
+            if row[1] is not None:
+                raise ApprovalError("approval grant has already been consumed")
+            if row[2] is not None:
+                disposition = ApprovalDisposition.model_validate_json(row[2]).disposition
+                raise ApprovalError(f"approval request was {disposition}")
+            grant = ApprovalGrant.model_validate_json(row[0])
+            if grant.expires_at <= self._clock():
+                raise ApprovalError("approval grant has expired")
+            updated = connection.execute(
+                "UPDATE approvals SET consumed_at = ? "
+                "WHERE approval_id = ? AND consumed_at IS NULL AND disposition_json IS NULL",
+                (self._clock().isoformat(), str(approval_id)),
             )
             if updated.rowcount != 1:
                 raise ApprovalError("approval grant has already been consumed")
