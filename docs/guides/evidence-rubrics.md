@@ -1,4 +1,4 @@
-# Versioned evidence rubrics (Stages 14.1A–14.1B)
+# Versioned evidence rubrics (Stages 14.1A–14.1C)
 
 `TaskRubric` is a deterministic, versioned acceptance declaration for **one task**. It is a library
 port: there is no API route, model call, automatic repair, approval, audit write or production mode
@@ -128,14 +128,63 @@ are explicit:
 `revision_performed=false`, and carries its own digest. Model comments cannot override a
 deterministic failure, and an evaluation never rewrites an older rubric or delivery.
 
+## Bound a revision attempt
+
+`BoundedRevisionController` is a deterministic gate, not a repair loop. It pins the task and rubric
+digest, and it answers only whether one more revision may be spent on the exact retained version.
+Only a selected `gap` check can trigger a revision; `pass` stops as satisfied, `needs_human` stops
+for human review, and neither consumes a revision.
+
+```python
+from generaldataagent.contracts.revision import RevisionBudget
+from generaldataagent.memory.display_preferences import canonical_hash
+from generaldataagent.review.bounded_revision import BoundedRevisionController
+
+version_digest = canonical_hash(delivery_package.model_dump(mode="json"))
+evidence_digests = tuple(sorted(ref.content_hash for ref in delivery_package.evidence))
+controller = BoundedRevisionController(
+    rubric,
+    initial_delivery_digest=version_digest,
+    initial_evidence_digests=evidence_digests,
+)
+
+decision = controller.request(
+    result,
+    check_id=result.checks[0].check_id,  # must name a gap check
+    budget=RevisionBudget(remaining_seconds=30, remaining_tokens=2_000, remaining_tool_calls=2),
+    input_digest=version_digest,
+    input_evidence_digests=evidence_digests,
+)
+if decision.allowed:
+    revised = produce_revision(delivery_package)  # caller-owned; no model here
+    controller.record(
+        output_digest=canonical_hash(revised.model_dump(mode="json")),
+        output_evidence_digests=tuple(sorted(ref.content_hash for ref in revised.evidence)),
+    )
+ledger = controller.ledger()
+```
+
+A revision needs positive remaining seconds, tokens and tool calls, and at most two are allowed.
+`no_source`, `no_capability` and `authorization_denied` — like every cause the routing policy marks
+non-retryable — stop without consuming a revision. The controller refuses a changed rubric, another
+task, a stale input/evidence set, an unknown or non-gap check, a second request before the produced
+output is recorded, an unchanged output, and unordered/malformed evidence. Recorded versions keep
+both input and output digests and both evidence sets; the ledger is digest-bound and carries the
+terminal stop reason (`revision_open` while unfinished). See
+[ADR 0025](../adr/0025-bounded-rubric-revisions.md).
+
 ## Limits
 
-These slices do not resolve metric aliases, perform the Stage 14 bounded revision loop, display a
-UI, integrate with a live business workflow or the metric graph, write approvals/audit or change
-production admission. A `human_attestation` receipt is an attestation recorded by an existing
-authority, not independent truth or business correctness. `independent_review=not_run`,
+These slices do not resolve metric aliases, display a UI, integrate with a live business workflow or
+the metric graph, write approvals/audit or change production admission. The revision controller
+does not perform the revision, call a model or judge prose; it also does not re-run verifiers, so the
+caller must supply an evaluation of the current version. A revised delivery still has to pass
+`evaluate_rubric` before delivery, and a stale gap evaluation can only waste the two bounded
+revisions. A `human_attestation` receipt is an attestation recorded by an existing authority, not
+independent truth or business correctness. `independent_review=not_run`,
 `production_accepted=false`.
 
 ```bash
-uv run pytest tests/test_stage14_task_rubric.py tests/test_stage14_rubric_templates.py
+uv run pytest tests/test_stage14_task_rubric.py tests/test_stage14_rubric_templates.py \
+  tests/test_stage14_bounded_revision.py
 ```
