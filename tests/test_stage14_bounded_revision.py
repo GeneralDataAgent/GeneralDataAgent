@@ -214,6 +214,8 @@ def test_nonrevisionable_cause_does_not_consume(code, cause):
     assert stop.reason == f"revision_not_applicable_{cause}"
     assert controller.report()["revisions"] == 0
     assert ask(controller, evaluation_for(rubric, check())).attempt == 1
+    controller.record(output_digest=digest("delivery-1"))
+    assert controller.ledger().stopped_reason == "revision_open"
 
 
 @pytest.mark.parametrize(

@@ -188,6 +188,9 @@ class BoundedRevisionController:
             cause=cause,
             rubric_digest=self._rubric_digest,
         )
+        # A later, different gap can supersede an earlier refusal; the ledger
+        # reports the terminal state, so an authorized attempt reopens it.
+        self._stop_reason = None
         self._pending = decision
         return decision
 
