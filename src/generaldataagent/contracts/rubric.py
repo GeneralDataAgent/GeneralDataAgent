@@ -22,7 +22,7 @@ RUBRIC_VERSION = "1.0"
 RubricOutcome = Literal["satisfied", "gap", "needs_human"]
 RubricVerdict = Literal["pass", "fail", "needs_human"]
 
-_VERIFIER_IDS = frozenset(
+RUBRIC_VERIFIER_IDS = frozenset(
     {
         "rubric.required_checks_present",
         "rubric.time_range_bound",
@@ -33,6 +33,7 @@ _VERIFIER_IDS = frozenset(
         "rubric.human_items_acknowledged",
     }
 )
+_VERIFIER_IDS = RUBRIC_VERIFIER_IDS
 
 
 class RubricSourceRequirement(ContractModel):

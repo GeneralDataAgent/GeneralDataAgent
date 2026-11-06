@@ -1,4 +1,4 @@
-# Versioned evidence rubrics (Stage 14.1A)
+# Versioned evidence rubrics (Stages 14.1A–14.1B)
 
 `TaskRubric` is a deterministic, versioned acceptance declaration for **one task**. It is a library
 port: there is no API route, model call, automatic repair, approval, audit write or production mode
@@ -66,6 +66,38 @@ verifiers; unknown, duplicate, incomplete or omitted IDs, unparseable/inverted I
 duplicate sources/human items, or a changed field with an old digest are refused. The IDs and their
 deterministic checks are listed in [ADR 0023](../adr/0023-versioned-evidence-rubrics.md).
 
+## Bind a fixed business template
+
+Three repository-owned v1 templates bind a business report shape to the complete verifier set,
+required claim types, minimum source count and a named human item:
+
+| Template | Minimum sources | Required claims | Human item |
+|---|---|---|---|
+| `business.weekly_report` | 1 | `fact`, `interpretation`, `limitation` | `business_owner_signoff` |
+| `business.channel_change` | 2 | `fact`, `interpretation`, `limitation` | `channel_owner_signoff` |
+| `business.anomaly_list` | 1 | `fact`, `recommendation`, `limitation` | `operations_owner_signoff` |
+
+```python
+from generaldataagent.contracts.rubric import RubricMethodRequirement, RubricSourceRequirement
+from generaldataagent.review.rubric_templates import bind_business_template
+
+rubric = bind_business_template(
+    template_id="business.channel_change",
+    task_id=task_id,
+    metric_name="channel_share",  # already resolved upstream; no alias guessing here
+    metric_version="v1",
+    start_time="2026-11-01",
+    end_time="2026-11-02",
+    sources=(orders_source, channels_source),
+    method=RubricMethodRequirement(method_id="metric.certified", method_version="v1"),
+)
+```
+
+Binding adds every template requirement; callers can add claims or human items, never remove them.
+Unknown templates/claim types, duplicate sources/claims/human items, too few sources, a
+source/method verifier mismatch or a template digest mismatch are refused. Metric alias ambiguity
+must be resolved or refused before binding. See [ADR 0024](../adr/0024-business-rubric-templates.md).
+
 ## Evaluate one delivery
 
 ```python
@@ -98,11 +130,12 @@ deterministic failure, and an evaluation never rewrites an older rubric or deliv
 
 ## Limits
 
-This slice does not bind business templates, perform the Stage 14 bounded revision loop, display a
-UI, integrate with the metric graph, write approvals/audit or change production admission. A
-`human_attestation` receipt is an attestation recorded by an existing authority, not independent
-truth or business correctness. `independent_review=not_run`, `production_accepted=false`.
+These slices do not resolve metric aliases, perform the Stage 14 bounded revision loop, display a
+UI, integrate with a live business workflow or the metric graph, write approvals/audit or change
+production admission. A `human_attestation` receipt is an attestation recorded by an existing
+authority, not independent truth or business correctness. `independent_review=not_run`,
+`production_accepted=false`.
 
 ```bash
-uv run pytest tests/test_stage14_task_rubric.py
+uv run pytest tests/test_stage14_task_rubric.py tests/test_stage14_rubric_templates.py
 ```
