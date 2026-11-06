@@ -33,7 +33,7 @@ Status vocabulary:
 | Explicit private display preference CAS/history and evidence-bound result presentation | `/v1/analysis/preferences/display`, `/v1/analysis/tasks/{task_id}/presentation`, [guide](../guides/confirmed-display-preferences.md) | Opt-in local pilot; no free-form memory or execution-context injection |
 | Exact-domain-view task pages and evidence-rechecked completed results | `GET /v1/analysis/tasks`, `GET /v1/analysis/tasks/{task_id}/result`, [guide](../guides/task-results.md) | Opt-in local pilot; creator-private, no execution on result reads |
 | Bounded task status/progress SSE with live authorization and reconnect cursors | `GET /v1/analysis/tasks/{task_id}/stream`, [guide](../guides/task-streaming.md) | Opt-in local pilot; no raw graph/model stream |
-| Versioned task evidence rubric with named deterministic verifiers | `review/rubric.py`, [guide](../guides/evidence-rubrics.md), [ADR](../adr/0023-versioned-evidence-rubrics.md) | Deterministic library port; no model judgement, automatic revision, business templates or production qualification |
+| Versioned task evidence rubric with named deterministic verifiers and three fixed business templates | `review/rubric.py`, `review/rubric_templates.py`, [guide](../guides/evidence-rubrics.md), [ADR 0023](../adr/0023-versioned-evidence-rubrics.md), [ADR 0024](../adr/0024-business-rubric-templates.md) | Deterministic library port; no metric resolution, model judgement, automatic revision or production qualification |
 | Capability self-description | `GET /v1/capabilities` | Available (always on) |
 
 ## 2. Open analysis and benchmark evaluation
