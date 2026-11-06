@@ -1,4 +1,4 @@
-# Versioned evidence rubrics (Stages 14.1A–14.1C)
+# Versioned evidence rubrics (Stages 14.1A–14.1D)
 
 `TaskRubric` is a deterministic, versioned acceptance declaration for **one task**. It is a library
 port: there is no API route, model call, automatic repair, approval, audit write or production mode
@@ -173,18 +173,41 @@ both input and output digests and both evidence sets; the ledger is digest-bound
 terminal stop reason (`revision_open` while unfinished). See
 [ADR 0025](../adr/0025-bounded-rubric-revisions.md).
 
+## Display the result
+
+```python
+from generaldataagent.review.rubric_display import render_rubric_display
+
+display = render_rubric_display(rubric, result)
+print(display.verdict)  # pass / fail / needs_human
+print(display.satisfied)  # 满足
+print(display.gaps)  # 缺口
+print(display.needs_human)  # 待确认
+print(display.provenance)
+```
+
+Every check appears exactly once in `satisfied`, `gaps` or `needs_human`, in canonical order, and the
+verdict is re-derived from those buckets. Provenance is fixed and cannot be upgraded by prose:
+`producer_self_check=true`, `independent_recheck="not_run"` (no independent evidence contract exists
+in this slice), `human_signoff` is `not_required`/`required`/`satisfied`, and
+`model_commentary_authoritative=false`. The display accepts no model text; a comment can be rendered
+beside it as annotation but cannot change a state. A task/rubric mismatch, incomplete or duplicated
+verifier set, missing human check or a human check reported as a gap is refused. See
+[ADR 0026](../adr/0026-deterministic-rubric-display.md).
+
 ## Limits
 
-These slices do not resolve metric aliases, display a UI, integrate with a live business workflow or
-the metric graph, write approvals/audit or change production admission. The revision controller
-does not perform the revision, call a model or judge prose; it also does not re-run verifiers, so the
-caller must supply an evaluation of the current version. A revised delivery still has to pass
-`evaluate_rubric` before delivery, and a stale gap evaluation can only waste the two bounded
-revisions. A `human_attestation` receipt is an attestation recorded by an existing authority, not
-independent truth or business correctness. `independent_review=not_run`,
+These slices do not resolve metric aliases, add a UI or API route, integrate with a live business
+workflow or the metric graph, write approvals/audit or change production admission. The revision
+controller does not perform the revision, call a model or judge prose; it also does not re-run
+verifiers, so the caller must supply an evaluation of the current version. A revised delivery still
+has to pass `evaluate_rubric` before delivery, and a stale gap evaluation can only waste the two
+bounded revisions. The display reports `independent_recheck="not_run"` because no independent
+recalculation evidence exists; a human attestation is an attestation recorded by an existing
+authority, not independent truth or business correctness. `independent_review=not_run`,
 `production_accepted=false`.
 
 ```bash
 uv run pytest tests/test_stage14_task_rubric.py tests/test_stage14_rubric_templates.py \
-  tests/test_stage14_bounded_revision.py
+  tests/test_stage14_bounded_revision.py tests/test_stage14_rubric_display.py
 ```
