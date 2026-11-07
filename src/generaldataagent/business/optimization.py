@@ -183,6 +183,41 @@ class GovernedModelExecutor:
             raise ValueError("model providers must implement an async bounded adapter")
         self.providers, self.cache = dict(providers), cache
         self.authorized, self.enabled = authorized, enabled
+        self.snapshot_specs: dict[tuple[str, str], object] = {}
+        self._snapshot_spec_type: type | None = None
+
+    def snapshot_spec(self, route: ModelRoute):
+        """Return the reviewed snapshot spec; absence means snapshots stay off."""
+        return self.snapshot_specs.get((route.name, route.version))
+
+    def _load_snapshot_spec_type(self):
+        if self._snapshot_spec_type is None:
+            from generaldataagent.routing.snapshot import RouteSnapshotSpec
+
+            self._snapshot_spec_type = RouteSnapshotSpec
+        return self._snapshot_spec_type
+
+    def _snapshot(self, task_id, request, route, result, *, reserved_cost, cached, elapsed_ms):
+        from generaldataagent.routing.snapshot import RouteSnapshotTracker
+
+        spec = self.snapshot_spec(route)
+        if spec is not None and not isinstance(spec, self._load_snapshot_spec_type()):
+            raise TypeError("routing_snapshot_spec_invalid")
+        if spec is None:
+            return None
+        tracker = RouteSnapshotTracker.create(
+            task_id=task_id,
+            decision_id=f"route-{route.name}-{route.version}",
+            spec=spec,
+            route=route,
+            request=request,
+        )
+        return tracker.snapshot(
+            reserved_cost_microunits=reserved_cost,
+            result=None if cached else result,
+            elapsed_ms=None if cached else elapsed_ms,
+            cached=cached,
+        ).model_dump(mode="json")
 
     def execute(self, task_id: UUID, actor: ActorContext, request: RoutingRequest) -> dict:
         return asyncio.run(self.aexecute(task_id, actor, request))
@@ -223,7 +258,22 @@ class GovernedModelExecutor:
         if cached is not None:
             # Cache access remains subject to current authorization, admission and deadline.
             self._recheck(task_id, actor, request, route)
-            return self._result(cached, route, True, 0, started)
+            return self._result(
+                cached,
+                route,
+                True,
+                0,
+                started,
+                snapshot=self._snapshot(
+                    task_id,
+                    request,
+                    route,
+                    cached,
+                    reserved_cost=0,
+                    cached=True,
+                    elapsed_ms=0,
+                ),
+            )
         cost = route.cost_bound(request)
         self.budgets.reserve(
             task_id,
@@ -247,7 +297,22 @@ class GovernedModelExecutor:
             raise TimeoutError("model_latency_budget_exceeded")
         if self.cache is not None:
             self.cache.put(cache_key, result)
-        return self._result(result, route, False, cost, started)
+        return self._result(
+            result,
+            route,
+            False,
+            cost,
+            started,
+            snapshot=self._snapshot(
+                task_id,
+                request,
+                route,
+                result,
+                reserved_cost=cost,
+                cached=False,
+                elapsed_ms=int((monotonic() - started) * 1000),
+            ),
+        )
 
     def _recheck(self, task_id, actor, request, route):
         if route not in self.routes or route.enabled is not True:
@@ -258,7 +323,7 @@ class GovernedModelExecutor:
         self.budgets.ensure_active(task_id, actor)
 
     @staticmethod
-    def _result(result, route, cached, reserved_cost, started):
+    def _result(result, route, cached, reserved_cost, started, *, snapshot=None):
         return {
             "result": result.model_dump(mode="json"),
             "model": route.name,
@@ -266,4 +331,5 @@ class GovernedModelExecutor:
             "cached": cached,
             "reserved_cost_microunits": reserved_cost,
             "duration_ms": (monotonic() - started) * 1000,
+            "routing_snapshot": snapshot,
         }

@@ -82,6 +82,8 @@ class RoutedNarrator:
                 for key in ("input_tokens", "output_tokens")
             }
         )
+        if result["routing_snapshot"] is not None:
+            usage["routing_snapshot"] = result["routing_snapshot"]
         return narrative, usage
 
 

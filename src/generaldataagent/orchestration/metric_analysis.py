@@ -30,6 +30,7 @@ from generaldataagent.contracts import (
     ValidationResult,
     ValidationStatus,
 )
+from generaldataagent.contracts.routing_snapshot import RoutingSnapshot
 from generaldataagent.llm.routed import RoutedNarrator
 from generaldataagent.observability import JsonlAuditSink
 from generaldataagent.observability.alerts import CriticalAlertRouter
@@ -509,6 +510,21 @@ class MetricAnalysisRuntime:
                     ),
                 )
                 analysis["model_usage"] = usage
+                snapshot = usage.get("routing_snapshot")
+                if snapshot is not None:
+                    declaration = RoutingSnapshot.model_validate(snapshot)
+                    if declaration.task_id != request.task_id:
+                        raise ValueError("routing_snapshot_task_mismatch")
+                    snapshot_artifact = self.artifacts.put_json(
+                        task_id=request.task_id,
+                        artifact_type="routing_snapshot",
+                        value=declaration.model_dump(mode="json"),
+                        created_by="deterministic-router",
+                    )
+                    analysis["routing_snapshot"] = declaration.model_dump(mode="json")
+                    analysis["routing_snapshot_artifact"] = snapshot_artifact.model_dump(
+                        mode="json"
+                    )
                 self._emit("analysis.model_usage", state, usage)
             else:
                 narrative = self.narrator.generate(narrative_evidence)
@@ -583,6 +599,8 @@ class MetricAnalysisRuntime:
         evidence = [result["artifact"], result["chart_artifact"]]
         if result.get("narrative_artifact"):
             evidence.append(result["narrative_artifact"])
+        if result.get("routing_snapshot_artifact"):
+            evidence.append(result["routing_snapshot_artifact"])
         package = DeliveryPackage(
             metric=result["metric"],
             columns=tuple(result["columns"]),
