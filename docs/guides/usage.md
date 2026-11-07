@@ -123,6 +123,11 @@ Dataset-specific vocabulary and manuals belong in a versioned Skill or knowledge
 code. See [Dataset extensions](dataset-extensions.md) for the admission path and the worked
 `examples/skills/*.json` manifests.
 
+Product model execution can optionally record a digest-bound routing snapshot with pinned prices
+and provider-reported usage. It is off by default and requires an operator-reviewed spec enrolled
+on the exact admitted route; see [Product routing snapshots](product-routing-snapshot.md). This is
+not a live pricing feed, a paired performance result or a production admission change.
+
 ## Run the real-data and real-model validation
 
 Prerequisites:
