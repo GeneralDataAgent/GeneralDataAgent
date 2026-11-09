@@ -128,6 +128,13 @@ and provider-reported usage. It is off by default and requires an operator-revie
 on the exact admitted route; see [Product routing snapshots](product-routing-snapshot.md). This is
 not a live pricing feed, a paired performance result or a production admission change.
 
+## Account for parent and child task budgets
+
+Stage 15.1B reserves a child budget inside the parent task's total budget, and refuses an
+incomplete, mismatched, oversized or closed operation. Partial telemetry keeps missing
+values unknown, and cancelled children cannot be re-derived. See
+[Parent/child budgets](parent-child-budgets.md).
+
 ## Run the real-data and real-model validation
 
 Prerequisites:
