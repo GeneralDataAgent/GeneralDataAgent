@@ -142,6 +142,12 @@ partial telemetry; complete usage settles only through an explicit call. It is n
 runtime or lease-fenced queue. See
 [Bounded child concurrency](bounded-child-concurrency.md).
 
+Stage 15.1D summarizes declared end-to-end samples with queue time, p50/p95 latency, model and
+tool usage, actual versus estimated usage, and cost per successful task. Incomplete usage stays
+unknown and suppresses cost totals rather than becoming zero. A two-arm comparison requires the
+same task set and never claims causal attribution or production usability. See
+[Resource and experience measurement](resource-experience.md).
+
 ## Run the real-data and real-model validation
 
 Prerequisites:
