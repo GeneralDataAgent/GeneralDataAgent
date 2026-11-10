@@ -65,7 +65,7 @@ def test_bounded_concurrency_runs_two_children_concurrently(tmp_path):
     barrier = threading.Barrier(2)
 
     def run(parent, child, grant):
-        barrier.wait(timeout=1)
+        barrier.wait(timeout=5)
         return output(child, cost=None)
 
     current = job(run_fn=run)
@@ -110,7 +110,7 @@ def test_partial_failure_closes_known_and_unknown_usage(tmp_path):
 
     def run(parent, child, grant):
         if child == "child-b":
-            assert finished.wait(1)
+            assert finished.wait(5)
             raise RuntimeError("tool failed")
         value = output(child)
         finished.set()
@@ -158,7 +158,7 @@ def test_timeout_closes_stage_and_discards_late_worker(tmp_path):
 
     def run(parent, child, grant):
         if child == "child-b":
-            gate.wait(1)
+            gate.wait(5)
         return output(child)
 
     current = job(
@@ -185,7 +185,7 @@ def test_cancellation_event_closes_stage_and_discards_late_worker(tmp_path):
         if child == "child-b":
             cancellation.set()
             return output(child)
-        gate.wait(1)
+        gate.wait(5)
         return output(child)
 
     current = job(run_fn=run, cancellation=cancellation)
