@@ -139,7 +139,9 @@ def compare_resource_experience(
 
     base = summarize_resource_experience(baseline)
     cand = summarize_resource_experience(candidate)
-    latency_ratio = cand["p95_latency_ms"] / base["p95_latency_ms"]
+    latency_ratio = (
+        cand["p95_latency_ms"] / base["p95_latency_ms"] if base["p95_latency_ms"] > 0 else None
+    )
     cost_ratio = None
     if (
         base["cost_per_success_microunits"] is not None
@@ -152,11 +154,11 @@ def compare_resource_experience(
         )
 
     improved = []
-    if latency_ratio <= 1 - min_relative_improvement:
+    if latency_ratio is not None and latency_ratio <= 1 - min_relative_improvement:
         improved.append("p95_latency")
     if cost_ratio is not None and cost_ratio <= 1 - min_relative_improvement:
         improved.append("cost_per_success")
-    regressed = latency_ratio > 1 + max_relative_regression or (
+    regressed = (latency_ratio is not None and latency_ratio > 1 + max_relative_regression) or (
         cost_ratio is not None and cost_ratio > 1 + max_relative_regression
     )
     candidate_preferred = (

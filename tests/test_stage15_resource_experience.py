@@ -186,3 +186,10 @@ def test_comparison_requires_the_same_task_set():
 def test_invalid_comparison_thresholds_are_refused():
     with pytest.raises(ValueError, match="resource_comparison_threshold_invalid"):
         compare_resource_experience(samples([100]), samples([100]), min_relative_improvement=0)
+
+
+def test_zero_latency_does_not_divide_by_zero():
+    rows = [sample("task-a", queue=0, latency=0)]
+    comparison = compare_resource_experience(rows, rows)
+    assert comparison["deltas"]["p95_latency_ratio"] is None
+    assert comparison["preferred_arm"] == "baseline"
