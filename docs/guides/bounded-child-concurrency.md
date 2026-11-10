@@ -5,12 +5,14 @@ read-only children at one fixed depth. It does not select a route, register a to
 API. It runs children only through caller-supplied callables.
 
 ```python
+from pathlib import Path
+
 from generaldataagent.contracts.child_budget import BudgetReservationAmount
 from generaldataagent.contracts.child_execution import GovernorJob
 from generaldataagent.routing.child_budgets import ChildBudgetBook
 from generaldataagent.routing.child_execution import ChildExecutionGovernor
 
-governor = ChildExecutionGovernor(ChildBudgetBook("state/child-budgets"))
+governor = ChildExecutionGovernor(ChildBudgetBook(Path("state/child-budgets")))
 
 
 def reserve(child):
