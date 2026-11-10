@@ -13,7 +13,9 @@ from generaldataagent.contracts.child_budget import (
 from generaldataagent.routing.child_budgets import ChildBudgetBook
 
 book = ChildBudgetBook(path)
-reservation = book.reserve(parent_task_id, "child-a", "res-a", BudgetReservationAmount(tokens=100, tool_calls=10))
+reservation = book.reserve(
+    parent_task_id, "child-a", "res-a", BudgetReservationAmount(tokens=100, tool_calls=10)
+)
 settlement = book.settle(
     parent_task_id,
     "child-a",
