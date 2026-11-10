@@ -193,3 +193,14 @@ def test_zero_latency_does_not_divide_by_zero():
     comparison = compare_resource_experience(rows, rows)
     assert comparison["deltas"]["p95_latency_ratio"] is None
     assert comparison["preferred_arm"] == "baseline"
+
+
+def test_non_boolean_outcome_is_refused():
+    with pytest.raises(ValueError):
+        ResourceExperienceSample(
+            task_id="task-a",
+            passed=1,
+            queue_ms=0,
+            latency_ms=1,
+            model_calls=1,
+        )

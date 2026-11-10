@@ -16,11 +16,11 @@ from generaldataagent.contracts.models import ContractModel
 class EstimatedResource(ContractModel):
     """Pre-run estimate; a missing field is unknown, not zero."""
 
-    tokens: int | None = Field(default=None, ge=0)
-    tool_calls: int | None = Field(default=None, ge=0)
-    scan_bytes: int | None = Field(default=None, ge=0)
-    cost_microunits: int | None = Field(default=None, ge=0)
-    runtime_milliseconds: int | None = Field(default=None, ge=0)
+    tokens: int | None = Field(default=None, ge=0, strict=True)
+    tool_calls: int | None = Field(default=None, ge=0, strict=True)
+    scan_bytes: int | None = Field(default=None, ge=0, strict=True)
+    cost_microunits: int | None = Field(default=None, ge=0, strict=True)
+    runtime_milliseconds: int | None = Field(default=None, ge=0, strict=True)
 
     @model_validator(mode="after")
     def at_least_one_estimate(self) -> EstimatedResource:
@@ -44,10 +44,10 @@ class ResourceExperienceSample(ContractModel):
         max_length=128,
         pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$",
     )
-    passed: bool
-    queue_ms: int = Field(ge=0)
-    latency_ms: int = Field(ge=0)
-    model_calls: int = Field(ge=0)
+    passed: bool = Field(strict=True)
+    queue_ms: int = Field(ge=0, strict=True)
+    latency_ms: int = Field(ge=0, strict=True)
+    model_calls: int = Field(ge=0, strict=True)
     estimated: EstimatedResource | None = None
     measured: BudgetUsageAmount | None = None
 
