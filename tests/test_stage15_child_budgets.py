@@ -249,3 +249,91 @@ def test_unknown_and_unknown_price_are_not_constructed_as_zero_cost(tmp_path):
     assert settlement.usage.cost_microunits is None
     assert settlement.usage.tokens is None
     assert settlement.usage.complete is False
+
+
+def test_reserve_many_is_all_or_none(tmp_path):
+    ledger = book(tmp_path)
+    parent = uuid4()
+    ledger.reserve(parent, "child-b", "res-b", amount())
+
+    with pytest.raises(ChildBudgetRefused):
+        ledger.reserve_many(
+            parent,
+            {
+                "child-a": ("res-a", amount()),
+                "child-b": ("res-other", amount(tokens=1)),
+            },
+        )
+
+    assert ledger.get(parent, "child-a") is None
+    assert ledger.get(parent, "child-b").status == "reserved"
+
+
+def test_record_telemetry_many_is_all_or_none(tmp_path):
+    ledger = book(tmp_path)
+    parent = uuid4()
+    reservations = ledger.reserve_many(
+        parent, {"child-a": ("res-a", amount()), "child-b": ("res-b", amount())}
+    )
+
+    with pytest.raises(ChildBudgetRefused):
+        ledger.record_telemetry_many(
+            parent,
+            {
+                "child-a": (
+                    reservations["child-a"].reservation_digest,
+                    usage(complete=False, tokens=40),
+                    0,
+                ),
+                "child-b": (
+                    reservations["child-b"].reservation_digest,
+                    usage(complete=False, tokens=200),
+                    0,
+                ),
+            },
+        )
+
+    assert ledger.get(parent, "child-a").status == "reserved"
+    assert ledger.get(parent, "child-a").generation == 0
+    assert ledger.get(parent, "child-b").status == "reserved"
+
+
+def test_close_many_is_all_or_none(tmp_path):
+    ledger = book(tmp_path)
+    parent = uuid4()
+    reservations = ledger.reserve_many(
+        parent, {"child-a": ("res-a", amount()), "child-b": ("res-b", amount())}
+    )
+
+    with pytest.raises(ChildBudgetRefused):
+        ledger.close_many(
+            parent,
+            "failed",
+            {
+                "child-a": (reservations["child-a"].reservation_digest, usage(complete=False)),
+                "child-b": ("wrong-digest", usage(complete=False)),
+            },
+        )
+
+    assert ledger.get(parent, "child-a").status == "reserved"
+    assert ledger.get(parent, "child-b").status == "reserved"
+
+
+def test_settle_many_is_all_or_none(tmp_path):
+    ledger = book(tmp_path)
+    parent = uuid4()
+    reservations = ledger.reserve_many(
+        parent, {"child-a": ("res-a", amount()), "child-b": ("res-b", amount())}
+    )
+
+    with pytest.raises(ChildBudgetRefused):
+        ledger.settle_many(
+            parent,
+            {
+                "child-a": (reservations["child-a"].reservation_digest, usage(), 0),
+                "child-b": ("wrong-digest", usage(), 0),
+            },
+        )
+
+    assert ledger.get(parent, "child-a").status == "reserved"
+    assert ledger.get(parent, "child-b").status == "reserved"

@@ -135,6 +135,13 @@ incomplete, mismatched, oversized or closed operation. Partial telemetry keeps m
 values unknown, and cancelled children cannot be re-derived. See
 [Parent/child budgets](parent-child-budgets.md).
 
+Stage 15.1C adds an in-process governor for one or two independent read-only children. It
+reserves the stage atomically, runs children under per-child and stage deadlines, closes a
+failed or cancelled stage atomically, and discards late worker results. A successful run records
+partial telemetry; complete usage settles only through an explicit call. It is not a worker
+runtime or lease-fenced queue. See
+[Bounded child concurrency](bounded-child-concurrency.md).
+
 ## Run the real-data and real-model validation
 
 Prerequisites:

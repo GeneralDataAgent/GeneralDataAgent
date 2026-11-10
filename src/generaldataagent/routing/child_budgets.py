@@ -81,6 +81,92 @@ class ChildBudgetBook:
             )
         )
 
+    def reserve_many(
+        self,
+        parent_task_id: UUID,
+        items: dict[str, tuple[str, BudgetReservationAmount]],
+    ) -> dict[str, ChildBudgetReservation]:
+        if (
+            type(parent_task_id) is not UUID
+            or not isinstance(items, dict)
+            or not items
+            or len(items) > 2
+            or any(
+                not self._name(child_id)
+                or not self._name(reservation_id)
+                or not isinstance(amount, BudgetReservationAmount)
+                for child_id, (reservation_id, amount) in items.items()
+            )
+        ):
+            raise ChildBudgetRefused("child_budget_input_invalid")
+        child_ids = list(items)
+        keys = [self._key(parent_task_id, child) for child in child_ids]
+        digests = {
+            child: self._digest(
+                parent_task_id,
+                child,
+                reservation_id,
+                amount,
+            )
+            for child, (reservation_id, amount) in items.items()
+        }
+        created = self._now()
+        results = {}
+        with closing(sqlite3.connect(self.path, timeout=5)) as db, db:
+            db.execute("BEGIN IMMEDIATE")
+            for child, key in zip(child_ids, keys, strict=True):
+                reservation_id, amount = items[child]
+                digest = digests[child]
+                row = db.execute(
+                    "SELECT key,payload FROM child_budgets WHERE key=?", (key,)
+                ).fetchone()
+                if row is not None:
+                    existing = ChildBudgetState.model_validate_json(row[1])
+                    if existing.reservation_digest != digest:
+                        raise ChildBudgetRefused("child_budget_reservation_conflict")
+                    if existing.state != "active":
+                        raise ChildBudgetRefused("child_budget_closed")
+                    if existing.status in {
+                        "settled",
+                        "released",
+                        "failed",
+                        "unknown",
+                    }:
+                        raise ChildBudgetRefused("child_budget_terminal")
+                else:
+                    state = ChildBudgetState(
+                        parent_task_id=parent_task_id,
+                        child_id=child,
+                        reservation_id=reservation_id,
+                        state="active",
+                        status="reserved",
+                        reservation=amount,
+                        reservation_digest=digest,
+                        usage=BudgetUsageAmount(source="unknown"),
+                        retry_count=0,
+                        generation=0,
+                    )
+                    db.execute(
+                        "INSERT INTO child_budgets VALUES(?,?,?,?,?,?)",
+                        (
+                            key,
+                            str(parent_task_id),
+                            child,
+                            "active",
+                            state.model_dump_json(),
+                            created,
+                        ),
+                    )
+                results[child] = ChildBudgetReservation(
+                    parent_task_id=parent_task_id,
+                    child_id=child,
+                    reservation_id=reservation_id,
+                    state="active",
+                    reservation=amount,
+                    reservation_digest=digest,
+                )
+        return results
+
     def reserve(
         self,
         parent_task_id: UUID,
@@ -88,60 +174,200 @@ class ChildBudgetBook:
         reservation_id: str,
         amount: BudgetReservationAmount,
     ) -> ChildBudgetReservation:
+        return self.reserve_many(parent_task_id, {child_id: (reservation_id, amount)})[child_id]
+
+    @staticmethod
+    def _exceeds_reservation(reserved: BudgetReservationAmount, usage: BudgetUsageAmount) -> bool:
+        pairs = (
+            (usage.tokens, reserved.tokens),
+            (usage.tool_calls, reserved.tool_calls),
+            (usage.scan_bytes, reserved.scan_bytes),
+            (usage.cost_microunits, reserved.cost_microunits),
+            (usage.runtime_milliseconds, reserved.runtime_milliseconds),
+        )
+        return any(value is not None and value > bound for value, bound in pairs)
+
+    def record_telemetry_many(
+        self,
+        parent_task_id: UUID,
+        items: dict[str, tuple[str, BudgetUsageAmount, int]],
+    ) -> dict[str, ChildBudgetState]:
+        """Record partial observations for a stage in one transaction."""
         if (
             type(parent_task_id) is not UUID
-            or not self._name(child_id)
-            or not self._name(reservation_id)
-            or not isinstance(amount, BudgetReservationAmount)
+            or not isinstance(items, dict)
+            or not items
+            or len(items) > 2
         ):
             raise ChildBudgetRefused("child_budget_input_invalid")
-        digest = self._digest(parent_task_id, child_id, reservation_id, amount)
-        state = ChildBudgetState(
-            parent_task_id=parent_task_id,
-            child_id=child_id,
-            reservation_id=reservation_id,
-            state="active",
-            status="reserved",
-            reservation=amount,
-            reservation_digest=digest,
-            usage=BudgetUsageAmount(source="unknown"),
-            retry_count=0,
-            generation=0,
-        )
-        payload = state.model_dump_json()
-        key = self._key(parent_task_id, child_id)
-        created = self._now()
         with closing(sqlite3.connect(self.path, timeout=5)) as db, db:
             db.execute("BEGIN IMMEDIATE")
-            row = db.execute("SELECT key,payload FROM child_budgets WHERE key=?", (key,)).fetchone()
-            if row is not None:
-                existing = ChildBudgetState.model_validate_json(row[1])
-                if existing.reservation_digest != digest:
-                    raise ChildBudgetRefused("child_budget_reservation_conflict")
-                if existing.state != "active":
-                    raise ChildBudgetRefused("child_budget_closed")
-                if existing.status in {"settled", "released", "failed", "unknown"}:
+            updated = {}
+            for child, (reservation_digest, usage, retry_count) in items.items():
+                if (
+                    not self._name(child)
+                    or type(reservation_digest) is not str
+                    or not isinstance(usage, BudgetUsageAmount)
+                    or type(retry_count) is not int
+                    or retry_count < 0
+                ):
+                    raise ChildBudgetRefused("child_budget_input_invalid")
+                row = db.execute(
+                    "SELECT key,parent_task_id,child_id,state,payload,created "
+                    "FROM child_budgets WHERE key=?",
+                    (self._key(parent_task_id, child),),
+                ).fetchone()
+                if row is None:
+                    raise ChildBudgetRefused("child_budget_not_found")
+                current = self._row_state(row)
+                if current.state != "active" or current.status not in {
+                    "reserved",
+                    "telemetry_recorded",
+                }:
                     raise ChildBudgetRefused("child_budget_terminal")
-                return ChildBudgetReservation(
-                    parent_task_id=parent_task_id,
-                    child_id=child_id,
-                    reservation_id=reservation_id,
-                    state="active",
-                    reservation=amount,
-                    reservation_digest=digest,
+                if current.reservation_digest != reservation_digest:
+                    raise ChildBudgetRefused("child_budget_digest_mismatch")
+                if self._exceeds_reservation(current.reservation, usage):
+                    raise ChildBudgetRefused("child_budget_usage_exceeds_reservation")
+                updated[child] = current.model_copy(
+                    update={
+                        "status": (
+                            "telemetry_recorded" if usage.source != "unknown" else current.status
+                        ),
+                        "usage": usage,
+                        "retry_count": retry_count,
+                        "generation": current.generation + 1,
+                    }
                 )
-            db.execute(
-                "INSERT INTO child_budgets VALUES(?,?,?,?,?,?)",
-                (key, str(parent_task_id), child_id, "active", payload, created),
-            )
-        return ChildBudgetReservation(
-            parent_task_id=parent_task_id,
-            child_id=child_id,
-            reservation_id=reservation_id,
-            state="active",
-            reservation=amount,
-            reservation_digest=digest,
-        )
+            for child, state in updated.items():
+                db.execute(
+                    "UPDATE child_budgets SET payload=? WHERE key=?",
+                    (state.model_dump_json(), self._key(parent_task_id, child)),
+                )
+        return updated
+
+    def close_many(
+        self,
+        parent_task_id: UUID,
+        status: str,
+        items: dict[str, tuple[str, BudgetUsageAmount]],
+    ) -> dict[str, ChildBudgetState]:
+        """Close every child in a failed or cancelled stage in one transaction."""
+        if (
+            type(parent_task_id) is not UUID
+            or status not in {"failed", "cancelled"}
+            or not isinstance(items, dict)
+            or not items
+            or len(items) > 2
+        ):
+            raise ChildBudgetRefused("child_budget_input_invalid")
+        with closing(sqlite3.connect(self.path, timeout=5)) as db, db:
+            db.execute("BEGIN IMMEDIATE")
+            updated = {}
+            for child, (reservation_digest, usage) in items.items():
+                if (
+                    not self._name(child)
+                    or type(reservation_digest) is not str
+                    or not isinstance(usage, BudgetUsageAmount)
+                ):
+                    raise ChildBudgetRefused("child_budget_input_invalid")
+                row = db.execute(
+                    "SELECT key,parent_task_id,child_id,state,payload,created "
+                    "FROM child_budgets WHERE key=?",
+                    (self._key(parent_task_id, child),),
+                ).fetchone()
+                if row is None:
+                    raise ChildBudgetRefused("child_budget_not_found")
+                current = self._row_state(row)
+                if current.state != "active" or current.status not in {
+                    "reserved",
+                    "telemetry_recorded",
+                }:
+                    raise ChildBudgetRefused("child_budget_terminal")
+                if current.reservation_digest != reservation_digest:
+                    raise ChildBudgetRefused("child_budget_digest_mismatch")
+                if self._exceeds_reservation(current.reservation, usage):
+                    raise ChildBudgetRefused("child_budget_usage_exceeds_reservation")
+                updated[child] = current.model_copy(
+                    update={
+                        "state": "cancelled" if status == "cancelled" else "active",
+                        "status": status,
+                        "usage": usage,
+                        "generation": current.generation + 1,
+                    }
+                )
+            for child, state in updated.items():
+                db.execute(
+                    "UPDATE child_budgets SET payload=? WHERE key=?",
+                    (state.model_dump_json(), self._key(parent_task_id, child)),
+                )
+        return updated
+
+    def settle_many(
+        self,
+        parent_task_id: UUID,
+        items: dict[str, tuple[str, BudgetUsageAmount, int]],
+    ) -> dict[str, ChildBudgetSettlement]:
+        """Settle all children of a completed stage in one transaction."""
+        if (
+            type(parent_task_id) is not UUID
+            or not isinstance(items, dict)
+            or not items
+            or len(items) > 2
+        ):
+            raise ChildBudgetRefused("child_budget_input_invalid")
+        with closing(sqlite3.connect(self.path, timeout=5)) as db, db:
+            db.execute("BEGIN IMMEDIATE")
+            updated = {}
+            settlements = {}
+            for child, (reservation_digest, usage, retry_count) in items.items():
+                if (
+                    not self._name(child)
+                    or type(reservation_digest) is not str
+                    or not isinstance(usage, BudgetUsageAmount)
+                    or type(retry_count) is not int
+                    or retry_count < 0
+                ):
+                    raise ChildBudgetRefused("child_budget_input_invalid")
+                row = db.execute(
+                    "SELECT key,parent_task_id,child_id,state,payload,created "
+                    "FROM child_budgets WHERE key=?",
+                    (self._key(parent_task_id, child),),
+                ).fetchone()
+                if row is None:
+                    raise ChildBudgetRefused("child_budget_not_found")
+                current = self._row_state(row)
+                if current.state != "active" or current.status not in {
+                    "reserved",
+                    "telemetry_recorded",
+                }:
+                    raise ChildBudgetRefused("child_budget_terminal")
+                if current.reservation_digest != reservation_digest:
+                    raise ChildBudgetRefused("child_budget_digest_mismatch")
+                if not usage.complete or self._exceeds_reservation(current.reservation, usage):
+                    raise ChildBudgetRefused(
+                        "child_budget_settlement_incomplete_or_over_reservation"
+                    )
+                settlements[child] = self._settlement(
+                    current,
+                    status="settled",
+                    usage=usage,
+                    retry_count=retry_count,
+                )
+                updated[child] = current.model_copy(
+                    update={
+                        "status": "settled",
+                        "usage": usage,
+                        "retry_count": retry_count,
+                        "generation": current.generation + 1,
+                    }
+                )
+            for child, state in updated.items():
+                db.execute(
+                    "UPDATE child_budgets SET payload=? WHERE key=?",
+                    (state.model_dump_json(), self._key(parent_task_id, child)),
+                )
+        return settlements
 
     def get(self, parent_task_id: UUID, child_id: str) -> ChildBudgetState | None:
         if type(parent_task_id) is not UUID or not self._name(child_id):
