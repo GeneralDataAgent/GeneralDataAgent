@@ -32,6 +32,7 @@ comes from the JSON body. Supply every task domain using repeated `x-data-domain
 | Method and path | Behavior |
 |---|---|
 | `POST /v1/analysis/tasks` | MetricQuery body plus `Idempotency-Key`; HTTP 202 after durable acceptance |
+| `POST /v1/analysis/tasks/questions` | NaturalLanguageMetricQuery body plus `Idempotency-Key`; 202 only after deterministic resolution to one certified metric, otherwise 409 |
 | `GET /v1/analysis/tasks/{task_id}` | Creator-scoped metadata; unknown/expired/inaccessible tasks return 404 after authentication |
 | `GET /v1/analysis/tasks` | Bounded exact-domain-view [task listing](task-results.md) with opaque cursors |
 | `GET /v1/analysis/tasks/{task_id}/result` | Guarded completed [delivery read](task-results.md), without resuming work |
@@ -50,6 +51,24 @@ already have queued the task; repeat the exact request/key to discover it. Retry
 a missing journal registration. Existing synchronous endpoints remain compatible. Legacy checkpoint
 resume takes thread ID; queue retry takes task ID. Workers own queue retries; do not invoke legacy
 resume concurrently for a queued task.
+
+## Question acceptance
+
+`POST /v1/analysis/tasks/questions` accepts a `NaturalLanguageMetricQuery` with the same
+`Idempotency-Key` validation. Authentication and `analysis:run` are checked before resolution, so an
+unauthorized caller learns nothing about the catalog. Resolution uses the same deterministic
+functions as `POST /v1/analysis/questions` and only considers the actor's data domains.
+
+A 202 response (`MetricQuestionTask` v1) nests the queued task and the single certified metric it
+resolved to. The queue stores the resolved `MetricQuery`; the question text is not written to the
+queue, event journal, audit or response. Uncertified dimensions or time ranges return 422 before a
+task exists. Ambiguity and no-match return 409 with `MetricQuestionRejection` v1: an explicit status
+and bounded metric candidates, but no question body. Idempotency covers the resolved query, so
+different wording resolving to the same certified query is the same request, while a changed
+resolution conflicts.
+
+Question acceptance is part of the local adapter and is rejected by production assembly. It does not
+add conversational context, follow-up memory, model reasoning, a UI or exactly-once effects.
 
 The service adds metadata, graph progress, listing and completed JSON delivery reads, not raw artifact
 downloads or a workbench. [Explicit cancellation](task-cancellation.md) is creator scoped. [Bounded SSE](task-streaming.md) adds live metadata and journal

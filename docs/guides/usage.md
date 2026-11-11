@@ -193,10 +193,12 @@ deterministic baseline must be evaluated separately from real-model behavior, va
 collected human review, and latency; see the [Stage 1 record](../../../docs/validation/stage1-trusted-reporting.md).
 
 The API also exposes `POST /v1/analysis/questions` for deterministic natural-language metric
-resolution and analysis, `POST /v1/reviews` for appending a scored review, and
-`GET /v1/reviews/{task_id}/summary` for evaluating the review gate. Runtime construction must
-explicitly configure the metric runtime and review store; the module-level development app keeps
-both disabled by default.
+resolution and analysis, and `POST /v1/analysis/tasks/questions` for durable acceptance that
+resolves to one certified query before queueing without persisting the question text
+(see [task submission](task-submission.md#question-acceptance)). `POST /v1/reviews` appends a
+scored review and `GET /v1/reviews/{task_id}/summary` evaluates the review gate. Runtime
+construction must explicitly configure the metric runtime and review store; the module-level
+development app keeps both disabled by default.
 
 Stage 2 production admission requires five real-environment evidence bundles, independent
 signatures, and acceptance through the durable evidence ledger. See [implementation status](../../../docs/progress/implementation-status.md) for the recorded outcome.

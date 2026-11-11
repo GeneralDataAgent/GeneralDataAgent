@@ -41,6 +41,12 @@ from generaldataagent.orchestration import MetricAnalysisRuntime
 from generaldataagent.orchestration.checkpoints import CheckpointBusyError, CheckpointLeaseLostError
 from generaldataagent.orchestration.task_events import TaskEventJournal, TaskEventPage
 from generaldataagent.orchestration.task_presentation import MetricDisplayPreferenceService
+from generaldataagent.orchestration.task_questions import (
+    MetricQuestionRejection,
+    MetricQuestionTask,
+    QuestionAcceptanceUnavailable,
+    QuestionNotResolved,
+)
 from generaldataagent.orchestration.task_queue import (
     MetricTaskPage,
     MetricTaskRecord,
@@ -120,6 +126,12 @@ def create_app(
             raise ValueError("metric_tasks_must_share_identity_broker")
         if task_events is not metric_tasks.events:
             raise ValueError("metric_tasks_must_share_event_journal")
+        if (
+            metric_runtime is not None
+            and metric_tasks.question_catalog is not None
+            and metric_tasks.question_catalog is not metric_runtime.catalog
+        ):
+            raise ValueError("metric_tasks_must_share_runtime_catalog")
         if production_mode:
             raise ValueError("local_metric_tasks_not_qualified_for_production")
     if task_events is not None:
@@ -523,6 +535,36 @@ def create_app(
             raise HTTPException(status_code=403, detail="task_submission_denied") from exc
         except ValueError as exc:
             raise HTTPException(status_code=422, detail="invalid_task_submission") from exc
+
+    @application.post(
+        "/v1/analysis/tasks/questions",
+        status_code=202,
+        response_model=MetricQuestionTask,
+        responses={409: {"model": MetricQuestionRejection}},
+    )
+    def submit_metric_question_task(
+        query: NaturalLanguageMetricQuery,
+        request: Request,
+        idempotency_key: Annotated[str, Header(min_length=1, max_length=128)],
+    ) -> MetricQuestionTask | JSONResponse:
+        if metric_tasks is None:
+            raise HTTPException(status_code=503, detail="metric_tasks_not_configured")
+        actor, token = task_credentials(request)
+        try:
+            return metric_tasks.submit_question(query, actor, token, idempotency_key)
+        except QuestionAcceptanceUnavailable as exc:
+            raise HTTPException(
+                status_code=503, detail="question_acceptance_not_configured"
+            ) from exc
+        except QuestionNotResolved as exc:
+            rejection = MetricQuestionRejection(status=exc.status, candidates=exc.candidates)
+            return JSONResponse(status_code=409, content=rejection.model_dump(mode="json"))
+        except TaskQueueConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail="question_submission_denied") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail="invalid_question_submission") from exc
 
     @application.get("/v1/analysis/tasks", response_model=MetricTaskPage)
     def list_metric_tasks(
