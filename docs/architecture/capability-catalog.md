@@ -20,6 +20,7 @@ Status vocabulary:
 | Read-only SQL guard (single statement, no mutation/locking, relation allowlist) | `tools/sql_guard.py` | Available |
 | Immutable, content-addressed artifacts; governed store with DLP, retention, holds | `artifacts/` | Available |
 | `DeliveryPackage` with evidence-bound claims and charts | `contracts/`, `_deliver` node | Available |
+| Additive multi-chart delivery (up to six charts, canonical first chart) | `contracts/delivery.py`, `_build_chart_specs`, [guide](../guides/task-results.md), [ADR 0032](../adr/0032-multiple-evidence-bound-charts.md) | Available; every chart references the same table artifact, artifacts and result reads are rechecked, no embedded or recomputed data and no model-chosen chart type |
 | Append-only human review with duplicate-reviewer rejection and pass summary | `POST /v1/reviews`, `GET /v1/reviews/{task_id}/summary` | Opt-in |
 | Checkpointed resume after interruption | `POST /v1/analysis/tasks/{thread_id}/resume` | Opt-in |
 | Creator-scoped progress journal and cursor replay for the metric graph | `GET /v1/analysis/tasks/{task_id}/events`, [guide](../guides/task-events.md) | Opt-in local pilot |
