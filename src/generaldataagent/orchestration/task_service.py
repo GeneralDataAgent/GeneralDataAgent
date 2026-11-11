@@ -4,10 +4,17 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from uuid import UUID
 
-from generaldataagent.contracts import ActorContext, Budget, MetricQuery
+from generaldataagent.catalog import InMemoryMetricCatalog
+from generaldataagent.contracts import ActorContext, Budget, MetricQuery, NaturalLanguageMetricQuery
 from generaldataagent.orchestration.checkpoints import ProtectedSqliteSaver
 from generaldataagent.orchestration.metric_analysis import MetricAnalysisRuntime
+from generaldataagent.orchestration.questions import certified_query, resolve_question
 from generaldataagent.orchestration.task_events import TaskEventJournal
+from generaldataagent.orchestration.task_questions import (
+    MetricQuestionTask,
+    QuestionAcceptanceUnavailable,
+    QuestionNotResolved,
+)
 from generaldataagent.orchestration.task_queue import (
     MetricTaskContext,
     MetricTaskPage,
@@ -45,14 +52,18 @@ class MetricTaskService:
         budgets: TaskBudgetLedger,
         runtime_factory: Callable[[MetricTaskExecution], MetricAnalysisRuntime],
         feedback=None,
+        question_catalog: InMemoryMetricCatalog | None = None,
     ):
         if feedback is not None:
             from generaldataagent.business.governance import FeedbackRegistry
 
             if not isinstance(feedback, FeedbackRegistry):
                 raise ValueError("task_feedback_registry_required")
+        if question_catalog is not None and not isinstance(question_catalog, InMemoryMetricCatalog):
+            raise ValueError("task_question_catalog_required")
         self.queue, self.broker, self.events = queue, broker, events
         self.budgets, self.runtime_factory, self.feedback = budgets, runtime_factory, feedback
+        self.question_catalog = question_catalog
 
     def _authorize_reference(self, reference: str, actor: ActorContext) -> None:
         identity = self.broker.authenticate_reference(reference)
@@ -80,6 +91,31 @@ class MetricTaskService:
         # A retry or the worker repairs a missing event registration after acceptance.
         self.events.ensure_started(record.task_id, actor)
         return record
+
+    def submit_question(
+        self,
+        request: NaturalLanguageMetricQuery,
+        actor: ActorContext,
+        token: str,
+        idempotency_key: str,
+    ) -> MetricQuestionTask:
+        """Accept only an unambiguous, authorized certified query derived from the question.
+
+        Authorization is checked before resolution so an unauthenticated caller learns nothing
+        about the catalog. The question itself is never persisted: the durable payload is the
+        resolved MetricQuery, and the idempotency request hash covers that query.
+        """
+        if self.question_catalog is None:
+            raise QuestionAcceptanceUnavailable("question_acceptance_not_configured")
+        actor = canonical_actor(actor)
+        reference = self._reference(token, actor)
+        resolution = resolve_question(self.question_catalog, request, actor)
+        if resolution.status != "resolved":
+            raise QuestionNotResolved(resolution.status, resolution.candidates)
+        query, metric = certified_query(self.question_catalog, resolution, request)
+        record = self.queue.submit(query, actor, reference, idempotency_key)
+        self.events.ensure_started(record.task_id, actor)
+        return MetricQuestionTask(task=record, metric=metric)
 
     def read(self, task_id: UUID, actor: ActorContext, token: str) -> MetricTaskRecord:
         self._reference(token, actor)

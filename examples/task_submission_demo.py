@@ -52,6 +52,7 @@ def demo_service(root: Path, *, feedback=None):
                 name="order_count",
                 version="v1",
                 description="Synthetic orders",
+                aliases=("订单数", "订单量", "orders"),
                 data_domain="commerce",
                 relation="orders",
                 expression="COUNT(*)",
@@ -90,6 +91,7 @@ def demo_service(root: Path, *, feedback=None):
             budgets=budgets,
             runtime_factory=factory,
             feedback=feedback,
+            question_catalog=catalog,
         )
 
 

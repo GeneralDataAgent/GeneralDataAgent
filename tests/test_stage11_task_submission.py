@@ -58,6 +58,7 @@ def assembly(
     max_pending=100,
     lease_seconds=60,
     feedback=None,
+    question_catalog=None,
 ):
     events = TaskEventJournal(tmp_path / "events.db", clock=clock)
     budgets = TaskBudgetLedger(tmp_path / "budgets.db", clock=clock)
@@ -101,6 +102,7 @@ def assembly(
             budgets=budgets,
             runtime_factory=factory,
             feedback=feedback,
+            question_catalog=question_catalog,
         )
         yield service, saver
 
