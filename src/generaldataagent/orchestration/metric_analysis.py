@@ -430,17 +430,22 @@ class MetricAnalysisRuntime:
             rows=tuple(tuple(row) for row in payload["rows"]),
             data_artifact_uri=artifact.uri,
         )
-        chart = self._build_chart_spec(plan["metric"], table)
-        chart_artifact = self.artifacts.put_json(
-            task_id=request.task_id,
-            artifact_type="chart_spec",
-            value=chart.model_dump(mode="json"),
-            created_by="deterministic-reporter",
-            lineage=(artifact.artifact_id,),
+        charts = self._build_chart_specs(plan["metric"], table)
+        chart_artifacts = tuple(
+            self.artifacts.put_json(
+                task_id=request.task_id,
+                artifact_type="chart_spec",
+                value=chart.model_dump(mode="json"),
+                created_by="deterministic-reporter",
+                lineage=(artifact.artifact_id,),
+            )
+            for chart in charts
         )
         analysis["table"] = table.model_dump(mode="json")
-        analysis["chart"] = chart.model_dump(mode="json")
-        analysis["chart_artifact"] = chart_artifact.model_dump(mode="json")
+        analysis["chart"] = charts[0].model_dump(mode="json")
+        analysis["chart_artifact"] = chart_artifacts[0].model_dump(mode="json")
+        analysis["charts"] = [chart.model_dump(mode="json") for chart in charts]
+        analysis["chart_artifacts"] = [item.model_dump(mode="json") for item in chart_artifacts]
         if self.narrator is not None or self.routed_narrator is not None:
             narrative_evidence = {
                 "metric": plan["metric"],
@@ -520,11 +525,13 @@ class MetricAnalysisRuntime:
             ValidationCheck(
                 check_id="chart-evidence",
                 passed=(
-                    bool(analysis.get("chart", {}).get("data_artifact_uri"))
-                    and bool(analysis.get("chart_artifact", {}).get("uri"))
+                    bool(analysis.get("charts"))
+                    and all(chart.get("data_artifact_uri") for chart in analysis.get("charts", []))
+                    and len(analysis.get("chart_artifacts", ())) == len(analysis.get("charts", ()))
+                    and all(item.get("uri") for item in analysis.get("chart_artifacts", ()))
                 ),
                 code="chart_artifact_present",
-                message="The chart spec must reference data and be preserved as an artifact.",
+                message="Every chart spec must reference data and be preserved as an artifact.",
             ),
             ValidationCheck(
                 check_id="claim-grounding",
@@ -548,7 +555,7 @@ class MetricAnalysisRuntime:
     def _deliver(state: PhaseOneState) -> dict[str, Any]:
         result = state["analysis_result"]
         narrative = result.get("narrative")
-        evidence = [result["artifact"], result["chart_artifact"]]
+        evidence = [result["artifact"], *result["chart_artifacts"]]
         if result.get("narrative_artifact"):
             evidence.append(result["narrative_artifact"])
         if result.get("routing_snapshot_artifact"):
@@ -560,6 +567,7 @@ class MetricAnalysisRuntime:
             row_count=result["row_count"],
             table=TableSpec.model_validate(result["table"]),
             chart=ChartSpec.model_validate(result["chart"]),
+            charts=tuple(ChartSpec.model_validate(item) for item in result["charts"]),
             summary=(
                 narrative["summary"]
                 if narrative
@@ -577,22 +585,39 @@ class MetricAnalysisRuntime:
         }
 
     @staticmethod
-    def _build_chart_spec(metric: str, table: TableSpec) -> ChartSpec:
+    def _build_chart_specs(metric: str, table: TableSpec) -> tuple[ChartSpec, ...]:
+        """Build the primary visual and one non-aggregating detail chart when possible.
+
+        A dimension chart gets a second table view over the same immutable result artifact. Both
+        charts reference the delivery table's data artifact; no chart embeds or recomputes data.
+        """
         dimensions = [column for column in table.columns if column != "metric_value"]
         if not dimensions:
-            chart_type = "kpi"
-            x_field = None
-        elif len(dimensions) == 1:
-            chart_type = "bar"
-            x_field = dimensions[0]
-        else:
-            chart_type = "table"
-            x_field = dimensions[0]
-        return ChartSpec(
-            chart_type=chart_type,
+            return (
+                ChartSpec(
+                    chart_type="kpi",
+                    title=metric,
+                    x_field=None,
+                    data_artifact_uri=table.data_artifact_uri,
+                ),
+            )
+        primary_type = "bar" if len(dimensions) == 1 else "table"
+        primary = ChartSpec(
+            chart_type=primary_type,
             title=metric,
-            x_field=x_field,
+            x_field=dimensions[0],
             data_artifact_uri=table.data_artifact_uri,
+        )
+        if primary_type == "table" or not table.rows:
+            return (primary,)
+        return (
+            primary,
+            ChartSpec(
+                chart_type="table",
+                title="结果明细",
+                x_field=dimensions[0],
+                data_artifact_uri=table.data_artifact_uri,
+            ),
         )
 
     @staticmethod

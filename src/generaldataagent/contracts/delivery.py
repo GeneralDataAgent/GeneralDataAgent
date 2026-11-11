@@ -58,6 +58,7 @@ class DeliveryPackage(ContractModel):
     row_count: int = Field(ge=0)
     table: TableSpec
     chart: ChartSpec
+    charts: tuple[ChartSpec, ...] = Field(default=(), max_length=6)
     summary: str = Field(min_length=1, max_length=2_000)
     insights: tuple[str, ...] = ()
     limitations: tuple[str, ...] = ()
@@ -65,16 +66,40 @@ class DeliveryPackage(ContractModel):
     narrative_model: str | None = Field(default=None, max_length=256)
     evidence: tuple[ArtifactRef, ...] = Field(min_length=1)
 
+    @property
+    def chart_specs(self) -> tuple[ChartSpec, ...]:
+        """Return every delivered chart; an empty ``charts`` keeps the v1 single chart.
+
+        ``chart`` remains the canonical first chart so existing consumers can read one chart
+        without knowing about the additive list.
+        """
+        return self.charts or (self.chart,)
+
     @model_validator(mode="after")
     def references_are_present_in_evidence(self) -> "DeliveryPackage":
         if self.columns != self.table.columns or self.rows != self.table.rows:
             raise ValueError("compatibility table fields must match table")
         if self.row_count != len(self.rows):
             raise ValueError("row_count must match rows")
+        if self.charts:
+            if self.charts[0] != self.chart:
+                raise ValueError("the first delivered chart must match chart")
+            identities = {
+                (
+                    chart.chart_type,
+                    chart.title,
+                    chart.x_field,
+                    chart.y_field,
+                    chart.data_artifact_uri,
+                )
+                for chart in self.charts
+            }
+            if len(identities) != len(self.charts):
+                raise ValueError("every delivered chart must be unique")
         evidence_uris = {item.uri for item in self.evidence}
         referenced = {
             self.table.data_artifact_uri,
-            self.chart.data_artifact_uri,
+            *(chart.data_artifact_uri for chart in self.chart_specs),
             *(uri for claim in self.claims for uri in claim.evidence_uris),
         }
         missing = referenced - evidence_uris

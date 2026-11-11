@@ -66,13 +66,18 @@ def read_metric_result(runtime, context, guard) -> MetricTaskResult:
             bodies[ref.uri] = (ref.artifact_type, json.loads(content))
         data_kind, data = bodies[delivery.table.data_artifact_uri]
         wire = delivery.model_dump(mode="json")
+        chart_specs = delivery.chart_specs
+        wire_charts = [chart.model_dump(mode="json") for chart in chart_specs]
         charts = [body for kind, body in bodies.values() if kind == "chart_spec"]
         if (
             data_kind != "metric_query_result"
-            or delivery.chart.data_artifact_uri != delivery.table.data_artifact_uri
+            or any(
+                chart.data_artifact_uri != delivery.table.data_artifact_uri for chart in chart_specs
+            )
             or any(data.get(key) != wire[key] for key in ("columns", "rows", "row_count"))
-            or len(charts) != 1
-            or charts[0] != wire["chart"]
+            or len(charts) != len(chart_specs)
+            or len({json.dumps(chart, sort_keys=True) for chart in charts}) != len(charts)
+            or any(chart not in wire_charts for chart in charts)
         ):
             raise ValueError("task_result_evidence_content_mismatch")
         narratives = [body for kind, body in bodies.values() if kind == "llm_narrative"]

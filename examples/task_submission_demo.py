@@ -57,6 +57,7 @@ def demo_service(root: Path, *, feedback=None):
                 relation="orders",
                 expression="COUNT(*)",
                 time_column="created_at",
+                allowed_dimensions=("created_at",),
                 owner="demo",
             )
         ]

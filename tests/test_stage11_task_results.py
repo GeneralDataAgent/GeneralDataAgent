@@ -1,4 +1,5 @@
 import copy
+import json
 import sqlite3
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
@@ -68,6 +69,11 @@ def test_api_lists_then_reads_completed_result_without_reexecuting_or_charging(t
             assert result["task_id"] == str(record.task_id)
             assert result["thread_id"] == str(record.thread_id)
             assert result["delivery"]["rows"] == [["store", 1], ["web", 2]]
+            assert [chart["chart_type"] for chart in result["delivery"]["charts"]] == [
+                "bar",
+                "table",
+            ]
+            assert result["delivery"]["charts"][0] == result["delivery"]["chart"]
             assert "SELECT" not in response.text and "actor_context" not in response.text
             assert "session_reference" not in response.text
         assert calls == ["sql"]
@@ -353,3 +359,24 @@ def test_result_restores_narrative_without_calling_model_again(tmp_path):
         assert response.status_code == 200
         assert response.json()["delivery"]["narrative_model"] == "fake-model"
         assert calls == ["model"]
+
+
+def test_result_rejects_chart_artifact_that_does_not_match_delivery(tmp_path):
+    original = build_runtime(tmp_path)
+    with assembly(tmp_path, original) as (service, _):
+        token, headers = credentials(service.broker)
+        record = submit(service, token)
+        service.run_once()
+        for path in (tmp_path / "artifacts" / str(record.task_id)).glob("*.json"):
+            value = json.loads(path.read_text())
+            if isinstance(value, dict) and value.get("chart_type"):
+                value["title"] = "x" * len(value["title"])
+                path.write_text(json.dumps(value))
+                break
+        else:
+            raise AssertionError("chart artifact was not written")
+        response = client_for(service).get(
+            f"/v1/analysis/tasks/{record.task_id}/result", headers=headers
+        )
+        assert response.status_code == 409
+        assert response.json() == {"detail": "task_result_unavailable"}

@@ -30,15 +30,17 @@ reads are consistent within each page. The current queue uses schema v2; existin
 
 `GET /v1/analysis/tasks/{task_id}/result` returns `MetricTaskResult` v1 containing `task_id`,
 `thread_id`, `status=completed`, `validation` and `delivery`. The existing typed delivery includes
-the table, chart instructions, narrative and evidence references. Artifact references are not public
-download URLs; this endpoint does not add an attachment download route.
+the table, chart instructions, narrative and evidence references. A v1 package keeps `chart` as its
+canonical first chart and may add up to six `charts`; every entry references the same task evidence
+and no chart embeds rows. Artifact references are not public download URLs; this endpoint does not
+add an attachment download route.
 
 The queue must say completed, its encrypted context must authorize the current creator/scope, and
 the protected checkpoint must have no pending nodes. Task ID, original actor, full MetricQuery,
 validation task/status and the reconstructed fixed metric delivery must agree. Every evidence file
 must belong to that task with its canonical artifact URI, declared size and verified content hash.
-Table data and chart JSON are rechecked against the delivery; preserved narrative content is checked
-when present. Governed stores also apply their export authorization/DLP policy.
+Table data and every chart artifact are rechecked against the delivery, including exact chart count,
+unique contents and URIs; preserved narrative content is checked when present. Governed stores also apply their export authorization/DLP policy.
 
 The service rechecks current session authorization before and after reads and between evidence files.
 Original worker-session expiry does not deny a new authorized creator session. Execution time budget
