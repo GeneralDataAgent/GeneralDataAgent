@@ -275,7 +275,7 @@ def _table_chart(rubric, package, sources, receipt):
     problems = []
     if package.table.data_artifact_uri not in evidence:
         problems.append("table")
-    if package.chart.data_artifact_uri not in evidence:
+    if any(chart.data_artifact_uri not in evidence for chart in package.chart_specs):
         problems.append("chart")
     if problems:
         return _check(

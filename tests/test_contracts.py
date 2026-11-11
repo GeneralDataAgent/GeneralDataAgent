@@ -128,3 +128,65 @@ def test_delivery_rejects_claim_evidence_outside_package() -> None:
             ),
             evidence=(data_ref,),
         )
+
+
+def test_delivery_accepts_additive_multiple_charts() -> None:
+    task_id = uuid4()
+    data_ref = ArtifactRef(
+        task_id=task_id,
+        uri=f"artifact://local/{task_id}/data.json",
+        artifact_type="metric_query_result",
+        content_hash=f"sha256:{'1' * 64}",
+        created_by="test",
+        size_bytes=2,
+    )
+    table = TableSpec(
+        columns=("segment", "metric_value"),
+        rows=(("web", 1), ("store", 2)),
+        data_artifact_uri=data_ref.uri,
+    )
+    primary = ChartSpec(
+        chart_type="bar",
+        title="orders",
+        x_field="segment",
+        data_artifact_uri=data_ref.uri,
+    )
+    detail = ChartSpec(
+        chart_type="table",
+        title="结果明细",
+        x_field="segment",
+        data_artifact_uri=data_ref.uri,
+    )
+
+    def package(**overrides):
+        values = {
+            "metric": "orders@v1",
+            "columns": table.columns,
+            "rows": table.rows,
+            "row_count": 2,
+            "table": table,
+            "chart": primary,
+            "charts": (primary, detail),
+            "summary": "Two segments.",
+            "claims": (
+                GroundedClaim(
+                    claim_id="orders",
+                    claim_type="fact",
+                    text="Two segments.",
+                    evidence_uris=(data_ref.uri,),
+                ),
+            ),
+            "evidence": (data_ref,),
+        }
+        values.update(overrides)
+        return DeliveryPackage(**values)
+
+    delivery = package()
+    assert delivery.chart_specs == (primary, detail)
+    assert package(charts=()).chart_specs == (primary,)
+    with pytest.raises(ValidationError, match="first delivered chart"):
+        package(charts=(detail, primary))
+    with pytest.raises(ValidationError, match="must be unique"):
+        package(charts=(primary, primary))
+    with pytest.raises(ValidationError, match="at most 6"):
+        package(charts=(primary,) * 7)

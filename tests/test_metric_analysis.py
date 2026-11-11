@@ -86,6 +86,10 @@ def test_metric_analysis_runs_end_to_end(tmp_path) -> None:
     assert result["delivery_package"]["table"]["columns"] == ["channel", "metric_value"]
     assert result["delivery_package"]["chart"]["chart_type"] == "bar"
     assert result["delivery_package"]["chart"]["x_field"] == "channel"
+    charts = result["delivery_package"]["charts"]
+    assert [chart["chart_type"] for chart in charts] == ["bar", "table"]
+    assert charts[0] == result["delivery_package"]["chart"]
+    assert charts[1]["title"] == "结果明细"
     assert result["delivery_package"]["claims"][0]["evidence_uris"]
     evidence = result["delivery_package"]["evidence"][0]
     assert evidence["uri"].startswith("artifact://local/")
@@ -106,7 +110,8 @@ def test_metric_analysis_preserves_model_narrative_as_evidence(tmp_path) -> None
     delivery = result["delivery_package"]
     assert delivery["narrative_model"] == "fake-model"
     assert delivery["summary"] == "The query returned 2 segments."
-    assert len(delivery["evidence"]) == 3
+    assert len(delivery["evidence"]) == 4
+    assert len(delivery["charts"]) == 2
     assert {claim["claim_type"] for claim in delivery["claims"]} == {
         "interpretation",
         "limitation",
@@ -122,6 +127,7 @@ def test_metric_analysis_uses_kpi_chart_without_dimensions(tmp_path) -> None:
     delivery = result["delivery_package"]
     assert delivery["chart"]["chart_type"] == "kpi"
     assert delivery["chart"]["x_field"] is None
+    assert delivery["charts"] == [delivery["chart"]]
     assert delivery["table"]["rows"] == [[3]]
 
 

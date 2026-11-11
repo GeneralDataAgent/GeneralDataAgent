@@ -518,7 +518,8 @@ def test_metric_workflow_keeps_default_consumer_off_when_no_spec_is_enrolled(tmp
     default = runtime.run(query(), metric_actor())
     assert default["status"] == "completed"
     assert "routing_snapshot" not in default["analysis_result"]
-    assert len(default["delivery_package"]["evidence"]) == 3
+    assert len(default["delivery_package"]["evidence"]) == 4
+    assert len(default["delivery_package"]["charts"]) == 2
 
 
 def test_metric_workflow_refuses_a_foreign_task_snapshot(tmp_path):
