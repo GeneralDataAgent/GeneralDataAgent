@@ -34,6 +34,7 @@ from generaldataagent.datasets.xlsx_intake_store import (
     XlsxUploadStore,
     preview_hash,
 )
+from generaldataagent.datasets.xlsx_interpretation import interpret_preview
 from generaldataagent.datasets.xlsx_preview import preview_xlsx
 from generaldataagent.memory.display_preferences import canonical_hash
 from generaldataagent.orchestration.task_queue import canonical_actor
@@ -359,3 +360,22 @@ class XlsxIntakeService:
             db.execute("UPDATE xlsx_uploads SET body=? WHERE file_id=?", (encrypted, str(file_id)))
             bound()
             return self._preview(updated)
+
+    def resolve_interpretation(
+        self, file_id: UUID, actor: ActorContext, token: str, *, deadline=None
+    ):
+        """Derive per-cell readings of the declared columns; nothing is written or persisted."""
+        check = self.guard(actor, token, deadline=deadline)
+        with self.store.db() as db:
+            _, payload, raw = self.store.owned(db, file_id, actor)
+            bound = self._bound_guard(payload, check)
+            if payload.interpretation is None:
+                raise XlsxIntakeConflict("xlsx_interpretation_not_declared")
+            self._parsed(payload, raw, bound)
+            result = interpret_preview(
+                payload.preview,
+                payload.interpretation,
+                date_system=payload.preflight.date_system,
+            )
+            bound()
+            return result

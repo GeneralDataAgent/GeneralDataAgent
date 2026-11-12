@@ -17,6 +17,7 @@ from generaldataagent.datasets.xlsx_intake_contracts import (
     XlsxIntakeLimit,
 )
 from generaldataagent.datasets.xlsx_intake_store import XlsxIntakeConflict
+from generaldataagent.datasets.xlsx_interpretation import XlsxInterpretationResult
 
 XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
@@ -117,6 +118,18 @@ def xlsx_intake_router(service: XlsxIntakeService | None, credentials: Callable)
             return await run_in_threadpool(
                 port.interpret, file_id, actor, token, declaration, deadline=end
             )
+        except Exception as exc:
+            raise denied(exc) from exc
+
+    @router.get(
+        "/v1/analysis/files/xlsx/{file_id}/interpretation",
+        response_model=XlsxInterpretationResult,
+    )
+    def resolved_interpretation(file_id: UUID, request: Request):
+        port = configured()
+        actor, token = credentials(request)
+        try:
+            return port.resolve_interpretation(file_id, actor, token)
         except Exception as exc:
             raise denied(exc) from exc
 

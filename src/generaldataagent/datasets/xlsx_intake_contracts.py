@@ -14,6 +14,7 @@ from generaldataagent.memory.display_preferences import canonical_hash
 MAX_DECLARED_HEADER_CHARS = 256
 MAX_MISSING_TOKENS = 8
 MAX_MISSING_TOKEN_CHARS = 32
+DeclaredColumnType = Literal["text", "integer", "decimal", "boolean", "date"]
 
 
 class XlsxIntakeError(ValueError):
@@ -117,7 +118,7 @@ class XlsxColumnDeclaration(ContractModel):
     schema_version: Literal["1.0"] = "1.0"
     index: int = Field(ge=0, lt=PREVIEW_COLUMNS, strict=True)
     header: str = Field(max_length=MAX_DECLARED_HEADER_CHARS)
-    type: Literal["text", "integer", "decimal", "boolean"]
+    type: DeclaredColumnType
     empty_is_missing: bool = Field(default=True, strict=True)
     missing_tokens: tuple[str, ...] = Field(default=(), max_length=MAX_MISSING_TOKENS)
 

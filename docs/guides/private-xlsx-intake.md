@@ -3,11 +3,13 @@
 The opt-in local XLSX service accepts workbook **bytes**, applies the bounded structural preflight and
 inert text preview, then stores an encrypted preview bound to the exact source, parser, configuration
 and limits. An explicit confirmation can pin that preview. A separate declaration can then record the
-header row, per-column type, missing-value tokens and duplicate-row policy as **intent only**. It does
-not extract every cell, profile values, evaluate formulas, convert dates or currencies, validate a
-declaration against cell values, or make model calls. Production API assembly rejects this adapter.
+header row, per-column type, missing-value tokens and duplicate-row policy as **intent only**. A
+read-only resolution can then derive deterministic per-cell readings for the declared columns over the
+same sampled window. It does not extract every cell, profile values, evaluate formulas, convert
+currencies or percentages, rewrite stored values, validate a declaration against the whole sheet, or
+make model calls. Production API assembly rejects this adapter.
 
-This is the fifth slice of XLSX ingestion. Date/currency interpretation, full-sheet extraction,
+This is the sixth slice of XLSX ingestion. Currency/percentage interpretation, full-sheet extraction,
 listing, analysis and `DatasetSnapshot` are not implemented.
 
 ## Assembly and API
@@ -28,6 +30,7 @@ not a share. No actor, host path, file name, connector or artifact-root configur
 | `GET /v1/analysis/files/xlsx/{file_id}` | Current-grant preview of the fixed staged snapshot; the sheet pinned at staging is used |
 | `POST /v1/analysis/files/xlsx/{file_id}/confirm` | Strict JSON with `confirmed: true` and the exact source/preview hashes; pins a confirmed preview |
 | `POST /v1/analysis/files/xlsx/{file_id}/interpretation` | Strict JSON declaration over a confirmed preview; records intent without rewriting values |
+| `GET /v1/analysis/files/xlsx/{file_id}/interpretation` | Derived, read-only per-cell readings of the declared columns; nothing is stored |
 
 `sheet` is optional at staging and defaults to the workbook's first sheet. An unknown or invalid
 sheet is rejected. Later reads ignore a `sheet` query parameter; restage under a new idempotency key
@@ -118,10 +121,12 @@ value, report or analysis.
 - each `index` is unique, below the declared header row's width, and `header` must equal that label
   exactly; duplicate indices or a mismatched label are rejected. Empty or duplicate preview headers
   are still declarable by index.
-- `type` is limited to `text`, `integer`, `decimal` or `boolean`. `date`, `datetime`, `currency` and
-  percentage declarations are rejected until a later slice implements interpretation.
+- `type` is limited to `text`, `integer`, `decimal`, `boolean` or `date`. `datetime`, `currency` and
+  percentage declarations are rejected; a `date` declaration means an Excel date serial, not a
+  formatted datetime string.
 - `empty_is_missing` defaults to `true`; up to 8 literal `missing_tokens` of at most 32 characters
-  are recorded. Tokens are neither matched nor normalized.
+  are recorded. Derived readings match tokens by exact text only; no trimming, case folding or
+  normalization is applied.
 - `duplicate_rows` is explicitly required: `reject` or `keep-all`. It is recorded, not executed.
 
 The request must use `Content-Type: application/json` and is limited to 65,536 bytes. The resulting
@@ -132,6 +137,43 @@ or auditing again; a different declaration replaces it, emits a new `xlsx.interp
 audit event before the encrypted body update, and returns the new hash. An audit failure leaves the
 previous interpretation (or none) in place. Listing or selecting these declarations across files is
 not implemented.
+
+## Derived interpretation (read-only)
+
+`GET /v1/analysis/files/xlsx/{file_id}/interpretation` requires a recorded declaration and re-runs
+the same parser and binding checks as a preview read. It returns per-cell readings for exactly the
+declared columns and the materialized preview rows after the declared header row. Nothing is written,
+persisted, audited or added to the preview, and repeated reads return the same result.
+
+Each cell carries its absolute `row`, the unchanged `raw` preview text, its factual `kind` (`empty`,
+`number`, `text`, `boolean`, `error` or `formula`), a `status` and, unless the status is `value`, a
+stable `reason`:
+
+- `formula` cells are always `not_trusted` (`formula_cached_value_not_trusted`); cached values are
+  never read as data.
+- `error` cells are `unparsed` (`error_cell`).
+- An empty cell is `missing` (`empty_cell`) when `empty_is_missing` is true and `unparsed`
+  (`empty_not_missing`) otherwise. An exact `missing_tokens` match is `missing` (`missing_token`).
+- A type/kind conflict is `unparsed` with `kind_not_text`, `kind_not_numeric` or `kind_not_boolean`;
+  the service never coerces a text cell into a number or vice versa.
+
+Canonical values are deterministic text, never Excel formatting:
+
+- `text` keeps the raw text exactly;
+- `integer` requires an integral numeric cell and renders the plain decimal integer;
+- `decimal` requires a numeric cell and strips insignificant trailing zeros (`0010.500` → `10.5`);
+- `boolean` accepts only the OOXML `1`/`0` cell payload and renders `true`/`false`;
+- `date` requires an integral numeric serial and renders ISO `YYYY-MM-DD` using the workbook's
+  preflight `date_system`. In the 1900 system serial `1` is 1900-01-01, serial `59` is 1900-02-28,
+  serial `60` is the fictitious leap day and stays `unparsed` (`invalid_serial`), and serial `61` is
+  1900-03-01. The 1904 system starts at serial `0` = 1904-01-01. Out-of-range serials, fractional
+  serials and non-numeric cells are `unparsed` with an explicit reason.
+
+Numeric interpretation is bounded: a numeric token longer than 64 characters is `unparsed`
+(`value_too_large`), so `Decimal` arithmetic stays bounded. Currencies, percentages and times of day
+are never interpreted, `duplicate_rows` is never evaluated, and the result states
+`storage=derived-not-persisted` and `scope=materialized-preview-window`. This is not full-sheet
+extraction and not evidence that undeclared or non-previewed cells were inspected.
 
 ## Encryption, scope and binding
 
@@ -166,7 +208,7 @@ evidence that the whole workbook has been inspected.
 | 413 | byte or processing limit exceeded |
 | 415 | wrong media type or non-identity content encoding |
 | 422 | invalid/macro/structurally rejected workbook, preview rejection, invalid idempotency key or invalid declaration contract |
-| 409 | idempotency request changed, retained capacity exhausted, parser/limit drift, changed binding, header row outside the preview or a column mismatch; the response detail carries the stable code |
+| 409 | idempotency request changed, retained capacity exhausted, parser/limit drift, changed binding, header row outside the preview, a column mismatch or no recorded declaration; the response detail carries the stable code |
 | 404 | file unavailable to this identity, expired, preview binding failed, or declared columns do not bind |
 | 408 | upload disconnected or timed out |
 | 503 | intake not configured or the encrypted store is unavailable |
@@ -176,11 +218,12 @@ unreadable entries fail closed rather than being partially served.
 
 ## Not implemented
 
-- applying declared types or matching declarations against cell values; no validation or conflict
-  report exists, and a declared type may contradict the preview;
+- applying declared types to stored values or reporting a whole-sheet conflict summary; readings are
+  derived per request for the sampled window only;
 - selecting a header row outside the materialized preview window;
-- date, currency or percentage interpretation and formula-cache trust;
-- full-sheet extraction, profiling or read-only analysis;
+- currency, percentage or time-of-day interpretation, rounded/displayed number formatting and
+  formula-cache trust;
+- duplicate-row evaluation, full-sheet extraction, profiling or read-only analysis;
 - file listing, declaration listing, workspace, approvals, artifact registration or
   `DatasetSnapshot`;
 - production identity, production qualification or safe-erasure claims.
