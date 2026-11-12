@@ -1,4 +1,4 @@
-"""Opt-in private XLSX staging with a pinned, unconfirmed text preview."""
+"""Opt-in private XLSX staging with a pinned preview, confirmation and declaration."""
 
 import hashlib
 import json
@@ -15,14 +15,18 @@ from uuid import UUID, uuid4
 from generaldataagent.contracts import ActorContext, AuditEvent
 from generaldataagent.datasets.xlsx_intake_contracts import (
     ConfirmXlsxText,
+    DeclareXlsxInterpretation,
     XlsxFilePreview,
     XlsxFileRecord,
     XlsxIntakeError,
     XlsxIntakeLimit,
+    XlsxInterpretation,
     XlsxLimits,
     XlsxTextConfig,
     _XlsxPayload,
     confirmation_digest,
+    declared_header_labels,
+    interpretation_digest,
 )
 from generaldataagent.datasets.xlsx_intake_store import (
     XlsxIntakeConflict,
@@ -114,7 +118,7 @@ class XlsxIntakeService:
         bound()
         return bound
 
-    def _audit(self, kind, payload):
+    def _audit(self, kind, payload, extra=None):
         try:
             self.audit.emit(
                 AuditEvent(
@@ -128,6 +132,7 @@ class XlsxIntakeService:
                         "file_id": str(payload.file.file_id),
                         "source_hash": payload.file.source_hash,
                         "preview_hash": payload.file.preview_hash,
+                        **(extra or {}),
                     },
                 )
             )
@@ -227,6 +232,7 @@ class XlsxIntakeService:
             file=payload.file,
             preflight=payload.preflight,
             data=payload.preview,
+            interpretation=payload.interpretation,
         )
 
     def _parsed(self, payload, raw, check):
@@ -288,3 +294,68 @@ class XlsxIntakeService:
             db.execute("UPDATE xlsx_uploads SET body=? WHERE file_id=?", (encrypted, str(file_id)))
             bound()
             return self._preview(confirmed)
+
+    def interpret(
+        self,
+        file_id: UUID,
+        actor: ActorContext,
+        token: str,
+        request: DeclareXlsxInterpretation,
+        *,
+        deadline=None,
+    ):
+        """Record a declaration only; the pinned preview and source stay untouched."""
+        request = DeclareXlsxInterpretation.model_validate(request.model_dump())
+        check = self.guard(actor, token, deadline=deadline)
+        with self.store.db(write=True) as db:
+            row, payload, raw = self.store.owned(db, file_id, actor)
+            bound = self._bound_guard(payload, check)
+            file = payload.file
+            if file.status != "confirmed" or file.confirmation_hash is None:
+                raise XlsxIntakeConflict("xlsx_confirmation_required_before_interpretation")
+            if (
+                request.source_hash != file.source_hash
+                or request.preview_hash != file.preview_hash
+                or request.confirmation_hash != file.confirmation_hash
+            ):
+                raise XlsxIntakeConflict("xlsx_interpretation_source_or_preview_changed")
+            self._parsed(payload, raw, bound)
+            labels = declared_header_labels(payload.preview, request.header_row)
+            if labels is None:
+                raise XlsxIntakeConflict("xlsx_header_row_outside_preview")
+            if any(
+                column.index >= len(labels) or column.header != labels[column.index]
+                for column in request.columns
+            ):
+                raise XlsxIntakeConflict("xlsx_column_declaration_mismatch")
+            interpretation = XlsxInterpretation(
+                source_hash=file.source_hash,
+                preview_hash=file.preview_hash,
+                confirmation_hash=file.confirmation_hash,
+                header_row=request.header_row,
+                columns=request.columns,
+                duplicate_rows=request.duplicate_rows,
+                interpretation_hash=interpretation_digest(
+                    source_hash=file.source_hash,
+                    preview_hash=file.preview_hash,
+                    confirmation_hash=file.confirmation_hash,
+                    header_row=request.header_row,
+                    columns=request.columns,
+                    duplicate_rows=request.duplicate_rows,
+                ),
+            )
+            if payload.interpretation == interpretation:
+                bound()
+                return self._preview(payload)
+            updated = payload.model_copy(update={"interpretation": interpretation})
+            encrypted = self.store.seal(
+                updated.model_dump_json().encode(), self.store.body_aad(row)
+            )
+            self._audit(
+                "xlsx.interpretation_intent",
+                payload,
+                {"interpretation_hash": interpretation.interpretation_hash},
+            )
+            db.execute("UPDATE xlsx_uploads SET body=? WHERE file_id=?", (encrypted, str(file_id)))
+            bound()
+            return self._preview(updated)
