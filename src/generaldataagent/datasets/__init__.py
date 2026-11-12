@@ -11,13 +11,23 @@ from generaldataagent.datasets.xlsx_preflight import (
     XlsxPreflightReport,
     preflight_xlsx,
 )
+from generaldataagent.datasets.xlsx_preview import (
+    XlsxPreviewData,
+    XlsxPreviewError,
+    XlsxPreviewResult,
+    preview_xlsx,
+)
 
 __all__ = [
     "TlcDatasetManifest",
     "XlsxPreflightError",
     "XlsxPreflightReport",
+    "XlsxPreviewData",
+    "XlsxPreviewError",
+    "XlsxPreviewResult",
     "build_tlc_metric_catalog",
     "download_tlc_sources",
     "preflight_xlsx",
+    "preview_xlsx",
     "prepare_tlc_database",
 ]
