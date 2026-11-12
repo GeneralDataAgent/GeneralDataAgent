@@ -27,6 +27,7 @@ This directory contains English documentation for system architecture, design de
 - [Bounded authenticated task SSE](guides/task-streaming.md)
 - [Explicit task cancellation and offline v2 cutover](guides/task-cancellation.md)
 - [Confirmed private display preferences](guides/confirmed-display-preferences.md)
+- [Confirmed business definitions and project background](guides/confirmed-business-context.md)
 - [Reviewed display history maintenance](guides/preference-history-maintenance.md)
 - [Private confirmed CSV text profiling](guides/private-csv-intake.md)
 - [Evaluation receipts](guides/evaluation-receipts.md)
