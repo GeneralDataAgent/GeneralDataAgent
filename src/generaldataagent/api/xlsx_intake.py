@@ -1,4 +1,4 @@
-"""Bounded raw-byte XLSX staging and preview; no confirmation or analysis surface."""
+"""Bounded raw-byte XLSX staging, pinned preview, explicit confirmation and declaration."""
 
 import asyncio
 import re
@@ -12,6 +12,7 @@ from starlette.requests import ClientDisconnect
 from generaldataagent.datasets.xlsx_intake import XlsxIntakeService
 from generaldataagent.datasets.xlsx_intake_contracts import (
     ConfirmXlsxText,
+    DeclareXlsxInterpretation,
     XlsxFilePreview,
     XlsxIntakeLimit,
 )
@@ -32,11 +33,11 @@ def xlsx_intake_router(service: XlsxIntakeService | None, credentials: Callable)
         if isinstance(exc, HTTPException):
             return exc
         if isinstance(exc, XlsxIntakeLimit):
-            return HTTPException(status_code=413, detail="xlsx_input_or_processing_limit")
+            return HTTPException(status_code=413, detail=str(exc))
         if isinstance(exc, PermissionError):
             return HTTPException(status_code=404, detail="xlsx_file_unavailable")
         if isinstance(exc, XlsxIntakeConflict):
-            return HTTPException(status_code=409, detail="xlsx_intake_conflict")
+            return HTTPException(status_code=409, detail=str(exc))
         if isinstance(exc, ValueError):
             return HTTPException(status_code=422, detail="xlsx_input_invalid")
         if isinstance(exc, (ClientDisconnect, TimeoutError)):
@@ -100,6 +101,21 @@ def xlsx_intake_router(service: XlsxIntakeService | None, credentials: Callable)
             confirmation = ConfirmXlsxText.model_validate_json(body)
             return await run_in_threadpool(
                 port.confirm, file_id, actor, token, confirmation, deadline=end
+            )
+        except Exception as exc:
+            raise denied(exc) from exc
+
+    @router.post("/v1/analysis/files/xlsx/{file_id}/interpretation", response_model=XlsxFilePreview)
+    async def interpret(file_id: UUID, request: Request):
+        port = configured()
+        actor, token = credentials(request)
+        if request.headers.get("content-type", "").lower() != "application/json":
+            raise HTTPException(status_code=415, detail="xlsx_interpretation_json_required")
+        try:
+            body, end = await collect(request, port, actor, token, 65536)
+            declaration = DeclareXlsxInterpretation.model_validate_json(body)
+            return await run_in_threadpool(
+                port.interpret, file_id, actor, token, declaration, deadline=end
             )
         except Exception as exc:
             raise denied(exc) from exc

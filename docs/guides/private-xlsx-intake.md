@@ -1,13 +1,14 @@
-# Private XLSX staging and pinned preview
+# Private XLSX staging, pinned preview and declared interpretation
 
 The opt-in local XLSX service accepts workbook **bytes**, applies the bounded structural preflight and
 inert text preview, then stores an encrypted preview bound to the exact source, parser, configuration
-and limits. An explicit confirmation can pin that preview without interpreting columns or values. It
-does not extract every cell, profile values, evaluate formulas, convert dates or currencies, or make
-model calls. Production API assembly rejects this adapter.
+and limits. An explicit confirmation can pin that preview. A separate declaration can then record the
+header row, per-column type, missing-value tokens and duplicate-row policy as **intent only**. It does
+not extract every cell, profile values, evaluate formulas, convert dates or currencies, validate a
+declaration against cell values, or make model calls. Production API assembly rejects this adapter.
 
-This is the fourth slice of XLSX ingestion. Header/type interpretation, full-sheet extraction, listing,
-analysis and `DatasetSnapshot` are not implemented.
+This is the fifth slice of XLSX ingestion. Date/currency interpretation, full-sheet extraction,
+listing, analysis and `DatasetSnapshot` are not implemented.
 
 ## Assembly and API
 
@@ -26,6 +27,7 @@ not a share. No actor, host path, file name, connector or artifact-root configur
 | `POST /v1/analysis/files/xlsx?sheet=Name` | Raw OOXML workbook bytes, `Content-Encoding: identity`, `Idempotency-Key`; 201 private staged preview |
 | `GET /v1/analysis/files/xlsx/{file_id}` | Current-grant preview of the fixed staged snapshot; the sheet pinned at staging is used |
 | `POST /v1/analysis/files/xlsx/{file_id}/confirm` | Strict JSON with `confirmed: true` and the exact source/preview hashes; pins a confirmed preview |
+| `POST /v1/analysis/files/xlsx/{file_id}/interpretation` | Strict JSON declaration over a confirmed preview; records intent without rewriting values |
 
 `sheet` is optional at staging and defaults to the workbook's first sheet. An unknown or invalid
 sheet is rejected. Later reads ignore a `sheet` query parameter; restage under a new idempotency key
@@ -47,7 +49,9 @@ Preview semantics are fixed:
 - values are text only (`values=inert-text-no-conversion`);
 - formulas are separate text with a cached-text flag, never evaluated;
 - dates remain serial text; currencies and percentages are not interpreted;
-- the first present row is treated as the header;
+- the first present row is treated as the preview header;
+- `row_numbers` lists the absolute worksheet row of every materialized preview row, so a declaration
+  can select one of those rows without re-reading the workbook;
 - empty/duplicate headers, row/column truncation and formulas inside the preview window are reported.
 
 Preview limits are 5 data rows and 64 columns, at most 32,768 characters per cell and 65,536
@@ -55,8 +59,9 @@ characters in total. All limits reject rather than truncate a cell or return par
 
 ## Explicit confirmation
 
-Confirmation changes only the staged record status and pins a confirmation digest; it does not select
-a header row, infer a column type, convert dates/currencies, profile values or run analysis.
+Confirmation changes only the staged record status and pins a confirmation digest. It does not
+itself select a header row, infer a column type, convert dates/currencies, profile values or run
+analysis; those choices, when recorded at all, live in the separate declaration described below.
 
 ```json
 {
@@ -80,6 +85,54 @@ returns the same confirmed record; restaging with the same idempotency key also 
 record rather than resetting it. Audit is emitted before the encrypted body update, and an audit
 failure leaves the file staged.
 
+## Declared interpretation (never applied)
+
+A declaration records what the user intends the preview to mean. It requires `status=confirmed` and
+the exact source, preview and confirmation hashes from that confirmed record; otherwise it returns 409.
+The preview, source bytes and confirmation stay unchanged, and the declaration is not applied to any
+value, report or analysis.
+
+```json
+{
+  "schema_version": "1.0",
+  "source_hash": "sha256:<64 lowercase hex digits from preview>",
+  "preview_hash": "sha256:<64 lowercase hex digits from preview>",
+  "confirmation_hash": "sha256:<64 lowercase hex digits from confirmed file>",
+  "header_row": 1,
+  "columns": [
+    {
+      "index": 0,
+      "header": "<exact preview header text at that index>",
+      "type": "text",
+      "empty_is_missing": true,
+      "missing_tokens": ["NA"]
+    }
+  ],
+  "duplicate_rows": "reject"
+}
+```
+
+- `header_row` must be one of the preview's absolute `row_numbers`. The supported rows are therefore
+  limited to the materialized preview window; a row outside it returns
+  `xlsx_header_row_outside_preview`.
+- each `index` is unique, below the declared header row's width, and `header` must equal that label
+  exactly; duplicate indices or a mismatched label are rejected. Empty or duplicate preview headers
+  are still declarable by index.
+- `type` is limited to `text`, `integer`, `decimal` or `boolean`. `date`, `datetime`, `currency` and
+  percentage declarations are rejected until a later slice implements interpretation.
+- `empty_is_missing` defaults to `true`; up to 8 literal `missing_tokens` of at most 32 characters
+  are recorded. Tokens are neither matched nor normalized.
+- `duplicate_rows` is explicitly required: `reject` or `keep-all`. It is recorded, not executed.
+
+The request must use `Content-Type: application/json` and is limited to 65,536 bytes. The resulting
+`interpretation` carries `values=declared-only-no-conversion` and a deterministic
+`interpretation_hash` over the source/preview/confirmation hashes, header row, column declarations and
+duplicate policy. Replaying the identical declaration returns the same interpretation without writing
+or auditing again; a different declaration replaces it, emits a new `xlsx.interpretation_intent`
+audit event before the encrypted body update, and returns the new hash. An audit failure leaves the
+previous interpretation (or none) in place. Listing or selecting these declarations across files is
+not implemented.
+
 ## Encryption, scope and binding
 
 AES-256-GCM encrypts both the preview payload and the source bytes in a dedicated SQLite database.
@@ -101,8 +154,10 @@ reused. There is no automatic cleanup in this slice.
 
 DLP scans the preview text only: sheet name, header, preview rows and formula text. It does **not**
 scan the raw ZIP or cells outside the preview window. Every record therefore states
-`dlp_scope=preview-text-only`. Credential-like column headers are denied before storage. Do not treat
-this preview as evidence that the whole workbook has been inspected.
+`dlp_scope=preview-text-only`. Credential-like column headers are denied before storage. A declaration
+only repeats header labels already present in the scanned preview and is stored inside the encrypted
+payload; audit carries the interpretation hash, not the labels or tokens. Do not treat this preview as
+evidence that the whole workbook has been inspected.
 
 ## Errors and refusal behavior
 
@@ -110,9 +165,9 @@ this preview as evidence that the whole workbook has been inspected.
 |---|---|
 | 413 | byte or processing limit exceeded |
 | 415 | wrong media type or non-identity content encoding |
-| 422 | invalid/macro/structurally rejected workbook, preview rejection or invalid idempotency key |
-| 409 | idempotency request changed or retained capacity exhausted |
-| 404 | file unavailable to this identity, expired, or preview binding failed |
+| 422 | invalid/macro/structurally rejected workbook, preview rejection, invalid idempotency key or invalid declaration contract |
+| 409 | idempotency request changed, retained capacity exhausted, parser/limit drift, changed binding, header row outside the preview or a column mismatch; the response detail carries the stable code |
+| 404 | file unavailable to this identity, expired, preview binding failed, or declared columns do not bind |
 | 408 | upload disconnected or timed out |
 | 503 | intake not configured or the encrypted store is unavailable |
 
@@ -121,8 +176,11 @@ unreadable entries fail closed rather than being partially served.
 
 ## Not implemented
 
-- header-row selection or column type/missing/duplicate confirmation;
+- applying declared types or matching declarations against cell values; no validation or conflict
+  report exists, and a declared type may contradict the preview;
+- selecting a header row outside the materialized preview window;
 - date, currency or percentage interpretation and formula-cache trust;
 - full-sheet extraction, profiling or read-only analysis;
-- file listing, workspace, approvals, artifact registration or `DatasetSnapshot`;
+- file listing, declaration listing, workspace, approvals, artifact registration or
+  `DatasetSnapshot`;
 - production identity, production qualification or safe-erasure claims.

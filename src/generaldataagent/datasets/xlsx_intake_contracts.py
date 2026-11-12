@@ -1,4 +1,4 @@
-"""Local XLSX staging boundaries: preview-only, scoped, and explicitly unconfirmed."""
+"""Local XLSX boundaries: scoped preview, explicit confirmation and declared intent."""
 
 from typing import Literal
 from uuid import UUID
@@ -7,9 +7,13 @@ from pydantic import AwareDatetime, Field, model_validator
 
 from generaldataagent.contracts import ActorContext
 from generaldataagent.contracts.models import ContractModel
-from generaldataagent.datasets.xlsx_preflight import MAX_BYTES, XlsxPreflightReport
-from generaldataagent.datasets.xlsx_preview import XlsxPreviewData
+from generaldataagent.datasets.xlsx_preflight import MAX_BYTES, MAX_ROWS, XlsxPreflightReport
+from generaldataagent.datasets.xlsx_preview import PREVIEW_COLUMNS, XlsxPreviewData
 from generaldataagent.memory.display_preferences import canonical_hash
+
+MAX_DECLARED_HEADER_CHARS = 256
+MAX_MISSING_TOKENS = 8
+MAX_MISSING_TOKEN_CHARS = 32
 
 
 class XlsxIntakeError(ValueError):
@@ -107,11 +111,141 @@ class ConfirmXlsxText(ContractModel):
         return self
 
 
+class XlsxColumnDeclaration(ContractModel):
+    """A declared intent for one previewed column; it never rewrites a cell value."""
+
+    schema_version: Literal["1.0"] = "1.0"
+    index: int = Field(ge=0, lt=PREVIEW_COLUMNS, strict=True)
+    header: str = Field(max_length=MAX_DECLARED_HEADER_CHARS)
+    type: Literal["text", "integer", "decimal", "boolean"]
+    empty_is_missing: bool = Field(default=True, strict=True)
+    missing_tokens: tuple[str, ...] = Field(default=(), max_length=MAX_MISSING_TOKENS)
+
+    @model_validator(mode="after")
+    def missing_tokens_are_bounded(self) -> "XlsxColumnDeclaration":
+        if any(not token or len(token) > MAX_MISSING_TOKEN_CHARS for token in self.missing_tokens):
+            raise ValueError("xlsx_missing_token_invalid")
+        if len(set(self.missing_tokens)) != len(self.missing_tokens):
+            raise ValueError("xlsx_missing_token_duplicate")
+        return self
+
+
+def _column_indices_unique(columns: tuple[XlsxColumnDeclaration, ...]) -> None:
+    indices = [column.index for column in columns]
+    if len(set(indices)) != len(indices):
+        raise ValueError("xlsx_column_declaration_duplicate")
+
+
+class DeclareXlsxInterpretation(ContractModel):
+    """Client declaration over a confirmed preview; the server still interprets nothing."""
+
+    schema_version: Literal["1.0"] = "1.0"
+    source_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    preview_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    confirmation_hash: str | None = Field(default=None, pattern=r"^sha256:[0-9a-f]{64}$")
+    header_row: int = Field(ge=1, le=MAX_ROWS, strict=True)
+    columns: tuple[XlsxColumnDeclaration, ...] = Field(default=(), max_length=PREVIEW_COLUMNS)
+    duplicate_rows: Literal["reject", "keep-all"]
+
+    @model_validator(mode="after")
+    def columns_are_unique(self) -> "DeclareXlsxInterpretation":
+        _column_indices_unique(self.columns)
+        return self
+
+
+class XlsxInterpretation(ContractModel):
+    """Pinned declaration bound to one confirmed preview; declared-only, never applied."""
+
+    schema_version: Literal["1.0"] = "1.0"
+    source_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    preview_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    confirmation_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    header_row: int = Field(ge=1, le=MAX_ROWS, strict=True)
+    columns: tuple[XlsxColumnDeclaration, ...] = Field(default=(), max_length=PREVIEW_COLUMNS)
+    duplicate_rows: Literal["reject", "keep-all"]
+    interpretation_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    values: Literal["declared-only-no-conversion"] = "declared-only-no-conversion"
+
+    @model_validator(mode="after")
+    def interpretation_binding(self) -> "XlsxInterpretation":
+        _column_indices_unique(self.columns)
+        if self.interpretation_hash != interpretation_digest(
+            source_hash=self.source_hash,
+            preview_hash=self.preview_hash,
+            confirmation_hash=self.confirmation_hash,
+            header_row=self.header_row,
+            columns=self.columns,
+            duplicate_rows=self.duplicate_rows,
+        ):
+            raise ValueError("xlsx_interpretation_binding_invalid")
+        return self
+
+
+def interpretation_digest(
+    *,
+    source_hash: str,
+    preview_hash: str,
+    confirmation_hash: str,
+    header_row: int,
+    columns: tuple[XlsxColumnDeclaration, ...],
+    duplicate_rows: str,
+) -> str:
+    """Hash only the declaration; replaying the same intent stays idempotent."""
+    return canonical_hash(
+        {
+            "source_hash": source_hash,
+            "preview_hash": preview_hash,
+            "confirmation_hash": confirmation_hash,
+            "header_row": header_row,
+            "columns": [column.model_dump(mode="json") for column in columns],
+            "duplicate_rows": duplicate_rows,
+        }
+    )
+
+
+def declared_header_labels(preview: XlsxPreviewData, header_row: int) -> tuple[str, ...] | None:
+    """Labels of the declared header row, limited to the materialized preview window."""
+    if header_row not in preview.row_numbers:
+        return None
+    position = preview.row_numbers.index(header_row)
+    return preview.header if position == 0 else preview.rows[position - 1]
+
+
+def interpretation_binds(
+    file: XlsxFileRecord,
+    preview: XlsxPreviewData,
+    interpretation: XlsxInterpretation,
+) -> bool:
+    if file.status != "confirmed" or file.confirmation_hash is None:
+        return False
+    if (
+        interpretation.source_hash != file.source_hash
+        or interpretation.preview_hash != file.preview_hash
+        or interpretation.confirmation_hash != file.confirmation_hash
+        or interpretation.interpretation_hash
+        != interpretation_digest(
+            source_hash=interpretation.source_hash,
+            preview_hash=interpretation.preview_hash,
+            confirmation_hash=interpretation.confirmation_hash,
+            header_row=interpretation.header_row,
+            columns=interpretation.columns,
+            duplicate_rows=interpretation.duplicate_rows,
+        )
+    ):
+        return False
+    labels = declared_header_labels(preview, interpretation.header_row)
+    return labels is not None and all(
+        0 <= column.index < len(labels) and column.header == labels[column.index]
+        for column in interpretation.columns
+    )
+
+
 class XlsxFilePreview(ContractModel):
     schema_version: Literal["1.0"] = "1.0"
     file: XlsxFileRecord
     preflight: XlsxPreflightReport
     data: XlsxPreviewData
+    interpretation: XlsxInterpretation | None = None
 
     @model_validator(mode="after")
     def preview_binding(self):
@@ -122,6 +256,10 @@ class XlsxFilePreview(ContractModel):
             or self.data.parser != self.file.config.parser
         ):
             raise ValueError("xlsx_preview_binding_invalid")
+        if self.interpretation is not None and not interpretation_binds(
+            self.file, self.data, self.interpretation
+        ):
+            raise ValueError("xlsx_interpretation_binding_invalid")
         return self
 
 
@@ -131,3 +269,12 @@ class _XlsxPayload(ContractModel):
     file: XlsxFileRecord
     preview: XlsxPreviewData
     preflight: XlsxPreflightReport
+    interpretation: XlsxInterpretation | None = None
+
+    @model_validator(mode="after")
+    def interpretation_belongs_to_file(self) -> "_XlsxPayload":
+        if self.interpretation is not None and not interpretation_binds(
+            self.file, self.preview, self.interpretation
+        ):
+            raise ValueError("xlsx_interpretation_binding_invalid")
+        return self

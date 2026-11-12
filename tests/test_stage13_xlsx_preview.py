@@ -380,6 +380,7 @@ def test_preview_data_rejects_inconsistent_widths_and_flags():
             sheet="Data",
             header_row=1,
             row_count=2,
+            row_numbers=(1, 2),
             column_count=2,
             header=("a", "b"),
             rows=(("1",),),
@@ -394,6 +395,7 @@ def test_preview_data_rejects_inconsistent_widths_and_flags():
             sheet="Data",
             header_row=1,
             row_count=2,
+            row_numbers=(1, 2),
             column_count=2,
             header=("a",),
             rows=(("1",),),
@@ -408,6 +410,7 @@ def test_preview_data_rejects_inconsistent_widths_and_flags():
             sheet="Data",
             header_row=1,
             row_count=1,
+            row_numbers=(1,),
             column_count=1,
             header=("a",),
             rows=(),
@@ -422,6 +425,7 @@ def test_preview_data_rejects_inconsistent_widths_and_flags():
             sheet="Data",
             header_row=1,
             row_count=1,
+            row_numbers=(1,),
             column_count=1,
             header=("a", "a"),
             rows=(),
@@ -439,3 +443,12 @@ def test_preview_result_requires_a_preflighted_sheet():
     payload["data"]["sheet"] = "Missing"
     with pytest.raises(ValidationError):
         XlsxPreviewResult.model_validate(payload)
+
+
+def test_preview_row_numbers_cover_exactly_the_materialized_rows():
+    result = preview(sheet(row(1, text_cell("A1", "head")), row(3, text_cell("A3", "x"))))
+    assert result.data.row_numbers == (1, 3)
+    payload = result.data.model_dump(mode="json")
+    for numbers in ((), (3,), (2, 3), (1, 1)):
+        with pytest.raises(ValidationError):
+            XlsxPreviewData.model_validate(payload | {"row_numbers": numbers})

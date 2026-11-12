@@ -49,6 +49,7 @@ class XlsxPreviewData(ContractModel):
     header_row: int = Field(ge=1, le=MAX_ROWS)
     row_count: int = Field(ge=1, le=MAX_ROWS)
     column_count: int = Field(ge=0, le=MAX_COLUMNS)
+    row_numbers: tuple[int, ...] = Field(min_length=1, max_length=PREVIEW_ROWS + 1)
     header: tuple[str, ...] = Field(max_length=PREVIEW_COLUMNS)
     rows: tuple[tuple[str, ...], ...] = Field(max_length=PREVIEW_ROWS)
     formulas: tuple[XlsxFormulaCell, ...]
@@ -65,6 +66,13 @@ class XlsxPreviewData(ContractModel):
     def preview_shape(self) -> "XlsxPreviewData":
         if any(len(row) != len(self.header) for row in self.rows):
             raise ValueError("xlsx preview rows must match the header width")
+        if len(self.row_numbers) != len(self.rows) + 1 or self.row_numbers[0] != self.header_row:
+            raise ValueError("xlsx preview row numbers must cover the materialized rows")
+        if any(
+            self.row_numbers[index + 1] <= self.row_numbers[index]
+            for index in range(len(self.row_numbers) - 1)
+        ):
+            raise ValueError("xlsx preview row numbers must be strictly increasing")
         if self.columns_truncated != (len(self.header) < self.column_count):
             raise ValueError("xlsx preview column truncation flag does not match")
         if self.rows_truncated != (len(self.rows) < self.row_count - 1):
@@ -274,6 +282,7 @@ def _preview(root: ElementTree.Element, shared: tuple[str, ...], sheet: str) -> 
         header_row=row_numbers[0],
         row_count=len(rows),
         column_count=column_count,
+        row_numbers=tuple(row_numbers[: PREVIEW_ROWS + 1]),
         header=header,
         rows=sampled,
         formulas=tuple(formulas),

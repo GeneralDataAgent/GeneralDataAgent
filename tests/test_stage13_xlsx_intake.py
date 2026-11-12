@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 from test_metric_analysis import actor
 from test_stage11_task_submission import credentials
 from test_stage13_xlsx_preflight import (
@@ -27,7 +28,9 @@ from generaldataagent.datasets import xlsx_intake
 from generaldataagent.datasets.xlsx_intake import XlsxIntakeService
 from generaldataagent.datasets.xlsx_intake_contracts import (
     ConfirmXlsxText,
+    DeclareXlsxInterpretation,
     XlsxIntakeError,
+    XlsxInterpretation,
     XlsxLimits,
 )
 from generaldataagent.datasets.xlsx_intake_store import (
@@ -582,3 +585,350 @@ def test_confirmation_body_is_bounded(tmp_path):
         ).status_code
         == 413
     )
+
+
+def declaration_body(preview, **changes):
+    body = {
+        "schema_version": "1.0",
+        "source_hash": preview["file"]["source_hash"],
+        "preview_hash": preview["file"]["preview_hash"],
+        "confirmation_hash": preview["file"]["confirmation_hash"],
+        "header_row": preview["data"]["header_row"],
+        "columns": [
+            {"index": index, "header": name, "type": "text"}
+            for index, name in enumerate(preview["data"]["header"])
+        ],
+        "duplicate_rows": "reject",
+    }
+    body.update(changes)
+    return body
+
+
+def declare(client, headers, file_id, body):
+    return client.post(
+        f"/v1/analysis/files/xlsx/{file_id}/interpretation",
+        headers=headers | {"content-type": "application/json"},
+        json=body,
+    )
+
+
+def confirmed_file(client, headers):
+    preview = upload(client, headers).json()
+    response = confirm(client, headers, preview["file"]["file_id"], confirm_body(preview))
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def test_declaration_requires_a_confirmed_matching_preview(tmp_path):
+    service = build_service(tmp_path)
+    _, headers = credentials(service.broker)
+    client = client_for(service)
+    staged = upload(client, headers).json()
+    file_id = staged["file"]["file_id"]
+    early = declare(client, headers, file_id, declaration_body(staged))
+    assert early.status_code == 409
+    assert early.json()["detail"] == "xlsx_confirmation_required_before_interpretation"
+    confirmed = confirmed_file(client, headers)
+    for key in ("source_hash", "preview_hash", "confirmation_hash"):
+        changed = declaration_body(confirmed, **{key: "sha256:" + "0" * 64})
+        assert declare(client, headers, file_id, changed).status_code == 409
+    assert (
+        client.get(f"/v1/analysis/files/xlsx/{file_id}", headers=headers).json()["interpretation"]
+        is None
+    )
+
+
+def test_declaration_records_intent_without_changing_the_preview(tmp_path):
+    service = build_service(tmp_path)
+    _, headers = credentials(service.broker)
+    client = client_for(service)
+    confirmed = confirmed_file(client, headers)
+    file_id = confirmed["file"]["file_id"]
+    body = declaration_body(
+        confirmed,
+        columns=[
+            {
+                "index": 0,
+                "header": "name",
+                "type": "text",
+                "empty_is_missing": True,
+                "missing_tokens": ["NA", "n/a"],
+            },
+            {"index": 1, "header": "amount", "type": "decimal", "empty_is_missing": False},
+        ],
+        duplicate_rows="keep-all",
+    )
+    response = declare(client, headers, file_id, body)
+    assert response.status_code == 200, response.text
+    declared = response.json()
+    interpretation = declared["interpretation"]
+    assert interpretation["header_row"] == confirmed["data"]["header_row"]
+    assert interpretation["columns"] == [
+        {
+            "schema_version": "1.0",
+            "index": 0,
+            "header": "name",
+            "type": "text",
+            "empty_is_missing": True,
+            "missing_tokens": ["NA", "n/a"],
+        },
+        {
+            "schema_version": "1.0",
+            "index": 1,
+            "header": "amount",
+            "type": "decimal",
+            "empty_is_missing": False,
+            "missing_tokens": [],
+        },
+    ]
+    assert interpretation["duplicate_rows"] == "keep-all"
+    assert interpretation["values"] == "declared-only-no-conversion"
+    assert interpretation["interpretation_hash"].startswith("sha256:")
+    assert declared["file"] == confirmed["file"]
+    assert declared["data"] == confirmed["data"]
+    assert declared["preflight"] == confirmed["preflight"]
+    assert client.get(f"/v1/analysis/files/xlsx/{file_id}", headers=headers).json() == declared
+    audit = (tmp_path / "audit.jsonl").read_text()
+    assert audit.count("xlsx.interpretation_intent") == 1
+    assert "amount" not in audit and "NA" not in audit
+    assert declare(client, headers, file_id, body).json() == declared
+    assert (tmp_path / "audit.jsonl").read_text().count("xlsx.interpretation_intent") == 1
+    revision = declare(client, headers, file_id, declaration_body(confirmed))
+    assert revision.status_code == 200
+    assert revision.json()["interpretation"]["duplicate_rows"] == "reject"
+    assert (
+        revision.json()["interpretation"]["interpretation_hash"]
+        != interpretation["interpretation_hash"]
+    )
+    assert (tmp_path / "audit.jsonl").read_text().count("xlsx.interpretation_intent") == 2
+
+
+def test_declaration_selects_a_materialized_preview_row_as_header(tmp_path):
+    service = build_service(tmp_path)
+    _, headers = credentials(service.broker)
+    client = client_for(service)
+    confirmed = confirmed_file(client, headers)
+    file_id = confirmed["file"]["file_id"]
+    assert confirmed["data"]["row_numbers"] == [1, 2, 3]
+    second = confirmed["data"]["rows"][0]
+    response = declare(
+        client,
+        headers,
+        file_id,
+        declaration_body(
+            confirmed,
+            header_row=2,
+            columns=[
+                {"index": index, "header": name, "type": "text"}
+                for index, name in enumerate(second)
+            ],
+        ),
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["interpretation"]["header_row"] == 2
+    mismatch = declare(
+        client,
+        headers,
+        file_id,
+        declaration_body(
+            confirmed,
+            header_row=2,
+            columns=[{"index": 0, "header": "name", "type": "text"}],
+        ),
+    )
+    assert mismatch.status_code == 409
+    assert mismatch.json()["detail"] == "xlsx_column_declaration_mismatch"
+    outside = declare(client, headers, file_id, declaration_body(confirmed, header_row=99))
+    assert outside.status_code == 409
+    assert outside.json()["detail"] == "xlsx_header_row_outside_preview"
+
+
+def test_declaration_header_row_is_bounded_to_the_preview_window(tmp_path):
+    service = build_service(tmp_path)
+    _, headers = credentials(service.broker)
+    client = client_for(service)
+    rows = [row(number, text_cell(f"A{number}", f"v{number}")) for number in range(1, 9)]
+    preview = upload(client, headers, package(entries_for(sheet(*rows)))).json()
+    confirmed = confirm(client, headers, preview["file"]["file_id"], confirm_body(preview)).json()
+    assert confirmed["data"]["row_numbers"] == [1, 2, 3, 4, 5, 6]
+    assert confirmed["data"]["row_count"] == 8
+    file_id = confirmed["file"]["file_id"]
+    assert (
+        declare(
+            client,
+            headers,
+            file_id,
+            declaration_body(
+                confirmed,
+                header_row=6,
+                columns=[{"index": 0, "header": "v6", "type": "text"}],
+            ),
+        ).status_code
+        == 200
+    )
+    beyond = declare(client, headers, file_id, declaration_body(confirmed, header_row=7))
+    assert beyond.status_code == 409
+    assert beyond.json()["detail"] == "xlsx_header_row_outside_preview"
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"columns": [{"index": 0, "header": "name", "type": "date"}]},
+        {
+            "columns": [
+                {"index": 0, "header": "name", "type": "text"},
+                {"index": 0, "header": "amount", "type": "text"},
+            ]
+        },
+        {"columns": [{"index": 0, "header": "name", "missing_tokens": ["NA", "NA"]}]},
+        {"columns": [{"index": 0, "header": "name", "missing_tokens": [""]}]},
+        {"columns": [{"index": 0, "header": "x" * 257}]},
+        {"duplicate_rows": "drop"},
+        {"extra": True},
+    ],
+)
+def test_declaration_contract_rejects_unsupported_or_ambiguous_intent(tmp_path, changes):
+    service = build_service(tmp_path)
+    _, headers = credentials(service.broker)
+    client = client_for(service)
+    confirmed = confirmed_file(client, headers)
+    body = declaration_body(confirmed, **changes)
+    assert declare(client, headers, confirmed["file"]["file_id"], body).status_code == 422
+
+
+def test_declaration_requires_json_explicit_policy_and_a_bounded_body(tmp_path):
+    service = build_service(tmp_path)
+    _, headers = credentials(service.broker)
+    client = client_for(service)
+    confirmed = confirmed_file(client, headers)
+    path = f"/v1/analysis/files/xlsx/{confirmed['file']['file_id']}/interpretation"
+    body = declaration_body(confirmed)
+    del body["duplicate_rows"]
+    assert client.post(path, headers=headers, json=body).status_code == 422
+    assert (
+        client.post(
+            path,
+            headers=headers | {"content-type": "text/plain"},
+            content=b'{"duplicate_rows": "reject"}',
+        ).status_code
+        == 415
+    )
+    assert (
+        client.post(
+            path, headers=headers | {"content-type": "application/json"}, content=b""
+        ).status_code
+        == 422
+    )
+    oversized = b"{" + b" " * 65536
+    assert (
+        client.post(
+            path, headers=headers | {"content-type": "application/json"}, content=oversized
+        ).status_code
+        == 413
+    )
+
+
+def test_declaration_is_creator_scoped_drift_tamper_and_audit_bound(tmp_path):
+    service = build_service(tmp_path)
+    token, _ = credentials(service.broker)
+    preview = service.stage(RAW, actor(), token, "declare")
+    confirmed = service.confirm(
+        preview.file.file_id,
+        actor(),
+        token,
+        ConfirmXlsxText(
+            confirmed=True,
+            source_hash=preview.file.source_hash,
+            preview_hash=preview.file.preview_hash,
+        ),
+    )
+    request = DeclareXlsxInterpretation.model_validate(
+        declaration_body(confirmed.model_dump(mode="json"))
+    )
+    other = actor().model_copy(update={"user_id": "other"})
+    other_token, _ = credentials(service.broker, other)
+    with pytest.raises(PermissionError):
+        service.interpret(preview.file.file_id, other, other_token, request)
+    service.interpret(preview.file.file_id, actor(), token, request)
+    replay = service.confirm(
+        preview.file.file_id,
+        actor(),
+        token,
+        ConfirmXlsxText(
+            confirmed=True,
+            source_hash=preview.file.source_hash,
+            preview_hash=preview.file.preview_hash,
+        ),
+    )
+    assert replay.interpretation is not None
+    with sqlite3.connect(service.store.path) as db:
+        db.execute("UPDATE xlsx_uploads SET body=X'00'")
+    with pytest.raises(PermissionError):
+        service.interpret(preview.file.file_id, actor(), token, request)
+
+    drift = build_service(tmp_path / "drift")
+    drift_token, _ = credentials(drift.broker)
+    staged = drift.stage(RAW, actor(), drift_token, "drift")
+    drift_confirm = drift.confirm(
+        staged.file.file_id,
+        actor(),
+        drift_token,
+        ConfirmXlsxText(
+            confirmed=True,
+            source_hash=staged.file.source_hash,
+            preview_hash=staged.file.preview_hash,
+        ),
+    )
+    drift_request = DeclareXlsxInterpretation.model_validate(
+        declaration_body(drift_confirm.model_dump(mode="json"))
+    )
+
+    class FlakyAudit:
+        calls = 0
+
+        def emit(self, event):
+            self.calls += 1
+            if self.calls == 3:
+                raise RuntimeError("audit down")
+
+    flaky = build_service(tmp_path / "flaky", audit=FlakyAudit())
+    flaky_token, _ = credentials(flaky.broker)
+    flaky_stage = flaky.stage(RAW, actor(), flaky_token, "flaky")
+    flaky_confirm = flaky.confirm(
+        flaky_stage.file.file_id,
+        actor(),
+        flaky_token,
+        ConfirmXlsxText(
+            confirmed=True,
+            source_hash=flaky_stage.file.source_hash,
+            preview_hash=flaky_stage.file.preview_hash,
+        ),
+    )
+    flaky_request = DeclareXlsxInterpretation.model_validate(
+        declaration_body(flaky_confirm.model_dump(mode="json"))
+    )
+    with pytest.raises(XlsxIntakeUnavailable, match="audit_unavailable"):
+        flaky.interpret(flaky_stage.file.file_id, actor(), flaky_token, flaky_request)
+    reopened = flaky.preview(flaky_stage.file.file_id, actor(), flaky_token)
+    assert reopened.file.status == "confirmed"
+    assert reopened.interpretation is None
+
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(xlsx_intake, "parser_fingerprint", lambda *args: "sha256:" + "1" * 64)
+    with pytest.raises(XlsxIntakeConflict, match="restage_required"):
+        drift.interpret(staged.file.file_id, actor(), drift_token, drift_request)
+    monkeypatch.undo()
+
+
+def test_interpretation_contract_rejects_a_forged_hash():
+    with pytest.raises(ValidationError):
+        XlsxInterpretation(
+            source_hash="sha256:" + "0" * 64,
+            preview_hash="sha256:" + "0" * 64,
+            confirmation_hash="sha256:" + "0" * 64,
+            header_row=1,
+            columns=(),
+            duplicate_rows="reject",
+            interpretation_hash="sha256:" + "1" * 64,
+        )
