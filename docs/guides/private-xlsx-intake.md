@@ -5,13 +5,15 @@ inert text preview, then stores an encrypted preview bound to the exact source, 
 and limits. An explicit confirmation can pin that preview. A separate declaration can then record the
 header row, per-column type, missing-value tokens and duplicate-row policy as **intent only**. A
 read-only resolution can then derive deterministic per-cell readings for the declared columns over the
-same sampled window. It does not extract every cell, profile values, evaluate formulas, convert
-currencies or percentages, rewrite stored values, validate a declaration against the whole sheet, or
-make model calls. Production API assembly rejects this adapter.
+same sampled window, and a bounded conformance report can read every present row below the header for
+those columns while returning only counts, reasons and digests. Neither call returns the workbook's
+undeclared content, extracts values for analysis, profiles data, evaluates formulas, converts
+currencies or percentages, rewrites stored values or makes model calls. Production API assembly
+rejects this adapter.
 
-This is the seventh slice of XLSX ingestion. The service can now page through creator-private file
-metadata. Currency/percentage interpretation, full-sheet extraction, declaration listing, analysis and
-`DatasetSnapshot` are not implemented.
+This is the eighth slice of XLSX ingestion. The service can now derive a whole-sheet conformance
+summary for declared columns without returning their values. Currency/percentage interpretation,
+full-sheet value extraction, declaration listing, analysis and `DatasetSnapshot` are not implemented.
 
 ## Assembly and API
 
@@ -33,6 +35,7 @@ not a share. No actor, host path, file name, connector or artifact-root configur
 | `POST /v1/analysis/files/xlsx/{file_id}/confirm` | Strict JSON with `confirmed: true` and the exact source/preview hashes; pins a confirmed preview |
 | `POST /v1/analysis/files/xlsx/{file_id}/interpretation` | Strict JSON declaration over a confirmed preview; records intent without rewriting values |
 | `GET /v1/analysis/files/xlsx/{file_id}/interpretation` | Derived, read-only per-cell readings of the declared columns; nothing is stored |
+| `GET /v1/analysis/files/xlsx/{file_id}/conformance` | Derived whole-sheet counts, reasons and digests for the declared columns; no cell text is returned |
 
 `sheet` is optional at staging and defaults to the workbook's first sheet. An unknown or invalid
 sheet is rejected. Later reads ignore a `sheet` query parameter; restage under a new idempotency key
@@ -198,6 +201,30 @@ are never interpreted, `duplicate_rows` is never evaluated, and the result state
 `storage=derived-not-persisted` and `scope=materialized-preview-window`. This is not full-sheet
 extraction and not evidence that undeclared or non-previewed cells were inspected.
 
+## Whole-sheet conformance (read-only)
+
+`GET /v1/analysis/files/xlsx/{file_id}/conformance` requires a recorded declaration with at least one
+declared column (otherwise `409 xlsx_conformance_no_declared_columns`). It re-runs the same parser and
+binding checks as a preview read, then reads every **present** row below the declared header for the
+declared columns only. Rows absent from the sheet are never synthesized (`rows=present-rows-only`),
+undeclared columns are never materialized, and the response contains no cell text.
+
+Each declared column reports its reading counts (`values`, `missing`, `unparsed`, `not_trusted`), a
+sorted breakdown of the non-value reasons, and a per-column digest. The report also carries
+`data_rows`, `cells_read`, the exact `interpretation_hash`, the echoed `duplicate_rows` policy,
+`duplicate_row_count` (rows whose canonical readings repeat an earlier row over the declared columns)
+and a `snapshot_digest` over every row number and reading. Duplicates are counted, never dropped
+(`duplicate_rows_handling=counted-not-dropped`), and no snapshot is written.
+
+Readings use the same deterministic rules as the sampled-window resolution: formula caches are never
+trusted, error and empty cells keep their stable reasons, and currencies, percentages and times of day
+stay uninterpreted. Bounds are explicit: 250,000 declared cells and 16 MiB of declared cell text per
+report, beyond which the request fails closed (`xlsx_conformance_cell_limit`,
+`xlsx_conformance_char_limit`); the shared processing deadline still applies. The report is derived on
+request, is not persisted or audited, and does not change the stored preview, source, confirmation,
+declaration or expiry. This is not a `DatasetSnapshot`: it exposes no values and provably reads only
+the declared columns of the pinned sheet.
+
 ## Encryption, scope and binding
 
 AES-256-GCM encrypts both the preview payload and the source bytes in a dedicated SQLite database.
@@ -228,10 +255,10 @@ evidence that the whole workbook has been inspected.
 
 | Status | Meaning |
 |---|---|
-| 413 | byte or processing limit exceeded |
+| 413 | byte, processing, conformance-cell or conformance-character limit exceeded |
 | 415 | wrong media type or non-identity content encoding |
 | 422 | invalid/macro/structurally rejected workbook, preview rejection, invalid idempotency key or invalid declaration contract |
-| 409 | idempotency request changed, retained capacity exhausted, parser/limit drift, changed binding, header row outside the preview, a column mismatch, no recorded declaration or an invalid/expired listing cursor; the response detail carries the stable code |
+| 409 | idempotency request changed, retained capacity exhausted, parser/limit drift, changed binding, header row outside the preview, a column mismatch, no recorded declaration, a declaration without columns or an invalid/expired listing cursor; the response detail carries the stable code |
 | 404 | file unavailable to this identity, expired, preview binding failed, or declared columns do not bind |
 | 408 | upload disconnected or timed out |
 | 503 | intake not configured or the encrypted store is unavailable |
@@ -241,12 +268,13 @@ unreadable entries fail closed rather than being partially served.
 
 ## Not implemented
 
-- applying declared types to stored values or reporting a whole-sheet conflict summary; readings are
-  derived per request for the sampled window only;
+- applying declared types to stored values, dropping duplicate rows or producing a persisted
+  whole-sheet conflict summary or snapshot; the conformance report is derived per request and returns
+  counts and digests only;
 - selecting a header row outside the materialized preview window;
 - currency, percentage or time-of-day interpretation, rounded/displayed number formatting and
   formula-cache trust;
-- duplicate-row evaluation, full-sheet extraction, profiling or read-only analysis;
+- duplicate-row enforcement, full-sheet value extraction, profiling or read-only analysis;
 - declaration listing, filename/column-name/search listing, total counts, workspace, approvals,
   artifact registration or `DatasetSnapshot`;
 - production identity, production qualification or safe-erasure claims.

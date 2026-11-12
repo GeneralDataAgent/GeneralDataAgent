@@ -143,7 +143,7 @@ def interpret_preview(
     columns = []
     for declaration in interpretation.columns:
         cells = tuple(
-            _interpret_cell(
+            interpret_cell(
                 row=row_number,
                 raw=row[declaration.index],
                 kind=column_kinds[declaration.index],
@@ -168,7 +168,7 @@ def interpret_preview(
     )
 
 
-def _interpret_cell(
+def interpret_cell(
     *,
     row: int,
     raw: str,
