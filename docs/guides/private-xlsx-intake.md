@@ -6,14 +6,16 @@ and limits. An explicit confirmation can pin that preview. A separate declaratio
 header row, per-column type, missing-value tokens and duplicate-row policy as **intent only**. A
 read-only resolution can then derive deterministic per-cell readings for the declared columns over the
 same sampled window, and a bounded conformance report can read every present row below the header for
-those columns while returning only counts, reasons and digests. Neither call returns the workbook's
-undeclared content, extracts values for analysis, profiles data, evaluates formulas, converts
-currencies or percentages, rewrites stored values or makes model calls. Production API assembly
-rejects this adapter.
+those columns while returning only counts, reasons and digests. A further read-only report counts the
+number formats (`cellXfs`/`numFmts`) used by the declared columns without applying them. None of these
+calls returns the workbook's undeclared content, extracts values for analysis, profiles data, evaluates
+formulas, converts currencies or percentages, rewrites stored values or makes model calls. Production
+API assembly rejects this adapter.
 
-This is the eighth slice of XLSX ingestion. The service can now derive a whole-sheet conformance
-summary for declared columns without returning their values. Currency/percentage interpretation,
-full-sheet value extraction, declaration listing, analysis and `DatasetSnapshot` are not implemented.
+This is the ninth slice of XLSX ingestion. The service can now derive whole-sheet conformance and inert
+number-format facts for declared columns without returning their values.
+Currency/percentage interpretation, full-sheet value extraction, declaration listing, analysis and
+`DatasetSnapshot` are not implemented.
 
 ## Assembly and API
 
@@ -36,6 +38,7 @@ not a share. No actor, host path, file name, connector or artifact-root configur
 | `POST /v1/analysis/files/xlsx/{file_id}/interpretation` | Strict JSON declaration over a confirmed preview; records intent without rewriting values |
 | `GET /v1/analysis/files/xlsx/{file_id}/interpretation` | Derived, read-only per-cell readings of the declared columns; nothing is stored |
 | `GET /v1/analysis/files/xlsx/{file_id}/conformance` | Derived whole-sheet counts, reasons and digests for the declared columns; no cell text is returned |
+| `GET /v1/analysis/files/xlsx/{file_id}/formats` | Derived whole-sheet number-format counts for the declared columns; format codes stay inert |
 
 `sheet` is optional at staging and defaults to the workbook's first sheet. An unknown or invalid
 sheet is rejected. Later reads ignore a `sheet` query parameter; restage under a new idempotency key
@@ -225,6 +228,30 @@ request, is not persisted or audited, and does not change the stored preview, so
 declaration or expiry. This is not a `DatasetSnapshot`: it exposes no values and provably reads only
 the declared columns of the pinned sheet.
 
+## Number-format facts (read-only)
+
+`GET /v1/analysis/files/xlsx/{file_id}/formats` requires a recorded declaration with at least one
+declared column (otherwise `409 xlsx_formats_no_declared_columns`). It re-runs the same parser and
+binding checks, resolves the workbook's `cellXfs` style entries through `xl/styles.xml`, and counts,
+per declared column over every **present** data row, which number format each cell uses. A workbook
+without a style part uses the default General format (`numFmtId=0`); a declared cell the worksheet
+omits counts as that default so every declared cell is accounted for exactly once.
+
+Each distinct format is reported as `num_fmt_id`, `kind` (`builtin` for ids below 50, `custom` when the
+workbook defines the id in `numFmts`, `undefined` otherwise), the inert custom `formatCode` text, and
+the number of declared cells using it. The contract requires the counts to sum to the column's cell
+count, forbids duplicate format entries and keeps them sorted. Custom format codes are DLP-scanned
+before the response is returned; a denied code produces `404 xlsx_file_unavailable`.
+
+The report states `display_format=inert-not-applied`, `currencies`/`percentages`/`times_of_day` and
+`classification` as `not-interpreted`/`not-evaluated`, `values=unchanged`, `dlp=format-codes-scanned`
+and `storage=derived-not-persisted`. A format is never applied to a value, never used to reinterpret a
+number, and no cell value is returned. Bounds are explicit: 250,000 declared cells, 4,096 `numFmts`
+and `cellXfs` entries, and 256 characters per format code, beyond which the request fails closed
+(`xlsx_formats_cell_limit`, `xlsx_formats_styles_limit`, `xlsx_formats_code_limit`). Invalid XML,
+duplicate or missing `numFmtId` values, malformed style indexes and out-of-range index references fail
+closed rather than degrading. Nothing is persisted or audited and the stored record is unchanged.
+
 ## Encryption, scope and binding
 
 AES-256-GCM encrypts both the preview payload and the source bytes in a dedicated SQLite database.
@@ -248,18 +275,20 @@ DLP scans the preview text only: sheet name, header, preview rows and formula te
 scan the raw ZIP or cells outside the preview window. Every record therefore states
 `dlp_scope=preview-text-only`. Credential-like column headers are denied before storage. A declaration
 only repeats header labels already present in the scanned preview and is stored inside the encrypted
-payload; audit carries the interpretation hash, not the labels or tokens. Do not treat this preview as
+payload; audit carries the interpretation hash, not the labels or tokens. The number-format report is
+the one derived response that returns text not previously scanned (custom format codes), so those codes
+are scanned immediately before the response and a denial returns 404. Do not treat this preview as
 evidence that the whole workbook has been inspected.
 
 ## Errors and refusal behavior
 
 | Status | Meaning |
 |---|---|
-| 413 | byte, processing, conformance-cell or conformance-character limit exceeded |
+| 413 | byte, processing, conformance-cell/character, format-cell, style-table or format-code limit exceeded |
 | 415 | wrong media type or non-identity content encoding |
 | 422 | invalid/macro/structurally rejected workbook, preview rejection, invalid idempotency key or invalid declaration contract |
 | 409 | idempotency request changed, retained capacity exhausted, parser/limit drift, changed binding, header row outside the preview, a column mismatch, no recorded declaration, a declaration without columns or an invalid/expired listing cursor; the response detail carries the stable code |
-| 404 | file unavailable to this identity, expired, preview binding failed, or declared columns do not bind |
+| 404 | file unavailable to this identity, expired, preview binding failed, declared columns do not bind, or a returned format code was denied by DLP |
 | 408 | upload disconnected or timed out |
 | 503 | intake not configured or the encrypted store is unavailable |
 
@@ -272,8 +301,9 @@ unreadable entries fail closed rather than being partially served.
   whole-sheet conflict summary or snapshot; the conformance report is derived per request and returns
   counts and digests only;
 - selecting a header row outside the materialized preview window;
-- currency, percentage or time-of-day interpretation, rounded/displayed number formatting and
-  formula-cache trust;
+- applying number formats, rounding by display format, or deciding that a format means a currency,
+  percentage or time of day; the format report exposes inert codes and counts only;
+- currency, percentage or time-of-day interpretation and formula-cache trust;
 - duplicate-row enforcement, full-sheet value extraction, profiling or read-only analysis;
 - declaration listing, filename/column-name/search listing, total counts, workspace, approvals,
   artifact registration or `DatasetSnapshot`;

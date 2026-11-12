@@ -10,6 +10,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.requests import ClientDisconnect
 
 from generaldataagent.datasets.xlsx_conformance import XlsxConformanceReader, XlsxConformanceResult
+from generaldataagent.datasets.xlsx_formats import XlsxFormatReader, XlsxFormatReport
 from generaldataagent.datasets.xlsx_intake import XlsxIntakeService
 from generaldataagent.datasets.xlsx_intake_contracts import (
     ConfirmXlsxText,
@@ -157,6 +158,18 @@ def xlsx_intake_router(service: XlsxIntakeService | None, credentials: Callable)
         actor, token = credentials(request)
         try:
             return XlsxConformanceReader(port).report(file_id, actor, token)
+        except Exception as exc:
+            raise denied(exc) from exc
+
+    @router.get(
+        "/v1/analysis/files/xlsx/{file_id}/formats",
+        response_model=XlsxFormatReport,
+    )
+    def formats(file_id: UUID, request: Request):
+        port = configured()
+        actor, token = credentials(request)
+        try:
+            return XlsxFormatReader(port).report(file_id, actor, token)
         except Exception as exc:
             raise denied(exc) from exc
 
