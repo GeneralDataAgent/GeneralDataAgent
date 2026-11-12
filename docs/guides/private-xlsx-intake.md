@@ -9,8 +9,9 @@ same sampled window. It does not extract every cell, profile values, evaluate fo
 currencies or percentages, rewrite stored values, validate a declaration against the whole sheet, or
 make model calls. Production API assembly rejects this adapter.
 
-This is the sixth slice of XLSX ingestion. Currency/percentage interpretation, full-sheet extraction,
-listing, analysis and `DatasetSnapshot` are not implemented.
+This is the seventh slice of XLSX ingestion. The service can now page through creator-private file
+metadata. Currency/percentage interpretation, full-sheet extraction, declaration listing, analysis and
+`DatasetSnapshot` are not implemented.
 
 ## Assembly and API
 
@@ -27,6 +28,7 @@ not a share. No actor, host path, file name, connector or artifact-root configur
 | Endpoint | Behavior |
 |---|---|
 | `POST /v1/analysis/files/xlsx?sheet=Name` | Raw OOXML workbook bytes, `Content-Encoding: identity`, `Idempotency-Key`; 201 private staged preview |
+| `GET /v1/analysis/files/xlsx` | Creator-private metadata page over non-expired staged files; no headers, values or hashes |
 | `GET /v1/analysis/files/xlsx/{file_id}` | Current-grant preview of the fixed staged snapshot; the sheet pinned at staging is used |
 | `POST /v1/analysis/files/xlsx/{file_id}/confirm` | Strict JSON with `confirmed: true` and the exact source/preview hashes; pins a confirmed preview |
 | `POST /v1/analysis/files/xlsx/{file_id}/interpretation` | Strict JSON declaration over a confirmed preview; records intent without rewriting values |
@@ -43,6 +45,27 @@ and compressed transfer encodings are rejected.
 Same scope/key/source/config/preflight returns the same file and does not extend expiry. Changed input
 under the same key returns 409; new input needs a new key/file ID. IDs are server generated. This is
 not a task submission endpoint and creates no analysis task.
+
+## Metadata listing
+
+`GET /v1/analysis/files/xlsx` returns at most 20 metadata items per page (default 10). Each item
+carries only the file/task ID, `status` (`staged`/`confirmed`), `availability`
+(`compatible`/`release_incompatible`), the pinned sheet name, row/column counts, byte count,
+`has_interpretation`, and created/expiry timestamps. It never returns headers, cell values, formulas,
+hashes or idempotency keys, and it does not re-parse the workbook.
+
+The listing uses the same current-grant rules as a preview read: exact creator/tenant/project and
+normalized domain scope, rechecked on every page, so another identity sees its own inventory only.
+Expired rows are skipped. `availability` reports whether the stored parser/processing fingerprints
+still match the running release; a `release_incompatible` row remains listable but preview/confirm/
+interpretation continue to fail closed with restage-required, and listing never reinterprets it.
+
+`next_cursor` is opaque, encrypted and bound to the scope, page size and listing release. It freezes
+first-page membership and order for at most five minutes; each later page rechecks authorization and
+expiry. An altered, cross-scope, release-changed or expired cursor returns
+`409 xlsx_list_cursor_invalid_or_expired`. There is no `total`, filename, column name, sample or
+cross-store snapshot. Audit records `xlsx.files_listed` with only `item_count`/`has_more`; audit
+failure returns no page. Declaration listing across files is not implemented.
 
 ## Staged preview
 
@@ -208,7 +231,7 @@ evidence that the whole workbook has been inspected.
 | 413 | byte or processing limit exceeded |
 | 415 | wrong media type or non-identity content encoding |
 | 422 | invalid/macro/structurally rejected workbook, preview rejection, invalid idempotency key or invalid declaration contract |
-| 409 | idempotency request changed, retained capacity exhausted, parser/limit drift, changed binding, header row outside the preview, a column mismatch or no recorded declaration; the response detail carries the stable code |
+| 409 | idempotency request changed, retained capacity exhausted, parser/limit drift, changed binding, header row outside the preview, a column mismatch, no recorded declaration or an invalid/expired listing cursor; the response detail carries the stable code |
 | 404 | file unavailable to this identity, expired, preview binding failed, or declared columns do not bind |
 | 408 | upload disconnected or timed out |
 | 503 | intake not configured or the encrypted store is unavailable |
@@ -224,6 +247,6 @@ unreadable entries fail closed rather than being partially served.
 - currency, percentage or time-of-day interpretation, rounded/displayed number formatting and
   formula-cache trust;
 - duplicate-row evaluation, full-sheet extraction, profiling or read-only analysis;
-- file listing, declaration listing, workspace, approvals, artifact registration or
-  `DatasetSnapshot`;
+- declaration listing, filename/column-name/search listing, total counts, workspace, approvals,
+  artifact registration or `DatasetSnapshot`;
 - production identity, production qualification or safe-erasure claims.
