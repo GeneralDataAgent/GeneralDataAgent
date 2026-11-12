@@ -11,6 +11,7 @@ from starlette.requests import ClientDisconnect
 
 from generaldataagent.datasets.xlsx_intake import XlsxIntakeService
 from generaldataagent.datasets.xlsx_intake_contracts import (
+    ConfirmXlsxText,
     XlsxFilePreview,
     XlsxIntakeLimit,
 )
@@ -85,6 +86,21 @@ def xlsx_intake_router(service: XlsxIntakeService | None, credentials: Callable)
         actor, token = credentials(request)
         try:
             return port.preview(file_id, actor, token)
+        except Exception as exc:
+            raise denied(exc) from exc
+
+    @router.post("/v1/analysis/files/xlsx/{file_id}/confirm", response_model=XlsxFilePreview)
+    async def confirm(file_id: UUID, request: Request):
+        port = configured()
+        actor, token = credentials(request)
+        if request.headers.get("content-type", "").lower() != "application/json":
+            raise HTTPException(status_code=415, detail="xlsx_confirmation_json_required")
+        try:
+            body, end = await collect(request, port, actor, token, 1024)
+            confirmation = ConfirmXlsxText.model_validate_json(body)
+            return await run_in_threadpool(
+                port.confirm, file_id, actor, token, confirmation, deadline=end
+            )
         except Exception as exc:
             raise denied(exc) from exc
 

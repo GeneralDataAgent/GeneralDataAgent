@@ -149,7 +149,7 @@ class XlsxUploadStore:
             payload = _XlsxPayload.model_validate_json(self.open(row["body"], self.body_aad(row)))
             raw = self.open(row["source"], self.source_aad(row))
             if (
-                payload.file.status != "staged"
+                payload.file.status not in ("staged", "confirmed")
                 or str(payload.file.file_id) != row["file_id"]
                 or payload.actor != canonical_actor(payload.actor)
                 or self.scope(payload.actor) != row["scope"]

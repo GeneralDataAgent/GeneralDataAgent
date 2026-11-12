@@ -14,6 +14,7 @@ from uuid import UUID, uuid4
 
 from generaldataagent.contracts import ActorContext, AuditEvent
 from generaldataagent.datasets.xlsx_intake_contracts import (
+    ConfirmXlsxText,
     XlsxFilePreview,
     XlsxFileRecord,
     XlsxIntakeError,
@@ -21,6 +22,7 @@ from generaldataagent.datasets.xlsx_intake_contracts import (
     XlsxLimits,
     XlsxTextConfig,
     _XlsxPayload,
+    confirmation_digest,
 )
 from generaldataagent.datasets.xlsx_intake_store import (
     XlsxIntakeConflict,
@@ -247,3 +249,42 @@ class XlsxIntakeService:
             self._parsed(payload, raw, bound)
             bound()
             return self._preview(payload)
+
+    def confirm(
+        self,
+        file_id: UUID,
+        actor: ActorContext,
+        token: str,
+        request: ConfirmXlsxText,
+        *,
+        deadline=None,
+    ):
+        request = ConfirmXlsxText.model_validate(request.model_dump())
+        check = self.guard(actor, token, deadline=deadline)
+        with self.store.db(write=True) as db:
+            row, payload, raw = self.store.owned(db, file_id, actor)
+            bound = self._bound_guard(payload, check)
+            if (
+                request.source_hash != payload.file.source_hash
+                or request.preview_hash != payload.file.preview_hash
+            ):
+                raise XlsxIntakeConflict("xlsx_confirmation_source_or_preview_changed")
+            self._parsed(payload, raw, bound)
+            if payload.file.status == "confirmed":
+                bound()
+                return self._preview(payload)
+            record = payload.file.model_copy(
+                update={
+                    "status": "confirmed",
+                    "confirmation_hash": confirmation_digest(payload.file),
+                    "confirmed_at": self.store.now(),
+                }
+            )
+            confirmed = payload.model_copy(update={"file": record})
+            encrypted = self.store.seal(
+                confirmed.model_dump_json().encode(), self.store.body_aad(row)
+            )
+            self._audit("xlsx.confirm_intent", payload)
+            db.execute("UPDATE xlsx_uploads SET body=? WHERE file_id=?", (encrypted, str(file_id)))
+            bound()
+            return self._preview(confirmed)

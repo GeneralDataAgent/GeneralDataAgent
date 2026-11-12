@@ -52,7 +52,9 @@ class XlsxFileRecord(ContractModel):
     preflight_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     preview_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     byte_count: int = Field(ge=1, le=MAX_BYTES, strict=True)
-    status: Literal["staged"] = "staged"
+    status: Literal["staged", "confirmed"] = "staged"
+    confirmation_hash: str | None = Field(default=None, pattern=r"^sha256:[0-9a-f]{64}$")
+    confirmed_at: AwareDatetime | None = None
     dlp_scope: Literal["preview-text-only"] = "preview-text-only"
     created_at: AwareDatetime
     expires_at: AwareDatetime
@@ -63,6 +65,45 @@ class XlsxFileRecord(ContractModel):
             self.config.model_dump(mode="json")
         ):
             raise ValueError("xlsx_file_binding_invalid")
+        if self.status == "staged":
+            if self.confirmation_hash is not None or self.confirmed_at is not None:
+                raise ValueError("xlsx_file_binding_invalid")
+        elif (
+            self.confirmation_hash != confirmation_digest(self)
+            or self.confirmed_at is None
+            or self.confirmed_at < self.created_at
+            or self.confirmed_at >= self.expires_at
+        ):
+            raise ValueError("xlsx_file_binding_invalid")
+        return self
+
+
+def confirmation_digest(file: XlsxFileRecord) -> str:
+    """Bind a confirmation to the exact staged facts, not to a later reinterpretation."""
+    return canonical_hash(
+        {
+            "file_id": str(file.file_id),
+            "source_hash": file.source_hash,
+            "preview_hash": file.preview_hash,
+            "parser_fingerprint": file.parser_fingerprint,
+            "processing_fingerprint": file.processing_fingerprint,
+            "config_hash": file.config_hash,
+            "preflight_digest": file.preflight_digest,
+            "sheet": file.config.sheet,
+        }
+    )
+
+
+class ConfirmXlsxText(ContractModel):
+    schema_version: Literal["1.0"] = "1.0"
+    confirmed: bool = Field(strict=True)
+    source_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    preview_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+
+    @model_validator(mode="after")
+    def explicit_confirmation(self):
+        if not self.confirmed:
+            raise ValueError("xlsx_explicit_text_confirmation_required")
         return self
 
 
