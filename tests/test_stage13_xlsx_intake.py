@@ -25,7 +25,11 @@ from test_stage13_xlsx_preview import (
 from generaldataagent.api.app import create_app
 from generaldataagent.datasets import xlsx_intake
 from generaldataagent.datasets.xlsx_intake import XlsxIntakeService
-from generaldataagent.datasets.xlsx_intake_contracts import XlsxIntakeError, XlsxLimits
+from generaldataagent.datasets.xlsx_intake_contracts import (
+    ConfirmXlsxText,
+    XlsxIntakeError,
+    XlsxLimits,
+)
 from generaldataagent.datasets.xlsx_intake_store import (
     XlsxIntakeConflict,
     XlsxIntakeUnavailable,
@@ -87,6 +91,25 @@ def upload(client, headers, raw=RAW, *, sheet_name=None):
         path,
         headers=headers | {"content-type": XLSX, "idempotency-key": "xlsx-1"},
         content=raw,
+    )
+
+
+def confirm_body(preview, **changes):
+    body = {
+        "schema_version": "1.0",
+        "confirmed": True,
+        "source_hash": preview["file"]["source_hash"],
+        "preview_hash": preview["file"]["preview_hash"],
+    }
+    body.update(changes)
+    return body
+
+
+def confirm(client, headers, file_id, body):
+    return client.post(
+        f"/v1/analysis/files/xlsx/{file_id}/confirm",
+        headers=headers | {"content-type": "application/json"},
+        json=body,
     )
 
 
@@ -357,3 +380,205 @@ def test_api_oversize_is_413_and_default_off_and_production_gates(tmp_path):
     assert upload(client, headers).status_code == 413
     client = client_for(build_service(tmp_path / "off"), service_enabled=lambda: False)
     assert upload(client, headers).status_code == 503
+
+
+def test_explicit_confirmation_is_pinned_reopenable_and_idempotent(tmp_path):
+    service = build_service(tmp_path)
+    _, headers = credentials(service.broker)
+    client = client_for(service)
+    preview = upload(client, headers).json()
+    file_id = preview["file"]["file_id"]
+    body = confirm_body(preview)
+    first = confirm(client, headers, file_id, body)
+    assert first.status_code == 200, first.text
+    confirmed = first.json()
+    assert confirmed["file"]["status"] == "confirmed"
+    assert confirmed["file"]["confirmation_hash"].startswith("sha256:")
+    assert confirmed["file"]["confirmed_at"] >= confirmed["file"]["created_at"]
+    assert confirmed["data"] == preview["data"]
+    assert confirmed["preflight"] == preview["preflight"]
+    assert confirm(client, headers, file_id, body).json() == confirmed
+    assert client.get(f"/v1/analysis/files/xlsx/{file_id}", headers=headers).json() == confirmed
+    assert (tmp_path / "audit.jsonl").read_text().count("xlsx.confirm_intent") == 1
+
+
+def test_confirmation_requires_json_media_type_and_explicit_true(tmp_path):
+    service = build_service(tmp_path)
+    _, headers = credentials(service.broker)
+    client = client_for(service)
+    preview = upload(client, headers).json()
+    path = f"/v1/analysis/files/xlsx/{preview['file']['file_id']}/confirm"
+    assert (
+        client.post(
+            path,
+            headers=headers | {"content-type": "text/plain"},
+            content=b'{"confirmed": true}',
+        ).status_code
+        == 415
+    )
+    assert (
+        client.post(path, headers=headers, json=confirm_body(preview, confirmed=False)).status_code
+        == 422
+    )
+    assert (
+        client.post(path, headers=headers, json=confirm_body(preview, confirmed=1)).status_code
+        == 422
+    )
+    assert (
+        client.post(path, headers=headers, json=confirm_body(preview, extra="x")).status_code == 422
+    )
+    assert (
+        client.post(
+            path, headers=headers | {"content-type": "application/json"}, content=b""
+        ).status_code
+        == 422
+    )
+    with pytest.raises(ValueError, match="explicit_text_confirmation"):
+        ConfirmXlsxText(
+            confirmed=False,
+            source_hash=preview["file"]["source_hash"],
+            preview_hash=preview["file"]["preview_hash"],
+        )
+
+
+def test_confirmation_rejects_changed_hashes_and_leaves_status_staged(tmp_path):
+    service = build_service(tmp_path)
+    _, headers = credentials(service.broker)
+    client = client_for(service)
+    preview = upload(client, headers).json()
+    file_id = preview["file"]["file_id"]
+    other = "sha256:" + "0" * 64
+    assert (
+        confirm(client, headers, file_id, confirm_body(preview, source_hash=other)).status_code
+        == 409
+    )
+    assert (
+        confirm(client, headers, file_id, confirm_body(preview, preview_hash=other)).status_code
+        == 409
+    )
+    assert (
+        client.get(f"/v1/analysis/files/xlsx/{file_id}", headers=headers).json()["file"]["status"]
+        == "staged"
+    )
+
+
+@pytest.mark.parametrize(
+    "change", [{"user_id": "other"}, {"tenant_id": "other"}, {"project_id": "other"}]
+)
+def test_confirmation_is_creator_scoped_and_expiry_bound(tmp_path, change):
+    now = [datetime.now(UTC)]
+    service = build_service(tmp_path, clock=lambda: now[0], retention=2)
+    token, _ = credentials(service.broker)
+    preview = service.stage(RAW, actor(), token, "confirm")
+    request = ConfirmXlsxText(
+        confirmed=True,
+        source_hash=preview.file.source_hash,
+        preview_hash=preview.file.preview_hash,
+    )
+    other = actor().model_copy(update=change)
+    other_token, _ = credentials(service.broker, other)
+    with pytest.raises(PermissionError):
+        service.confirm(preview.file.file_id, other, other_token, request)
+    now[0] += timedelta(seconds=3)
+    with pytest.raises(PermissionError):
+        service.confirm(preview.file.file_id, actor(), token, request)
+
+
+def test_confirmation_revalidates_parser_and_preview_before_persisting(tmp_path, monkeypatch):
+    service = build_service(tmp_path)
+    token, _ = credentials(service.broker)
+    preview = service.stage(RAW, actor(), token, "drift")
+    request = ConfirmXlsxText(
+        confirmed=True,
+        source_hash=preview.file.source_hash,
+        preview_hash=preview.file.preview_hash,
+    )
+    monkeypatch.setattr(xlsx_intake, "parser_fingerprint", lambda *args: "sha256:" + "1" * 64)
+    with pytest.raises(XlsxIntakeConflict, match="restage_required"):
+        service.confirm(preview.file.file_id, actor(), token, request)
+    monkeypatch.undo()
+    original = xlsx_intake.preview_xlsx
+
+    def drifted(data, *, sheet=None):
+        result = original(data, sheet=sheet)
+        return result.model_copy(update={"data": result.data.model_copy(update={"sheet": "Other"})})
+
+    monkeypatch.setattr(xlsx_intake, "preview_xlsx", drifted)
+    with pytest.raises(PermissionError, match="preview_binding"):
+        service.confirm(preview.file.file_id, actor(), token, request)
+
+
+def test_confirmation_tampering_and_audit_failure_never_confirm(tmp_path):
+    service = build_service(tmp_path)
+    token, _ = credentials(service.broker)
+    preview = service.stage(RAW, actor(), token, "tamper-confirm")
+    request = ConfirmXlsxText(
+        confirmed=True,
+        source_hash=preview.file.source_hash,
+        preview_hash=preview.file.preview_hash,
+    )
+    with sqlite3.connect(service.store.path) as db:
+        db.execute("UPDATE xlsx_uploads SET body=X'00'")
+    with pytest.raises(PermissionError):
+        service.confirm(preview.file.file_id, actor(), token, request)
+
+    class FlakyAudit:
+        calls = 0
+
+        def emit(self, event):
+            self.calls += 1
+            if self.calls == 2:
+                raise RuntimeError("audit down")
+
+    flaky = build_service(tmp_path / "flaky", audit=FlakyAudit())
+    flaky_token, _ = credentials(flaky.broker)
+    staged = flaky.stage(RAW, actor(), flaky_token, "audit-confirm")
+    with pytest.raises(XlsxIntakeUnavailable, match="audit_unavailable"):
+        flaky.confirm(
+            staged.file.file_id,
+            actor(),
+            flaky_token,
+            ConfirmXlsxText(
+                confirmed=True,
+                source_hash=staged.file.source_hash,
+                preview_hash=staged.file.preview_hash,
+            ),
+        )
+    assert flaky.preview(staged.file.file_id, actor(), flaky_token).file.status == "staged"
+
+
+def test_replaying_stage_after_confirmation_keeps_confirmed_status(tmp_path):
+    service = build_service(tmp_path)
+    token, _ = credentials(service.broker)
+    preview = service.stage(RAW, actor(), token, "same")
+    confirmed = service.confirm(
+        preview.file.file_id,
+        actor(),
+        token,
+        ConfirmXlsxText(
+            confirmed=True,
+            source_hash=preview.file.source_hash,
+            preview_hash=preview.file.preview_hash,
+        ),
+    )
+    assert confirmed.file.status == "confirmed"
+    replay = service.stage(RAW, actor(), token, "same")
+    assert replay.file.status == "confirmed"
+    assert replay.file.confirmation_hash == confirmed.file.confirmation_hash
+
+
+def test_confirmation_body_is_bounded(tmp_path):
+    service = build_service(tmp_path)
+    _, headers = credentials(service.broker)
+    client = client_for(service)
+    preview = upload(client, headers).json()
+    path = f"/v1/analysis/files/xlsx/{preview['file']['file_id']}/confirm"
+    oversized = b"{" + b" " * 1024
+    assert (
+        client.post(
+            path,
+            headers=headers | {"content-type": "application/json"},
+            content=oversized,
+        ).status_code
+        == 413
+    )
