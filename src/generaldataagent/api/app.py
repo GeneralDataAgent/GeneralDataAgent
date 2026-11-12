@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict
 from generaldataagent import __version__
 from generaldataagent.agents import SPECIALIST_SPECS
 from generaldataagent.api.business import business_router
+from generaldataagent.api.business_context import business_context_router
 from generaldataagent.api.csv_intake import csv_intake_router
 from generaldataagent.api.display_preferences import display_preference_router
 from generaldataagent.business.actions import BusinessActionRuntime, content_hash
@@ -38,6 +39,7 @@ from generaldataagent.observability.alerts import CriticalAlertRouter
 from generaldataagent.observability.maintenance import ServiceMaintenance
 from generaldataagent.observability.slo import ServiceSLO
 from generaldataagent.orchestration import MetricAnalysisRuntime
+from generaldataagent.orchestration.business_context import BusinessContextService
 from generaldataagent.orchestration.checkpoints import CheckpointBusyError, CheckpointLeaseLostError
 from generaldataagent.orchestration.task_events import TaskEventJournal, TaskEventPage
 from generaldataagent.orchestration.task_presentation import MetricDisplayPreferenceService
@@ -98,6 +100,7 @@ def create_app(
     task_streams: MetricTaskStreams | None = None,
     display_preferences: MetricDisplayPreferenceService | None = None,
     csv_intake: CsvIntakeService | None = None,
+    business_context: BusinessContextService | None = None,
 ) -> FastAPI:
     if csv_intake is not None:
         if production_mode:
@@ -109,6 +112,11 @@ def create_app(
             raise ValueError("local_display_preferences_not_qualified_for_production")
         if metric_tasks is None or display_preferences.tasks is not metric_tasks:
             raise ValueError("display_preferences_must_share_task_service")
+    if business_context is not None:
+        if production_mode:
+            raise ValueError("local_business_context_not_qualified_for_production")
+        if metric_tasks is None or business_context.tasks is not metric_tasks:
+            raise ValueError("business_context_must_share_task_service")
     if (
         feedback_registry is not None
         and metric_tasks is not None
@@ -516,6 +524,7 @@ def create_app(
         return actor, request.headers["authorization"].split(" ", 1)[1]
 
     application.include_router(display_preference_router(display_preferences, task_credentials))
+    application.include_router(business_context_router(business_context, task_credentials))
     application.include_router(csv_intake_router(csv_intake, task_credentials))
 
     @application.post("/v1/analysis/tasks", status_code=202, response_model=MetricTaskRecord)
