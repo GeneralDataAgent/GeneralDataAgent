@@ -18,6 +18,7 @@ from generaldataagent.datasets.xlsx_intake_contracts import (
 )
 from generaldataagent.datasets.xlsx_intake_store import XlsxIntakeConflict
 from generaldataagent.datasets.xlsx_interpretation import XlsxInterpretationResult
+from generaldataagent.datasets.xlsx_listing import XlsxFileListing, XlsxFilePage
 
 XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
@@ -79,6 +80,19 @@ def xlsx_intake_router(service: XlsxIntakeService | None, credentials: Callable)
             return await run_in_threadpool(
                 port.stage, raw, actor, token, key, sheet=sheet, deadline=end
             )
+        except Exception as exc:
+            raise denied(exc) from exc
+
+    @router.get("/v1/analysis/files/xlsx", response_model=XlsxFilePage)
+    def files(
+        request: Request,
+        limit: int = Query(default=10, ge=1, le=20),
+        cursor: str | None = Query(default=None, min_length=1, max_length=4096),
+    ):
+        port = configured()
+        actor, token = credentials(request)
+        try:
+            return XlsxFileListing(port).list_files(actor, token, limit=limit, cursor=cursor)
         except Exception as exc:
             raise denied(exc) from exc
 
