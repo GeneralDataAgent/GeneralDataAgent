@@ -447,15 +447,30 @@ class SQLiteApprovalStore:
         tenant: str,
         project: str,
         domains: frozenset[str],
+        scope: str = "all",
         before: int | None = None,
         limit: int = 25,
     ) -> dict:
+        """Reviewer scope page; open/decided split never guesses from elapsed time."""
         if (
             type(limit) is not int
             or not 1 <= limit <= 100
             or (before is not None and (type(before) is not int or before <= 0))
+            or scope not in {"all", "open", "decided"}
         ):
             raise ValueError("invalid_approval_page")
+        # A consumed approval always carries a grant, but all three columns are checked so a
+        # damaged row cannot silently appear in the reviewer queue or disappear from history.
+        scope_sql = {
+            "all": "",
+            "open": (
+                "AND grant_json IS NULL AND disposition_json IS NULL AND consumed_at IS NULL "
+            ),
+            "decided": (
+                "AND (grant_json IS NOT NULL OR disposition_json IS NOT NULL "
+                "OR consumed_at IS NOT NULL) "
+            ),
+        }[scope]
         with self._connect() as connection:
             rows = connection.execute(
                 "SELECT rowid,approval_id FROM approvals "
@@ -464,7 +479,8 @@ class SQLiteApprovalStore:
                 "AND json_array_length(json_extract(request_json,'$.data_domains'))>0 "
                 "AND NOT EXISTS (SELECT 1 FROM json_each(request_json,'$.data_domains') d "
                 "WHERE d.value NOT IN (SELECT value FROM json_each(?))) "
-                "AND (? IS NULL OR rowid<?) ORDER BY rowid DESC LIMIT ?",
+                + scope_sql
+                + "AND (? IS NULL OR rowid<?) ORDER BY rowid DESC LIMIT ?",
                 (tenant, project, json.dumps(sorted(domains)), before, before, limit + 1),
             ).fetchall()
         return {
