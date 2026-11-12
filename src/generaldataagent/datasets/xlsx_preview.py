@@ -24,6 +24,9 @@ PREVIEW_COLUMNS = 64
 MAX_CELL_CHARS = 32_768
 MAX_PREVIEW_CHARS = 65_536
 
+CellKind = Literal["empty", "number", "text", "boolean", "error", "formula"]
+CELL_KINDS: frozenset[str] = frozenset({"empty", "number", "text", "boolean", "error", "formula"})
+
 
 class XlsxPreviewError(ValueError):
     """Stable preview rejection; the code is part of the preview contract."""
@@ -52,6 +55,7 @@ class XlsxPreviewData(ContractModel):
     row_numbers: tuple[int, ...] = Field(min_length=1, max_length=PREVIEW_ROWS + 1)
     header: tuple[str, ...] = Field(max_length=PREVIEW_COLUMNS)
     rows: tuple[tuple[str, ...], ...] = Field(max_length=PREVIEW_ROWS)
+    cell_kinds: tuple[tuple[CellKind, ...], ...] = Field(max_length=PREVIEW_ROWS)
     formulas: tuple[XlsxFormulaCell, ...]
     empty_headers: tuple[int, ...]
     duplicate_headers: tuple[str, ...]
@@ -66,6 +70,12 @@ class XlsxPreviewData(ContractModel):
     def preview_shape(self) -> "XlsxPreviewData":
         if any(len(row) != len(self.header) for row in self.rows):
             raise ValueError("xlsx preview rows must match the header width")
+        if len(self.cell_kinds) != len(self.rows) or any(
+            len(kinds) != len(self.header) for kinds in self.cell_kinds
+        ):
+            raise ValueError("xlsx preview cell kinds must match the rows")
+        if any(kind not in CELL_KINDS for kinds in self.cell_kinds for kind in kinds):
+            raise ValueError("xlsx preview cell kind is not supported")
         if len(self.row_numbers) != len(self.rows) + 1 or self.row_numbers[0] != self.header_row:
             raise ValueError("xlsx preview row numbers must cover the materialized rows")
         if any(
@@ -231,6 +241,7 @@ def _preview(root: ElementTree.Element, shared: tuple[str, ...], sheet: str) -> 
     if not rows:
         raise XlsxPreviewError("xlsx_preview_empty_sheet")
     grid: list[dict[int, str]] = []
+    kinds: list[dict[int, CellKind]] = []
     formulas: list[XlsxFormulaCell] = []
     row_numbers: list[int] = []
     column_count = 0
@@ -242,6 +253,7 @@ def _preview(root: ElementTree.Element, shared: tuple[str, ...], sheet: str) -> 
         row_numbers.append(row_number)
         materialize = row_index <= PREVIEW_ROWS
         values: dict[int, str] = {}
+        row_kinds: dict[int, CellKind] = {}
         previous_column = 0
         for cell in row.findall(f"{{{MAIN}}}c"):
             parsed = _cell_reference(cell.get("r"))
@@ -253,9 +265,10 @@ def _preview(root: ElementTree.Element, shared: tuple[str, ...], sheet: str) -> 
                     raise XlsxPreviewError("xlsx_preview_sheet_invalid")
             previous_column = column
             column_count = max(column_count, column)
-            text, formula, cached = _cell(cell, shared, materialize)
+            text, formula, cached, kind = _cell(cell, shared, materialize)
             if materialize:
                 values[column] = text
+                row_kinds[column] = kind
                 characters += len(text) + len(formula or "") + len(cached or "")
                 if characters > MAX_PREVIEW_CHARS:
                     raise XlsxPreviewError("xlsx_preview_too_large")
@@ -268,6 +281,7 @@ def _preview(root: ElementTree.Element, shared: tuple[str, ...], sheet: str) -> 
                     )
                 )
         grid.append(values)
+        kinds.append(row_kinds)
     if column_count == 0:
         raise XlsxPreviewError("xlsx_preview_empty_sheet")
     preview_columns = min(column_count, PREVIEW_COLUMNS)
@@ -275,6 +289,10 @@ def _preview(root: ElementTree.Element, shared: tuple[str, ...], sheet: str) -> 
     sampled = tuple(
         tuple(row.get(column, "") for column in range(1, preview_columns + 1))
         for row in grid[1 : PREVIEW_ROWS + 1]
+    )
+    sampled_kinds = tuple(
+        tuple(row.get(column, "empty") for column in range(1, preview_columns + 1))
+        for row in kinds[1 : PREVIEW_ROWS + 1]
     )
     counts = Counter(value for value in header if value)
     return XlsxPreviewData(
@@ -285,6 +303,7 @@ def _preview(root: ElementTree.Element, shared: tuple[str, ...], sheet: str) -> 
         row_numbers=tuple(row_numbers[: PREVIEW_ROWS + 1]),
         header=header,
         rows=sampled,
+        cell_kinds=sampled_kinds,
         formulas=tuple(formulas),
         empty_headers=tuple(index for index, value in enumerate(header) if not value),
         duplicate_headers=tuple(sorted(value for value, count in counts.items() if count > 1)),
@@ -307,7 +326,7 @@ def _row_number(reference: str | None, previous: int) -> int:
 
 def _cell(
     cell: ElementTree.Element, shared: tuple[str, ...], materialize: bool
-) -> tuple[str, str | None, str | None]:
+) -> tuple[str, str | None, str | None, CellKind]:
     kind = cell.get("t")
     value = cell.find(f"{{{MAIN}}}v")
     raw = value.text if value is not None else None
@@ -315,21 +334,32 @@ def _cell(
     formula = None if formula_element is None else _bounded(formula_element.text or "")
     if formula is not None:
         cached = _cached(raw, kind, shared, materialize)
-        return (cached or "") if materialize else "", formula, cached
+        return (cached or "") if materialize else "", formula, cached, "formula"
     if kind == "s":
         if raw is None:
             raise XlsxPreviewError("xlsx_preview_shared_string_invalid")
         text = _shared(raw, shared, materialize)
-        return text if materialize else "", None, None
+        return text if materialize else "", None, None, "text"
     if kind == "inlineStr":
         if not materialize:
-            return "", None, None
+            return "", None, None, "text"
         return (
             _bounded("".join(node.text or "" for node in cell.iter(f"{{{MAIN}}}t"))),
             None,
             None,
+            "text",
         )
-    return _bounded(raw or "") if materialize else "", None, None
+    if kind == "b":
+        return (_bounded(raw or "") if materialize else ""), None, None, "boolean"
+    if kind == "e":
+        return (_bounded(raw or "") if materialize else ""), None, None, "error"
+    if kind in (None, "n"):
+        if raw is None:
+            return "", None, None, "empty"
+        return (_bounded(raw) if materialize else ""), None, None, "number"
+    if raw is None:
+        return "", None, None, "empty"
+    return (_bounded(raw) if materialize else ""), None, None, "text"
 
 
 def _shared(raw: str, shared: tuple[str, ...], materialize: bool) -> str:

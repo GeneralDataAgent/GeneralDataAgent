@@ -774,7 +774,8 @@ def test_declaration_header_row_is_bounded_to_the_preview_window(tmp_path):
 @pytest.mark.parametrize(
     "changes",
     [
-        {"columns": [{"index": 0, "header": "name", "type": "date"}]},
+        {"columns": [{"index": 0, "header": "name", "type": "datetime"}]},
+        {"columns": [{"index": 0, "header": "name", "type": "currency"}]},
         {
             "columns": [
                 {"index": 0, "header": "name", "type": "text"},
@@ -932,3 +933,102 @@ def test_interpretation_contract_rejects_a_forged_hash():
             duplicate_rows="reject",
             interpretation_hash="sha256:" + "1" * 64,
         )
+
+
+def test_resolved_interpretation_requires_a_declaration_and_is_creator_scoped(tmp_path):
+    service = build_service(tmp_path)
+    _, headers = credentials(service.broker)
+    client = client_for(service)
+    confirmed = confirmed_file(client, headers)
+    file_id = confirmed["file"]["file_id"]
+    path = f"/v1/analysis/files/xlsx/{file_id}/interpretation"
+    missing = client.get(path, headers=headers)
+    assert missing.status_code == 409
+    assert missing.json()["detail"] == "xlsx_interpretation_not_declared"
+    body = declaration_body(
+        confirmed,
+        columns=[
+            {"index": 0, "header": "name", "type": "text"},
+            {"index": 1, "header": "amount", "type": "decimal"},
+        ],
+    )
+    assert declare(client, headers, file_id, body).status_code == 200
+    response = client.get(path, headers=headers)
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["date_system"] == "1900"
+    assert result["header_row"] == 1
+    assert result["scope"] == "materialized-preview-window"
+    assert result["conversion"] == "declared-columns-only"
+    assert result["storage"] == "derived-not-persisted"
+    assert result["formula_cached_values"] == "never-trusted"
+    assert result["currencies"] == "not-interpreted"
+    assert result["percentages"] == "not-interpreted"
+    assert result["duplicate_rows"] == "not-evaluated"
+    name_column, amount_column = result["columns"]
+    assert [
+        (cell["row"], cell["status"], cell["value"], cell["reason"])
+        for cell in name_column["cells"]
+    ] == [(2, "value", "alpha", None), (3, "value", "beta", None)]
+    assert [
+        (cell["row"], cell["status"], cell["value"], cell["reason"])
+        for cell in amount_column["cells"]
+    ] == [(2, "value", "10", None), (3, "not_trusted", None, "formula_cached_value_not_trusted")]
+    assert amount_column["cells"][1]["raw"] == ""
+    other = actor().model_copy(update={"user_id": "other"})
+    _, other_headers = credentials(service.broker, other)
+    assert client.get(path, headers=other_headers).status_code == 404
+
+
+def test_resolved_interpretation_is_derived_repeatable_and_reverified(tmp_path):
+    service = build_service(tmp_path)
+    _, headers = credentials(service.broker)
+    client = client_for(service)
+    confirmed = confirmed_file(client, headers)
+    file_id = confirmed["file"]["file_id"]
+    path = f"/v1/analysis/files/xlsx/{file_id}/interpretation"
+    body = declaration_body(
+        confirmed, columns=[{"index": 1, "header": "amount", "type": "integer"}]
+    )
+    assert declare(client, headers, file_id, body).status_code == 200
+    audit_before = (tmp_path / "audit.jsonl").read_text()
+    first = client.get(path, headers=headers)
+    second = client.get(path, headers=headers)
+    assert first.status_code == second.status_code == 200
+    assert first.json() == second.json()
+    assert (tmp_path / "audit.jsonl").read_text() == audit_before
+    preview = client.get(f"/v1/analysis/files/xlsx/{file_id}", headers=headers).json()
+    assert preview["data"] == confirmed["data"]
+    assert preview["file"] == confirmed["file"]
+    assert preview["interpretation"]["values"] == "declared-only-no-conversion"
+    with sqlite3.connect(service.store.path) as db:
+        db.execute("UPDATE xlsx_uploads SET body=X'00'")
+    assert client.get(path, headers=headers).status_code == 404
+
+
+def test_resolved_interpretation_uses_the_preflight_date_system(tmp_path):
+    service = build_service(tmp_path)
+    _, headers = credentials(service.broker)
+    client = client_for(service)
+    raw = package(
+        entries_for(sheet(row(1, text_cell("A1", "day")), row(2, number_cell("A2", "61"))))
+    )
+    preview = upload(client, headers, raw).json()
+    confirmed = confirm(client, headers, preview["file"]["file_id"], confirm_body(preview)).json()
+    file_id = confirmed["file"]["file_id"]
+    body = declaration_body(confirmed, columns=[{"index": 0, "header": "day", "type": "date"}])
+    assert declare(client, headers, file_id, body).status_code == 200
+    result = client.get(f"/v1/analysis/files/xlsx/{file_id}/interpretation", headers=headers)
+    assert result.status_code == 200, result.text
+    assert result.json()["date_system"] == "1900"
+    assert result.json()["columns"][0]["cells"] == [
+        {
+            "schema_version": "1.0",
+            "row": 2,
+            "raw": "61",
+            "kind": "number",
+            "status": "value",
+            "value": "1900-03-01",
+            "reason": None,
+        }
+    ]

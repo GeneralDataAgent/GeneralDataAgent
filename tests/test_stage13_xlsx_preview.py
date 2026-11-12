@@ -384,6 +384,7 @@ def test_preview_data_rejects_inconsistent_widths_and_flags():
             column_count=2,
             header=("a", "b"),
             rows=(("1",),),
+            cell_kinds=(("number",),),
             formulas=(),
             empty_headers=(),
             duplicate_headers=(),
@@ -399,6 +400,7 @@ def test_preview_data_rejects_inconsistent_widths_and_flags():
             column_count=2,
             header=("a",),
             rows=(("1",),),
+            cell_kinds=(("number",),),
             formulas=(),
             empty_headers=(),
             duplicate_headers=(),
@@ -414,6 +416,7 @@ def test_preview_data_rejects_inconsistent_widths_and_flags():
             column_count=1,
             header=("a",),
             rows=(),
+            cell_kinds=(),
             formulas=(),
             empty_headers=(1,),
             duplicate_headers=(),
@@ -429,12 +432,43 @@ def test_preview_data_rejects_inconsistent_widths_and_flags():
             column_count=1,
             header=("a", "a"),
             rows=(),
+            cell_kinds=(),
             formulas=(),
             empty_headers=(),
             duplicate_headers=("a", "a"),
             columns_truncated=False,
             rows_truncated=False,
         )
+
+
+def test_preview_cell_kinds_match_rows_and_use_supported_kinds():
+    result = preview(
+        sheet(
+            row(1, text_cell("A1", "head")),
+            row(2, number_cell("A2", "1"), formula_cell("B2", "A2*2", "2")),
+        )
+    )
+    assert result.data.cell_kinds == (("number", "formula"),)
+    payload = result.data.model_dump(mode="json")
+    for kinds in ((), (("number",),), (("number", "number", "number"),), (("bogus", "number"),)):
+        with pytest.raises(ValidationError):
+            XlsxPreviewData.model_validate(payload | {"cell_kinds": kinds})
+
+
+def test_preview_cell_kinds_distinguish_boolean_error_and_empty():
+    result = preview(
+        sheet(
+            row(1, text_cell("A1", "head")),
+            row(
+                2,
+                '<c r="A2" t="b"><v>1</v></c>',
+                '<c r="B2" t="e"><v>#DIV/0!</v></c>',
+                number_cell("C2", "1"),
+            ),
+            row(3, text_cell("A3", "x")),
+        )
+    )
+    assert result.data.cell_kinds == (("boolean", "error", "number"), ("text", "empty", "empty"))
 
 
 def test_preview_result_requires_a_preflighted_sheet():
