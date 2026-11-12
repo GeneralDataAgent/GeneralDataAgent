@@ -149,6 +149,57 @@ def test_reviewer_enrollment_revocation_and_exact_queue(authority):
     )
 
 
+def test_reviewer_scope_separates_open_queue_from_decided_history(authority):
+    a = authority
+    headers = {"authorization": f"Bearer {a.bob}"}
+    pending = create(a)
+    a.request = a.request.model_copy(update={"arguments": {"exact": "approved action"}})
+    approved = create(a)
+    assert review(a, approved).status_code == 200
+    a.request = a.request.model_copy(update={"arguments": {"exact": "rejected action"}})
+    rejected = create(a)
+    response = a.client.post(
+        f"/v1/approval-reviews/{rejected.approval_id}/reject",
+        headers=headers,
+        json={
+            "request_fingerprint": rejected.request_fingerprint,
+            "confirmed": True,
+            "reason": "Evidence missing",
+        },
+    )
+    assert response.status_code == 200
+
+    def ids(scope, **params):
+        page = a.client.get(
+            "/v1/approval-requests", params={"scope": scope, **params}, headers=headers
+        )
+        assert page.status_code == 200
+        body = page.json()
+        return [item["request"]["approval_id"] for item in body["items"]], body
+
+    assert ids("open")[0] == [str(pending.approval_id)]
+    assert ids("decided")[0] == [str(rejected.approval_id), str(approved.approval_id)]
+    assert ids("all")[0] == [
+        str(rejected.approval_id),
+        str(approved.approval_id),
+        str(pending.approval_id),
+    ]
+    # Scope is applied before the page is cut, so a history page cannot hide decisions behind
+    # a mixed page that happens to contain only open rows.
+    first, page = ids("decided", limit=1)
+    assert first == [str(rejected.approval_id)]
+    assert page["next_cursor"]
+    second, page = ids("decided", limit=1, before=page["next_cursor"])
+    assert second == [str(approved.approval_id)]
+    assert page["next_cursor"] is None
+    assert (
+        a.client.get(
+            "/v1/approval-requests", params={"scope": "bogus"}, headers=headers
+        ).status_code
+        == 422
+    )
+
+
 def test_session_revoked_during_audit_cannot_grant(authority):
     a = authority
     approval = create(a)

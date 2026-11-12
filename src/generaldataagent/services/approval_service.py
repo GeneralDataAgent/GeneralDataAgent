@@ -5,6 +5,7 @@ import hashlib
 import json
 from collections.abc import Callable
 from datetime import UTC, datetime
+from typing import Literal
 from uuid import UUID, uuid4
 
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -273,6 +274,7 @@ def create_approval_service(
     @app.get("/v1/approval-requests")
     def list_requests(
         request: Request,
+        scope: Literal["all", "open", "decided"] = Query(default="all"),
         before: int | None = Query(default=None, gt=0),
         limit: int = Query(default=25, ge=1, le=100),
     ):
@@ -281,6 +283,7 @@ def create_approval_service(
             tenant=identity.tenant_id,
             project=identity.project_id,
             domains=identity.data_domains,
+            scope=scope,
             before=before,
             limit=limit,
         )
