@@ -21,6 +21,7 @@ from generaldataagent.datasets.xlsx_intake_contracts import (
 from generaldataagent.datasets.xlsx_intake_store import XlsxIntakeConflict
 from generaldataagent.datasets.xlsx_interpretation import XlsxInterpretationResult
 from generaldataagent.datasets.xlsx_listing import XlsxFileListing, XlsxFilePage
+from generaldataagent.datasets.xlsx_snapshot import XlsxSnapshotResult, XlsxSnapshotWriter
 
 XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
@@ -170,6 +171,30 @@ def xlsx_intake_router(service: XlsxIntakeService | None, credentials: Callable)
         actor, token = credentials(request)
         try:
             return XlsxFormatReader(port).report(file_id, actor, token)
+        except Exception as exc:
+            raise denied(exc) from exc
+
+    @router.post(
+        "/v1/analysis/files/xlsx/{file_id}/snapshot",
+        response_model=XlsxSnapshotResult,
+    )
+    def derive_snapshot(file_id: UUID, request: Request):
+        port = configured()
+        actor, token = credentials(request)
+        try:
+            return XlsxSnapshotWriter(port).derive(file_id, actor, token)
+        except Exception as exc:
+            raise denied(exc) from exc
+
+    @router.get(
+        "/v1/analysis/files/xlsx/{file_id}/snapshot",
+        response_model=XlsxSnapshotResult,
+    )
+    def snapshot(file_id: UUID, request: Request):
+        port = configured()
+        actor, token = credentials(request)
+        try:
+            return XlsxSnapshotWriter(port).read(file_id, actor, token)
         except Exception as exc:
             raise denied(exc) from exc
 

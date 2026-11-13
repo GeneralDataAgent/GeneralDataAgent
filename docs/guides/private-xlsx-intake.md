@@ -7,15 +7,15 @@ header row, per-column type, missing-value tokens and duplicate-row policy as **
 read-only resolution can then derive deterministic per-cell readings for the declared columns over the
 same sampled window, and a bounded conformance report can read every present row below the header for
 those columns while returning only counts, reasons and digests. A further read-only report counts the
-number formats (`cellXfs`/`numFmts`) used by the declared columns without applying them. None of these
-calls returns the workbook's undeclared content, extracts values for analysis, profiles data, evaluates
-formulas, converts currencies or percentages, rewrites stored values or makes model calls. Production
-API assembly rejects this adapter.
+number formats (`cellXfs`/`numFmts`) used by the declared columns without applying them. A retained
+derived snapshot can then persist the canonical values of the declared columns, encrypted, and expose
+only counts and hashes. None of these calls returns the workbook's undeclared content, extracts values
+into an analysis surface, profiles data, evaluates formulas, converts currencies or percentages,
+rewrites stored values or makes model calls. Production API assembly rejects this adapter.
 
-This is the ninth slice of XLSX ingestion. The service can now derive whole-sheet conformance and inert
-number-format facts for declared columns without returning their values.
-Currency/percentage interpretation, full-sheet value extraction, declaration listing, analysis and
-`DatasetSnapshot` are not implemented.
+This is the tenth slice of XLSX ingestion. The service can now derive whole-sheet conformance, inert
+number-format facts and a retained encrypted snapshot of declared-column values without returning those
+values. A value read path, declaration listing, analysis and `DatasetSnapshot` are not implemented.
 
 ## Assembly and API
 
@@ -39,6 +39,8 @@ not a share. No actor, host path, file name, connector or artifact-root configur
 | `GET /v1/analysis/files/xlsx/{file_id}/interpretation` | Derived, read-only per-cell readings of the declared columns; nothing is stored |
 | `GET /v1/analysis/files/xlsx/{file_id}/conformance` | Derived whole-sheet counts, reasons and digests for the declared columns; no cell text is returned |
 | `GET /v1/analysis/files/xlsx/{file_id}/formats` | Derived whole-sheet number-format counts for the declared columns; format codes stay inert |
+| `POST /v1/analysis/files/xlsx/{file_id}/snapshot` | Derive and retain canonical declared-column values inside the encrypted payload; returns counts and hashes only |
+| `GET /v1/analysis/files/xlsx/{file_id}/snapshot` | Stored snapshot metadata with `status=current`/`stale`; never returns a value |
 
 `sheet` is optional at staging and defaults to the workbook's first sheet. An unknown or invalid
 sheet is rejected. Later reads ignore a `sheet` query parameter; restage under a new idempotency key
@@ -252,6 +254,36 @@ and `cellXfs` entries, and 256 characters per format code, beyond which the requ
 duplicate or missing `numFmtId` values, malformed style indexes and out-of-range index references fail
 closed rather than degrading. Nothing is persisted or audited and the stored record is unchanged.
 
+## Retained derived snapshot (encrypted, values never returned)
+
+`POST /v1/analysis/files/xlsx/{file_id}/snapshot` requires a recorded declaration with at least one
+declared column (otherwise `409 xlsx_snapshot_no_declared_columns`; a file without a declaration
+returns `409 xlsx_interpretation_not_declared`). It re-runs the same parser, preview-binding and
+declaration-binding checks, reads every **present** row below the declared header for the declared
+columns only, and stores the canonical reading of each cell — a status code per row and the canonical
+value when the status is `value` — inside the existing encrypted payload. The response contains no
+cell text: per-column `cells`/`values`/`missing`/`unparsed`/`not_trusted` counts, `data_rows`, `cells`,
+`duplicate_row_count`, the snapshot/interpretation hashes and a `snapshot_hash` over the declaration
+hash and every row reading.
+
+The caller owns the retained data: a snapshot is readable only by the same creator/tenant/project/domain
+view and expires with the file. `GET .../snapshot` returns the stored metadata without re-deriving
+values; a file without a snapshot returns `409 xlsx_snapshot_not_derived`. After a new declaration the
+stored snapshot stays readable but reports `status=stale`; deriving again replaces it. Replaying the
+same declaration is idempotent: the same `snapshot_hash` is returned without a write or a second audit
+event.
+
+Every extracted value is DLP-scanned before persistence — unlike the preview, this covers cells outside
+the preview window — and a denial fails the whole derivation with `404 xlsx_file_unavailable`, leaving
+no snapshot. Bounds are explicit: 250,000 declared cells and 16 MiB of retained value text, beyond
+which the request fails closed (`xlsx_snapshot_cell_limit`, `xlsx_snapshot_char_limit`). The response
+states `values=retained-encrypted-not-returned`, `storage=encrypted-derived-not-artifact`,
+`dlp=extracted-values-scanned`, `duplicate_rows_handling=counted-not-dropped`,
+`dataset_snapshot=false` and `artifact=false`. A successful derivation emits one
+`xlsx.snapshot_derived` audit event carrying only hashes and counts. This is not a value API and not a
+`DatasetSnapshot`: there is no read path for the retained values, and they are never registered as an
+artifact.
+
 ## Encryption, scope and binding
 
 AES-256-GCM encrypts both the preview payload and the source bytes in a dedicated SQLite database.
@@ -275,20 +307,21 @@ DLP scans the preview text only: sheet name, header, preview rows and formula te
 scan the raw ZIP or cells outside the preview window. Every record therefore states
 `dlp_scope=preview-text-only`. Credential-like column headers are denied before storage. A declaration
 only repeats header labels already present in the scanned preview and is stored inside the encrypted
-payload; audit carries the interpretation hash, not the labels or tokens. The number-format report is
-the one derived response that returns text not previously scanned (custom format codes), so those codes
-are scanned immediately before the response and a denial returns 404. Do not treat this preview as
-evidence that the whole workbook has been inspected.
+payload; audit carries the interpretation hash, not the labels or tokens. Two derived paths touch text
+not previously scanned: the number-format report returns custom format codes, so those codes are
+scanned immediately before the response and a denial returns 404; snapshot derivation extracts declared
+values outside the preview window, so every retained value is scanned before it is persisted and a
+denial returns 404. Do not treat this preview as evidence that the whole workbook has been inspected.
 
 ## Errors and refusal behavior
 
 | Status | Meaning |
 |---|---|
-| 413 | byte, processing, conformance-cell/character, format-cell, style-table or format-code limit exceeded |
+| 413 | byte, processing, conformance-cell/character, format-cell, style-table, format-code or snapshot-cell/character limit exceeded |
 | 415 | wrong media type or non-identity content encoding |
 | 422 | invalid/macro/structurally rejected workbook, preview rejection, invalid idempotency key or invalid declaration contract |
-| 409 | idempotency request changed, retained capacity exhausted, parser/limit drift, changed binding, header row outside the preview, a column mismatch, no recorded declaration, a declaration without columns or an invalid/expired listing cursor; the response detail carries the stable code |
-| 404 | file unavailable to this identity, expired, preview binding failed, declared columns do not bind, or a returned format code was denied by DLP |
+| 409 | idempotency request changed, retained capacity exhausted, parser/limit drift, changed binding, header row outside the preview, a column mismatch, no recorded declaration, a declaration without columns, no retained snapshot or an invalid/expired listing cursor; the response detail carries the stable code |
+| 404 | file unavailable to this identity, expired, preview binding failed, declared columns do not bind, or a format code or extracted value was denied by DLP |
 | 408 | upload disconnected or timed out |
 | 503 | intake not configured or the encrypted store is unavailable |
 
@@ -297,14 +330,16 @@ unreadable entries fail closed rather than being partially served.
 
 ## Not implemented
 
-- applying declared types to stored values, dropping duplicate rows or producing a persisted
-  whole-sheet conflict summary or snapshot; the conformance report is derived per request and returns
-  counts and digests only;
+- applying declared types to the source bytes, rewriting stored workbooks, dropping duplicate rows or
+  producing a persisted whole-sheet conflict summary; the conformance report is derived per request
+  and returns counts and digests only;
+- reading retained snapshot values, exporting them, or binding a snapshot to an analysis task; the
+  snapshot endpoint returns counts and hashes only and writes no `DatasetSnapshot` or artifact;
 - selecting a header row outside the materialized preview window;
 - applying number formats, rounding by display format, or deciding that a format means a currency,
   percentage or time of day; the format report exposes inert codes and counts only;
 - currency, percentage or time-of-day interpretation and formula-cache trust;
-- duplicate-row enforcement, full-sheet value extraction, profiling or read-only analysis;
+- duplicate-row enforcement, general full-sheet value extraction, profiling or read-only analysis;
 - declaration listing, filename/column-name/search listing, total counts, workspace, approvals,
   artifact registration or `DatasetSnapshot`;
 - production identity, production qualification or safe-erasure claims.
