@@ -11,14 +11,17 @@ number formats (`cellXfs`/`numFmts`) used by the declared columns without applyi
 derived snapshot can then persist the canonical values of the declared columns, encrypted, and expose
 counts and hashes plus a bounded, explicitly requested page of those declared values. A separate local
 operator inventory observes retained and expired files and capacity headroom read-only, without
-deleting anything. None of these calls returns the workbook's undeclared content, extracts values into
-an analysis surface, profiles data, evaluates formulas, converts currencies or percentages, rewrites
-stored values or makes model calls. Production API assembly rejects this adapter.
+deleting anything; a second local operator port can then consume one exact approval to remove selected
+expired rows and leave a content-free tombstone. None of these calls returns the workbook's undeclared
+content, extracts values into an analysis surface, profiles data, evaluates formulas, converts
+currencies or percentages, rewrites stored values or makes model calls. Production API assembly
+rejects this adapter.
 
-This is the twelfth slice of XLSX ingestion. The service can now derive whole-sheet conformance, inert
-number-format facts and a retained encrypted snapshot of declared-column values, read those values back
-page by page without creating an artifact, and observe retained capacity through a local read-only
-operator inventory. Analysis, `DatasetSnapshot`, expiry cleanup and production qualification are not
+This is the thirteenth slice of XLSX ingestion. The service can now derive whole-sheet conformance,
+inert number-format facts and a retained encrypted snapshot of declared-column values, read those
+values back page by page without creating an artifact, observe retained capacity through a local
+read-only operator inventory, and perform an exactly approved removal of selected expired rows.
+Analysis, `DatasetSnapshot`, automatic expiry cleanup and production qualification are not
 implemented.
 
 ## Assembly and API
@@ -345,6 +348,48 @@ than workbook names, headers or values. This is a local operator CLI, not a brow
 tenant-management endpoint. The design record is
 [ADR 0033](../adr/0033-read-only-xlsx-retention-inventory.md).
 
+## Approval-gated expiry cleanup
+
+`XlsxSourceCleanup` is a separate local operator port. The operator reviews an
+`XlsxMaintenancePlan`, requests one exact R2 approval for its `inventory_digest` and an explicit sorted
+list of expired file IDs, then supplies that approval ID together with the existing store and key. A
+new `xlsx.maintenance.remove` policy rule allows only `remove-expired-source` for the `data_engineer`
+role and requires approval. There is no API route, browser action, model tool or tenant-management
+surface for this port.
+
+Execution re-observes the inventory with the same released decoder, refuses any digest drift, a
+selected file that is not `expired_review_required`, an unapproved request, or malformed arguments,
+and consumes the one-time grant only after those checks. A single SQLite `BEGIN IMMEDIATE`
+transaction verifies the exact `user_version`, key tables, key canary and tombstone layout, then
+writes one content-free tombstone and deletes the selected `xlsx_uploads` row. Any error rolls back
+both; nothing outside the selected rows is touched. The derived snapshot lives inside the deleted row,
+so it is removed with the source, while any table the store did not previously have is left absent
+after rollback.
+
+`XlsxSourceTombstone` binds file and task IDs, the truncated keyed owner reference, status, snapshot
+hash (if any), source hash and bytes, the approval ID and the reviewed inventory digest. It contains no
+header text, cell value, formula, idempotency key or key material. `XlsxCleanupReceipt` reports the
+requested selection, per-item outcome (`removed`/`already_removed`), reclaimed and remaining source
+bytes, and fixed `evidence_artifacts_removed=false`, `safe_erasure=false`,
+`destructive_actions_performed=true`. Its digest excludes outcomes and times, so replaying the same
+approval after a successful removal yields the same digest. Replay returns `already_removed` and never
+deletes twice; if the inventory drifted before the first removal, no tombstone exists and the run is
+refused instead.
+
+```bash
+uv run python -m generaldataagent.datasets.xlsx_cleanup \
+  --store /private/operator/xlsx.db \
+  --key-file /private/operator/maintenance.key \
+  --approval-db /private/operator/approvals.db \
+  --approval-id <uuid>
+```
+
+Exit codes: `0` receipt emitted, `2` approval/selection/key invalid, `4` store unobservable, `5`
+observed rows or tombstones contradict the approved selection. Free pages, WAL files and backups may
+still contain removed bytes; expiration cleanup is not safe erasure and does not release a legal hold
+or claim compliance retention. The design record is
+[ADR 0034](../adr/0034-approval-gated-xlsx-expiry-cleanup.md).
+
 ## Encryption, scope and binding
 
 AES-256-GCM encrypts both the preview payload and the source bytes in a dedicated SQLite database.
@@ -359,9 +404,9 @@ with the stored preflight and preview. Parser or limit drift returns 409 and req
 different preview result returns 404 rather than being served.
 
 Retention defaults to 24 hours. Capacity is 20 retained files per creator and 200 overall; expired
-rows still count until removed by a future cleanup slice, and an expired idempotency key is not
-reused. The read-only retention inventory above observes expired rows and capacity headroom but does
-not remove them; there is no automatic cleanup in this slice.
+rows still count until an operator removes them through the exactly approved cleanup above, and an
+expired idempotency key is not reused. The read-only retention inventory observes expired rows and
+capacity headroom; cleanup is never automatic and only removes the explicit selection.
 
 ## DLP scope
 
@@ -407,6 +452,7 @@ unreadable entries fail closed rather than being partially served.
 - duplicate-row enforcement, general full-sheet value extraction, profiling or read-only analysis;
 - declaration listing, filename/column-name/search listing, total counts, workspace, approvals,
   artifact registration or `DatasetSnapshot`;
-- removing expired rows, reclaiming capacity or issuing tombstones; the retention inventory is
-  read-only and reports capacity headroom without changing it;
+- automatic expiry cleanup, scheduled retention enforcement, capacity release without an exact
+  approval, legal-hold release or any safe-erasure claim; cleanup is a local operator port that
+  removes only the explicitly approved expired rows and leaves a content-free tombstone;
 - production identity, production qualification or safe-erasure claims.
