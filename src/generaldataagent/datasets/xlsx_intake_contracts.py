@@ -8,7 +8,7 @@ from pydantic import AwareDatetime, Field, model_validator
 from generaldataagent.contracts import ActorContext
 from generaldataagent.contracts.models import ContractModel
 from generaldataagent.datasets.xlsx_preflight import MAX_BYTES, MAX_ROWS, XlsxPreflightReport
-from generaldataagent.datasets.xlsx_preview import PREVIEW_COLUMNS, XlsxPreviewData
+from generaldataagent.datasets.xlsx_preview import MAX_CELL_CHARS, PREVIEW_COLUMNS, XlsxPreviewData
 from generaldataagent.memory.display_preferences import canonical_hash
 
 MAX_DECLARED_HEADER_CHARS = 256
@@ -241,6 +241,67 @@ def interpretation_binds(
     )
 
 
+MAX_SNAPSHOT_CELLS = 250_000
+MAX_SNAPSHOT_CHARS = 16 * 1024 * 1024
+SnapshotStatus = Literal["value", "missing", "unparsed", "not_trusted"]
+SNAPSHOT_STATUS_CODES = {"value": "v", "missing": "m", "unparsed": "u", "not_trusted": "t"}
+
+
+class XlsxSnapshotColumnData(ContractModel):
+    """One declared column of a retained snapshot: status codes per row and canonical values."""
+
+    schema_version: Literal["1.0"] = "1.0"
+    index: int = Field(ge=0, lt=PREVIEW_COLUMNS, strict=True)
+    header: str = Field(max_length=MAX_DECLARED_HEADER_CHARS)
+    type: DeclaredColumnType
+    statuses: str = Field(max_length=MAX_ROWS, pattern=r"^[vmut]*$")
+    values: tuple[str, ...] = Field(default=(), max_length=MAX_ROWS)
+
+    @model_validator(mode="after")
+    def statuses_and_values_agree(self) -> "XlsxSnapshotColumnData":
+        if self.statuses.count("v") != len(self.values):
+            raise ValueError("xlsx_snapshot_counts_invalid")
+        if any(not value or len(value) > MAX_CELL_CHARS for value in self.values):
+            raise ValueError("xlsx_snapshot_value_invalid")
+        return self
+
+
+class XlsxSnapshotData(ContractModel):
+    """Encrypted-at-rest derived values of the declared columns; never returned by this API."""
+
+    schema_version: Literal["1.0"] = "1.0"
+    reader: Literal["gda-xlsx-derived-snapshot-v1"] = "gda-xlsx-derived-snapshot-v1"
+    snapshot_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    source_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    preview_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    confirmation_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    interpretation_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    created_at: AwareDatetime
+    header_row: int = Field(ge=1, le=MAX_ROWS, strict=True)
+    date_system: Literal["1900", "1904"]
+    rows: tuple[int, ...] = Field(default=(), max_length=MAX_ROWS)
+    columns: tuple[XlsxSnapshotColumnData, ...] = Field(default=(), max_length=PREVIEW_COLUMNS)
+    duplicate_rows: Literal["reject", "keep-all"]
+    duplicate_row_count: int = Field(ge=0, le=MAX_ROWS, strict=True)
+
+    @model_validator(mode="after")
+    def snapshot_is_coherent(self) -> "XlsxSnapshotData":
+        if any(self.rows[index] >= self.rows[index + 1] for index in range(len(self.rows) - 1)):
+            raise ValueError("xlsx_snapshot_rows_invalid")
+        indices = [column.index for column in self.columns]
+        if len(set(indices)) != len(indices):
+            raise ValueError("xlsx_snapshot_column_duplicate")
+        if any(len(column.statuses) != len(self.rows) for column in self.columns):
+            raise ValueError("xlsx_snapshot_counts_invalid")
+        if len(self.rows) * len(self.columns) > MAX_SNAPSHOT_CELLS:
+            raise ValueError("xlsx_snapshot_counts_invalid")
+        if sum(sum(map(len, column.values)) for column in self.columns) > MAX_SNAPSHOT_CHARS:
+            raise ValueError("xlsx_snapshot_chars_invalid")
+        if self.duplicate_row_count > len(self.rows):
+            raise ValueError("xlsx_snapshot_counts_invalid")
+        return self
+
+
 class XlsxFilePreview(ContractModel):
     schema_version: Literal["1.0"] = "1.0"
     file: XlsxFileRecord
@@ -271,6 +332,7 @@ class _XlsxPayload(ContractModel):
     preview: XlsxPreviewData
     preflight: XlsxPreflightReport
     interpretation: XlsxInterpretation | None = None
+    snapshot: XlsxSnapshotData | None = None
 
     @model_validator(mode="after")
     def interpretation_belongs_to_file(self) -> "_XlsxPayload":
@@ -278,4 +340,17 @@ class _XlsxPayload(ContractModel):
             self.file, self.preview, self.interpretation
         ):
             raise ValueError("xlsx_interpretation_binding_invalid")
+        if self.snapshot is not None:
+            if (
+                self.file.status != "confirmed"
+                or self.file.confirmation_hash is None
+                or self.interpretation is None
+            ):
+                raise ValueError("xlsx_snapshot_binding_invalid")
+            if (
+                self.snapshot.source_hash != self.file.source_hash
+                or self.snapshot.preview_hash != self.file.preview_hash
+                or self.snapshot.confirmation_hash != self.file.confirmation_hash
+            ):
+                raise ValueError("xlsx_snapshot_binding_invalid")
         return self
