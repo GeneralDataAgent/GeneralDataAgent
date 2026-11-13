@@ -21,7 +21,13 @@ from test_stage13_xlsx_preview import entries_for, preview, row, sheet, text_cel
 
 from generaldataagent.datasets import xlsx_intake, xlsx_snapshot
 from generaldataagent.datasets.xlsx_intake_contracts import XlsxSnapshotColumnData, XlsxSnapshotData
-from generaldataagent.datasets.xlsx_snapshot import derive_snapshot, scan_snapshot_values
+from generaldataagent.datasets.xlsx_snapshot import (
+    XlsxSnapshotColumnRef,
+    XlsxSnapshotPage,
+    XlsxSnapshotRow,
+    derive_snapshot,
+    scan_snapshot_values,
+)
 from generaldataagent.security.dlp import DLPDeniedError
 
 
@@ -142,13 +148,12 @@ def test_snapshot_scans_values_outside_the_preview_window(tmp_path):
     staged = upload(client, headers, raw=raw).json()
     file_id = staged["file"]["file_id"]
     confirmed = confirm(client, headers, file_id, confirm_body(staged)).json()
-    declared = declare(
+    declare(
         client,
         headers,
         file_id,
         declaration_body(confirmed, columns=[{"index": 0, "header": "name", "type": "text"}]),
     )
-    assert declared.status_code == 200, declared.text
     response = snapshot(client, headers, file_id)
     assert response.status_code == 404
     assert response.json()["detail"] == "xlsx_file_unavailable"
@@ -285,3 +290,160 @@ def test_snapshot_value_scan_rejects_denied_text():
     )
     with pytest.raises(DLPDeniedError):
         scan_snapshot_values(snapshot_data, BlockingScanner(), lambda: None)
+
+
+def values(client, headers, file_id, **params):
+    return client.get(
+        f"/v1/analysis/files/xlsx/{file_id}/snapshot/values", headers=headers, params=params
+    )
+
+
+def test_snapshot_values_return_declared_columns_only(tmp_path):
+    service = build_service(tmp_path)
+    _, headers = credentials(service.broker)
+    client = client_for(service)
+    file_id, _ = prepared(client, headers)
+    assert snapshot(client, headers, file_id).status_code == 200
+    response = values(client, headers, file_id, limit=500)
+    assert response.status_code == 200, response.text
+    page = response.json()
+    assert page["reader"] == "gda-xlsx-snapshot-values-v1"
+    assert page["status"] == "current"
+    assert page["retained_rows"] == 7
+    assert page["rows"] and len(page["rows"]) == 7
+    assert [row["row"] for row in page["rows"]] == list(range(2, 9))
+    assert [column["header"] for column in page["columns"]] == ["name", "amount", "flag"]
+    assert page["more"] is False and page["next"] is None and page["after"] is None
+    assert page["values"] == "retained-decrypted-declared-columns-only"
+    assert page["dlp"] == "values-rescanned-before-return"
+    assert page["dataset_snapshot"] is False and page["artifact"] is False
+    first, second = page["rows"][0], page["rows"][1]
+    assert first["statuses"] == "vvv"
+    assert first["values"] == ["alpha", "1", "true"]
+    assert second["statuses"] == "vtv"
+    assert second["values"] == ["beta", None, "false"]
+    assert page["rows"][3]["statuses"] == "vuu"
+    assert page["rows"][3]["values"] == ["gamma", None, None]
+    assert page["rows"][6]["statuses"] == "mvv" and page["rows"][6]["values"] == [None, "8", "true"]
+    assert (tmp_path / "audit.jsonl").read_text().count("xlsx.snapshot_values_read") == 1
+
+
+def test_snapshot_values_page_by_keyset_without_overlap(tmp_path):
+    service = build_service(tmp_path)
+    _, headers = credentials(service.broker)
+    client = client_for(service)
+    file_id, _ = prepared(client, headers)
+    assert snapshot(client, headers, file_id).status_code == 200
+    seen, after = [], None
+    while True:
+        params = {"limit": 3} | ({"after": after} if after else {})
+        page = values(client, headers, file_id, **params).json()
+        seen.extend(row["row"] for row in page["rows"])
+        if not page["more"]:
+            assert page["next"] is None
+            break
+        assert page["next"] == page["rows"][-1]["row"]
+        after = page["next"]
+    assert seen == list(range(2, 9))
+    empty = values(client, headers, file_id, after=8).json()
+    assert empty["rows"] == [] and empty["more"] is False and empty["next"] is None
+    assert empty["retained_rows"] == 7
+    audit = (tmp_path / "audit.jsonl").read_text()
+    assert audit.count("xlsx.snapshot_values_read") == 3
+
+
+def test_snapshot_values_fail_closed_when_stale_or_absent(tmp_path):
+    service = build_service(tmp_path)
+    _, headers = credentials(service.broker)
+    client = client_for(service)
+    staged = upload(client, headers).json()
+    file_id = staged["file"]["file_id"]
+    assert values(client, headers, file_id).status_code == 409
+    confirmed = confirm(client, headers, file_id, confirm_body(staged)).json()
+    declared = declare(
+        client,
+        headers,
+        file_id,
+        declaration_body(confirmed, columns=[{"index": 0, "header": "name", "type": "text"}]),
+    ).json()
+    assert values(client, headers, file_id).json()["detail"] == "xlsx_snapshot_not_derived"
+    assert snapshot(client, headers, file_id).status_code == 200
+    revised = declare(
+        client,
+        headers,
+        file_id,
+        declaration_body(
+            declared,
+            columns=[{"index": 0, "header": "name", "type": "text"}],
+            duplicate_rows="keep-all",
+        ),
+    )
+    assert revised.status_code == 200, revised.text
+    stale = values(client, headers, file_id)
+    assert stale.status_code == 409
+    assert stale.json()["detail"] == "xlsx_snapshot_stale"
+    assert snapshot(client, headers, file_id).status_code == 200
+    assert values(client, headers, file_id).status_code == 200
+
+
+def test_snapshot_values_are_creator_scoped(tmp_path):
+    now = [datetime.now(UTC)]
+    service = build_service(tmp_path, clock=lambda: now[0], retention=60)
+    _, headers = credentials(service.broker)
+    client = client_for(service)
+    file_id, _ = prepared(client, headers)
+    assert snapshot(client, headers, file_id).status_code == 200
+    other = actor().model_copy(update={"user_id": "other", "tenant_id": "tenant-2"})
+    _, other_headers = credentials(service.broker, other)
+    assert values(client, other_headers, file_id).status_code == 404
+    now[0] += timedelta(seconds=61)
+    assert values(client, headers, file_id).status_code == 404
+
+
+def test_snapshot_values_are_rescanned_before_return(tmp_path):
+    class LateScanner:
+        def __init__(self):
+            self.deny = False
+
+        def check(self, content: bytes) -> None:
+            if self.deny and b"one" in content:
+                raise DLPDeniedError("dlp_personal_data")
+
+    scanner = LateScanner()
+    service = build_service(tmp_path, scanner=scanner)
+    _, headers = credentials(service.broker)
+    client = client_for(service)
+    file_id, _ = prepared(client, headers)
+    assert snapshot(client, headers, file_id).status_code == 200
+    scanner.deny = True
+    response = values(client, headers, file_id)
+    assert response.status_code == 404
+    assert response.json()["detail"] == "xlsx_file_unavailable"
+    assert "xlsx.snapshot_values_read" not in (tmp_path / "audit.jsonl").read_text()
+
+
+def test_snapshot_values_enforce_the_page_character_budget(tmp_path, monkeypatch):
+    service = build_service(tmp_path)
+    _, headers = credentials(service.broker)
+    client = client_for(service)
+    file_id, _ = prepared(client, headers)
+    assert snapshot(client, headers, file_id).status_code == 200
+    monkeypatch.setattr(xlsx_snapshot, "MAX_PAGE_CHARS", 5)
+    response = values(client, headers, file_id, limit=1)
+    assert response.status_code == 413
+    assert response.json()["detail"] == "xlsx_snapshot_page_char_limit"
+
+
+def test_snapshot_page_contract_holds_invariants():
+    with pytest.raises(ValidationError, match="xlsx_snapshot_page_invalid"):
+        XlsxSnapshotRow(row=2, statuses="vv", values=("a",))
+    row = XlsxSnapshotRow(row=2, statuses="vm", values=("a", None))
+    with pytest.raises(ValidationError, match="xlsx_snapshot_page_invalid"):
+        XlsxSnapshotPage(
+            snapshot_hash="sha256:" + "0" * 64,
+            interpretation_hash="sha256:" + "1" * 64,
+            columns=(XlsxSnapshotColumnRef(index=0, header="name", type="text"),),
+            rows=(row,),
+            more=True,
+            retained_rows=1,
+        )

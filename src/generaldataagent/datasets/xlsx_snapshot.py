@@ -1,12 +1,14 @@
-"""Derived, creator-scoped retention of declared XLSX column values; never returned.
+"""Derived, creator-scoped retention of declared XLSX column values.
 
-The snapshot stores canonical values encrypted inside the existing payload after the extracted
-text passes DLP. This endpoint only returns counts and hashes: there is no value read path, no
-artifact registration and no `DatasetSnapshot` claim.
+The snapshot stores canonical values encrypted inside the existing payload after the extracted text
+passes DLP. The metadata endpoint returns counts and hashes only. A separate, bounded page endpoint
+decrypts declared-column values for the same creator. There is no artifact registration and no
+`DatasetSnapshot` claim.
 """
 
 import hashlib
 import json
+from bisect import bisect_right
 from collections import Counter
 from collections.abc import Callable
 from typing import Literal
@@ -33,9 +35,16 @@ from generaldataagent.datasets.xlsx_intake_contracts import (
 from generaldataagent.datasets.xlsx_intake_store import XlsxIntakeConflict
 from generaldataagent.datasets.xlsx_interpretation import interpret_cell
 from generaldataagent.datasets.xlsx_preflight import MAIN, MAX_ROWS
-from generaldataagent.datasets.xlsx_preview import PREVIEW_COLUMNS, CellKind, XlsxPreviewData
+from generaldataagent.datasets.xlsx_preview import (
+    MAX_CELL_CHARS,
+    PREVIEW_COLUMNS,
+    CellKind,
+    XlsxPreviewData,
+)
 
 SCAN_CHUNK_CHARS = 256 * 1024
+MAX_PAGE_ROWS = 500
+MAX_PAGE_CHARS = 2 * 1024 * 1024
 
 
 class XlsxSnapshotColumn(ContractModel):
@@ -97,6 +106,82 @@ class XlsxSnapshotResult(ContractModel):
             raise ValueError("xlsx_snapshot_counts_invalid")
         if self.duplicate_row_count > self.data_rows:
             raise ValueError("xlsx_snapshot_counts_invalid")
+        return self
+
+
+class XlsxSnapshotColumnRef(ContractModel):
+    schema_version: Literal["1.0"] = "1.0"
+    index: int = Field(ge=0, lt=PREVIEW_COLUMNS, strict=True)
+    header: str = Field(max_length=MAX_DECLARED_HEADER_CHARS)
+    type: DeclaredColumnType
+
+
+class XlsxSnapshotRow(ContractModel):
+    """One retained row: status codes plus aligned canonical values for the declared columns."""
+
+    schema_version: Literal["1.0"] = "1.0"
+    row: int = Field(ge=1, le=MAX_ROWS, strict=True)
+    statuses: str = Field(max_length=PREVIEW_COLUMNS, pattern=r"^[vmut]+$")
+    values: tuple[str | None, ...] = Field(max_length=PREVIEW_COLUMNS)
+
+    @model_validator(mode="after")
+    def values_match_statuses(self) -> "XlsxSnapshotRow":
+        if len(self.statuses) != len(self.values):
+            raise ValueError("xlsx_snapshot_page_invalid")
+        for code, value in zip(self.statuses, self.values, strict=True):
+            if (code == "v") != (value is not None):
+                raise ValueError("xlsx_snapshot_page_invalid")
+            if value is not None and (not value or len(value) > MAX_CELL_CHARS):
+                raise ValueError("xlsx_snapshot_page_invalid")
+        return self
+
+
+class XlsxSnapshotPage(ContractModel):
+    """A keyset page of retained values for the declared columns; never an export or an artifact."""
+
+    schema_version: Literal["1.0"] = "1.0"
+    reader: Literal["gda-xlsx-snapshot-values-v1"] = "gda-xlsx-snapshot-values-v1"
+    snapshot_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    interpretation_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    status: Literal["current"] = "current"
+    columns: tuple[XlsxSnapshotColumnRef, ...] = Field(max_length=PREVIEW_COLUMNS)
+    rows: tuple[XlsxSnapshotRow, ...] = Field(max_length=MAX_PAGE_ROWS)
+    after: int | None = Field(default=None, ge=0, strict=True)
+    next: int | None = Field(default=None, ge=0, strict=True)
+    more: bool = Field(strict=True)
+    retained_rows: int = Field(ge=0, le=MAX_ROWS, strict=True)
+    values: Literal["retained-decrypted-declared-columns-only"] = (
+        "retained-decrypted-declared-columns-only"
+    )
+    dlp: Literal["values-rescanned-before-return"] = "values-rescanned-before-return"
+    storage: Literal["encrypted-derived-not-artifact"] = "encrypted-derived-not-artifact"
+    duplicate_rows_handling: Literal["counted-not-dropped"] = "counted-not-dropped"
+    dataset_snapshot: Literal[False] = False
+    artifact: Literal[False] = False
+
+    @model_validator(mode="after")
+    def page_is_coherent(self) -> "XlsxSnapshotPage":
+        if not self.columns:
+            raise ValueError("xlsx_snapshot_page_invalid")
+        if self.more != (self.next is not None):
+            raise ValueError("xlsx_snapshot_page_invalid")
+        if len(self.rows) > self.retained_rows:
+            raise ValueError("xlsx_snapshot_page_invalid")
+        characters = 0
+        for index, row in enumerate(self.rows):
+            if len(row.statuses) != len(self.columns):
+                raise ValueError("xlsx_snapshot_page_invalid")
+            if index and self.rows[index - 1].row >= row.row:
+                raise ValueError("xlsx_snapshot_page_invalid")
+            if self.after is not None and row.row <= self.after:
+                raise ValueError("xlsx_snapshot_page_invalid")
+            characters += sum(len(value) for value in row.values if value is not None)
+        if characters > MAX_PAGE_CHARS:
+            raise ValueError("xlsx_snapshot_page_invalid")
+        if self.more and self.rows and self.next != self.rows[-1].row:
+            raise ValueError("xlsx_snapshot_page_invalid")
+        if self.more and not self.rows:
+            raise ValueError("xlsx_snapshot_page_invalid")
         return self
 
 
@@ -258,6 +343,68 @@ def snapshot_result(
     )
 
 
+def snapshot_page(
+    snapshot: XlsxSnapshotData, *, after: int | None = None, limit: int = MAX_PAGE_ROWS
+) -> XlsxSnapshotPage:
+    """Project a keyset page of retained values; only `value` readings carry text."""
+    if not 1 <= limit <= MAX_PAGE_ROWS:
+        raise ValueError("xlsx_snapshot_page_limit_invalid")
+    start = 0 if after is None else bisect_right(snapshot.rows, after)
+    stop = min(start + limit, len(snapshot.rows))
+    offsets = [column.statuses.count("v", 0, start) for column in snapshot.columns]
+    rows = []
+    characters = 0
+    for position in range(start, stop):
+        statuses = "".join(column.statuses[position] for column in snapshot.columns)
+        values: list[str | None] = []
+        for index, code in enumerate(statuses):
+            if code != "v":
+                values.append(None)
+                continue
+            value = snapshot.columns[index].values[offsets[index]]
+            offsets[index] += 1
+            characters += len(value)
+            values.append(value)
+        rows.append(
+            XlsxSnapshotRow(row=snapshot.rows[position], statuses=statuses, values=tuple(values))
+        )
+    if characters > MAX_PAGE_CHARS:
+        raise XlsxIntakeLimit("xlsx_snapshot_page_char_limit")
+    more = stop < len(snapshot.rows)
+    return XlsxSnapshotPage(
+        snapshot_hash=snapshot.snapshot_hash,
+        interpretation_hash=snapshot.interpretation_hash,
+        columns=tuple(
+            XlsxSnapshotColumnRef(index=column.index, header=column.header, type=column.type)
+            for column in snapshot.columns
+        ),
+        rows=tuple(rows),
+        after=after,
+        next=rows[-1].row if more and rows else None,
+        more=more,
+        retained_rows=len(snapshot.rows),
+    )
+
+
+def scan_page_values(rows: tuple[XlsxSnapshotRow, ...], scanner, check: Callable[[], None]) -> None:
+    """Rescan the page's plaintext before it leaves the service; a denial returns no page."""
+    chunk: list[str] = []
+    size = 0
+    for row in rows:
+        for value in row.values:
+            if value is None:
+                continue
+            chunk.append(value)
+            size += len(value) + 1
+            if size >= SCAN_CHUNK_CHARS:
+                check()
+                scanner.check("\n".join(chunk).encode())
+                chunk, size = [], 0
+    if chunk:
+        check()
+        scanner.check("\n".join(chunk).encode())
+
+
 def _row_cells(
     element, row_number: int, wanted: set[int], shared: tuple[str, ...]
 ) -> dict[int, tuple[str, CellKind]]:
@@ -344,13 +491,68 @@ class XlsxSnapshotWriter:
             return snapshot_result(payload.snapshot, payload.interpretation)
 
 
+class XlsxSnapshotReader:
+    def __init__(self, intake: XlsxIntakeService):
+        self.intake = intake
+
+    def values(
+        self,
+        file_id: UUID,
+        actor: ActorContext,
+        token: str,
+        *,
+        after: int | None = None,
+        limit: int = 100,
+        deadline: float | None = None,
+    ) -> XlsxSnapshotPage:
+        """Return a bounded page of retained values for the creator and current declaration."""
+        check = self.intake.guard(actor, token, deadline=deadline)
+        with self.intake.store.db() as db:
+            _, payload, raw = self.intake.store.owned(db, file_id, actor)
+            bound = self.intake._bound_guard(payload, check)
+            snapshot = payload.snapshot
+            if snapshot is None:
+                raise XlsxIntakeConflict("xlsx_snapshot_not_derived")
+            interpretation = payload.interpretation
+            if (
+                interpretation is None
+                or interpretation.interpretation_hash != snapshot.interpretation_hash
+            ):
+                raise XlsxIntakeConflict("xlsx_snapshot_stale")
+            self.intake._parsed(payload, raw, bound)
+            page = snapshot_page(snapshot, after=after, limit=limit)
+            if page.rows:
+                scan_page_values(page.rows, self.intake.scanner, bound)
+                self.intake._audit(
+                    "xlsx.snapshot_values_read",
+                    payload,
+                    {
+                        "snapshot_hash": snapshot.snapshot_hash,
+                        "rows": len(page.rows),
+                        "cells": len(page.rows) * len(page.columns),
+                        "first_row": page.rows[0].row,
+                        "last_row": page.rows[-1].row,
+                    },
+                )
+            bound()
+            return page
+
+
 __all__ = [
+    "MAX_PAGE_CHARS",
+    "MAX_PAGE_ROWS",
     "MAX_SNAPSHOT_CELLS",
     "MAX_SNAPSHOT_CHARS",
     "XlsxSnapshotColumn",
+    "XlsxSnapshotColumnRef",
+    "XlsxSnapshotPage",
+    "XlsxSnapshotReader",
     "XlsxSnapshotResult",
+    "XlsxSnapshotRow",
     "XlsxSnapshotWriter",
     "derive_snapshot",
+    "scan_page_values",
     "scan_snapshot_values",
+    "snapshot_page",
     "snapshot_result",
 ]
