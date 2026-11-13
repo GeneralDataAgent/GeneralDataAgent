@@ -9,14 +9,17 @@ same sampled window, and a bounded conformance report can read every present row
 those columns while returning only counts, reasons and digests. A further read-only report counts the
 number formats (`cellXfs`/`numFmts`) used by the declared columns without applying them. A retained
 derived snapshot can then persist the canonical values of the declared columns, encrypted, and expose
-counts and hashes plus a bounded, explicitly requested page of those declared values. None of these
-calls returns the workbook's undeclared content, extracts values into an analysis surface, profiles
-data, evaluates formulas, converts currencies or percentages, rewrites stored values or makes model
-calls. Production API assembly rejects this adapter.
+counts and hashes plus a bounded, explicitly requested page of those declared values. A separate local
+operator inventory observes retained and expired files and capacity headroom read-only, without
+deleting anything. None of these calls returns the workbook's undeclared content, extracts values into
+an analysis surface, profiles data, evaluates formulas, converts currencies or percentages, rewrites
+stored values or makes model calls. Production API assembly rejects this adapter.
 
-This is the eleventh slice of XLSX ingestion. The service can now derive whole-sheet conformance, inert
-number-format facts and a retained encrypted snapshot of declared-column values, and read those values
-back page by page without creating an artifact. Analysis and `DatasetSnapshot` are not implemented.
+This is the twelfth slice of XLSX ingestion. The service can now derive whole-sheet conformance, inert
+number-format facts and a retained encrypted snapshot of declared-column values, read those values back
+page by page without creating an artifact, and observe retained capacity through a local read-only
+operator inventory. Analysis, `DatasetSnapshot`, expiry cleanup and production qualification are not
+implemented.
 
 ## Assembly and API
 
@@ -305,6 +308,43 @@ values) before the response; if audit is unavailable, no page is returned. An em
 one paged past the last row — emits no audit event. This is a declared-column value read, not an
 export, not profiling, not an analysis input, and not a `DatasetSnapshot`.
 
+## Read-only retention inventory
+
+`XlsxMaintenanceInventory` is a separate local operator port for reviewing retained and expired
+capacity. It opens one existing encrypted intake database with `mode=ro` (never creating schema,
+parents or an empty store), verifies the 32-byte key against the stored canary and rejects an
+unsupported layout. It never parses a workbook, never returns headers or cell values, never re-derives
+or re-scans values, and never writes to the store or audit log.
+
+The v1 `XlsxMaintenancePlan` lists each retained file with file/task IDs, a truncated non-reversible
+keyed owner reference, `staged`/`confirmed` status, release compatibility, whether a declaration
+exists, and snapshot metadata: `none`/`current`/`stale`, hash, retained row/cell counts and duplicate
+row count. It also carries the source hash and byte count, creation/expiry times and a review state
+(`retain`, `expired_review_required`). Per creator scope it reports retained/expired file counts and
+source bytes; the plan reports the configured 20-per-creator/200-total bounds and remaining headroom.
+The response states `values=not-read-by-this-inventory`, `deletes=false`,
+`releases_capacity=false` and `audit=not-emitted`.
+
+`inventory_digest` covers immutable retained facts only, so repeating the inventory on an unchanged
+store yields the same digest at a later wall-clock time; a new upload, confirmation, declaration or
+snapshot changes it. Expiry and `stale` state are observations recomputed on every run. Corrupt
+records, a wrong key, an unsupported layout or more rows than the configured bound fail the whole
+observation; no partial plan is emitted. The plan is an observation for review, never authorization
+to delete, and expired rows still count against capacity until a separately approved cleanup exists.
+
+```bash
+uv run python -m generaldataagent.datasets.xlsx_maintenance \
+  --store /private/operator/xlsx.db \
+  --key-file /private/operator/maintenance.key --summary
+```
+
+The key file must be an operator-owned regular file (not a symlink, mode `0600` on POSIX) containing
+base64 for exactly 32 bytes. Exit codes: `0` complete plan, `2` key/permission or contract invalid,
+`4` store unobservable. Output contains codes, counts, hashes and a truncated scope reference rather
+than workbook names, headers or values. This is a local operator CLI, not a browser, model or
+tenant-management endpoint. The design record is
+[ADR 0033](../adr/0033-read-only-xlsx-retention-inventory.md).
+
 ## Encryption, scope and binding
 
 AES-256-GCM encrypts both the preview payload and the source bytes in a dedicated SQLite database.
@@ -320,7 +360,8 @@ different preview result returns 404 rather than being served.
 
 Retention defaults to 24 hours. Capacity is 20 retained files per creator and 200 overall; expired
 rows still count until removed by a future cleanup slice, and an expired idempotency key is not
-reused. There is no automatic cleanup in this slice.
+reused. The read-only retention inventory above observes expired rows and capacity headroom but does
+not remove them; there is no automatic cleanup in this slice.
 
 ## DLP scope
 
@@ -366,4 +407,6 @@ unreadable entries fail closed rather than being partially served.
 - duplicate-row enforcement, general full-sheet value extraction, profiling or read-only analysis;
 - declaration listing, filename/column-name/search listing, total counts, workspace, approvals,
   artifact registration or `DatasetSnapshot`;
+- removing expired rows, reclaiming capacity or issuing tombstones; the retention inventory is
+  read-only and reports capacity headroom without changing it;
 - production identity, production qualification or safe-erasure claims.
