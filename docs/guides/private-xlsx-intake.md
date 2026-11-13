@@ -12,17 +12,18 @@ derived snapshot can then persist the canonical values of the declared columns, 
 counts and hashes plus a bounded, explicitly requested page of those declared values. A separate local
 operator inventory observes retained and expired files and capacity headroom read-only, without
 deleting anything; a second local operator port can then consume one exact approval to remove selected
-expired rows and leave a content-free tombstone. None of these calls returns the workbook's undeclared
-content, extracts values into an analysis surface, profiles data, evaluates formulas, converts
-currencies or percentages, rewrites stored values or makes model calls. Production API assembly
-rejects this adapter.
+expired rows and leave a content-free tombstone. A creator-private declaration listing reports the
+binding facts of every retained declaration without returning headers, tokens or values. None of these
+calls returns the workbook's undeclared content, extracts values into an analysis surface, profiles
+data, evaluates formulas, converts currencies or percentages, rewrites stored values or makes model
+calls. Production API assembly rejects this adapter.
 
-This is the thirteenth slice of XLSX ingestion. The service can now derive whole-sheet conformance,
+This is the fourteenth slice of XLSX ingestion. The service can now derive whole-sheet conformance,
 inert number-format facts and a retained encrypted snapshot of declared-column values, read those
-values back page by page without creating an artifact, observe retained capacity through a local
-read-only operator inventory, and perform an exactly approved removal of selected expired rows.
-Analysis, `DatasetSnapshot`, automatic expiry cleanup and production qualification are not
-implemented.
+values back page by page without creating an artifact, list declaration metadata across retained
+files, observe retained capacity through a local read-only operator inventory, and perform an exactly
+approved removal of selected expired rows. Analysis, `DatasetSnapshot`, automatic expiry cleanup and
+production qualification are not implemented.
 
 ## Assembly and API
 
@@ -81,7 +82,28 @@ first-page membership and order for at most five minutes; each later page rechec
 expiry. An altered, cross-scope, release-changed or expired cursor returns
 `409 xlsx_list_cursor_invalid_or_expired`. There is no `total`, filename, column name, sample or
 cross-store snapshot. Audit records `xlsx.files_listed` with only `item_count`/`has_more`; audit
-failure returns no page. Declaration listing across files is not implemented.
+failure returns no page.
+
+## Declaration listing
+
+`GET /v1/analysis/files/xlsx/declarations` returns every current, unexpired declaration owned by the
+caller in one bounded response of at most 20 items, ordered by creation time and file ID. Each item
+carries the file/task ID, fixed `status=confirmed`, `availability`, sheet name, header row, duplicate
+policy, `interpretation_hash` and snapshot state (`none`/`current`/`stale`). Each declared column is
+reduced to its index, declared type, empty-is-missing flag and **count** of missing tokens. Header
+labels, the tokens themselves, cell values, formulas, row samples and idempotency keys are never
+returned, and the workbook is not re-parsed or re-derived. The page states
+`declarations=metadata-only`, `headers=not-returned`, `tokens=counts-only` and `values=not-returned`.
+
+Only files that reached `confirmed` **and** recorded a declaration appear; staged files and confirmed
+files without a declaration are excluded, as are expired rows. The call uses the same current-grant
+checks as a preview read, rechecked while decoding every candidate row, so another identity never sees
+these facts. `availability` reports release drift without reinterpretation, and `snapshot_state` is
+`stale` when the retained snapshot was derived from an earlier declaration. Audit records
+`xlsx.declarations_listed` with only `item_count`; an audit failure returns no page. More retained rows
+than the hard 20-per-creator bound, an unreadable record or an unsupported store layout fails the whole
+listing closed rather than returning a partial page. The design record is
+[ADR 0035](../adr/0035-metadata-only-xlsx-declaration-listing.md).
 
 ## Staged preview
 
@@ -432,7 +454,7 @@ workbook has been inspected.
 | 409 | idempotency request changed, retained capacity exhausted, parser/limit drift, changed binding, header row outside the preview, a column mismatch, no recorded declaration, a declaration without columns, no retained snapshot, a stale snapshot or an invalid/expired listing cursor; the response detail carries the stable code |
 | 404 | file unavailable to this identity, expired, preview binding failed, declared columns do not bind, or a format code, extracted value or returned snapshot page was denied by DLP |
 | 408 | upload disconnected or timed out |
-| 503 | intake not configured or the encrypted store is unavailable |
+| 503 | intake not configured, the encrypted store is unavailable, or listing audit is unavailable |
 
 Audit is emitted before insertion. An audit or DLP failure leaves no staged row. Unknown, tampered or
 unreadable entries fail closed rather than being partially served.
@@ -450,8 +472,8 @@ unreadable entries fail closed rather than being partially served.
   percentage or time of day; the format report exposes inert codes and counts only;
 - currency, percentage or time-of-day interpretation and formula-cache trust;
 - duplicate-row enforcement, general full-sheet value extraction, profiling or read-only analysis;
-- declaration listing, filename/column-name/search listing, total counts, workspace, approvals,
-  artifact registration or `DatasetSnapshot`;
+- filename/column-name/search listing, total counts, workspace, approvals, artifact registration or
+  `DatasetSnapshot`;
 - automatic expiry cleanup, scheduled retention enforcement, capacity release without an exact
   approval, legal-hold release or any safe-erasure claim; cleanup is a local operator port that
   removes only the explicitly approved expired rows and leaves a content-free tombstone;
