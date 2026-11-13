@@ -434,11 +434,19 @@ class SQLiteApprovalStore:
             ).fetchone()
         if row is None:
             raise ApprovalError("unknown approval request")
+        return self._decode_record(*row)
+
+    @staticmethod
+    def _decode_record(
+        request: str, grant: str | None, consumed_at: str | None, disposition: str | None
+    ) -> ApprovalRecord:
         return ApprovalRecord(
-            request=ApprovalRequest.model_validate_json(row[0]),
-            grant=ApprovalGrant.model_validate_json(row[1]) if row[1] else None,
-            consumed=row[2] is not None,
-            disposition=ApprovalDisposition.model_validate_json(row[3]) if row[3] else None,
+            request=ApprovalRequest.model_validate_json(request),
+            grant=ApprovalGrant.model_validate_json(grant) if grant else None,
+            consumed=consumed_at is not None,
+            disposition=(
+                ApprovalDisposition.model_validate_json(disposition) if disposition else None
+            ),
         )
 
     def review_page(
@@ -473,7 +481,8 @@ class SQLiteApprovalStore:
         }[scope]
         with self._connect() as connection:
             rows = connection.execute(
-                "SELECT rowid,approval_id FROM approvals "
+                "SELECT rowid, request_json, grant_json, consumed_at, disposition_json "
+                "FROM approvals "
                 "WHERE json_extract(request_json,'$.tenant_id')=? "
                 "AND json_extract(request_json,'$.project_id')=? "
                 "AND json_array_length(json_extract(request_json,'$.data_domains'))>0 "
@@ -484,7 +493,7 @@ class SQLiteApprovalStore:
                 (tenant, project, json.dumps(sorted(domains)), before, before, limit + 1),
             ).fetchall()
         return {
-            "items": [self.inspect(UUID(row[1])) for row in rows[:limit]],
+            "items": [self._decode_record(*row[1:]) for row in rows[:limit]],
             "next_cursor": rows[limit - 1][0] if len(rows) > limit else None,
         }
 

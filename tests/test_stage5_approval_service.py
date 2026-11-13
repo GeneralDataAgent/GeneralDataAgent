@@ -1,4 +1,5 @@
 import ssl
+from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from uuid import UUID, uuid4
@@ -198,6 +199,36 @@ def test_reviewer_scope_separates_open_queue_from_decided_history(authority):
         ).status_code
         == 422
     )
+
+
+def test_open_review_page_keeps_the_selected_record_version(authority, monkeypatch):
+    a = authority
+    pending = create(a)
+    connect = a.store._connect
+    writer = SQLiteApprovalStore(a.store.path)
+    approved = False
+
+    @contextmanager
+    def approve_after_read():
+        nonlocal approved
+        with connect() as connection:
+            yield connection
+        if not approved:
+            writer.approve(pending.approval_id, approver_id="bob")
+            approved = True
+
+    monkeypatch.setattr(a.store, "_connect", approve_after_read)
+    page = a.client.get(
+        "/v1/approval-requests",
+        params={"scope": "open"},
+        headers={"authorization": f"Bearer {a.bob}"},
+    )
+    assert page.status_code == 200
+    assert writer.inspect(pending.approval_id).grant is not None
+    assert [item["request"]["approval_id"] for item in page.json()["items"]] == [
+        str(pending.approval_id)
+    ]
+    assert page.json()["items"][0]["grant"] is None
 
 
 def test_session_revoked_during_audit_cannot_grant(authority):

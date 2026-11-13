@@ -165,6 +165,26 @@ def test_listing_returns_no_page_when_audit_fails(tmp_path):
     assert response.json()["detail"] == "xlsx_intake_unavailable"
 
 
+def test_listing_refuses_a_page_if_a_file_expires_during_audit(tmp_path, monkeypatch):
+    now = [datetime(2026, 11, 13, tzinfo=UTC)]
+    service = build_service(tmp_path, clock=lambda: now[0], retention=60)
+    _, headers = credentials(service.broker)
+    client = client_for(service)
+    prepared(client, headers)
+    emit = service.audit.emit
+
+    def advance_clock(event):
+        emit(event)
+        now[0] += timedelta(seconds=60)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(service.audit, "emit", advance_clock)
+        response = declarations(client, headers)
+    assert response.status_code == 503
+    assert response.json() == {"detail": "xlsx_intake_unavailable"}
+    assert declarations(client, headers).json()["items"] == []
+
+
 def test_listing_fails_closed_on_capacity_and_corruption(tmp_path):
     service = build_service(tmp_path)
     _, headers = credentials(service.broker)
