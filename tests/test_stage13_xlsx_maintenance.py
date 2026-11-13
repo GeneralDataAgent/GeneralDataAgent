@@ -59,7 +59,8 @@ def upload_as(client, headers, key):
 
 
 def test_inventory_reports_retained_files_without_values(tmp_path):
-    service = build_service(tmp_path)
+    now = datetime(2026, 11, 13, 1, 0, 2, 500000, tzinfo=UTC)
+    service = build_service(tmp_path, clock=lambda: now)
     _, headers = credentials(service.broker)
     client = client_for(service)
     staged = upload(client, headers).json()
@@ -68,7 +69,7 @@ def test_inventory_reports_retained_files_without_values(tmp_path):
     file_id, _ = prepared(client, other_headers)
     assert snapshot(client, other_headers, file_id).status_code == 200
     before = (tmp_path / "xlsx.db").read_bytes()
-    plan = inventory(tmp_path)
+    plan = inventory(tmp_path, clock=lambda: now)
     assert (tmp_path / "xlsx.db").read_bytes() == before
     assert plan.status == "complete"
     assert plan.values == "not-read-by-this-inventory"
@@ -98,10 +99,12 @@ def test_inventory_reports_retained_files_without_values(tmp_path):
     assert second.availability == "compatible"
     assert second.review_state == "retain"
     body = json.dumps(plan.model_dump(mode="json"), ensure_ascii=False)
-    for secret in ("alpha", "amount", "flag", "2.5"):
+    for secret in ("alpha", "amount", "flag"):
         assert secret not in body
+    # The fixture's decimal is canonical text; the timestamp can contain the same substring.
+    assert '"2.5"' not in body
     assert "xlsx.maintenance" not in (tmp_path / "audit.jsonl").read_text()
-    assert inventory(tmp_path).inventory_digest == plan.inventory_digest
+    assert inventory(tmp_path, clock=lambda: now).inventory_digest == plan.inventory_digest
 
 
 def test_inventory_reports_expiry_and_per_scope_capacity(tmp_path):

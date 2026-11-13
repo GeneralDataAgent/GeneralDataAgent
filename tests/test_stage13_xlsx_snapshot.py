@@ -36,7 +36,8 @@ def snapshot(client, headers, file_id, *, method="post"):
 
 
 def test_snapshot_retains_declared_values_without_returning_them(tmp_path):
-    service = build_service(tmp_path)
+    now = datetime(2026, 11, 13, 1, 0, 2, 500000, tzinfo=UTC)
+    service = build_service(tmp_path, clock=lambda: now)
     _, headers = credentials(service.broker)
     client = client_for(service)
     file_id, _ = prepared(client, headers)
@@ -62,8 +63,9 @@ def test_snapshot_retains_declared_values_without_returning_them(tmp_path):
     assert (amount["values"], amount["unparsed"], amount["not_trusted"]) == (4, 2, 1)
     assert (flag["values"], flag["unparsed"]) == (6, 1)
     body = json.dumps(report)
-    for secret in ("alpha", "beta", "gamma", "delta", "2.5", "#DIV/0!"):
+    for secret in ("alpha", "beta", "gamma", "delta", "#DIV/0!"):
         assert secret not in body
+    assert '"2.5"' not in body
     assert snapshot(client, headers, file_id, method="get").json() == report
     assert (tmp_path / "audit.jsonl").read_text().count("xlsx.snapshot_derived") == 1
     assert b"alpha" not in (tmp_path / "xlsx.db").read_bytes()
