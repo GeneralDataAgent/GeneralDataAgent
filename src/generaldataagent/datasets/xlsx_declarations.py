@@ -132,17 +132,22 @@ class XlsxDeclarationListing:
             ).fetchall()
             if len(rows) > 20:
                 raise XlsxIntakeUnavailable("xlsx_inventory_capacity_invalid")
-            now = store.now()
             summaries = []
             for row in rows:
                 check()
                 payload, _ = store.decode(row)
                 if payload.actor != actor:
                     raise PermissionError("xlsx_file_unavailable")
-                if payload.interpretation is None or payload.file.expires_at <= now:
+                if payload.interpretation is None or payload.file.expires_at <= store.now():
                     continue
                 summaries.append(self._summary(payload))
-        items = tuple(sorted(summaries, key=lambda item: (item.created_at, str(item.file_id))))
+        now = store.now()
+        items = tuple(
+            sorted(
+                (item for item in summaries if item.expires_at > now),
+                key=lambda item: (item.created_at, str(item.file_id)),
+            )
+        )
         check()
         try:
             port.audit.emit(
@@ -152,11 +157,14 @@ class XlsxDeclarationListing:
                     actor_id=actor.user_id,
                     tenant_id=actor.tenant_id,
                     trace_id=str(uuid4()),
-                    occurred_at=store.now(),
+                    occurred_at=now,
                     payload={"item_count": len(items)},
                 )
             )
         except Exception as exc:
             raise XlsxIntakeUnavailable("xlsx_audit_unavailable") from exc
         check()
+        now = store.now()
+        if any(item.expires_at <= now for item in items):
+            raise XlsxIntakeUnavailable("xlsx_declaration_listing_expired")
         return XlsxDeclarationPage(items=items)
