@@ -210,6 +210,14 @@ DEFAULT_RULES = (
         obligations=("audit", "approval", "tombstone", "retention"),
     ),
     PolicyRule(
+        tool_name="xlsx.export.columns",
+        risk_level=RiskLevel.R2,
+        allowed_actions=frozenset({"export-declared-columns"}),
+        allowed_roles=frozenset({"data_engineer"}),
+        requires_approval=True,
+        obligations=("audit", "approval", "dlp", "formula-injection", "retention"),
+    ),
+    PolicyRule(
         tool_name="production.write",
         risk_level=RiskLevel.R3,
         allowed_actions=frozenset({"insert", "update", "delete", "deploy"}),
@@ -264,6 +272,7 @@ class PolicyEngine:
             "rules.deliver",
             "model.registry",
             "dataset.export",
+            "xlsx.export.columns",
         }:
             return self._decision(request, "deny", rule.risk_level, "missing_data_domain")
 

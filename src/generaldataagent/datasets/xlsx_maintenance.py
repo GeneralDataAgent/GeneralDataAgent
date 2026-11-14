@@ -12,6 +12,7 @@ import base64
 import hmac
 import json
 import os
+import re
 import sqlite3
 import stat
 import sys
@@ -93,19 +94,23 @@ def _columns(db: sqlite3.Connection, table: str) -> list[str]:
     return [row[1] for row in db.execute(f"PRAGMA table_info({table})")]
 
 
-def load_key_file(path: Path) -> bytes:
-    """Read a 32-byte key from an operator-owned private regular file."""
-
+def _private_file_bytes(path: Path, code: str) -> bytes:
     path = Path(path)
     if path.is_symlink() or not path.is_file():
-        raise XlsxMaintenanceUnavailable("xlsx_maintenance_key_file_invalid")
+        raise XlsxMaintenanceUnavailable(code)
     metadata = path.stat()
     if hasattr(os, "getuid"):
         if not stat.S_ISREG(metadata.st_mode) or metadata.st_mode & 0o077:
             raise PermissionError("xlsx_maintenance_key_file_not_private")
         if metadata.st_uid != os.getuid():
             raise PermissionError("xlsx_maintenance_key_file_owner_mismatch")
-    raw = path.read_bytes()
+    return path.read_bytes()
+
+
+def load_key_file(path: Path) -> bytes:
+    """Read a 32-byte key from an operator-owned private regular file."""
+
+    raw = _private_file_bytes(path, "xlsx_maintenance_key_file_invalid")
     if not raw or len(raw) > 128:
         raise XlsxMaintenanceUnavailable("xlsx_maintenance_key_file_invalid")
     try:
@@ -115,6 +120,21 @@ def load_key_file(path: Path) -> bytes:
     if len(key) != 32:
         raise XlsxMaintenanceUnavailable("xlsx_maintenance_key_file_invalid")
     return key
+
+
+def load_token_file(path: Path) -> str:
+    """Read one opaque session token from an operator-owned private regular file."""
+
+    raw = _private_file_bytes(path, "xlsx_maintenance_key_file_invalid")
+    if not raw or len(raw) > 256:
+        raise XlsxMaintenanceUnavailable("xlsx_maintenance_key_file_invalid")
+    try:
+        token = raw.strip().decode("ascii")
+    except UnicodeDecodeError as exc:
+        raise XlsxMaintenanceUnavailable("xlsx_maintenance_key_file_invalid") from exc
+    if not re.fullmatch(r"[A-Za-z0-9_-]{32,128}", token):
+        raise XlsxMaintenanceUnavailable("xlsx_maintenance_key_file_invalid")
+    return token
 
 
 class XlsxMaintenanceInventory:
