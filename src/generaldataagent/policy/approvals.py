@@ -118,6 +118,7 @@ def _approval_grant(
         request_fingerprint=request.request_fingerprint,
         approver_id=approver_id,
         tenant_id=request.tenant_id,
+        approved_at=now,
         expires_at=request.expires_at,
     )
 

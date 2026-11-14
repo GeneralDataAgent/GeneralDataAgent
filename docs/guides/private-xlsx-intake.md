@@ -13,17 +13,20 @@ counts and hashes plus a bounded, explicitly requested page of those declared va
 operator inventory observes retained and expired files and capacity headroom read-only, without
 deleting anything; a second local operator port can then consume one exact approval to remove selected
 expired rows and leave a content-free tombstone. A creator-private declaration listing reports the
-binding facts of every retained declaration without returning headers, tokens or values. None of these
-calls returns the workbook's undeclared content, extracts values into an analysis surface, profiles
-data, evaluates formulas, converts currencies or percentages, rewrites stored values or makes model
-calls. Production API assembly rejects this adapter.
+binding facts of every retained declaration without returning headers, tokens or values. A separate
+local operator CLI can export one explicitly approved bounded column subset from a retained snapshot
+to one new private CSV file. None of these calls returns the workbook's undeclared content, extracts
+values into an analysis surface, profiles data, evaluates formulas, converts currencies or
+percentages, rewrites stored values or makes model calls. Production API assembly rejects this
+adapter.
 
-This is the fourteenth slice of XLSX ingestion. The service can now derive whole-sheet conformance,
+This is the fifteenth slice of XLSX ingestion. The service can now derive whole-sheet conformance,
 inert number-format facts and a retained encrypted snapshot of declared-column values, read those
 values back page by page without creating an artifact, list declaration metadata across retained
-files, observe retained capacity through a local read-only operator inventory, and perform an exactly
-approved removal of selected expired rows. Analysis, `DatasetSnapshot`, automatic expiry cleanup and
-production qualification are not implemented.
+files, observe retained capacity through a local read-only operator inventory, perform an exactly
+approved removal of selected expired rows, and export one explicitly approved, bounded,
+declared-column page through the local operator CLI. Analysis, `DatasetSnapshot`, automatic expiry
+cleanup and production qualification are not implemented.
 
 ## Assembly and API
 
@@ -412,6 +415,84 @@ still contain removed bytes; expiration cleanup is not safe erasure and does not
 or claim compliance retention. The design record is
 [ADR 0034](../adr/0034-approval-gated-xlsx-expiry-cleanup.md).
 
+## Approved bounded column-subset CSV export
+
+`XlsxColumnExport` is a local operator CLI, not an API route, browser action, model tool or tenant
+management surface. The operator supplies an existing encrypted intake database, a private key file,
+an exact one-time R2 approval ID, the shared local session database, a private opaque-token file, a
+local append-only audit log, the explicit actor/domain scope, the retained file and snapshot hashes,
+an instance ID, sorted declared-column indices, a bounded keyset range (`after`, `limit ≤ 500`) and
+one new output path. There is no server-side column picker, inferred identity, implicit export or
+replay with the same grant.
+
+The new `xlsx.export.columns` policy rule is R2, allows only `export-declared-columns` for the
+`data_engineer` role and requires approval. The exact `ToolRequest` includes the explicit actor,
+project, domains, arguments and a deterministic `export_hash` over the file, retained snapshot hash,
+selected columns, keyset range and instance ID. Execution rechecks the live session through the
+supplied broker, requires `analysis:run`, no business constraint and exact user/tenant/project and
+domain containment, and uses a monotonic bounded deadline on every authorization checkpoint. It
+compares two independent canonical fingerprints of the approved `ToolRequest`, including the full
+identity and role, and refuses any changed argument or consumed, revoked, expired or unapproved
+grant. The approval store's injected clock is used for grant time, so deterministic tests and local
+operator clocks do not disagree.
+
+The port opens the existing store with SQLite `mode=ro`, verifies `user_version=1`, the exact key and
+upload table layouts and the AES-256-GCM key canary, then uses the released `XlsxUploadStore.decode`
+implementation through the read-only view. It checks exact HMAC creator scope, decrypted actor
+equality and file expiry. Before deriving any CSV it rechecks the confirmed status, the source hash
+and byte count, the pinned parser and processing fingerprints, the source/preview/confirmation/
+interpretation snapshot hashes and the selected column headers against both the retained declaration
+and snapshot. It also recomputes the released whole-reading digest from every retained status and
+canonical value; a tampered projection fails closed. No workbook reparse, formula evaluation, source
+row write, artifact registration or `DatasetSnapshot` is performed.
+
+The CSV contains one header row of the selected column labels and at most 500 retained rows. Missing,
+unparsed and not-trusted readings become empty cells; only canonical `value` readings are written.
+Labels and values starting with `=`, `+`, `-`, `@`, tab or carriage return receive a leading apostrophe to
+neutralize spreadsheet formula injection. The full CSV bytes, including headers, quotes and
+formula-neutralized cells, are re-scanned by `TextDLPScanner.check_export` at `INTERNAL`
+classification immediately before return; DLP denial or a 2 MiB page limit consumes no approval and
+produces no output. A content-free `xlsx.columns_exported` event records only identifiers, hashes,
+row/cell/byte/column counts and the output SHA-256 before the grant is consumed. Audit failure fails
+closed. The one-time grant is consumed only after DLP, audit and a final authorization check; a later
+consume failure still leaves no `execute()` result.
+The export rechecks file retention through DLP, audit and grant consumption.
+
+The CLI stages and syncs a private `0600` file in the destination directory before it audits and
+consumes the grant. A staging failure or an output path already occupied at the final staging check
+leaves the grant available. After consumption, the CLI publishes the complete file atomically
+without overwriting an existing path. If publication fails in that final window, the CLI reports
+`xlsx_export_publish_failed_after_consumption`; retry requires a new grant. Temporary files are
+removed on normal completion and handled failures. An abrupt process stop can leave a private
+staging file in the destination directory. The key and opaque-token files must be non-symlink,
+operator-owned private regular
+files; the token is never placed on the command line. The receipt states
+`scope=explicit-declared-column-page`, `values=selected-columns-only`,
+`dlp=rescanned-before-return`, `formula_cached_values=never-trusted`, `artifact=false`,
+`dataset_snapshot=false`, `audit=xlsx.columns_exported` and
+`approval=one-time-grant-consumed`. Exit codes: `0` receipt emitted and one output created,
+`2` approval/authorization/contract invalid, `4` store, DLP, audit or output unavailable,
+`5` retained state contradicts the approved selection. The CLI uses the real-time development clock;
+the library constructor accepts injected clocks for deterministic tests. This is a local export, not
+evidence of content verification, independent review or production qualification. The design record
+is [ADR 0036](../adr/0036-identity-bound-approved-xlsx-column-export.md).
+
+```bash
+uv run python -m generaldataagent.datasets.xlsx_export \
+  --store /private/operator/xlsx.db \
+  --key-file /private/operator/maintenance.key \
+  --approval-db /private/operator/approvals.db \
+  --approval-id <uuid> \
+  --sessions-db /private/operator/sessions.db \
+  --token-file /private/operator/session.token \
+  --audit-log /private/operator/export-audit.jsonl \
+  --user-id <user> --tenant-id <tenant> --project-id <project> \
+  --data-domain <domain> \
+  --file-id <uuid> --snapshot-hash sha256:<64 hex> \
+  --columns 0,2 --after 0 --limit 500 \
+  --instance-id <uuid> --out /private/operator/new-export.csv
+```
+
 ## Encryption, scope and binding
 
 AES-256-GCM encrypts both the preview payload and the source bytes in a dedicated SQLite database.
@@ -436,12 +517,14 @@ DLP scans the preview text only: sheet name, header, preview rows and formula te
 scan the raw ZIP or cells outside the preview window. Every record therefore states
 `dlp_scope=preview-text-only`. Credential-like column headers are denied before storage. A declaration
 only repeats header labels already present in the scanned preview and is stored inside the encrypted
-payload; audit carries the interpretation hash, not the labels or tokens. Three paths touch text not
+payload; audit carries the interpretation hash, not the labels or tokens. Four paths touch text not
 previously scanned: the number-format report returns custom format codes, so those codes are scanned
 immediately before the response and a denial returns 404; snapshot derivation extracts declared values
 outside the preview window, so every retained value is scanned before it is persisted and a denial
 returns 404; the value page decrypts retained values, so its plaintext is scanned again immediately
-before the response and a denial returns 404. Do not treat this preview as evidence that the whole
+before the response and a denial returns 404; the local operator CSV export scans the exact output
+bytes, including headers and escaped values, with `check_export` at `INTERNAL` classification before
+it returns or consumes its grant. Do not treat this preview as evidence that the whole
 workbook has been inspected.
 
 ## Errors and refusal behavior
@@ -464,9 +547,11 @@ unreadable entries fail closed rather than being partially served.
 - applying declared types to the source bytes, rewriting stored workbooks, dropping duplicate rows or
   producing a persisted whole-sheet conflict summary; the conformance report is derived per request
   and returns counts and digests only;
-- exporting retained values, selecting a subset of declared columns, filtering or aggregating on the
-  server, or binding a snapshot to an analysis task; the value page returns declared columns only and
-  writes no `DatasetSnapshot` or artifact;
+- filename/column-name/search listing, total counts, workspace, artifact registration or
+  `DatasetSnapshot`; the local CSV export creates only an operator-owned output file, never an
+  artifact, analysis input or task;
+- server-side declarative filtering, aggregation or exporting through the API/model/browser; only
+  the explicitly approved local operator column-subset page exists;
 - selecting a header row outside the materialized preview window;
 - applying number formats, rounding by display format, or deciding that a format means a currency,
   percentage or time of day; the format report exposes inert codes and counts only;
