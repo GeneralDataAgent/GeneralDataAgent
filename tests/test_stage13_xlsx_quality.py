@@ -1,5 +1,7 @@
 import json
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
+from threading import Event
 
 import pytest
 from fastapi.testclient import TestClient
@@ -33,13 +35,91 @@ def setup(tmp_path, **kwargs):
     return intake, client, token, headers
 
 
-def request_quality(client, headers, file_id, snapshot_hash, evidence=None):
+def request_quality(client, headers, file_id, snapshot_hash, evidence=None, *, intent=None):
     route = f"/v1/analysis/files/xlsx/{file_id}/snapshot/quality"
     kwargs = {}
     if evidence is not None:
         route += "/verify"
         kwargs["json"] = evidence
-    return client.post(route, params={"snapshot_hash": snapshot_hash}, headers=headers, **kwargs)
+    request_headers = {key: value for key, value in headers.items() if key != "idempotency-key"}
+    if intent is not None:
+        request_headers["idempotency-key"] = intent
+    return client.post(
+        route, params={"snapshot_hash": snapshot_hash}, headers=request_headers, **kwargs
+    )
+
+
+def read_receipt(client, headers, file_id, digest):
+    return client.get(
+        f"/v1/analysis/files/xlsx/{file_id}/snapshot/quality/receipt",
+        params={"snapshot_hash": digest},
+        headers=headers,
+    )
+
+
+def test_xlsx_quality_receipt_survives_restart_and_concurrent_replay(tmp_path, monkeypatch):
+    intake, client, _, headers = setup(tmp_path)
+    file_id, declared = prepared(client, headers)
+    digest = snapshot(client, headers, file_id).json()["snapshot_hash"]
+    intent = "quality-original-intent"
+    headers = {**headers, "idempotency-key": intent}
+    assert read_receipt(client, headers, file_id, digest).json()["state"] == "missing"
+    ready, resume = Event(), Event()
+    original = DataEngineeringRuntime.check_quality
+
+    def delayed(runtime, **kwargs):
+        ready.set()
+        assert resume.wait(timeout=5)
+        return original(runtime, **kwargs)
+
+    monkeypatch.setattr(DataEngineeringRuntime, "check_quality", delayed)
+    with ThreadPoolExecutor(max_workers=1) as worker:
+        submitted = worker.submit(request_quality, client, headers, file_id, digest, intent=intent)
+        try:
+            assert ready.wait(timeout=5)
+            pending = read_receipt(client, headers, file_id, digest).json()
+            assert pending["state"] == "pending"
+            assert pending["result"] is None
+            assert (
+                request_quality(client, headers, file_id, digest, intent=intent).status_code == 409
+            )
+        finally:
+            resume.set()
+        delivered = submitted.result()
+    assert delivered.status_code == 200, delivered.text
+    assessment = delivered.json()
+    assert assessment["assessment"]["task_id"] == pending["task_id"]
+
+    _, restarted, _, new_headers = setup(tmp_path)
+    new_headers = {**new_headers, "idempotency-key": intent}
+    recovered = read_receipt(restarted, new_headers, file_id, digest).json()
+    assert recovered["state"] == "completed"
+    assert recovered["result"] == assessment
+    assert (
+        request_quality(restarted, new_headers, file_id, digest, intent=intent).json() == assessment
+    )
+    assert len(list((tmp_path / "artifacts").glob("*/*.json"))) == 1
+    other = actor().model_copy(update={"user_id": "other"})
+    _, other_headers = credentials(intake.broker, other)
+    assert (
+        read_receipt(
+            client, {**other_headers, "idempotency-key": intent}, file_id, digest
+        ).status_code
+        == 404
+    )
+
+    assert (
+        declare(
+            client, headers, file_id, declaration_body(declared, columns=[COLUMNS[0]])
+        ).status_code
+        == 200
+    )
+    new_digest = snapshot(client, headers, file_id).json()["snapshot_hash"]
+    assert read_receipt(client, headers, file_id, digest).status_code == 409
+    assert read_receipt(client, headers, file_id, new_digest).json()["detail"] == (
+        "xlsx_quality_intent_request_changed"
+    )
+    assert request_quality(client, headers, file_id, new_digest, intent=intent).status_code == 409
 
 
 def test_xlsx_quality_runs_existing_tool_and_verifies_same_task_evidence(tmp_path):
@@ -188,7 +268,12 @@ def test_xlsx_quality_discards_evidence_if_delivery_aborts(tmp_path, monkeypatch
         emitter(event)
 
     monkeypatch.setattr(intake.audit, "emit", fail_before_delivery)
-    response = request_quality(client, headers, file_id, digest)
+    intent = "failed-quality-intent"
+    headers = {**headers, "idempotency-key": intent}
+    response = request_quality(client, headers, file_id, digest, intent=intent)
     assert response.status_code == (503 if failure == "audit" else 409)
     assert list((tmp_path / "artifacts").glob("*/*.json")) == []
     assert list((tmp_path / "scratch").iterdir()) == []
+    if failure == "audit":
+        assert read_receipt(client, headers, file_id, digest).json()["state"] == "failed"
+        assert request_quality(client, headers, file_id, digest, intent=intent).status_code == 409

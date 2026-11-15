@@ -1,5 +1,6 @@
 """Run fixed quality checks over a private retained XLSX snapshot."""
 
+import hmac
 import sqlite3
 from collections.abc import Callable, Iterator
 from contextlib import closing, suppress
@@ -27,9 +28,11 @@ from generaldataagent.datasets.xlsx_intake_contracts import (
 from generaldataagent.datasets.xlsx_intake_store import XlsxIntakeConflict, XlsxIntakeUnavailable
 from generaldataagent.datasets.xlsx_preflight import MAX_ROWS
 from generaldataagent.datasets.xlsx_preview import PREVIEW_COLUMNS
+from generaldataagent.datasets.xlsx_quality_intents import XlsxQualityIntents
 from generaldataagent.policy.budgets import TaskBudgetLedger
 
 SNAPSHOT_HASH_PATTERN = r"^sha256:[0-9a-f]{64}$"
+QUALITY_INTENT_PATTERN = r"^[A-Za-z0-9._:-]{1,128}$"
 _CONNECTOR = "xlsx_snapshot"
 _RELATION = "declared_xlsx"
 _EVIDENCE = "xlsx_snapshot_quality"
@@ -120,6 +123,22 @@ class XlsxQualityResult(ContractModel):
         return self
 
 
+class XlsxQualityReceipt(ContractModel):
+    state: Literal["missing", "pending", "failed", "completed"]
+    task_id: UUID | None = None
+    result: XlsxQualityResult | None = None
+
+    @model_validator(mode="after")
+    def receipt_matches_state(self) -> "XlsxQualityReceipt":
+        if (
+            (self.state == "missing") != (self.task_id is None)
+            or (self.state == "completed") != (self.result is not None)
+            or (self.result is not None and self.result.assessment.task_id != self.task_id)
+        ):
+            raise ValueError("xlsx_quality_receipt_binding_invalid")
+        return self
+
+
 def _passed(source: XlsxQualitySource, quality: QualityReport) -> bool:
     return quality.passed and (
         source.duplicate_rows == "keep-all" or not source.duplicate_row_count
@@ -188,6 +207,7 @@ class XlsxQualityService:
             scratch_root,
         )
         scratch_root.mkdir(parents=True, exist_ok=True)
+        self.intents = XlsxQualityIntents(artifact_index)
 
     def _snapshot(
         self,
@@ -295,17 +315,84 @@ class XlsxQualityService:
         check()
         return result
 
+    def _intent_key(self, payload: _XlsxPayload, key: str) -> tuple[str, str]:
+        store = self.intake.store
+        return (
+            store.scope(payload.actor),
+            hmac.digest(store.scope_key, b"xlsx-quality-intent-v1:" + key.encode(), "sha256").hex(),
+        )
+
+    def receipt(
+        self, file_id: UUID, actor: ActorContext, token: str, snapshot_hash: str, intent: str
+    ) -> XlsxQualityReceipt:
+        deadline = self.intake.monotonic() + self.intake.limits.max_seconds
+        payload, _, check = self._snapshot(
+            file_id, actor, token, snapshot_hash, deadline, reparse=True
+        )
+        claim = self.intents.lookup(*self._intent_key(payload, intent), file_id, snapshot_hash)
+        if claim is None or claim.evidence is None:
+            check()
+            if claim is None:
+                return XlsxQualityReceipt(state="missing")
+            return XlsxQualityReceipt(state=claim.state, task_id=claim.task_id)
+        result = self._verify_evidence(
+            payload, token, snapshot_hash, claim.evidence, deadline, check
+        )
+        return XlsxQualityReceipt(state="completed", task_id=claim.task_id, result=result)
+
     def assess(
-        self, file_id: UUID, actor: ActorContext, token: str, snapshot_hash: str
+        self,
+        file_id: UUID,
+        actor: ActorContext,
+        token: str,
+        snapshot_hash: str,
+        *,
+        intent: str | None = None,
     ) -> XlsxQualityResult:
         end = self.intake.monotonic() + self.intake.limits.max_seconds
         payload, snapshot, check = self._snapshot(
             file_id, actor, token, snapshot_hash, end, reparse=True
         )
-        actor = payload.actor
+        if intent is None:
+            return self._assess(payload, snapshot, token, end, check, uuid4())
+        keys = self._intent_key(payload, intent)
+        claim, created = self.intents.claim(
+            *keys,
+            file_id,
+            snapshot_hash,
+            now=self.intake.store.now().timestamp(),
+            expires=payload.file.expires_at.timestamp(),
+        )
+        if not created:
+            if claim.evidence is None:
+                check()
+                raise XlsxIntakeConflict(f"xlsx_quality_intent_{claim.state}")
+            return self._verify_evidence(payload, token, snapshot_hash, claim.evidence, end, check)
+        try:
+            result = self._assess(payload, snapshot, token, end, check, claim.task_id)
+        except Exception:
+            with suppress(Exception):
+                self.intents.settle(*keys, claim.task_id, None)
+            raise
+        # Once the result exists, keep the artifact on an ambiguous commit failure.
+        self.intents.settle(*keys, claim.task_id, result.evidence)
+        check()
+        return result
+
+    def _assess(
+        self,
+        payload: _XlsxPayload,
+        snapshot: XlsxSnapshotData,
+        token: str,
+        end: float,
+        check: Callable[[], None],
+        task_id: UUID,
+    ) -> XlsxQualityResult:
+        check()
+        actor, file_id = payload.actor, payload.file.file_id
+        snapshot_hash = snapshot.snapshot_hash
         source = self._source(payload)
         artifacts = self._artifacts(actor, source)
-        task_id = uuid4()
         self.budgets.register(
             task_id,
             actor,
@@ -391,6 +478,18 @@ class XlsxQualityService:
         payload, _, check = self._snapshot(
             file_id, actor, token, snapshot_hash, deadline, reparse=True
         )
+        return self._verify_evidence(payload, token, snapshot_hash, ref, deadline, check)
+
+    def _verify_evidence(
+        self,
+        payload: _XlsxPayload,
+        token: str,
+        snapshot_hash: str,
+        ref: ArtifactRef,
+        deadline: float,
+        check: Callable[[], None],
+    ) -> XlsxQualityResult:
+        file_id, actor = payload.file.file_id, payload.actor
         artifacts = self._artifacts(payload.actor, self._source(payload))
         result = self._read_evidence(artifacts, ref)
         check()

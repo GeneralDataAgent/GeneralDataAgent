@@ -534,11 +534,25 @@ assembling a local development app. Give it a task budget ledger, private scratc
 governed artifact content and index paths. The endpoint is disabled when the service is absent.
 
 1. Confirm the preview, declare the columns and derive a retained snapshot.
-2. Send `POST /v1/analysis/files/xlsx/{file_id}/snapshot/quality?snapshot_hash=<digest>`. Each
-   submission gets a new analysis task ID with a one-call tool budget.
+2. Send `POST /v1/analysis/files/xlsx/{file_id}/snapshot/quality?snapshot_hash=<digest>` with an
+   `Idempotency-Key` for one confirmed assessment intent. The first submission claims one task
+   ID and one tool call. An unkeyed core submission starts a new task.
 3. To verify an existing result, send the returned `evidence` object as JSON to
    `POST /v1/analysis/files/xlsx/{file_id}/snapshot/quality/verify?snapshot_hash=<digest>`.
    Verification reads and validates the existing evidence without running a second analysis.
+
+Use `GET /v1/analysis/files/xlsx/{file_id}/snapshot/quality/receipt?snapshot_hash=<digest>` and the
+original `Idempotency-Key` if the assessment response is lost. The key is scoped to the original
+creator, tenant, project and domains and bound to the file and snapshot. A completed receipt
+revalidates and returns the existing assessment and evidence. Pending and failed receipts
+include the original task ID. A missing receipt has no recorded task. Sending the same key again
+can claim a previously unseen intent, read an existing result or receive a conflict when the
+intent is pending, failed or bound to a different request.
+
+The completed evidence reference is persisted before the response. A crash before that point
+can leave an intent pending until source expiry. The service preserves the one-shot claim and
+does not rerun it automatically. Receipt lookup checks current retention, authorization and
+snapshot binding, including when the original task completed successfully.
 
 The service stages a private temporary SQLite relation and calls the existing governed
 `data.quality` tool against its read-only connector. SQL columns use generated indices and

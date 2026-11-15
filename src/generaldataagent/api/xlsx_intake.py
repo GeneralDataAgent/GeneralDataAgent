@@ -5,7 +5,7 @@ import re
 from collections.abc import Callable
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Header, HTTPException, Query, Request
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import ClientDisconnect
 
@@ -24,7 +24,9 @@ from generaldataagent.datasets.xlsx_intake_store import XlsxIntakeConflict
 from generaldataagent.datasets.xlsx_interpretation import XlsxInterpretationResult
 from generaldataagent.datasets.xlsx_listing import XlsxFileListing, XlsxFilePage
 from generaldataagent.datasets.xlsx_quality import (
+    QUALITY_INTENT_PATTERN,
     SNAPSHOT_HASH_PATTERN,
+    XlsxQualityReceipt,
     XlsxQualityResult,
     XlsxQualityService,
     XlsxQualityVersion,
@@ -243,13 +245,34 @@ def xlsx_intake_router(
         response_model=XlsxQualityResult,
     )
     def assess_snapshot_quality(
-        file_id: UUID, request: Request, snapshot_hash: str = Query(pattern=SNAPSHOT_HASH_PATTERN)
+        file_id: UUID,
+        request: Request,
+        snapshot_hash: str = Query(pattern=SNAPSHOT_HASH_PATTERN),
+        idempotency_key: str | None = Header(default=None, pattern=QUALITY_INTENT_PATTERN),
     ):
         if quality is None:
             raise HTTPException(status_code=503, detail="xlsx_quality_not_configured")
         actor, token = credentials(request)
         try:
-            return quality.assess(file_id, actor, token, snapshot_hash)
+            return quality.assess(file_id, actor, token, snapshot_hash, intent=idempotency_key)
+        except Exception as exc:
+            raise denied(exc) from exc
+
+    @router.get(
+        "/v1/analysis/files/xlsx/{file_id}/snapshot/quality/receipt",
+        response_model=XlsxQualityReceipt,
+    )
+    def read_snapshot_quality_receipt(
+        file_id: UUID,
+        request: Request,
+        snapshot_hash: str = Query(pattern=SNAPSHOT_HASH_PATTERN),
+        idempotency_key: str = Header(pattern=QUALITY_INTENT_PATTERN),
+    ):
+        if quality is None:
+            raise HTTPException(status_code=503, detail="xlsx_quality_not_configured")
+        actor, token = credentials(request)
+        try:
+            return quality.receipt(file_id, actor, token, snapshot_hash, idempotency_key)
         except Exception as exc:
             raise denied(exc) from exc
 
