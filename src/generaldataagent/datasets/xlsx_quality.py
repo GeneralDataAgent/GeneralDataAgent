@@ -44,6 +44,14 @@ class XlsxQualityColumn(ContractModel):
     untrusted: int = Field(ge=0, le=MAX_ROWS)
 
 
+class XlsxQualityVersion(ContractModel):
+    schema_version: Literal["1.0"] = "1.0"
+    file_id: UUID
+    source_task_id: UUID
+    interpretation_hash: str = Field(pattern=SNAPSHOT_HASH_PATTERN)
+    snapshot_hash: str = Field(pattern=SNAPSHOT_HASH_PATTERN)
+
+
 class XlsxQualitySource(ContractModel):
     file_id: UUID
     source_task_id: UUID
@@ -186,7 +194,7 @@ class XlsxQualityService:
         file_id: UUID,
         actor: ActorContext,
         token: str,
-        snapshot_hash: str,
+        snapshot_hash: str | None,
         deadline: float,
         *,
         reparse: bool = False,
@@ -201,7 +209,7 @@ class XlsxQualityService:
             if (
                 payload.interpretation is None
                 or payload.interpretation.interpretation_hash != snapshot.interpretation_hash
-                or snapshot.snapshot_hash != snapshot_hash
+                or (snapshot_hash is not None and snapshot.snapshot_hash != snapshot_hash)
             ):
                 raise XlsxIntakeConflict("xlsx_snapshot_changed")
             if reparse:
@@ -270,6 +278,22 @@ class XlsxQualityService:
         ):
             raise XlsxIntakeConflict("xlsx_quality_evidence_binding_invalid")
         return XlsxQualityResult(assessment=assessment, evidence=ref)
+
+    def version(self, file_id: UUID, actor: ActorContext, token: str) -> XlsxQualityVersion:
+        deadline = self.intake.monotonic() + self.intake.limits.max_seconds
+        payload, snapshot, _ = self._snapshot(file_id, actor, token, None, deadline, reparse=True)
+        self.intake._audit(
+            "xlsx.snapshot_quality_version_read", payload, {"snapshot_hash": snapshot.snapshot_hash}
+        )
+        _, _, check = self._snapshot(file_id, actor, token, snapshot.snapshot_hash, deadline)
+        result = XlsxQualityVersion(
+            file_id=file_id,
+            source_task_id=payload.file.task_id,
+            interpretation_hash=snapshot.interpretation_hash,
+            snapshot_hash=snapshot.snapshot_hash,
+        )
+        check()
+        return result
 
     def assess(
         self, file_id: UUID, actor: ActorContext, token: str, snapshot_hash: str

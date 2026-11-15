@@ -27,6 +27,7 @@ from generaldataagent.datasets.xlsx_quality import (
     SNAPSHOT_HASH_PATTERN,
     XlsxQualityResult,
     XlsxQualityService,
+    XlsxQualityVersion,
 )
 from generaldataagent.datasets.xlsx_snapshot import (
     MAX_PAGE_ROWS,
@@ -221,6 +222,19 @@ def xlsx_intake_router(
         actor, token = credentials(request)
         try:
             return XlsxSnapshotWriter(port).read(file_id, actor, token)
+        except Exception as exc:
+            raise denied(exc) from exc
+
+    @router.get(
+        "/v1/analysis/files/xlsx/{file_id}/snapshot/quality",
+        response_model=XlsxQualityVersion,
+    )
+    def snapshot_quality_version(file_id: UUID, request: Request):
+        if quality is None:
+            raise HTTPException(status_code=503, detail="xlsx_quality_not_configured")
+        actor, token = credentials(request)
+        try:
+            return quality.version(file_id, actor, token)
         except Exception as exc:
             raise denied(exc) from exc
 

@@ -46,6 +46,17 @@ def test_xlsx_quality_runs_existing_tool_and_verifies_same_task_evidence(tmp_pat
     _, client, _, headers = setup(tmp_path)
     file_id, _ = prepared(client, headers)
     retained = snapshot(client, headers, file_id).json()
+    version = client.get(f"/v1/analysis/files/xlsx/{file_id}/snapshot/quality", headers=headers)
+    assert version.status_code == 200, version.text
+    assert version.json() == {
+        "schema_version": "1.0",
+        "file_id": file_id,
+        "source_task_id": version.json()["source_task_id"],
+        "interpretation_hash": retained["interpretation_hash"],
+        "snapshot_hash": retained["snapshot_hash"],
+    }
+    assert list((tmp_path / "scratch").iterdir()) == []
+    assert not (tmp_path / "artifacts").exists()
     before = (tmp_path / "xlsx.db").read_bytes()
     response = request_quality(client, headers, file_id, retained["snapshot_hash"])
     assert response.status_code == 200, response.text
@@ -54,6 +65,7 @@ def test_xlsx_quality_runs_existing_tool_and_verifies_same_task_evidence(tmp_pat
     assert evidence["task_id"] == assessment["task_id"]
     assert evidence["artifact_type"] == "xlsx_snapshot_quality"
     source = assessment["source"]
+    assert source["source_task_id"] == version.json()["source_task_id"]
     assert source["file_id"] == file_id
     for key in ("source_hash", "preview_hash", "confirmation_hash", "interpretation_hash"):
         assert source[key] == retained[key]
@@ -137,8 +149,11 @@ def test_xlsx_quality_revalidates_creator_snapshot_and_retention(tmp_path):
     other = actor().model_copy(update={"user_id": "other"})
     _, other_headers = credentials(intake.broker, other)
     assert request_quality(client, other_headers, file_id, digest).status_code == 404
+    version_path = f"/v1/analysis/files/xlsx/{file_id}/snapshot/quality"
+    assert client.get(version_path, headers=other_headers).status_code == 404
     revision = declaration_body(declared, columns=[COLUMNS[0]])
     assert declare(client, headers, file_id, revision).status_code == 200
+    assert client.get(version_path, headers=headers).status_code == 409
     assert request_quality(client, headers, file_id, digest, initial["evidence"]).status_code == 409
     updated = snapshot(client, headers, file_id).json()["snapshot_hash"]
     assert (
