@@ -448,25 +448,26 @@ row write, artifact registration or `DatasetSnapshot` is performed.
 
 The CSV contains one header row of the selected column labels and at most 500 retained rows. Missing,
 unparsed and not-trusted readings become empty cells; only canonical `value` readings are written.
-Labels and values starting with `=`, `+`, `-`, `@`, tab or carriage return receive a leading apostrophe to
-neutralize spreadsheet formula injection. The full CSV bytes, including headers, quotes and
+Labels and values starting with tab, carriage return or line feed receive a leading apostrophe.
+The same applies when the first non-whitespace character is `=`, `+`, `-` or `@`.
+The full CSV bytes, including headers, quotes and
 formula-neutralized cells, are re-scanned by `TextDLPScanner.check_export` at `INTERNAL`
 classification immediately before return; DLP denial or a 2 MiB page limit consumes no approval and
-produces no output. A content-free `xlsx.columns_exported` event records only identifiers, hashes,
-row/cell/byte/column counts and the output SHA-256 before the grant is consumed. Audit failure fails
-closed. The one-time grant is consumed only after DLP, audit and a final authorization check; a later
-consume failure still leaves no `execute()` result.
-The export rechecks file retention through DLP, audit and grant consumption.
+produces no output. The content-free `xlsx.columns_exported` event records `phase=prepared` and identifiers
+including the approval ID, hashes and row/cell/byte/column counts. The one-time grant is consumed
+after successful DLP, audit and a fresh check of the retained declaration, snapshot and live
+authorization. A preparation event can also describe an attempt that stops before consumption.
 
 The CLI stages and syncs a private `0600` file in the destination directory before it audits and
 consumes the grant. A staging failure or an output path already occupied at the final staging check
 leaves the grant available. After consumption, the CLI publishes the complete file atomically
 without overwriting an existing path. If publication fails in that final window, the CLI reports
-`xlsx_export_publish_failed_after_consumption`; retry requires a new grant. Temporary files are
-removed on normal completion and handled failures. An abrupt process stop can leave a private
-staging file in the destination directory. The key and opaque-token files must be non-symlink,
-operator-owned private regular
-files; the token is never placed on the command line. The receipt states
+`xlsx_export_publish_failed_after_consumption` followed by a JSON object on stderr with the private
+staging path, approval ID and SHA-256. The operator can verify that digest and move those exact bytes
+to a fresh private path. The export command refuses reuse of the consumed grant. An abrupt process
+stop can leave a private staging file in the destination directory. The key and opaque-token files
+must be non-symlink, operator-owned private regular files. Pass the opaque token through its file.
+The receipt states
 `scope=explicit-declared-column-page`, `values=selected-columns-only`,
 `dlp=rescanned-before-return`, `formula_cached_values=never-trusted`, `artifact=false`,
 `dataset_snapshot=false`, `audit=xlsx.columns_exported` and
@@ -492,6 +493,21 @@ uv run python -m generaldataagent.datasets.xlsx_export \
   --columns 0,2 --after 0 --limit 500 \
   --instance-id <uuid> --out /private/operator/new-export.csv
 ```
+
+## Retained snapshot column profile
+
+Call `GET /v1/analysis/files/xlsx/{file_id}/snapshot/profile?snapshot_hash=<sha256>` with the
+snapshot hash from the metadata response. The creator's current scoped session and retention
+deadline apply. A missing snapshot, a revised declaration or a hash mismatch returns 409.
+Re-read the current snapshot metadata before selecting a new hash.
+
+The report binds the file and task IDs to the source, confirmation, interpretation and snapshot
+hashes. Each declared column is identified by its zero-based index and declared type. Its counts
+cover valid, missing, unparsed and untrusted readings. The distinct count uses the valid canonical
+readings only. Duplicate rows are counted using the retained snapshot's whole-row comparison.
+The response includes counts and binding metadata. The read leaves the retained store unchanged
+and records `xlsx.snapshot_profile_read` before returning the report. If audit is unavailable,
+the service withholds the report.
 
 ## Encryption, scope and binding
 
