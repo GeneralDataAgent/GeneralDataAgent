@@ -190,7 +190,9 @@ def _read_uri(path: Path) -> str:
 
 def _formula_safe(text: str) -> str:
     """Neutralize spreadsheet formula prefixes while preserving the canonical text after them."""
-    return "'" + text if text and text[0] in "=+-@\t\r" else text
+    if text.startswith(("\t", "\r", "\n")) or text.lstrip().startswith(("=", "+", "-", "@")):
+        return "'" + text
+    return text
 
 
 def _snapshot_content_hash(snapshot: XlsxSnapshotData, check: Callable[[], None]) -> str:
@@ -436,7 +438,7 @@ class XlsxColumnExport:
         rows: int,
         check: Callable[[], None],
     ) -> None:
-        """Emit content-free audit before returning data; audit failure fails the export closed."""
+        """Record the prepared bytes before consuming approval or returning any data."""
         check()
         event = AuditEvent(
             event_type="xlsx.columns_exported",
@@ -447,6 +449,8 @@ class XlsxColumnExport:
             occurred_at=self.clock(),
             payload={
                 "file_id": str(self.request.file_id),
+                "approval_id": str(approved.approval_id),
+                "phase": "prepared",
                 "export_hash": self.request.export_hash,
                 "snapshot_hash": self.request.snapshot_hash,
                 "content_sha256": "sha256:" + hashlib.sha256(content).hexdigest(),
@@ -484,9 +488,18 @@ class XlsxColumnExport:
         if stage_output is not None:
             stage_output(content)
         self._audit_export(approved, content, rows, check)
+        current, _ = self._observe(check)
+        if (
+            current.file != payload.file
+            or current.interpretation != interpretation
+            or current.snapshot != snapshot
+        ):
+            raise XlsxExportConflict("xlsx_export_snapshot_changed")
         check()
         try:
-            self.approvals.consume_granted(self.approval_id)
+            self.approvals.consume(
+                self.approval_id, self.request.tool_request(self.actor, approved.task_id)
+            )
         except ApprovalError as exc:
             raise XlsxExportRefused("xlsx_export_approval_unavailable") from exc
         check()
@@ -538,6 +551,7 @@ def _publish_private(staged: Path, path: Path) -> None:
 
 def _export_to_path(export: XlsxColumnExport, path: Path) -> XlsxExportReceipt:
     staged: Path | None = None
+    keep_staged = False
 
     def stage(content: bytes) -> None:
         nonlocal staged
@@ -555,10 +569,20 @@ def _export_to_path(export: XlsxColumnExport, path: Path) -> XlsxExportReceipt:
         try:
             _publish_private(staged, path)
         except (OSError, XlsxExportConflict) as exc:
-            raise XlsxExportUnavailable("xlsx_export_publish_failed_after_consumption") from exc
+            keep_staged = True
+            recovery = json.dumps(
+                {
+                    "staged_path": str(staged.absolute()),
+                    "approval_id": str(receipt.approval_id),
+                    "content_sha256": receipt.content_sha256,
+                }
+            )
+            raise XlsxExportUnavailable(
+                f"xlsx_export_publish_failed_after_consumption {recovery}"
+            ) from exc
         return receipt
     finally:
-        if staged is not None:
+        if staged is not None and not keep_staged:
             staged.unlink(missing_ok=True)
 
 

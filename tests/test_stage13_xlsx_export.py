@@ -26,6 +26,7 @@ from generaldataagent.datasets.xlsx_export import (
     XlsxExportRequest,
     XlsxExportUnavailable,
     _csv_content,
+    _formula_safe,
     _publish_private,
     _snapshot_content_hash,
     main,
@@ -186,9 +187,11 @@ def test_export_returns_only_approved_columns_and_formula_safe_values(tmp_path):
     assert receipt.audit == "xlsx.columns_exported"
     assert receipt.approval == "one-time-grant-consumed"
     events = export_events(tmp_path)
-    assert len(events) == 1 and events[0]["event_type"] == "xlsx.columns_exported"
+    assert len(events) == 1 and events[0]["event_type"] == receipt.audit
     assert events[0]["actor_id"] == owner.user_id
     assert events[0]["payload"]["rows"] == 7
+    assert events[0]["payload"]["approval_id"] == str(approval_id)
+    assert events[0]["payload"]["phase"] == "prepared"
     assert events[0]["payload"]["content_sha256"] == receipt.content_sha256
     assert "alpha" not in json.dumps(events) and "flag" not in json.dumps(events)
     with pytest.raises(XlsxExportRefused):
@@ -205,6 +208,9 @@ def test_export_returns_only_approved_columns_and_formula_safe_values(tmp_path):
 
 
 def test_export_bounded_keyset_and_formula_prefixes_are_quoted():
+    for label in ("  =formula", "\ttext", "\ntext", "\rtext", "\u00a0@text"):
+        assert _formula_safe(label) == "'" + label
+    assert _formula_safe("  text") == "  text"
     columns = (
         XlsxSnapshotColumnData(
             index=0,
@@ -544,6 +550,37 @@ def test_export_expiring_during_audit_does_not_consume_approval(tmp_path):
     assert grant_unused(tmp_path, clock, approval_id)
 
 
+def test_export_declaration_revised_during_audit_does_not_consume_approval(tmp_path):
+    clock = Clock()
+    service, owner, token, request, approval_id = prepared_export(tmp_path, clock)
+    client = client_for(service)
+    _, headers = credentials(service.broker, owner, frozenset({"analysis:run"}))
+
+    class Audit:
+        def emit(self, event: AuditEvent) -> None:
+            current = client.get(
+                f"/v1/analysis/files/xlsx/{request.file_id}", headers=headers
+            ).json()
+            body = declaration_body(
+                current, columns=[{"index": 0, "header": "name", "type": "text"}]
+            )
+            response = declare(client, headers, request.file_id, body)
+            assert response.status_code == 200, response.text
+
+    with pytest.raises(XlsxExportConflict, match="xlsx_export_snapshot_changed"):
+        export_for(
+            tmp_path,
+            clock,
+            request,
+            approval_id,
+            owner=owner,
+            token=token,
+            broker=service.broker,
+            audit=Audit(),
+        ).execute()
+    assert grant_unused(tmp_path, clock, approval_id)
+
+
 def test_export_key_layout_and_missing_source_fail_closed(tmp_path):
     clock = Clock()
     service, owner, token, request, approval_id = prepared_export(tmp_path, clock)
@@ -749,15 +786,27 @@ def test_cli_writes_one_private_output_and_reports_exit_codes(tmp_path, capsys, 
     late_argv[late_argv.index("--approval-id") + 1] = str(late_approval)
 
     def failed_publish(_staged, _destination):
+        (tmp_path / "late.csv").write_bytes(b"concurrent destination")
         raise FileExistsError("synthetic destination race")
 
     with monkeypatch.context() as patch:
         patch.setattr("generaldataagent.datasets.xlsx_export.os.link", failed_publish)
         assert main(late_argv) == 4
-    assert capsys.readouterr().err.strip() == "xlsx_export_publish_failed_after_consumption"
+    captured = capsys.readouterr()
+    error, recovery = captured.err.strip().split(" ", 1)
+    assert error == "xlsx_export_publish_failed_after_consumption"
+    assert captured.out == ""
+    recovery = json.loads(recovery)
+    [staged] = tmp_path.glob(".gda-xlsx-*")
+    assert recovery == {
+        "staged_path": str(staged),
+        "approval_id": str(late_approval),
+        "content_sha256": receipt.content_sha256,
+    }
+    assert staged.read_bytes() == out.read_bytes()
+    assert staged.stat().st_mode & 0o077 == 0
     assert not grant_unused(tmp_path, clock, late_approval)
-    assert not (tmp_path / "late.csv").exists()
-    assert list(tmp_path.glob(".gda-xlsx-*")) == []
+    assert (tmp_path / "late.csv").read_bytes() == b"concurrent destination"
 
 
 def test_export_request_contract_invariants():

@@ -46,15 +46,16 @@ subset; a tampered projection fails closed. Do not re-parse the workbook, trust 
 write a source row, register an artifact or create a `DatasetSnapshot`.
 
 Write CSV with only the selected labels and canonical `value` readings; missing, unparsed and
-not-trusted readings stay empty. Neutralize leading `=+-@`, tab and carriage-return formula prefixes
-with an apostrophe. Bound the page to 500 rows and 2 MiB. Re-scan the entire exact CSV output,
+not-trusted readings stay empty. Neutralize formula prefixes `=+-@` after optional whitespace
+and leading tab, carriage return or line feed with an apostrophe. Bound the page to 500 rows
+and 2 MiB. Re-scan the entire exact CSV output,
 including labels and CSV escapes, with `TextDLPScanner.check_export` at `INTERNAL` classification.
-Emit one content-free `xlsx.columns_exported` event with identifiers, hashes and counts before
-consuming the grant; audit failure denies the export. Consume the one-time grant only after DLP,
-audit and final identity checks. The CLI writes and syncs a private `0600` staging file before
+Emit a content-free `xlsx.columns_exported` event with `phase=prepared`, the approval ID, hashes
+and counts before consuming the grant. Audit failure denies the export. After audit, check the current retained
+snapshot, declaration and live identity, then consume against the exact tool request. The CLI writes
+and syncs a private `0600` staging file before
 consumption, then publishes it as a new file with an atomic no-overwrite link. Key and token files
-must be operator-owned private regular
-files; the opaque token is never passed on the command line.
+must be operator-owned private regular files. Pass the opaque token through its file.
 
 ## Consequences
 
@@ -62,7 +63,9 @@ An operator can produce one attributable CSV for an explicitly approved declared
 without widening the creator-private API. The output is an operator-owned file outside the artifact
 index, not an analysis input, content-verification result, `DatasetSnapshot`, independently reviewed
 export or production egress path. DLP denial, drift, audit failure, session revocation or staging
-failure before consumption leaves the grant unconsumed. A late destination failure after consumption
-requires a new grant. A process crash may leave a private staging file for the operator to remove.
+failure before consumption leaves the grant unconsumed. On a late destination failure the CLI
+preserves the private staged CSV and reports its path and SHA-256 with the consumed approval ID.
+The operator can recover those bytes after verifying the digest. A process crash may leave a
+private staging file with no diagnostic.
 Default-off development assembly and the `independent_review=not_run` /
 `production_accepted=false` boundaries remain unchanged.
