@@ -493,36 +493,6 @@ uv run python -m generaldataagent.datasets.xlsx_export \
   --instance-id <uuid> --out /private/operator/new-export.csv
 ```
 
-## Snapshot quality assessment and evidence
-
-Supply an `XlsxQualityService` as `xlsx_quality` alongside the same `xlsx_intake` instance when
-assembling a local development app. Give it a task budget ledger, private scratch directory and
-governed artifact content and index paths. The endpoint is disabled when the service is absent.
-
-1. Confirm the preview, declare the columns and derive a retained snapshot.
-2. Send `POST /v1/analysis/files/xlsx/{file_id}/snapshot/quality?snapshot_hash=<digest>`. Each
-   submission gets a new analysis task ID with a one-call tool budget.
-3. To verify an existing result, send the returned `evidence` object as JSON to
-   `POST /v1/analysis/files/xlsx/{file_id}/snapshot/quality/verify?snapshot_hash=<digest>`.
-   Verification reads and validates the existing evidence without running a second analysis.
-
-The service stages a private temporary SQLite relation and calls the existing governed
-`data.quality` tool against its read-only connector. SQL columns use generated indices and
-`TEXT` affinity. Valid canonical strings are preserved exactly, including decimal precision,
-and missing, unparsed and untrusted cells become SQL NULL. The fixed checks report NULL counts for
-all declared columns. Duplicate rows stay in the relation. The assessment fails if the declaration
-requires rejecting duplicates and the snapshot contains any. The result contains counts and
-source bindings without spreadsheet values or column labels. Numeric range and arithmetic
-require a separately defined exact numeric mapping.
-
-The governed artifact applies creator-only access, DLP and its configured retention. It binds
-the same analysis task to the file, upload task and source, preview, confirmation, declaration and
-snapshot digests. The analysis and verification routes recheck the live session, source retention
-and current snapshot before returning. A stale or changed snapshot returns 409. Expired or
-unavailable private sources are refused. Evidence content tampering is refused. A handled failed
-assessment removes its scratch relation and discards any artifact it produced. Artifact disposal
-follows the existing retention and legal hold rules.
-
 ## Encryption, scope and binding
 
 AES-256-GCM encrypts both the preview payload and the source bytes in a dedicated SQLite database.
@@ -557,6 +527,36 @@ bytes, including headers and escaped values, with `check_export` at `INTERNAL` c
 it returns or consumes its grant. Do not treat this preview as evidence that the whole
 workbook has been inspected.
 
+## Snapshot quality assessment and evidence
+
+Supply an `XlsxQualityService` as `xlsx_quality` alongside the same `xlsx_intake` instance when
+assembling a local development app. Give it a task budget ledger, private scratch directory and
+governed artifact content and index paths. The endpoint is disabled when the service is absent.
+
+1. Confirm the preview, declare the columns and derive a retained snapshot.
+2. Send `POST /v1/analysis/files/xlsx/{file_id}/snapshot/quality?snapshot_hash=<digest>`. Each
+   submission gets a new analysis task ID with a one-call tool budget.
+3. To verify an existing result, send the returned `evidence` object as JSON to
+   `POST /v1/analysis/files/xlsx/{file_id}/snapshot/quality/verify?snapshot_hash=<digest>`.
+   Verification reads and validates the existing evidence without running a second analysis.
+
+The service stages a private temporary SQLite relation and calls the existing governed
+`data.quality` tool against its read-only connector. SQL columns use generated indices and
+`TEXT` affinity. Valid canonical strings are preserved exactly, including decimal precision,
+and missing, unparsed and untrusted cells become SQL NULL. The fixed checks report NULL counts for
+all declared columns. Duplicate rows stay in the relation. The assessment fails if the declaration
+requires rejecting duplicates and the snapshot contains any. The result contains counts and
+source bindings without spreadsheet values or column labels. Numeric range and arithmetic
+require a separately defined exact numeric mapping.
+
+The governed artifact applies creator-only access, DLP and its configured retention. It binds
+the same analysis task to the file, upload task and source, preview, confirmation, declaration and
+snapshot digests. The analysis and verification routes recheck the live session, source retention
+and current snapshot before returning. A stale or changed snapshot returns 409. Expired or
+unavailable private sources are refused. Evidence content tampering is refused. A handled failed
+assessment removes its scratch relation and discards any artifact it produced. Artifact disposal
+follows the existing retention and legal hold rules.
+
 ## Errors and refusal behavior
 
 | Status | Meaning |
@@ -577,18 +577,15 @@ unreadable entries fail closed rather than being partially served.
 - applying declared types to the source bytes, rewriting stored workbooks, dropping duplicate rows or
   producing a persisted whole-sheet conflict summary; the conformance report is derived per request
   and returns counts and digests only;
-- filename/column-name/search listing, total counts, workspace, artifact registration or
-  `DatasetSnapshot`; the local CSV export creates only an operator-owned output file, never an
-  artifact, analysis input or task;
+- filename/column-name/search listing, total counts, workspace quality controls or a supervised
+  learning `DatasetSnapshot`;
 - server-side declarative filtering, aggregation or exporting through the API/model/browser; only
   the explicitly approved local operator column-subset page exists;
 - selecting a header row outside the materialized preview window;
 - applying number formats, rounding by display format, or deciding that a format means a currency,
   percentage or time of day; the format report exposes inert codes and counts only;
 - currency, percentage or time-of-day interpretation and formula-cache trust;
-- duplicate-row enforcement, general full-sheet value extraction, profiling or read-only analysis;
-- filename/column-name/search listing, total counts, workspace, approvals, artifact registration or
-  `DatasetSnapshot`;
+- numeric arithmetic, range checks or arbitrary query execution over XLSX snapshots;
 - automatic expiry cleanup, scheduled retention enforcement, capacity release without an exact
   approval, legal-hold release or any safe-erasure claim; cleanup is a local operator port that
   removes only the explicitly approved expired rows and leaves a content-free tombstone;
