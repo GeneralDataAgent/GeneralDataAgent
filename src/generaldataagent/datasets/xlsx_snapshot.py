@@ -11,7 +11,7 @@ import json
 from bisect import bisect_right
 from collections import Counter
 from collections.abc import Callable
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
 from pydantic import AwareDatetime, Field, model_validator
@@ -30,6 +30,7 @@ from generaldataagent.datasets.xlsx_intake_contracts import (
     XlsxInterpretation,
     XlsxSnapshotColumnData,
     XlsxSnapshotData,
+    _XlsxPayload,
     declared_header_labels,
 )
 from generaldataagent.datasets.xlsx_intake_store import XlsxIntakeConflict
@@ -45,6 +46,7 @@ from generaldataagent.datasets.xlsx_preview import (
 SCAN_CHUNK_CHARS = 256 * 1024
 MAX_PAGE_ROWS = 500
 MAX_PAGE_CHARS = 2 * 1024 * 1024
+SnapshotHash = Annotated[str, Field(pattern=r"^sha256:[0-9a-f]{64}$")]
 
 
 class XlsxSnapshotColumn(ContractModel):
@@ -106,6 +108,55 @@ class XlsxSnapshotResult(ContractModel):
             raise ValueError("xlsx_snapshot_counts_invalid")
         if self.duplicate_row_count > self.data_rows:
             raise ValueError("xlsx_snapshot_counts_invalid")
+        return self
+
+
+class XlsxColumnProfile(ContractModel):
+    index: int = Field(ge=0, lt=PREVIEW_COLUMNS, strict=True)
+    type: DeclaredColumnType
+    value_count: int = Field(ge=0, le=MAX_ROWS, strict=True)
+    distinct_count: int = Field(ge=0, le=MAX_ROWS, strict=True)
+    missing_count: int = Field(ge=0, le=MAX_ROWS, strict=True)
+    unparsed_count: int = Field(ge=0, le=MAX_ROWS, strict=True)
+    untrusted_count: int = Field(ge=0, le=MAX_ROWS, strict=True)
+
+
+class XlsxSnapshotProfile(ContractModel):
+    """Bounded cardinality and quality counts for one explicitly selected retained snapshot."""
+
+    schema_version: Literal["1.0"] = "1.0"
+    file_id: UUID
+    task_id: UUID
+    source_hash: SnapshotHash
+    confirmation_hash: SnapshotHash
+    interpretation_hash: SnapshotHash
+    snapshot_hash: SnapshotHash
+    data_rows: int = Field(ge=0, le=MAX_ROWS, strict=True)
+    duplicate_row_count: int = Field(ge=0, le=MAX_ROWS, strict=True)
+    columns: tuple[XlsxColumnProfile, ...] = Field(min_length=1, max_length=PREVIEW_COLUMNS)
+    aggregation: Literal["canonical-counts-only"] = "canonical-counts-only"
+
+    @model_validator(mode="after")
+    def counts_are_coherent(self) -> "XlsxSnapshotProfile":
+        indices = [column.index for column in self.columns]
+        if (
+            indices != sorted(set(indices))
+            or self.data_rows * len(self.columns) > MAX_SNAPSHOT_CELLS
+            or self.duplicate_row_count > self.data_rows
+            or any(
+                column.distinct_count > column.value_count
+                or (column.value_count > 0 and column.distinct_count == 0)
+                or (
+                    column.value_count
+                    + column.missing_count
+                    + column.unparsed_count
+                    + column.untrusted_count
+                )
+                != self.data_rows
+                for column in self.columns
+            )
+        ):
+            raise ValueError("xlsx_snapshot_profile_counts_invalid")
         return self
 
 
@@ -495,6 +546,68 @@ class XlsxSnapshotReader:
     def __init__(self, intake: XlsxIntakeService):
         self.intake = intake
 
+    @staticmethod
+    def _current_snapshot(payload: _XlsxPayload) -> XlsxSnapshotData:
+        snapshot, interpretation = payload.snapshot, payload.interpretation
+        if snapshot is None:
+            raise XlsxIntakeConflict("xlsx_snapshot_not_derived")
+        if (
+            interpretation is None
+            or interpretation.interpretation_hash != snapshot.interpretation_hash
+        ):
+            raise XlsxIntakeConflict("xlsx_snapshot_stale")
+        return snapshot
+
+    def profile(
+        self, file_id: UUID, actor: ActorContext, token: str, *, expected_snapshot_hash: str
+    ) -> XlsxSnapshotProfile:
+        check = self.intake.guard(actor, token)
+        with self.intake.store.db() as db:
+            _, payload, raw = self.intake.store.owned(db, file_id, actor)
+            bound = self.intake._bound_guard(payload, check)
+            snapshot = self._current_snapshot(payload)
+            if expected_snapshot_hash != snapshot.snapshot_hash:
+                raise XlsxIntakeConflict("xlsx_snapshot_changed")
+            self.intake._parsed(payload, raw, bound)
+            columns = []
+            for column in sorted(snapshot.columns, key=lambda item: item.index):
+                bound()
+                counts = Counter(column.statuses)
+                columns.append(
+                    XlsxColumnProfile(
+                        index=column.index,
+                        type=column.type,
+                        value_count=counts["v"],
+                        distinct_count=len(set(column.values)),
+                        missing_count=counts["m"],
+                        unparsed_count=counts["u"],
+                        untrusted_count=counts["t"],
+                    )
+                )
+            profile = XlsxSnapshotProfile(
+                file_id=payload.file.file_id,
+                task_id=payload.file.task_id,
+                source_hash=snapshot.source_hash,
+                confirmation_hash=snapshot.confirmation_hash,
+                interpretation_hash=snapshot.interpretation_hash,
+                snapshot_hash=snapshot.snapshot_hash,
+                data_rows=len(snapshot.rows),
+                duplicate_row_count=snapshot.duplicate_row_count,
+                columns=tuple(columns),
+            )
+            bound()
+            self.intake._audit(
+                "xlsx.snapshot_profile_read",
+                payload,
+                {
+                    "snapshot_hash": snapshot.snapshot_hash,
+                    "rows": profile.data_rows,
+                    "columns": len(profile.columns),
+                },
+            )
+            bound()
+            return profile
+
     def values(
         self,
         file_id: UUID,
@@ -510,15 +623,7 @@ class XlsxSnapshotReader:
         with self.intake.store.db() as db:
             _, payload, raw = self.intake.store.owned(db, file_id, actor)
             bound = self.intake._bound_guard(payload, check)
-            snapshot = payload.snapshot
-            if snapshot is None:
-                raise XlsxIntakeConflict("xlsx_snapshot_not_derived")
-            interpretation = payload.interpretation
-            if (
-                interpretation is None
-                or interpretation.interpretation_hash != snapshot.interpretation_hash
-            ):
-                raise XlsxIntakeConflict("xlsx_snapshot_stale")
+            snapshot = self._current_snapshot(payload)
             self.intake._parsed(payload, raw, bound)
             page = snapshot_page(snapshot, after=after, limit=limit)
             if page.rows:
@@ -546,6 +651,7 @@ __all__ = [
     "XlsxSnapshotColumn",
     "XlsxSnapshotColumnRef",
     "XlsxSnapshotPage",
+    "XlsxSnapshotProfile",
     "XlsxSnapshotReader",
     "XlsxSnapshotResult",
     "XlsxSnapshotRow",
