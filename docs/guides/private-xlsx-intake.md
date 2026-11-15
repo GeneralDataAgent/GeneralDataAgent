@@ -494,6 +494,21 @@ uv run python -m generaldataagent.datasets.xlsx_export \
   --instance-id <uuid> --out /private/operator/new-export.csv
 ```
 
+## Retained snapshot column profile
+
+Call `GET /v1/analysis/files/xlsx/{file_id}/snapshot/profile?snapshot_hash=<sha256>` with the
+snapshot hash from the metadata response. The creator's current scoped session and retention
+deadline apply. A missing snapshot, a revised declaration or a hash mismatch returns 409.
+Re-read the current snapshot metadata before selecting a new hash.
+
+The report binds the file and task IDs to the source, confirmation, interpretation and snapshot
+hashes. Each declared column is identified by its zero-based index and declared type. Its counts
+cover valid, missing, unparsed and untrusted readings. The distinct count uses the valid canonical
+readings only. Duplicate rows are counted using the retained snapshot's whole-row comparison.
+The response includes counts and binding metadata. The read leaves the retained store unchanged
+and records `xlsx.snapshot_profile_read` before returning the report. If audit is unavailable,
+the service withholds the report.
+
 ## Encryption, scope and binding
 
 AES-256-GCM encrypts both the preview payload and the source bytes in a dedicated SQLite database.

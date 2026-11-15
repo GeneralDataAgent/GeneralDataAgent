@@ -25,6 +25,7 @@ from generaldataagent.datasets.xlsx_listing import XlsxFileListing, XlsxFilePage
 from generaldataagent.datasets.xlsx_snapshot import (
     MAX_PAGE_ROWS,
     XlsxSnapshotPage,
+    XlsxSnapshotProfile,
     XlsxSnapshotReader,
     XlsxSnapshotResult,
     XlsxSnapshotWriter,
@@ -228,6 +229,24 @@ def xlsx_intake_router(service: XlsxIntakeService | None, credentials: Callable)
         actor, token = credentials(request)
         try:
             return XlsxSnapshotReader(port).values(file_id, actor, token, after=after, limit=limit)
+        except Exception as exc:
+            raise denied(exc) from exc
+
+    @router.get(
+        "/v1/analysis/files/xlsx/{file_id}/snapshot/profile",
+        response_model=XlsxSnapshotProfile,
+    )
+    def snapshot_profile(
+        file_id: UUID,
+        request: Request,
+        snapshot_hash: str = Query(pattern=r"^sha256:[0-9a-f]{64}$"),
+    ):
+        port = configured()
+        actor, token = credentials(request)
+        try:
+            return XlsxSnapshotReader(port).profile(
+                file_id, actor, token, expected_snapshot_hash=snapshot_hash
+            )
         except Exception as exc:
             raise denied(exc) from exc
 
