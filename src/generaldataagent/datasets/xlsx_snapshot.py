@@ -596,15 +596,21 @@ class XlsxSnapshotReader:
                 columns=tuple(columns),
             )
             bound()
-            self.intake._audit(
-                "xlsx.snapshot_profile_read",
-                payload,
-                {
-                    "snapshot_hash": snapshot.snapshot_hash,
-                    "rows": profile.data_rows,
-                    "columns": len(profile.columns),
-                },
-            )
+        self.intake._audit(
+            "xlsx.snapshot_profile_read",
+            payload,
+            {
+                "snapshot_hash": snapshot.snapshot_hash,
+                "rows": profile.data_rows,
+                "columns": len(profile.columns),
+            },
+        )
+        check()
+        with self.intake.store.db() as db:
+            _, current, _ = self.intake.store.owned(db, file_id, actor)
+            bound = self.intake._bound_guard(current, check)
+            if self._current_snapshot(current) != snapshot:
+                raise XlsxIntakeConflict("xlsx_snapshot_changed")
             bound()
             return profile
 

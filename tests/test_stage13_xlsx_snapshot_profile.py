@@ -93,3 +93,23 @@ def test_snapshot_profile_withholds_result_when_audit_fails(tmp_path, monkeypatc
     response = profile(client, headers, file_id, current)
     assert response.status_code == 503
     assert response.json() == {"detail": "xlsx_intake_unavailable"}
+
+
+def test_snapshot_profile_refuses_declaration_revised_during_audit(tmp_path, monkeypatch):
+    service = build_service(tmp_path)
+    _, headers = credentials(service.broker)
+    client = client_for(service)
+    file_id, declared = prepared(client, headers)
+    current = snapshot(client, headers, file_id).json()["snapshot_hash"]
+    emit = service.audit.emit
+
+    def revise(event):
+        emit(event)
+        if event.event_type == "xlsx.snapshot_profile_read":
+            revision = declaration_body(declared, columns=[COLUMNS[2]])
+            assert declare(client, headers, file_id, revision).status_code == 200
+
+    monkeypatch.setattr(service.audit, "emit", revise)
+    response = profile(client, headers, file_id, current)
+    assert response.status_code == 409
+    assert response.json() == {"detail": "xlsx_snapshot_stale"}
