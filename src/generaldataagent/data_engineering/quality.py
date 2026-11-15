@@ -2,6 +2,7 @@
 
 import re
 from collections.abc import Iterable
+from threading import Event
 from typing import Any
 
 from generaldataagent.connectors.base import ReadOnlyConnector, quote_identifier
@@ -93,14 +94,18 @@ def execute_quality_rules(
     connector: ReadOnlyConnector,
     relation: str,
     rules: Iterable[QualityRule],
+    *,
+    cancel_event: Event | None = None,
 ) -> QualityReport:
     if not connector.capabilities.read_only or not connector.capabilities.profiling:
         raise ValueError("connector must declare read-only profiling support")
 
-    schema = connector.inspect_relation(relation)
+    schema = connector.inspect_relation(relation, cancel_event=cancel_event)
     known_columns = {column.name.casefold(): column.name for column in schema.columns}
     relation_sql = quote_identifier(relation)
-    row_count = int(connector.fetch_all(f"SELECT COUNT(*) FROM {relation_sql}")[0][0])
+    row_count = int(
+        connector.fetch_all(f"SELECT COUNT(*) FROM {relation_sql}", cancel_event=cancel_event)[0][0]
+    )
     checks: list[QualityCheckResult] = []
     seen_rule_ids: set[str] = set()
     for rule in rules:
@@ -112,7 +117,7 @@ def execute_quality_rules(
             raise ValueError(f"quality rule references an unknown column: {rule.column}")
         column_sql = quote_identifier(column_name)
         sql, parameters = _violation_query(rule, column_sql, relation_sql)
-        violation_count = int(connector.fetch_all(sql, parameters)[0][0])
+        violation_count = int(connector.fetch_all(sql, parameters, cancel_event=cancel_event)[0][0])
         checks.append(
             QualityCheckResult(
                 rule_id=rule.rule_id,

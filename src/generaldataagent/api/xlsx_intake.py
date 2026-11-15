@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import ClientDisconnect
 
+from generaldataagent.contracts import ArtifactRef
 from generaldataagent.datasets.xlsx_conformance import XlsxConformanceReader, XlsxConformanceResult
 from generaldataagent.datasets.xlsx_declarations import XlsxDeclarationListing, XlsxDeclarationPage
 from generaldataagent.datasets.xlsx_formats import XlsxFormatReader, XlsxFormatReport
@@ -22,6 +23,11 @@ from generaldataagent.datasets.xlsx_intake_contracts import (
 from generaldataagent.datasets.xlsx_intake_store import XlsxIntakeConflict
 from generaldataagent.datasets.xlsx_interpretation import XlsxInterpretationResult
 from generaldataagent.datasets.xlsx_listing import XlsxFileListing, XlsxFilePage
+from generaldataagent.datasets.xlsx_quality import (
+    SNAPSHOT_HASH_PATTERN,
+    XlsxQualityResult,
+    XlsxQualityService,
+)
 from generaldataagent.datasets.xlsx_snapshot import (
     MAX_PAGE_ROWS,
     XlsxSnapshotPage,
@@ -33,7 +39,11 @@ from generaldataagent.datasets.xlsx_snapshot import (
 XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
-def xlsx_intake_router(service: XlsxIntakeService | None, credentials: Callable) -> APIRouter:
+def xlsx_intake_router(
+    service: XlsxIntakeService | None,
+    credentials: Callable,
+    quality: XlsxQualityService | None = None,
+) -> APIRouter:
     router = APIRouter()
 
     def configured():
@@ -211,6 +221,42 @@ def xlsx_intake_router(service: XlsxIntakeService | None, credentials: Callable)
         actor, token = credentials(request)
         try:
             return XlsxSnapshotWriter(port).read(file_id, actor, token)
+        except Exception as exc:
+            raise denied(exc) from exc
+
+    @router.post(
+        "/v1/analysis/files/xlsx/{file_id}/snapshot/quality",
+        response_model=XlsxQualityResult,
+    )
+    def assess_snapshot_quality(
+        file_id: UUID, request: Request, snapshot_hash: str = Query(pattern=SNAPSHOT_HASH_PATTERN)
+    ):
+        if quality is None:
+            raise HTTPException(status_code=503, detail="xlsx_quality_not_configured")
+        actor, token = credentials(request)
+        try:
+            return quality.assess(file_id, actor, token, snapshot_hash)
+        except Exception as exc:
+            raise denied(exc) from exc
+
+    @router.post(
+        "/v1/analysis/files/xlsx/{file_id}/snapshot/quality/verify",
+        response_model=XlsxQualityResult,
+    )
+    async def verify_snapshot_quality(
+        file_id: UUID, request: Request, snapshot_hash: str = Query(pattern=SNAPSHOT_HASH_PATTERN)
+    ):
+        if quality is None:
+            raise HTTPException(status_code=503, detail="xlsx_quality_not_configured")
+        actor, token = credentials(request)
+        if request.headers.get("content-type", "").lower() != "application/json":
+            raise HTTPException(status_code=415, detail="xlsx_quality_evidence_json_required")
+        try:
+            body, end = await collect(request, quality.intake, actor, token, 4096)
+            reference = ArtifactRef.model_validate_json(body)
+            return await run_in_threadpool(
+                quality.verify, file_id, actor, token, snapshot_hash, reference, deadline=end
+            )
         except Exception as exc:
             raise denied(exc) from exc
 

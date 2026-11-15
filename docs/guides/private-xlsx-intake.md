@@ -493,6 +493,36 @@ uv run python -m generaldataagent.datasets.xlsx_export \
   --instance-id <uuid> --out /private/operator/new-export.csv
 ```
 
+## Snapshot quality assessment and evidence
+
+Supply an `XlsxQualityService` as `xlsx_quality` alongside the same `xlsx_intake` instance when
+assembling a local development app. Give it a task budget ledger, private scratch directory and
+governed artifact content and index paths. The endpoint is disabled when the service is absent.
+
+1. Confirm the preview, declare the columns and derive a retained snapshot.
+2. Send `POST /v1/analysis/files/xlsx/{file_id}/snapshot/quality?snapshot_hash=<digest>`. Each
+   submission gets a new analysis task ID with a one-call tool budget.
+3. To verify an existing result, send the returned `evidence` object as JSON to
+   `POST /v1/analysis/files/xlsx/{file_id}/snapshot/quality/verify?snapshot_hash=<digest>`.
+   Verification reads and validates the existing evidence without running a second analysis.
+
+The service stages a private temporary SQLite relation and calls the existing governed
+`data.quality` tool against its read-only connector. SQL columns use generated indices and
+`TEXT` affinity. Valid canonical strings are preserved exactly, including decimal precision,
+and missing, unparsed and untrusted cells become SQL NULL. The fixed checks report NULL counts for
+all declared columns. Duplicate rows stay in the relation. The assessment fails if the declaration
+requires rejecting duplicates and the snapshot contains any. The result contains counts and
+source bindings without spreadsheet values or column labels. Numeric range and arithmetic
+require a separately defined exact numeric mapping.
+
+The governed artifact applies creator-only access, DLP and its configured retention. It binds
+the same analysis task to the file, upload task and source, preview, confirmation, declaration and
+snapshot digests. The analysis and verification routes recheck the live session, source retention
+and current snapshot before returning. A stale or changed snapshot returns 409. Expired or
+unavailable private sources are refused. Evidence content tampering is refused. A handled failed
+assessment removes its scratch relation and discards any artifact it produced. Artifact disposal
+follows the existing retention and legal hold rules.
+
 ## Encryption, scope and binding
 
 AES-256-GCM encrypts both the preview payload and the source bytes in a dedicated SQLite database.

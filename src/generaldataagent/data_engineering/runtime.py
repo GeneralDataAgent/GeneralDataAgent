@@ -282,22 +282,35 @@ class DataEngineeringRuntime:
         relation: str,
         rules: tuple[QualityRule, ...],
         trace_id: str,
+        cancel_event: Event | None = None,
     ) -> QualityReport:
         authorized_domains = self._authorized_domains(actor, connector_id)
+        arguments = {
+            "connector_id": connector_id,
+            "relation": relation,
+            "rules": [rule.model_dump(mode="json") for rule in rules],
+        }
+        cancel_token = str(uuid4()) if cancel_event is not None else None
+        if cancel_token is not None:
+            arguments["cancel_token"] = cancel_token
         request = self._request(
             task_id=task_id,
             actor=actor,
             tool_name="data.quality",
             action="check",
             resource=f"{connector_id}:{relation}",
-            arguments={
-                "connector_id": connector_id,
-                "relation": relation,
-                "rules": [rule.model_dump(mode="json") for rule in rules],
-            },
+            arguments=arguments,
             data_domains=authorized_domains,
         )
-        result = self.gateway.invoke(request, trace_id=trace_id)
+        if cancel_token is not None:
+            with self._cancel_events_lock:
+                self._cancel_events[cancel_token] = cancel_event
+        try:
+            result = self.gateway.invoke(request, trace_id=trace_id)
+        finally:
+            if cancel_token is not None:
+                with self._cancel_events_lock:
+                    self._cancel_events.pop(cancel_token, None)
         self._store(task_id, "quality_report", result, "data-engineer")
         return result
 
@@ -788,10 +801,18 @@ class DataEngineeringRuntime:
         )
 
     def _quality(self, arguments: dict[str, Any]) -> QualityReport:
+        cancel_token = arguments.get("cancel_token")
+        cancel_event = None
+        if cancel_token is not None:
+            with self._cancel_events_lock:
+                cancel_event = self._cancel_events.get(str(cancel_token))
+            if cancel_event is None:
+                raise RuntimeError("quality cancellation token is no longer active")
         return execute_quality_rules(
             self._connector(str(arguments["connector_id"])),
             str(arguments["relation"]),
             tuple(QualityRule.model_validate(item) for item in arguments["rules"]),
+            cancel_event=cancel_event,
         )
 
     @staticmethod
