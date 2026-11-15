@@ -184,13 +184,14 @@ def test_export_returns_only_approved_columns_and_formula_safe_values(tmp_path):
     assert receipt.rows == 7 and receipt.cells == 14
     assert receipt.content_sha256 == "sha256:" + hashlib.sha256(content).hexdigest()
     assert receipt.artifact is False and receipt.dataset_snapshot is False
-    assert receipt.audit == "xlsx.columns_export_prepared"
+    assert receipt.audit == "xlsx.columns_exported"
     assert receipt.approval == "one-time-grant-consumed"
     events = export_events(tmp_path)
     assert len(events) == 1 and events[0]["event_type"] == receipt.audit
     assert events[0]["actor_id"] == owner.user_id
     assert events[0]["payload"]["rows"] == 7
     assert events[0]["payload"]["approval_id"] == str(approval_id)
+    assert events[0]["payload"]["phase"] == "prepared"
     assert events[0]["payload"]["content_sha256"] == receipt.content_sha256
     assert "alpha" not in json.dumps(events) and "flag" not in json.dumps(events)
     with pytest.raises(XlsxExportRefused):

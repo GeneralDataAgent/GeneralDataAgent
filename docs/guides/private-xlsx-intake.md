@@ -453,7 +453,7 @@ The same applies when the first non-whitespace character is `=`, `+`, `-` or `@`
 The full CSV bytes, including headers, quotes and
 formula-neutralized cells, are re-scanned by `TextDLPScanner.check_export` at `INTERNAL`
 classification immediately before return; DLP denial or a 2 MiB page limit consumes no approval and
-produces no output. The content-free `xlsx.columns_export_prepared` event records identifiers
+produces no output. The content-free `xlsx.columns_exported` event records `phase=prepared` and identifiers
 including the approval ID, hashes and row/cell/byte/column counts. The one-time grant is consumed
 after successful DLP, audit and a fresh check of the retained declaration, snapshot and live
 authorization. A preparation event can also describe an attempt that stops before consumption.
@@ -470,7 +470,7 @@ must be non-symlink, operator-owned private regular files. Pass the opaque token
 The receipt states
 `scope=explicit-declared-column-page`, `values=selected-columns-only`,
 `dlp=rescanned-before-return`, `formula_cached_values=never-trusted`, `artifact=false`,
-`dataset_snapshot=false`, `audit=xlsx.columns_export_prepared` and
+`dataset_snapshot=false`, `audit=xlsx.columns_exported` and
 `approval=one-time-grant-consumed`. Exit codes: `0` receipt emitted and one output created,
 `2` approval/authorization/contract invalid, `4` store, DLP, audit or output unavailable,
 `5` retained state contradicts the approved selection. The CLI uses the real-time development clock;

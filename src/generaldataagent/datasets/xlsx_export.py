@@ -174,7 +174,7 @@ class XlsxExportReceipt(ContractModel):
     formula_cached_values: Literal["never-trusted"] = "never-trusted"
     artifact: Literal[False] = False
     dataset_snapshot: Literal[False] = False
-    audit: Literal["xlsx.columns_export_prepared"] = "xlsx.columns_export_prepared"
+    audit: Literal["xlsx.columns_exported"] = "xlsx.columns_exported"
     approval: Literal["one-time-grant-consumed"] = "one-time-grant-consumed"
 
     @model_validator(mode="after")
@@ -441,7 +441,7 @@ class XlsxColumnExport:
         """Record the prepared bytes before consuming approval or returning any data."""
         check()
         event = AuditEvent(
-            event_type="xlsx.columns_export_prepared",
+            event_type="xlsx.columns_exported",
             task_id=approved.task_id,
             actor_id=self.actor.user_id,
             tenant_id=self.actor.tenant_id,
@@ -450,6 +450,7 @@ class XlsxColumnExport:
             payload={
                 "file_id": str(self.request.file_id),
                 "approval_id": str(approved.approval_id),
+                "phase": "prepared",
                 "export_hash": self.request.export_hash,
                 "snapshot_hash": self.request.snapshot_hash,
                 "content_sha256": "sha256:" + hashlib.sha256(content).hexdigest(),

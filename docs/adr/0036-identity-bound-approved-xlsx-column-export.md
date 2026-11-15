@@ -50,8 +50,8 @@ not-trusted readings stay empty. Neutralize formula prefixes `=+-@` after option
 and leading tab, carriage return or line feed with an apostrophe. Bound the page to 500 rows
 and 2 MiB. Re-scan the entire exact CSV output,
 including labels and CSV escapes, with `TextDLPScanner.check_export` at `INTERNAL` classification.
-Emit a content-free `xlsx.columns_export_prepared` event with the approval ID, hashes and counts
-before consuming the grant. Audit failure denies the export. After audit, check the current retained
+Emit a content-free `xlsx.columns_exported` event with `phase=prepared`, the approval ID, hashes
+and counts before consuming the grant. Audit failure denies the export. After audit, check the current retained
 snapshot, declaration and live identity, then consume against the exact tool request. The CLI writes
 and syncs a private `0600` staging file before
 consumption, then publishes it as a new file with an atomic no-overwrite link. Key and token files
