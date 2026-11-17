@@ -16,6 +16,7 @@ from generaldataagent.api.business import business_router
 from generaldataagent.api.business_context import business_context_router
 from generaldataagent.api.csv_intake import csv_intake_router
 from generaldataagent.api.display_preferences import display_preference_router
+from generaldataagent.api.mcp import mcp_read_router
 from generaldataagent.api.xlsx_intake import xlsx_intake_router
 from generaldataagent.business.actions import BusinessActionRuntime, content_hash
 from generaldataagent.business.governance import Feedback, FeedbackRegistry, FeedbackTaskStatus
@@ -44,6 +45,7 @@ from generaldataagent.observability.slo import ServiceSLO
 from generaldataagent.orchestration import MetricAnalysisRuntime
 from generaldataagent.orchestration.business_context import BusinessContextService
 from generaldataagent.orchestration.checkpoints import CheckpointBusyError, CheckpointLeaseLostError
+from generaldataagent.orchestration.mcp import McpReadService
 from generaldataagent.orchestration.task_events import TaskEventJournal, TaskEventPage
 from generaldataagent.orchestration.task_presentation import MetricDisplayPreferenceService
 from generaldataagent.orchestration.task_questions import (
@@ -106,6 +108,7 @@ def create_app(
     xlsx_intake: XlsxIntakeService | None = None,
     xlsx_quality: XlsxQualityService | None = None,
     business_context: BusinessContextService | None = None,
+    mcp_read: McpReadService | None = None,
 ) -> FastAPI:
     if csv_intake is not None:
         if production_mode:
@@ -129,6 +132,11 @@ def create_app(
             raise ValueError("local_business_context_not_qualified_for_production")
         if metric_tasks is None or business_context.tasks is not metric_tasks:
             raise ValueError("business_context_must_share_task_service")
+    if mcp_read is not None:
+        if production_mode:
+            raise ValueError("local_mcp_read_not_qualified_for_production")
+        if session_broker is None:
+            raise ValueError("mcp_read_requires_authenticated_sessions")
     if (
         feedback_registry is not None
         and metric_tasks is not None
@@ -206,6 +214,8 @@ def create_app(
         finally:
             if maintenance is not None:
                 maintenance.stop()
+            if mcp_read is not None:
+                await mcp_read.aclose()
 
     application = FastAPI(
         title="GeneralDataAgent",
@@ -539,6 +549,8 @@ def create_app(
     application.include_router(business_context_router(business_context, task_credentials))
     application.include_router(csv_intake_router(csv_intake, task_credentials))
     application.include_router(xlsx_intake_router(xlsx_intake, task_credentials, xlsx_quality))
+    if mcp_read is not None:
+        application.include_router(mcp_read_router(mcp_read, task_credentials))
 
     @application.post("/v1/analysis/tasks", status_code=202, response_model=MetricTaskRecord)
     def submit_metric_task(
