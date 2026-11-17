@@ -37,6 +37,7 @@ from generaldataagent.data_science.tracking import ExperimentTrackingError
 from generaldataagent.data_science.workbench import DataScienceWorkbench, ScienceGateError
 from generaldataagent.datasets.csv_intake import CsvIntakeService
 from generaldataagent.datasets.xlsx_intake import XlsxIntakeService
+from generaldataagent.datasets.xlsx_quality import XlsxQualityService
 from generaldataagent.observability.alerts import CriticalAlertRouter
 from generaldataagent.observability.maintenance import ServiceMaintenance
 from generaldataagent.observability.slo import ServiceSLO
@@ -103,6 +104,7 @@ def create_app(
     display_preferences: MetricDisplayPreferenceService | None = None,
     csv_intake: CsvIntakeService | None = None,
     xlsx_intake: XlsxIntakeService | None = None,
+    xlsx_quality: XlsxQualityService | None = None,
     business_context: BusinessContextService | None = None,
 ) -> FastAPI:
     if csv_intake is not None:
@@ -115,6 +117,8 @@ def create_app(
             raise ValueError("local_xlsx_intake_not_qualified_for_production")
         if session_broker is None or xlsx_intake.broker is not session_broker:
             raise ValueError("xlsx_intake_must_share_identity_broker")
+    if xlsx_quality is not None and xlsx_quality.intake is not xlsx_intake:
+        raise ValueError("xlsx_quality_must_share_intake")
     if display_preferences is not None:
         if production_mode:
             raise ValueError("local_display_preferences_not_qualified_for_production")
@@ -534,7 +538,7 @@ def create_app(
     application.include_router(display_preference_router(display_preferences, task_credentials))
     application.include_router(business_context_router(business_context, task_credentials))
     application.include_router(csv_intake_router(csv_intake, task_credentials))
-    application.include_router(xlsx_intake_router(xlsx_intake, task_credentials))
+    application.include_router(xlsx_intake_router(xlsx_intake, task_credentials, xlsx_quality))
 
     @application.post("/v1/analysis/tasks", status_code=202, response_model=MetricTaskRecord)
     def submit_metric_task(
