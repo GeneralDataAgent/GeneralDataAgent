@@ -65,6 +65,15 @@ from generaldataagent.contracts.delivery import (
     GroundedClaim,
     TableSpec,
 )
+from generaldataagent.contracts.mcp import (
+    McpDiscovery,
+    McpReadEvidence,
+    McpReadRequest,
+    McpServerAdmission,
+    McpServerProfile,
+    McpToolAdmission,
+    McpToolCandidate,
+)
 from generaldataagent.contracts.models import (
     ArtifactRef,
     AuditEvent,
@@ -136,6 +145,13 @@ __all__ = [
     "MetricCandidate",
     "MetricResolution",
     "MetricValue",
+    "McpDiscovery",
+    "McpReadEvidence",
+    "McpReadRequest",
+    "McpServerAdmission",
+    "McpServerProfile",
+    "McpToolAdmission",
+    "McpToolCandidate",
     "ModelCard",
     "ModelRegistrationDraft",
     "OCIContainerRuntime",
