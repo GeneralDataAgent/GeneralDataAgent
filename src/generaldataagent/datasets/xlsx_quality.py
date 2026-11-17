@@ -28,7 +28,7 @@ from generaldataagent.datasets.xlsx_intake_contracts import (
 from generaldataagent.datasets.xlsx_intake_store import XlsxIntakeConflict, XlsxIntakeUnavailable
 from generaldataagent.datasets.xlsx_preflight import MAX_ROWS
 from generaldataagent.datasets.xlsx_preview import PREVIEW_COLUMNS
-from generaldataagent.datasets.xlsx_quality_intents import XlsxQualityIntents
+from generaldataagent.datasets.xlsx_quality_intents import QualityIntent, XlsxQualityIntents
 from generaldataagent.policy.budgets import TaskBudgetLedger
 
 SNAPSHOT_HASH_PATTERN = r"^sha256:[0-9a-f]{64}$"
@@ -36,6 +36,8 @@ QUALITY_INTENT_PATTERN = r"^[A-Za-z0-9._:-]{1,128}$"
 _CONNECTOR = "xlsx_snapshot"
 _RELATION = "declared_xlsx"
 _EVIDENCE = "xlsx_snapshot_quality"
+# Let one bounded assessment finish before a persisted claim is treated as crashed.
+_RECOVERY_GRACE_SECONDS = 30
 
 
 class XlsxQualityColumn(ContractModel):
@@ -322,6 +324,81 @@ class XlsxQualityService:
             hmac.digest(store.scope_key, b"xlsx-quality-intent-v1:" + key.encode(), "sha256").hex(),
         )
 
+    def _settle_recovery(
+        self,
+        keys: tuple[str, str],
+        payload: _XlsxPayload,
+        snapshot_hash: str,
+        claim: QualityIntent,
+        evidence: ArtifactRef | None,
+    ) -> None:
+        try:
+            self.intents.settle(*keys, claim.task_id, evidence)
+        except XlsxIntakeUnavailable:
+            # A concurrent recovery may have settled the same claim first.
+            final = self.intents.lookup(*keys, payload.file.file_id, snapshot_hash)
+            expected = "completed" if evidence is not None else "failed"
+            if final is None or final.state != expected or final.evidence != evidence:
+                raise
+
+    def _converge(
+        self,
+        payload: _XlsxPayload,
+        token: str,
+        snapshot_hash: str,
+        claim: QualityIntent,
+        keys: tuple[str, str],
+        deadline: float,
+        check: Callable[[], None],
+    ) -> XlsxQualityReceipt:
+        """Resolve a pending claim after the bounded assessment lease.
+
+        A hard interrupt can leave the durable claim pending with no settled
+        receipt. After the lease, recover the exact evidence this task wrote if
+        it exists; otherwise mark the claim failed so the caller can start a new
+        explicit assessment. Within the lease the claim stays pending and is
+        never taken over.
+        """
+        if claim.lease_until > self.intake.store.now().timestamp():
+            check()
+            return XlsxQualityReceipt(state="pending", task_id=claim.task_id)
+        artifacts = self._artifacts(payload.actor, self._source(payload))
+        try:
+            refs = artifacts.find_task_artifacts(claim.task_id, _EVIDENCE)
+        except (OSError, PermissionError, sqlite3.Error, ValueError) as exc:
+            raise XlsxIntakeUnavailable("xlsx_quality_intent_unavailable") from exc
+        if len(refs) > 1:
+            raise XlsxIntakeUnavailable("xlsx_quality_intent_unavailable")
+        result: XlsxQualityResult | None = None
+        if refs:
+            try:
+                result = self._verify_evidence(
+                    payload, token, snapshot_hash, refs[0], deadline, check
+                )
+            except PermissionError:
+                raise
+            except XlsxIntakeUnavailable:
+                raise
+            except XlsxIntakeConflict:
+                result = None
+        outcome = "completed" if result is not None else "failed"
+        self.intake._audit(
+            "xlsx.snapshot_quality_intent_recovered",
+            payload,
+            {
+                "snapshot_hash": snapshot_hash,
+                "assessment_task_id": str(claim.task_id),
+                "outcome": outcome,
+            },
+        )
+        self._settle_recovery(
+            keys, payload, snapshot_hash, claim, result.evidence if result else None
+        )
+        if result is None:
+            check()
+            return XlsxQualityReceipt(state="failed", task_id=claim.task_id)
+        return XlsxQualityReceipt(state="completed", task_id=claim.task_id, result=result)
+
     def receipt(
         self, file_id: UUID, actor: ActorContext, token: str, snapshot_hash: str, intent: str
     ) -> XlsxQualityReceipt:
@@ -329,11 +406,15 @@ class XlsxQualityService:
         payload, _, check = self._snapshot(
             file_id, actor, token, snapshot_hash, deadline, reparse=True
         )
-        claim = self.intents.lookup(*self._intent_key(payload, intent), file_id, snapshot_hash)
-        if claim is None or claim.evidence is None:
+        keys = self._intent_key(payload, intent)
+        claim = self.intents.lookup(*keys, file_id, snapshot_hash)
+        if claim is None:
             check()
-            if claim is None:
-                return XlsxQualityReceipt(state="missing")
+            return XlsxQualityReceipt(state="missing")
+        if claim.state == "pending":
+            return self._converge(payload, token, snapshot_hash, claim, keys, deadline, check)
+        if claim.evidence is None:
+            check()
             return XlsxQualityReceipt(state=claim.state, task_id=claim.task_id)
         result = self._verify_evidence(
             payload, token, snapshot_hash, claim.evidence, deadline, check
@@ -356,18 +437,24 @@ class XlsxQualityService:
         if intent is None:
             return self._assess(payload, snapshot, token, end, check, uuid4())
         keys = self._intent_key(payload, intent)
+        now = self.intake.store.now().timestamp()
         claim, created = self.intents.claim(
             *keys,
             file_id,
             snapshot_hash,
-            now=self.intake.store.now().timestamp(),
+            now=now,
             expires=payload.file.expires_at.timestamp(),
+            lease_until=now + self.intake.limits.max_seconds + _RECOVERY_GRACE_SECONDS,
         )
         if not created:
-            if claim.evidence is None:
-                check()
-                raise XlsxIntakeConflict(f"xlsx_quality_intent_{claim.state}")
-            return self._verify_evidence(payload, token, snapshot_hash, claim.evidence, end, check)
+            if claim.evidence is not None:
+                return self._verify_evidence(
+                    payload, token, snapshot_hash, claim.evidence, end, check
+                )
+            receipt = self._converge(payload, token, snapshot_hash, claim, keys, end, check)
+            if receipt.state == "completed" and receipt.result is not None:
+                return receipt.result
+            raise XlsxIntakeConflict(f"xlsx_quality_intent_{receipt.state}")
         try:
             result = self._assess(payload, snapshot, token, end, check, claim.task_id)
         except Exception:
