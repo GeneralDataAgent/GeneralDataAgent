@@ -239,6 +239,8 @@ class McpTransport(Protocol):
 
     async def request(self, method: str, params: dict[str, Any]) -> dict[str, Any]: ...
 
+    async def notify(self, method: str) -> None: ...
+
     async def close(self) -> None: ...
 
 
@@ -295,20 +297,9 @@ class StdioMcpTransport:
                 raise McpProtocolError("mcp_transport_closed")
             self._count += 1
             request_id = self._count
-            try:
-                frame = _canonical(
-                    {"jsonrpc": "2.0", "id": request_id, "method": method, "params": params}
-                ).encode("utf-8")
-            except (TypeError, ValueError) as exc:
-                raise McpRequestRejected("mcp_request_not_serializable", str(exc)) from exc
-            if len(frame) > self.max_line_bytes:
-                raise McpRequestRejected("mcp_request_too_large")
-            try:
-                self._process.stdin.write(frame + b"\n")
-                await self._process.stdin.drain()
-            except (BrokenPipeError, ConnectionResetError) as exc:
-                await self._close_locked()
-                raise McpServerUnavailable("mcp_server_closed", str(exc)) from exc
+            await self._write_locked(
+                {"jsonrpc": "2.0", "id": request_id, "method": method, "params": params}
+            )
             try:
                 line = await self._process.stdout.readline()
             except (asyncio.LimitOverrunError, ValueError) as exc:
@@ -332,6 +323,26 @@ class StdioMcpTransport:
                 await self._close_locked()
                 raise McpProtocolError("mcp_response_mismatched")
             return response
+
+    async def notify(self, method: str) -> None:
+        async with self._lock:
+            await self._write_locked({"jsonrpc": "2.0", "method": method})
+
+    async def _write_locked(self, message: dict[str, Any]) -> None:
+        if self._closed or self._process is None or self._process.stdin is None:
+            raise McpProtocolError("mcp_transport_closed")
+        try:
+            frame = _canonical(message).encode("utf-8")
+        except (TypeError, ValueError) as exc:
+            raise McpRequestRejected("mcp_request_not_serializable", str(exc)) from exc
+        if len(frame) > self.max_line_bytes:
+            raise McpRequestRejected("mcp_request_too_large")
+        try:
+            self._process.stdin.write(frame + b"\n")
+            await self._process.stdin.drain()
+        except (BrokenPipeError, ConnectionResetError) as exc:
+            await self._close_locked()
+            raise McpServerUnavailable("mcp_server_closed", str(exc)) from exc
 
     async def _close_locked(self) -> None:
         process = self._process
@@ -419,6 +430,13 @@ class McpSession:
                 raise McpProtocolError("mcp_server_info_invalid")
             if info["version"] != self.profile.version:
                 raise McpVersionMismatch("mcp_version_mismatch")
+            try:
+                await asyncio.wait_for(
+                    self.transport.notify("notifications/initialized"),
+                    timeout=self.profile.timeout_seconds,
+                )
+            except TimeoutError as exc:
+                raise McpTimeout("mcp_timeout") from exc
             self.server_name = str(info.get("name", ""))[:128]
             self.server_version = info["version"]
             self.protocol_version = protocol

@@ -25,7 +25,7 @@ from generaldataagent.connectors.mcp import (
     McpSessionManager,
     McpToolNotAdmitted,
     McpTransport,
-    discover_tools,
+    build_discovery,
     resolve_credential,
     validate_mcp_arguments,
 )
@@ -94,7 +94,6 @@ class McpReadService:
         self.scanner = scanner or TextDLPScanner()
         self.agent_role = role
         self.clock = clock or (lambda: datetime.now(UTC))
-        self.transport_factory = transport_factory
         self.sessions = McpSessionManager(transport_factory)
         self._tools = {tool.remote_tool: tool for tool in admission.tools}
         rules = (*DEFAULT_RULES, *self._policy_rules())
@@ -259,24 +258,6 @@ class McpReadService:
 
         self._require_admission(actor)
         credential = resolve_credential(self.profile)
-        discovery = await discover_tools(
-            self.profile,
-            transport_factory=self.transport_factory,
-            scanner=self.scanner,
-        )
-        self._match_admission(discovery)
-        self._emit(
-            "mcp.schema.verified",
-            actor=actor,
-            task_id=task_id,
-            payload={
-                "server_id": self.profile.server_id,
-                "server_version": self.profile.version,
-                "schema_sha256": discovery.schema_sha256,
-                "tool_count": len(discovery.tools),
-            },
-        )
-
         async with self.sessions.lease(
             self.profile,
             credential,
@@ -284,6 +265,24 @@ class McpReadService:
             project_id=actor.project_id,
             user_id=actor.user_id,
         ) as session:
+            discovery = build_discovery(
+                self.profile,
+                session.protocol_version,
+                await session.list_tools(),
+                scanner=self.scanner,
+            )
+            self._match_admission(discovery)
+            self._emit(
+                "mcp.schema.verified",
+                actor=actor,
+                task_id=task_id,
+                payload={
+                    "server_id": self.profile.server_id,
+                    "server_version": self.profile.version,
+                    "schema_sha256": discovery.schema_sha256,
+                    "tool_count": len(discovery.tools),
+                },
+            )
             result = await session.call_tool(entry.remote_tool, remote_arguments)
             protocol_version = session.protocol_version
 
