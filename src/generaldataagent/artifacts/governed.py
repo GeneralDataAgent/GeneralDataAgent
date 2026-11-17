@@ -214,6 +214,44 @@ class GovernedArtifactStore(LocalArtifactStore):
         self.scanner.check_export(content, ref.classification)
         return content
 
+    def find_task_artifacts(self, task_id: UUID, artifact_type: str) -> tuple[ArtifactRef, ...]:
+        """Find this store's creator-written records for one task and artifact type.
+
+        This is a recovery read, not a listing surface: every candidate is still
+        checked by ``_authorized_record`` before it is returned. Expired, deleted,
+        other-creator, other-scope and legacy project-shared rows are excluded
+        instead of being repaired. A malformed row fails the whole lookup closed.
+        """
+        if not isinstance(task_id, UUID) or not isinstance(artifact_type, str):
+            raise ValueError("artifact lookup requires a task UUID and artifact type")
+        now = self._now().timestamp()
+        with closing(sqlite3.connect(self.index_path, timeout=5)) as db:
+            rows = db.execute(
+                "SELECT ref_json FROM governed_artifacts_v2 "
+                "WHERE task_id = ? AND creator_user_id = ? AND tenant_id = ? "
+                "AND project_id = ? AND read_policy IN (?, ?) "
+                "AND deleted = 0 AND expires_at > ?",
+                (
+                    str(task_id),
+                    self.actor.user_id,
+                    self.actor.tenant_id,
+                    self.actor.project_id,
+                    ArtifactReadPolicy.PROJECT.value,
+                    ArtifactReadPolicy.CREATOR.value,
+                    now,
+                ),
+            ).fetchall()
+            found = []
+            for (value,) in rows:
+                ref = ArtifactRef.model_validate_json(value)
+                if ref.task_id != task_id or ref.artifact_type != artifact_type:
+                    continue
+                record = self._authorized_record(db, ref)
+                if record.deleted or record.expires_at <= now:
+                    continue
+                found.append(ref)
+        return tuple(sorted(found, key=lambda ref: (str(ref.artifact_id), ref.uri)))
+
     def set_legal_hold(self, ref: ArtifactRef, *, held: bool) -> None:
         if type(held) is not bool:
             raise ValueError("legal hold must be boolean")
