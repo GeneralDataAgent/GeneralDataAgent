@@ -134,6 +134,57 @@ def test_recovery_stays_pending_when_audit_is_unavailable(tmp_path, monkeypatch)
     assert recovered.json()["state"] == "completed"
 
 
+def test_task_artifact_lookup_is_creator_scoped_and_excludes_gone_records(tmp_path):
+    now = [datetime.now(UTC)]
+    root, index = tmp_path / "artifacts", tmp_path / "artifact-index.db"
+
+    def store(user="synthetic", retention=60):
+        return GovernedArtifactStore(
+            root,
+            index_path=index,
+            actor=actor().model_copy(update={"user_id": user}),
+            retention_seconds=retention,
+            clock=lambda: now[0],
+            read_policy=ArtifactReadPolicy.CREATOR,
+        )
+
+    task_id = uuid4()
+    writer = store()
+    ref = writer.put_json(
+        task_id=task_id,
+        artifact_type="xlsx_snapshot_quality",
+        value={"synthetic": True},
+        created_by="synthetic",
+    )
+    assert writer.find_task_artifacts(task_id, "xlsx_snapshot_quality") == (ref,)
+    assert writer.find_task_artifacts(task_id, "quality_report") == ()
+    assert store("other").find_task_artifacts(task_id, "xlsx_snapshot_quality") == ()
+
+    assert writer.discard(ref) is True
+    assert writer.find_task_artifacts(task_id, "xlsx_snapshot_quality") == ()
+
+
+def test_task_artifact_lookup_excludes_expired_records(tmp_path):
+    now = [datetime.now(UTC)]
+    writer = GovernedArtifactStore(
+        tmp_path / "artifacts",
+        index_path=tmp_path / "artifact-index.db",
+        actor=actor(),
+        retention_seconds=1,
+        clock=lambda: now[0],
+        read_policy=ArtifactReadPolicy.CREATOR,
+    )
+    task_id = uuid4()
+    writer.put_json(
+        task_id=task_id,
+        artifact_type="xlsx_snapshot_quality",
+        value={"synthetic": True},
+        created_by=actor().user_id,
+    )
+    now[0] += timedelta(seconds=2)
+    assert writer.find_task_artifacts(task_id, "xlsx_snapshot_quality") == ()
+
+
 def test_legacy_intent_rows_gain_a_recoverable_lease(tmp_path):
     index = tmp_path / "artifact-index.db"
     with sqlite3.connect(index) as db:
