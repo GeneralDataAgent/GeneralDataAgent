@@ -240,6 +240,18 @@ def test_remote_description_and_annotations_cannot_lower_local_risk(tmp_path):
     assert evidence.remote_tool == TOOL
 
 
+def test_initialization_notification_precedes_list_and_call(tmp_path):
+    env = setup(tmp_path, mode="strict_lifecycle")
+    assert read(env).remote_tool == TOOL
+
+
+def test_read_verifies_catalog_on_the_connection_used_for_the_call(tmp_path):
+    env = setup(tmp_path, mode="session_catalog")
+    evidence = read(env)
+    assert evidence.remote_tool == TOOL
+    assert evidence.schema_sha256 == env.admission.schema_sha256
+
+
 def test_schema_or_tool_list_change_requires_a_new_admission(tmp_path):
     env = setup(tmp_path)
     env.state["mode"] = "drift"
@@ -337,6 +349,9 @@ class _FakeTransport:
         else:  # pragma: no cover - these tests never call a tool
             result = {}
         return {"jsonrpc": "2.0", "id": 1, "result": result}
+
+    async def notify(self, method):
+        assert method == "notifications/initialized"
 
     async def close(self):
         self.closed = True

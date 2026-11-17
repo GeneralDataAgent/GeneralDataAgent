@@ -97,7 +97,7 @@ def call_result(arguments):
     }
 
 
-def respond(request):
+def respond(request, *, listed):
     request_id = request.get("id")
     method = request.get("method")
     params = request.get("params") or {}
@@ -115,6 +115,8 @@ def respond(request):
     if method == "tools/list":
         return result(request_id, {"tools": catalog()})
     if method == "tools/call":
+        if MODE == "session_catalog" and not listed:
+            return error(request_id, -32603, "catalog not read on this connection")
         if MODE == "badjson":
             return "not-json"
         if MODE == "error":
@@ -127,12 +129,22 @@ def respond(request):
 
 
 def main():
+    listed = initialized = False
     for line in sys.stdin:
         try:
             request = json.loads(line)
         except json.JSONDecodeError:
             continue
-        response = respond(request)
+        method = request.get("method")
+        if method == "notifications/initialized" and "id" not in request:
+            initialized = True
+            continue
+        if MODE == "strict_lifecycle" and not initialized and method != "initialize":
+            response = error(request.get("id"), -32603, "initialize notification required")
+        else:
+            response = respond(request, listed=listed)
+        if method == "tools/list":
+            listed = True
         if isinstance(response, str):
             sys.stdout.write(response + "\n")
         else:

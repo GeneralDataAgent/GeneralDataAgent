@@ -24,11 +24,13 @@ route, and the local adapter is rejected in production mode.
 ## Read path
 
 `POST /v1/analysis/mcp/{remote_tool}/read` (development only) authenticates the session, builds the
-`ToolRequest`, and calls `ToolGateway.invoke`. Before the remote call the service:
+`ToolRequest`, and calls `ToolGateway.invoke`. The stdio session sends `notifications/initialized` after validating
+the server version and before it reads the tool list. Before the remote call the service:
 
 - re-checks the registry admission for the requesting actor;
-- re-discovers the tool list and fails closed on any schema, description or tool-list drift;
 - opens at most one session per server, bound to the requesting tenant/project/user;
+- re-discovers the tool list on the connection that will make the read and fails closed on any
+  schema, description or tool-list drift;
 - validates arguments against the admitted schema subset (no remote evaluation);
 - enforces the tool timeout, response-byte limit and DLP scan.
 
