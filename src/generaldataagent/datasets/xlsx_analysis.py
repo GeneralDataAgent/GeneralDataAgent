@@ -16,6 +16,7 @@ import json
 import sqlite3
 from collections import Counter
 from collections.abc import Callable
+from contextlib import suppress
 from pathlib import Path
 from typing import Any, Literal
 from uuid import UUID
@@ -305,7 +306,9 @@ class XlsxAnalysisBinder:
             rows=tuple(rows),
         )
 
-    def _write(self, artifact: XlsxAnalysisArtifact, actor: ActorContext) -> ArtifactRef:
+    def _write(
+        self, artifact: XlsxAnalysisArtifact, actor: ActorContext
+    ) -> tuple[GovernedArtifactStore, ArtifactRef]:
         content = json.dumps(
             artifact.model_dump(mode="json"),
             ensure_ascii=False,
@@ -323,7 +326,7 @@ class XlsxAnalysisBinder:
             read_policy=ArtifactReadPolicy.CREATOR,
         )
         try:
-            return artifacts.put_bytes(
+            ref = artifacts.put_bytes(
                 task_id=artifact.task_id,
                 artifact_type=_ARTIFACT_TYPE,
                 content=content,
@@ -332,6 +335,7 @@ class XlsxAnalysisBinder:
             )
         except (OSError, sqlite3.Error) as exc:
             raise XlsxIntakeUnavailable("xlsx_analysis_store_unavailable") from exc
+        return artifacts, ref
 
     def bind(
         self,
@@ -346,39 +350,46 @@ class XlsxAnalysisBinder:
             file_id, actor, token, request.snapshot_hash, deadline
         )
         projected = self._project(payload, snapshot, request.columns, check)
-        artifact = self._write(projected, actor)
-        self.intake._audit(
-            "xlsx.analysis_dataset_bound",
-            payload,
-            {
-                "snapshot_hash": snapshot.snapshot_hash,
-                "artifact_id": str(artifact.artifact_id),
-                "columns": list(request.columns),
-                "rows": len(snapshot.rows),
-                "cells": len(snapshot.rows) * len(request.columns),
-            },
-        )
-        current, _, after = self._current(file_id, actor, token, request.snapshot_hash, deadline)
-        after()
-        if current.snapshot is None or current.snapshot.snapshot_hash != snapshot.snapshot_hash:
-            raise XlsxIntakeConflict("xlsx_snapshot_changed")
-        return XlsxAnalysisDataset(
-            file_id=payload.file.file_id,
-            task_id=payload.file.task_id,
-            source_hash=snapshot.source_hash,
-            preview_hash=snapshot.preview_hash,
-            confirmation_hash=snapshot.confirmation_hash,
-            interpretation_hash=snapshot.interpretation_hash,
-            snapshot_hash=snapshot.snapshot_hash,
-            date_system=snapshot.date_system,
-            duplicate_rows=snapshot.duplicate_rows,
-            duplicate_row_count=snapshot.duplicate_row_count,
-            columns=projected.columns,
-            row_count=len(snapshot.rows),
-            cells=len(snapshot.rows) * len(projected.columns),
-            created_at=artifact.created_at,
-            artifact=artifact,
-        )
+        artifacts, artifact = self._write(projected, actor)
+        try:
+            self.intake._audit(
+                "xlsx.analysis_dataset_bound",
+                payload,
+                {
+                    "snapshot_hash": snapshot.snapshot_hash,
+                    "artifact_id": str(artifact.artifact_id),
+                    "columns": list(request.columns),
+                    "rows": len(snapshot.rows),
+                    "cells": len(snapshot.rows) * len(request.columns),
+                },
+            )
+            current, _, after = self._current(
+                file_id, actor, token, request.snapshot_hash, deadline
+            )
+            after()
+            if current.snapshot is None or current.snapshot.snapshot_hash != snapshot.snapshot_hash:
+                raise XlsxIntakeConflict("xlsx_snapshot_changed")
+            return XlsxAnalysisDataset(
+                file_id=payload.file.file_id,
+                task_id=payload.file.task_id,
+                source_hash=snapshot.source_hash,
+                preview_hash=snapshot.preview_hash,
+                confirmation_hash=snapshot.confirmation_hash,
+                interpretation_hash=snapshot.interpretation_hash,
+                snapshot_hash=snapshot.snapshot_hash,
+                date_system=snapshot.date_system,
+                duplicate_rows=snapshot.duplicate_rows,
+                duplicate_row_count=snapshot.duplicate_row_count,
+                columns=projected.columns,
+                row_count=len(snapshot.rows),
+                cells=len(snapshot.rows) * len(projected.columns),
+                created_at=artifact.created_at,
+                artifact=artifact,
+            )
+        except Exception:
+            with suppress(Exception):
+                artifacts.discard(artifact)
+            raise
 
 
 def load_xlsx_analysis_artifact(content: bytes, *, artifact: ArtifactRef) -> XlsxAnalysisArtifact:
