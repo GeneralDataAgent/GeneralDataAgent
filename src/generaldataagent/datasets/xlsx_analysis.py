@@ -14,6 +14,7 @@ certified metric source.
 import hashlib
 import json
 import sqlite3
+from bisect import bisect_right
 from collections import Counter
 from collections.abc import Callable
 from contextlib import suppress
@@ -38,11 +39,17 @@ from generaldataagent.datasets.xlsx_intake_contracts import (
 from generaldataagent.datasets.xlsx_intake_store import XlsxIntakeConflict, XlsxIntakeUnavailable
 from generaldataagent.datasets.xlsx_preflight import MAX_ROWS
 from generaldataagent.datasets.xlsx_preview import MAX_CELL_CHARS, PREVIEW_COLUMNS
-from generaldataagent.datasets.xlsx_snapshot import SnapshotHash
+from generaldataagent.datasets.xlsx_snapshot import (
+    MAX_PAGE_CHARS,
+    MAX_PAGE_ROWS,
+    SCAN_CHUNK_CHARS,
+    SnapshotHash,
+)
 
 _ARTIFACT_TYPE = "xlsx_analysis_dataset"
 _READER = "gda-xlsx-analysis-dataset-v1"
 _BINDING_READER = "gda-xlsx-analysis-binding-v1"
+_VALUES_READER = "gda-xlsx-analysis-values-v1"
 _CONVERSIONS: dict[str, tuple[str, str]] = {
     "text": ("string", "exact-text"),
     "integer": ("integer", "exact-integer"),
@@ -194,6 +201,80 @@ class XlsxAnalysisDataset(ContractModel):
         return self
 
 
+class XlsxAnalysisValueRow(ContractModel):
+    """One typed source row from an analysis dataset; every value is present."""
+
+    schema_version: Literal["1.0"] = "1.0"
+    row: int = Field(ge=1, le=MAX_ROWS, strict=True)
+    values: tuple[Any, ...] = Field(max_length=PREVIEW_COLUMNS)
+
+
+class XlsxAnalysisValuePage(ContractModel):
+    """A keyset page of exact typed values from one creator-bound analysis dataset."""
+
+    schema_version: Literal["1.0"] = "1.0"
+    reader: Literal["gda-xlsx-analysis-values-v1"] = _VALUES_READER
+    file_id: UUID
+    task_id: UUID
+    artifact_id: UUID
+    artifact_hash: SnapshotHash
+    snapshot_hash: SnapshotHash
+    status: Literal["current"] = "current"
+    columns: tuple[XlsxAnalysisColumn, ...] = Field(min_length=1, max_length=PREVIEW_COLUMNS)
+    rows: tuple[XlsxAnalysisValueRow, ...] = Field(max_length=MAX_PAGE_ROWS)
+    after: int | None = Field(default=None, ge=0, strict=True)
+    next: int | None = Field(default=None, ge=0, strict=True)
+    more: bool = Field(strict=True)
+    retained_rows: int = Field(ge=2, le=MAX_ROWS, strict=True)
+    values: Literal["typed-exact-declared-columns-only"] = "typed-exact-declared-columns-only"
+    dlp: Literal["artifact-rescanned-before-return"] = "artifact-rescanned-before-return"
+    storage: Literal["dlp-scanned-creator-artifact"] = "dlp-scanned-creator-artifact"
+    row_scope: Literal["present-value-only"] = "present-value-only"
+    roles: Literal["not-assigned"] = "not-assigned"
+    target: Literal["not-designated"] = "not-designated"
+    dataset_snapshot: Literal[False] = False
+    certified_metric_source: Literal[False] = False
+
+    @model_validator(mode="after")
+    def page_is_coherent(self) -> "XlsxAnalysisValuePage":
+        indices = [column.index for column in self.columns]
+        names = [column.header for column in self.columns]
+        if (
+            indices != sorted(set(indices))
+            or len(names) != len(set(names))
+            or any(not name or len(name) > MAX_DECLARED_HEADER_CHARS for name in names)
+            or self.more != (self.next is not None)
+            or len(self.rows) > self.retained_rows
+            or (self.more and not self.rows)
+            or (self.more and self.next != self.rows[-1].row)
+        ):
+            raise ValueError("xlsx_analysis_page_invalid")
+        characters = 0
+        for position, row in enumerate(self.rows):
+            if len(row.values) != len(self.columns):
+                raise ValueError("xlsx_analysis_page_invalid")
+            if position and self.rows[position - 1].row >= row.row:
+                raise ValueError("xlsx_analysis_page_invalid")
+            if self.after is not None and row.row <= self.after:
+                raise ValueError("xlsx_analysis_page_invalid")
+            for column, value in zip(self.columns, row.values, strict=True):
+                if column.analysis_type == "string":
+                    if type(value) is not str or not 1 <= len(value) <= MAX_CELL_CHARS:
+                        raise ValueError("xlsx_analysis_page_invalid")
+                    characters += len(value)
+                elif column.analysis_type == "integer":
+                    if type(value) is not int:
+                        raise ValueError("xlsx_analysis_page_invalid")
+                    characters += len(str(value))
+                else:
+                    if type(value) is not bool:
+                        raise ValueError("xlsx_analysis_page_invalid")
+                    characters += 5
+        if characters > MAX_PAGE_CHARS:
+            raise ValueError("xlsx_analysis_page_invalid")
+        return self
+
+
 def _analysis_column(column: XlsxSnapshotColumnData) -> XlsxAnalysisColumn:
     analysis_type, conversion = _CONVERSIONS[column.type]
     return XlsxAnalysisColumn(
@@ -218,6 +299,66 @@ def _exact_value(column: XlsxSnapshotColumnData, value: str) -> bool | int | str
         return int(value)
     except ValueError as exc:
         raise XlsxAnalysisRefused("xlsx_analysis_value_invalid") from exc
+
+
+def analysis_page(
+    artifact: XlsxAnalysisArtifact,
+    *,
+    artifact_id: UUID,
+    artifact_hash: str,
+    after: int | None = None,
+    limit: int = MAX_PAGE_ROWS,
+) -> XlsxAnalysisValuePage:
+    """Project a keyset page of already-typed values; no value leaves through metadata."""
+    if not 1 <= limit <= MAX_PAGE_ROWS:
+        raise XlsxAnalysisRefused("xlsx_analysis_page_limit_invalid")
+    start = 0 if after is None else bisect_right(artifact.row_numbers, after)
+    stop = min(start + limit, len(artifact.row_numbers))
+    rows = []
+    characters = 0
+    for position in range(start, stop):
+        values = artifact.rows[position]
+        characters += sum(
+            len(value) if type(value) is str else 5 if type(value) is bool else len(str(value))
+            for value in values
+        )
+        rows.append(XlsxAnalysisValueRow(row=artifact.row_numbers[position], values=values))
+    if characters > MAX_PAGE_CHARS:
+        raise XlsxAnalysisRefused("xlsx_analysis_page_char_limit")
+    more = stop < len(artifact.row_numbers)
+    return XlsxAnalysisValuePage(
+        file_id=artifact.file_id,
+        task_id=artifact.task_id,
+        artifact_id=artifact_id,
+        artifact_hash=artifact_hash,
+        snapshot_hash=artifact.snapshot_hash,
+        columns=artifact.columns,
+        rows=tuple(rows),
+        after=after,
+        next=rows[-1].row if more and rows else None,
+        more=more,
+        retained_rows=len(artifact.row_numbers),
+    )
+
+
+def _scan_page_values(
+    rows: tuple[XlsxAnalysisValueRow, ...], scanner, check: Callable[[], None]
+) -> None:
+    """Rescan the page's plaintext before disclosure; a denial returns no page."""
+    chunk: list[str] = []
+    size = 0
+    for row in rows:
+        for value in row.values:
+            text = "true" if value is True else "false" if value is False else str(value)
+            chunk.append(text)
+            size += len(text) + 1
+            if size >= SCAN_CHUNK_CHARS:
+                check()
+                scanner.check("\n".join(chunk).encode())
+                chunk, size = [], 0
+    if chunk:
+        check()
+        scanner.check("\n".join(chunk).encode())
 
 
 class XlsxAnalysisBinder:
@@ -306,6 +447,17 @@ class XlsxAnalysisBinder:
             rows=tuple(rows),
         )
 
+    def _store(self, actor: ActorContext) -> GovernedArtifactStore:
+        return GovernedArtifactStore(
+            self.artifact_root,
+            index_path=self.artifact_index,
+            actor=actor,
+            scanner=self.intake.scanner,
+            retention_seconds=self.intake.retention_seconds,
+            clock=self.intake.store.clock,
+            read_policy=ArtifactReadPolicy.CREATOR,
+        )
+
     def _write(
         self, artifact: XlsxAnalysisArtifact, actor: ActorContext
     ) -> tuple[GovernedArtifactStore, ArtifactRef]:
@@ -316,15 +468,7 @@ class XlsxAnalysisBinder:
             separators=(",", ":"),
             allow_nan=False,
         ).encode()
-        artifacts = GovernedArtifactStore(
-            self.artifact_root,
-            index_path=self.artifact_index,
-            actor=actor,
-            scanner=self.intake.scanner,
-            retention_seconds=self.intake.retention_seconds,
-            clock=self.intake.store.clock,
-            read_policy=ArtifactReadPolicy.CREATOR,
-        )
+        artifacts = self._store(actor)
         try:
             ref = artifacts.put_bytes(
                 task_id=artifact.task_id,
@@ -391,6 +535,64 @@ class XlsxAnalysisBinder:
                 artifacts.discard(artifact)
             raise
 
+    def values(
+        self,
+        file_id: UUID,
+        artifact_id: UUID,
+        actor: ActorContext,
+        token: str,
+        *,
+        snapshot_hash: str,
+        after: int | None = None,
+        limit: int = 100,
+        deadline: float | None = None,
+    ) -> XlsxAnalysisValuePage:
+        """Return a bounded keyset page from one exact creator-bound binding."""
+        if not 1 <= limit <= MAX_PAGE_ROWS:
+            raise XlsxAnalysisRefused("xlsx_analysis_page_limit_invalid")
+        deadline = (
+            self.intake.monotonic() + self.intake.limits.max_seconds
+            if deadline is None
+            else deadline
+        )
+        payload, snapshot, check = self._current(file_id, actor, token, snapshot_hash, deadline)
+        artifacts = self._store(actor)
+        reference = artifacts.find_task_artifact(payload.file.task_id, artifact_id, _ARTIFACT_TYPE)
+        if reference is None:
+            raise PermissionError("xlsx_analysis_artifact_unavailable")
+        check()
+        parsed = load_xlsx_analysis_artifact(artifacts.read_bytes(reference), artifact=reference)
+        check()
+        if parsed.file_id != file_id or parsed.snapshot_hash != snapshot.snapshot_hash:
+            raise XlsxIntakeConflict("xlsx_snapshot_changed")
+        page = analysis_page(
+            parsed,
+            artifact_id=reference.artifact_id,
+            artifact_hash=reference.content_hash,
+            after=after,
+            limit=limit,
+        )
+        if page.rows:
+            _scan_page_values(page.rows, self.intake.scanner, check)
+            self.intake._audit(
+                "xlsx.analysis_values_read",
+                payload,
+                {
+                    "snapshot_hash": snapshot.snapshot_hash,
+                    "artifact_id": str(reference.artifact_id),
+                    "rows": len(page.rows),
+                    "cells": len(page.rows) * len(page.columns),
+                    "first_row": page.rows[0].row,
+                    "last_row": page.rows[-1].row,
+                },
+            )
+        check()
+        current, _, after_check = self._current(file_id, actor, token, snapshot_hash, deadline)
+        after_check()
+        if current.snapshot is None or current.snapshot.snapshot_hash != snapshot.snapshot_hash:
+            raise XlsxIntakeConflict("xlsx_snapshot_changed")
+        return page
+
 
 def load_xlsx_analysis_artifact(content: bytes, *, artifact: ArtifactRef) -> XlsxAnalysisArtifact:
     """Validate one already-authorized artifact body against its reference."""
@@ -411,5 +613,8 @@ __all__ = [
     "XlsxAnalysisColumn",
     "XlsxAnalysisDataset",
     "XlsxAnalysisRefused",
+    "XlsxAnalysisValuePage",
+    "XlsxAnalysisValueRow",
+    "analysis_page",
     "load_xlsx_analysis_artifact",
 ]
