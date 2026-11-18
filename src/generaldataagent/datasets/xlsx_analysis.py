@@ -275,6 +275,83 @@ class XlsxAnalysisValuePage(ContractModel):
         return self
 
 
+class XlsxAnalysisColumnProfile(ContractModel):
+    """Exact cardinality for one analysis column; extremes only for native integers."""
+
+    schema_version: Literal["1.0"] = "1.0"
+    index: int = Field(ge=0, lt=PREVIEW_COLUMNS, strict=True)
+    header: str = Field(max_length=MAX_DECLARED_HEADER_CHARS)
+    declared_type: DeclaredColumnType
+    analysis_type: Literal["string", "integer", "boolean"]
+    conversion: Literal[
+        "exact-text",
+        "exact-integer",
+        "exact-boolean",
+        "exact-decimal-text",
+        "iso-date-text",
+    ]
+    present_count: int = Field(ge=1, le=MAX_ROWS, strict=True)
+    distinct_count: int = Field(ge=1, le=MAX_ROWS, strict=True)
+    integer_min: StrictInt | None = None
+    integer_max: StrictInt | None = None
+
+    @model_validator(mode="after")
+    def counts_and_extremes_are_coherent(self) -> "XlsxAnalysisColumnProfile":
+        if (
+            not self.header
+            or (self.analysis_type, self.conversion) != _CONVERSIONS[self.declared_type]
+            or self.distinct_count > self.present_count
+            or (self.integer_min is None) != (self.analysis_type != "integer")
+            or (self.integer_max is None) != (self.analysis_type != "integer")
+            or (
+                self.integer_min is not None
+                and self.integer_max is not None
+                and self.integer_min > self.integer_max
+            )
+        ):
+            raise ValueError("xlsx_analysis_profile_invalid")
+        return self
+
+
+class XlsxAnalysisProfile(ContractModel):
+    """Bounded counts for one immutable analysis dataset; never a metric query or result."""
+
+    schema_version: Literal["1.0"] = "1.0"
+    reader: Literal["gda-xlsx-analysis-profile-v1"] = "gda-xlsx-analysis-profile-v1"
+    file_id: UUID
+    task_id: UUID
+    artifact_id: UUID
+    artifact_hash: SnapshotHash
+    snapshot_hash: SnapshotHash
+    status: Literal["current"] = "current"
+    row_count: int = Field(ge=2, le=MAX_ROWS, strict=True)
+    cells: int = Field(ge=2, le=MAX_SNAPSHOT_CELLS, strict=True)
+    columns: tuple[XlsxAnalysisColumnProfile, ...] = Field(min_length=1, max_length=PREVIEW_COLUMNS)
+    scope: Literal["selected-declared-columns"] = "selected-declared-columns"
+    aggregation: Literal["exact-counts-and-integer-extremes"] = "exact-counts-and-integer-extremes"
+    values: Literal["counts-only-not-returned"] = "counts-only-not-returned"
+    dlp: Literal["header-text-rescanned-before-return"] = "header-text-rescanned-before-return"
+    storage: Literal["dlp-scanned-creator-artifact"] = "dlp-scanned-creator-artifact"
+    row_scope: Literal["present-value-only"] = "present-value-only"
+    roles: Literal["not-assigned"] = "not-assigned"
+    target: Literal["not-designated"] = "not-designated"
+    dataset_snapshot: Literal[False] = False
+    certified_metric_source: Literal[False] = False
+
+    @model_validator(mode="after")
+    def profile_is_coherent(self) -> "XlsxAnalysisProfile":
+        indices = [column.index for column in self.columns]
+        names = [column.header for column in self.columns]
+        if (
+            indices != sorted(set(indices))
+            or len(names) != len(set(names))
+            or self.cells != self.row_count * len(self.columns)
+            or any(column.present_count != self.row_count for column in self.columns)
+        ):
+            raise ValueError("xlsx_analysis_profile_invalid")
+        return self
+
+
 def _analysis_column(column: XlsxSnapshotColumnData) -> XlsxAnalysisColumn:
     analysis_type, conversion = _CONVERSIONS[column.type]
     return XlsxAnalysisColumn(
@@ -341,6 +418,42 @@ def analysis_page(
     )
 
 
+def analysis_profile(
+    artifact: XlsxAnalysisArtifact, *, artifact_id: UUID, artifact_hash: str
+) -> XlsxAnalysisProfile:
+    """Count exact present values per column; never return a value or coerce a text type."""
+    columns = []
+    for position, column in enumerate(artifact.columns):
+        values = [row[position] for row in artifact.rows]
+        present = len(values)
+        distinct = len(set(values))
+        integer_min = min(values) if column.analysis_type == "integer" else None
+        integer_max = max(values) if column.analysis_type == "integer" else None
+        columns.append(
+            XlsxAnalysisColumnProfile(
+                index=column.index,
+                header=column.header,
+                declared_type=column.declared_type,
+                analysis_type=column.analysis_type,
+                conversion=column.conversion,
+                present_count=present,
+                distinct_count=distinct,
+                integer_min=integer_min,
+                integer_max=integer_max,
+            )
+        )
+    return XlsxAnalysisProfile(
+        file_id=artifact.file_id,
+        task_id=artifact.task_id,
+        artifact_id=artifact_id,
+        artifact_hash=artifact_hash,
+        snapshot_hash=artifact.snapshot_hash,
+        row_count=len(artifact.row_numbers),
+        cells=len(artifact.row_numbers) * len(artifact.columns),
+        columns=tuple(columns),
+    )
+
+
 def _scan_page_values(
     rows: tuple[XlsxAnalysisValueRow, ...], scanner, check: Callable[[], None]
 ) -> None:
@@ -359,6 +472,13 @@ def _scan_page_values(
     if chunk:
         check()
         scanner.check("\n".join(chunk).encode())
+
+
+def _scan_headers(columns: tuple[XlsxAnalysisColumnProfile, ...], scanner, check) -> None:
+    """Rescan the only disclosed text before returning counts; no cell value is scanned here."""
+    check()
+    scanner.check("\n".join(column.header for column in columns).encode())
+    check()
 
 
 class XlsxAnalysisBinder:
@@ -593,6 +713,55 @@ class XlsxAnalysisBinder:
             raise XlsxIntakeConflict("xlsx_snapshot_changed")
         return page
 
+    def profile(
+        self,
+        file_id: UUID,
+        artifact_id: UUID,
+        actor: ActorContext,
+        token: str,
+        *,
+        snapshot_hash: str,
+        deadline: float | None = None,
+    ) -> XlsxAnalysisProfile:
+        """Return exact bounded counts for one creator-bound analysis dataset."""
+        deadline = (
+            self.intake.monotonic() + self.intake.limits.max_seconds
+            if deadline is None
+            else deadline
+        )
+        payload, snapshot, check = self._current(file_id, actor, token, snapshot_hash, deadline)
+        artifacts = self._store(actor)
+        reference = artifacts.find_task_artifact(payload.file.task_id, artifact_id, _ARTIFACT_TYPE)
+        if reference is None:
+            raise PermissionError("xlsx_analysis_artifact_unavailable")
+        check()
+        parsed = load_xlsx_analysis_artifact(artifacts.read_bytes(reference), artifact=reference)
+        check()
+        if parsed.file_id != file_id or parsed.snapshot_hash != snapshot.snapshot_hash:
+            raise XlsxIntakeConflict("xlsx_snapshot_changed")
+        profile = analysis_profile(
+            parsed,
+            artifact_id=reference.artifact_id,
+            artifact_hash=reference.content_hash,
+        )
+        _scan_headers(profile.columns, self.intake.scanner, check)
+        self.intake._audit(
+            "xlsx.analysis_profile_read",
+            payload,
+            {
+                "snapshot_hash": snapshot.snapshot_hash,
+                "artifact_id": str(reference.artifact_id),
+                "rows": profile.row_count,
+                "columns": len(profile.columns),
+            },
+        )
+        check()
+        current, _, after_check = self._current(file_id, actor, token, snapshot_hash, deadline)
+        after_check()
+        if current.snapshot is None or current.snapshot.snapshot_hash != snapshot.snapshot_hash:
+            raise XlsxIntakeConflict("xlsx_snapshot_changed")
+        return profile
+
 
 def load_xlsx_analysis_artifact(content: bytes, *, artifact: ArtifactRef) -> XlsxAnalysisArtifact:
     """Validate one already-authorized artifact body against its reference."""
@@ -611,10 +780,13 @@ __all__ = [
     "XlsxAnalysisArtifact",
     "XlsxAnalysisBinder",
     "XlsxAnalysisColumn",
+    "XlsxAnalysisColumnProfile",
     "XlsxAnalysisDataset",
+    "XlsxAnalysisProfile",
     "XlsxAnalysisRefused",
     "XlsxAnalysisValuePage",
     "XlsxAnalysisValueRow",
     "analysis_page",
+    "analysis_profile",
     "load_xlsx_analysis_artifact",
 ]

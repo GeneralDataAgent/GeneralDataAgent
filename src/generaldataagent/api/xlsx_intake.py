@@ -14,6 +14,7 @@ from generaldataagent.datasets.xlsx_analysis import (
     BindXlsxAnalysis,
     XlsxAnalysisBinder,
     XlsxAnalysisDataset,
+    XlsxAnalysisProfile,
     XlsxAnalysisRefused,
     XlsxAnalysisValuePage,
 )
@@ -391,6 +392,24 @@ def xlsx_intake_router(
                 after=after,
                 limit=limit,
             )
+        except Exception as exc:
+            raise denied(exc) from exc
+
+    @router.get(
+        "/v1/analysis/files/xlsx/{file_id}/snapshot/analysis/{artifact_id}/profile",
+        response_model=XlsxAnalysisProfile,
+    )
+    def analysis_profile(
+        file_id: UUID,
+        artifact_id: UUID,
+        request: Request,
+        snapshot_hash: str = Query(pattern=SNAPSHOT_HASH_PATTERN),
+    ):
+        if analysis is None:
+            raise HTTPException(status_code=503, detail="xlsx_analysis_not_configured")
+        actor, token = credentials(request)
+        try:
+            return analysis.profile(file_id, artifact_id, actor, token, snapshot_hash=snapshot_hash)
         except Exception as exc:
             raise denied(exc) from exc
 

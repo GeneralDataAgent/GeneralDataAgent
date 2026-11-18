@@ -31,6 +31,8 @@ from generaldataagent.datasets.xlsx_analysis import (
     XlsxAnalysisArtifact,
     XlsxAnalysisBinder,
     XlsxAnalysisColumn,
+    XlsxAnalysisColumnProfile,
+    XlsxAnalysisProfile,
     XlsxAnalysisRefused,
     XlsxAnalysisValuePage,
     _exact_value,
@@ -680,3 +682,182 @@ def test_artifact_lookup_is_exact_and_creator_scoped(tmp_path):
     )
     with pytest.raises(ValueError, match="artifact lookup requires"):
         store.find_task_artifact(artifact.task_id, artifact.artifact_id, "")
+
+
+def read_profile(client, headers, file_id, artifact_id, digest):
+    return client.get(
+        f"/v1/analysis/files/xlsx/{file_id}/snapshot/analysis/{artifact_id}/profile",
+        headers=headers,
+        params={"snapshot_hash": digest},
+    )
+
+
+def test_profile_returns_exact_counts_and_integer_extremes_without_values(tmp_path):
+    _, _, client, _, headers = setup(tmp_path)
+    file_id, _ = prepared(client, headers, raw=RAW, columns=COLUMNS)
+    digest = snapshot(client, headers, file_id).json()["snapshot_hash"]
+    artifact = bind(client, headers, file_id, digest, (0, 1, 2, 3, 4)).json()["artifact"]
+
+    response = read_profile(client, headers, file_id, artifact["artifact_id"], digest)
+    assert response.status_code == 200, response.text
+    profile = response.json()
+    assert profile["reader"] == "gda-xlsx-analysis-profile-v1"
+    assert profile["artifact_id"] == artifact["artifact_id"]
+    assert profile["artifact_hash"] == artifact["content_hash"]
+    assert profile["snapshot_hash"] == digest
+    assert profile["status"] == "current"
+    assert profile["scope"] == "selected-declared-columns"
+    assert profile["aggregation"] == "exact-counts-and-integer-extremes"
+    assert profile["values"] == "counts-only-not-returned"
+    assert profile["dlp"] == "header-text-rescanned-before-return"
+    assert profile["storage"] == "dlp-scanned-creator-artifact"
+    assert profile["row_scope"] == "present-value-only"
+    assert profile["roles"] == "not-assigned"
+    assert profile["target"] == "not-designated"
+    assert profile["dataset_snapshot"] is False
+    assert profile["certified_metric_source"] is False
+    assert (profile["row_count"], profile["cells"]) == (3, 15)
+    assert [column["index"] for column in profile["columns"]] == [0, 1, 2, 3, 4]
+    assert [column["analysis_type"] for column in profile["columns"]] == [
+        "string",
+        "integer",
+        "boolean",
+        "string",
+        "string",
+    ]
+    assert [column["present_count"] for column in profile["columns"]] == [3, 3, 3, 3, 3]
+    assert [column["distinct_count"] for column in profile["columns"]] == [3, 3, 2, 3, 3]
+    count = profile["columns"][1]
+    assert (count["integer_min"], count["integer_max"]) == (-4, 3)
+    assert all(
+        column["integer_min"] is None and column["integer_max"] is None
+        for column in profile["columns"]
+        if column["analysis_type"] != "integer"
+    )
+    body = json.dumps(profile)
+    for value in ("001", "2023-03-15", '"2.5"', '"10"'):
+        assert value not in body
+    assert "xlsx.analysis_profile_read" in (tmp_path / "audit.jsonl").read_text()
+
+
+def test_profile_projects_only_the_bound_columns(tmp_path):
+    _, _, client, _, headers = setup(tmp_path)
+    file_id, _ = prepared(client, headers, raw=RAW, columns=COLUMNS)
+    digest = snapshot(client, headers, file_id).json()["snapshot_hash"]
+    artifact = bind(client, headers, file_id, digest, (1, 4)).json()["artifact"]
+    profile = read_profile(client, headers, file_id, artifact["artifact_id"], digest).json()
+    assert [column["index"] for column in profile["columns"]] == [1, 4]
+    assert [column["header"] for column in profile["columns"]] == ["count", "day"]
+    assert (profile["row_count"], profile["cells"]) == (3, 6)
+
+
+def test_profile_is_creator_scoped_and_expires(tmp_path):
+    now = [datetime(2026, 11, 18, 1, 0, tzinfo=UTC)]
+    intake, _, client, _, headers = setup(tmp_path, clock=lambda: now[0], retention=60)
+    file_id, _ = prepared(client, headers, raw=RAW, columns=COLUMNS)
+    digest = snapshot(client, headers, file_id).json()["snapshot_hash"]
+    artifact_id = bind(client, headers, file_id, digest, (0,)).json()["artifact"]["artifact_id"]
+    assert read_profile(client, headers, file_id, artifact_id, digest).status_code == 200
+    other = actor().model_copy(update={"user_id": "other", "tenant_id": "tenant-2"})
+    _, other_headers = credentials(intake.broker, other)
+    assert read_profile(client, other_headers, file_id, artifact_id, digest).status_code == 404
+    now[0] += timedelta(seconds=61)
+    assert read_profile(client, headers, file_id, artifact_id, digest).status_code == 404
+
+
+def test_profile_requires_the_exact_current_snapshot_and_task(tmp_path):
+    _, _, client, _, headers = setup(tmp_path)
+    file_id, declared = prepared(client, headers, raw=RAW, columns=COLUMNS)
+    digest = snapshot(client, headers, file_id).json()["snapshot_hash"]
+    artifact_id = bind(client, headers, file_id, digest, (0,)).json()["artifact"]["artifact_id"]
+
+    unknown = read_profile(client, headers, file_id, UUID(int=0), digest)
+    assert unknown.status_code == 404
+    changed = read_profile(client, headers, file_id, artifact_id, "sha256:" + "0" * 64)
+    assert changed.status_code == 409
+    assert changed.json()["detail"] == "xlsx_snapshot_changed"
+
+    revised = declaration_body(declared, columns=[COLUMNS[0]])
+    assert declare(client, headers, file_id, revised).status_code == 200
+    stale = read_profile(client, headers, file_id, artifact_id, digest)
+    assert stale.status_code == 409
+    assert stale.json()["detail"] == "xlsx_snapshot_stale"
+    new_digest = snapshot(client, headers, file_id).json()["snapshot_hash"]
+    old_artifact = read_profile(client, headers, file_id, artifact_id, new_digest)
+    assert old_artifact.status_code == 409
+    assert old_artifact.json()["detail"] == "xlsx_snapshot_changed"
+
+
+def test_profile_rescans_headers_before_return(tmp_path):
+    class LateScanner:
+        def __init__(self):
+            self.deny = False
+
+        def check(self, content: bytes) -> None:
+            if self.deny and b"price" in content:
+                raise DLPDeniedError("dlp_personal_data")
+
+    scanner = LateScanner()
+    _, _, client, _, headers = setup(tmp_path, scanner=scanner)
+    file_id, _ = prepared(client, headers, raw=RAW, columns=COLUMNS)
+    digest = snapshot(client, headers, file_id).json()["snapshot_hash"]
+    artifact_id = bind(client, headers, file_id, digest, (0, 3)).json()["artifact"]["artifact_id"]
+    scanner.deny = True
+    response = read_profile(client, headers, file_id, artifact_id, digest)
+    assert response.status_code == 404
+    assert response.json()["detail"] == "xlsx_file_unavailable"
+    assert "xlsx.analysis_profile_read" not in (tmp_path / "audit.jsonl").read_text()
+
+
+def test_profile_contracts_reject_incoherent_counts_and_extremes():
+    digest = "sha256:" + "0" * 64
+    profile = XlsxAnalysisProfile(
+        file_id=UUID(int=1),
+        task_id=UUID(int=2),
+        artifact_id=UUID(int=3),
+        artifact_hash=digest,
+        snapshot_hash=digest,
+        row_count=2,
+        cells=2,
+        columns=(
+            XlsxAnalysisColumnProfile(
+                index=0,
+                header="count",
+                declared_type="integer",
+                analysis_type="integer",
+                conversion="exact-integer",
+                present_count=2,
+                distinct_count=1,
+                integer_min=1,
+                integer_max=1,
+            ),
+        ),
+    )
+    assert profile.columns[0].integer_min == 1
+    for update in (
+        {"cells": 3},
+        {"row_count": 3},
+        {"columns": (profile.columns[0].model_copy(update={"present_count": 1}),)},
+    ):
+        with pytest.raises(ValidationError, match="xlsx_analysis_profile_invalid"):
+            XlsxAnalysisProfile.model_validate(profile.model_dump() | update)
+    for update in (
+        {"distinct_count": 3},
+        {"integer_min": None},
+        {"integer_min": 2},
+        {"header": ""},
+        {"analysis_type": "string", "conversion": "exact-text"},
+    ):
+        with pytest.raises(ValidationError, match="xlsx_analysis_profile_invalid"):
+            XlsxAnalysisColumnProfile.model_validate(profile.columns[0].model_dump() | update)
+
+
+def test_profile_requires_an_explicitly_configured_port(tmp_path):
+    intake = build_service(tmp_path)
+    _, headers = credentials(intake.broker)
+    client = client_for(intake)
+    file_id, _ = prepared(client, headers, raw=RAW, columns=COLUMNS)
+    digest = snapshot(client, headers, file_id).json()["snapshot_hash"]
+    response = read_profile(client, headers, file_id, UUID(int=0), digest)
+    assert response.status_code == 503
+    assert response.json()["detail"] == "xlsx_analysis_not_configured"
