@@ -15,6 +15,7 @@ from generaldataagent.datasets.xlsx_analysis import (
     XlsxAnalysisBinder,
     XlsxAnalysisDataset,
     XlsxAnalysisRefused,
+    XlsxAnalysisValuePage,
 )
 from generaldataagent.datasets.xlsx_conformance import XlsxConformanceReader, XlsxConformanceResult
 from generaldataagent.datasets.xlsx_declarations import XlsxDeclarationListing, XlsxDeclarationPage
@@ -362,6 +363,34 @@ def xlsx_intake_router(
                     status_code=422, detail="xlsx_analysis_request_invalid"
                 ) from exc
             return await run_in_threadpool(analysis.bind, file_id, actor, token, binding)
+        except Exception as exc:
+            raise denied(exc) from exc
+
+    @router.get(
+        "/v1/analysis/files/xlsx/{file_id}/snapshot/analysis/{artifact_id}/values",
+        response_model=XlsxAnalysisValuePage,
+    )
+    def analysis_values(
+        file_id: UUID,
+        artifact_id: UUID,
+        request: Request,
+        snapshot_hash: str = Query(pattern=SNAPSHOT_HASH_PATTERN),
+        after: int | None = Query(default=None, ge=0),
+        limit: int = Query(default=100, ge=1, le=MAX_PAGE_ROWS),
+    ):
+        if analysis is None:
+            raise HTTPException(status_code=503, detail="xlsx_analysis_not_configured")
+        actor, token = credentials(request)
+        try:
+            return analysis.values(
+                file_id,
+                artifact_id,
+                actor,
+                token,
+                snapshot_hash=snapshot_hash,
+                after=after,
+                limit=limit,
+            )
         except Exception as exc:
             raise denied(exc) from exc
 

@@ -252,6 +252,57 @@ class GovernedArtifactStore(LocalArtifactStore):
                 found.append(ref)
         return tuple(sorted(found, key=lambda ref: (str(ref.artifact_id), ref.uri)))
 
+    def find_task_artifact(
+        self, task_id: UUID, artifact_id: UUID, artifact_type: str
+    ) -> ArtifactRef | None:
+        """Find exactly one creator-written task artifact, or return no candidate.
+
+        This is a targeted read for a known reference, not a listing surface. The
+        identity, retention state and exact reference are re-checked before the
+        record is returned. A type or task mismatch is indistinguishable from an
+        absent artifact so callers cannot probe other tasks or types.
+        """
+        if (
+            not isinstance(task_id, UUID)
+            or not isinstance(artifact_id, UUID)
+            or not isinstance(artifact_type, str)
+            or not artifact_type
+        ):
+            raise ValueError("artifact lookup requires task and artifact UUIDs and a type")
+        now = self._now().timestamp()
+        with closing(sqlite3.connect(self.index_path, timeout=5)) as db:
+            rows = db.execute(
+                "SELECT ref_json FROM governed_artifacts_v2 "
+                "WHERE artifact_id = ? AND task_id = ? AND creator_user_id = ? "
+                "AND tenant_id = ? AND project_id = ? AND read_policy IN (?, ?) "
+                "AND deleted = 0 AND expires_at > ?",
+                (
+                    str(artifact_id),
+                    str(task_id),
+                    self.actor.user_id,
+                    self.actor.tenant_id,
+                    self.actor.project_id,
+                    ArtifactReadPolicy.PROJECT.value,
+                    ArtifactReadPolicy.CREATOR.value,
+                    now,
+                ),
+            ).fetchall()
+            if not rows:
+                return None
+            if len(rows) != 1:
+                raise PermissionError("artifact_access_denied")
+            ref = ArtifactRef.model_validate_json(rows[0][0])
+            if (
+                ref.artifact_id != artifact_id
+                or ref.task_id != task_id
+                or ref.artifact_type != artifact_type
+            ):
+                return None
+            record = self._authorized_record(db, ref)
+            if record.deleted or record.expires_at <= now:
+                return None
+            return ref
+
     def set_legal_hold(self, ref: ArtifactRef, *, held: bool) -> None:
         if type(held) is not bool:
             raise ValueError("legal hold must be boolean")

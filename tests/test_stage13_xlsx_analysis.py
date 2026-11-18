@@ -10,8 +10,11 @@ from test_metric_analysis import actor
 from test_stage11_task_submission import credentials
 from test_stage13_xlsx_conformance import prepared
 from test_stage13_xlsx_intake import (
+    XLSX,
     build_service,
     client_for,
+    confirm,
+    confirm_body,
     declaration_body,
     declare,
 )
@@ -25,13 +28,17 @@ from generaldataagent.artifacts.governed import ArtifactReadPolicy, GovernedArti
 from generaldataagent.contracts import ArtifactRef
 from generaldataagent.datasets.xlsx_analysis import (
     BindXlsxAnalysis,
+    XlsxAnalysisArtifact,
     XlsxAnalysisBinder,
     XlsxAnalysisColumn,
     XlsxAnalysisRefused,
+    XlsxAnalysisValuePage,
     _exact_value,
+    analysis_page,
     load_xlsx_analysis_artifact,
 )
 from generaldataagent.datasets.xlsx_intake_contracts import XlsxSnapshotColumnData
+from generaldataagent.security.dlp import DLPDeniedError
 
 HEADERS = ("code", "count", "active", "price", "day")
 COLUMNS = [
@@ -99,6 +106,14 @@ def bind(client, headers, file_id, digest, columns):
         f"/v1/analysis/files/xlsx/{file_id}/snapshot/analysis",
         headers=headers | {"content-type": "application/json"},
         json={"schema_version": "1.0", "snapshot_hash": digest, "columns": list(columns)},
+    )
+
+
+def read_values(client, headers, file_id, artifact_id, digest, **params):
+    return client.get(
+        f"/v1/analysis/files/xlsx/{file_id}/snapshot/analysis/{artifact_id}/values",
+        headers=headers,
+        params={"snapshot_hash": digest, **params},
     )
 
 
@@ -471,3 +486,197 @@ def test_failed_binding_discards_only_its_new_artifact(tmp_path, monkeypatch, fa
             "SELECT deleted FROM governed_artifacts_v2 ORDER BY deleted"
         ).fetchall()
     assert deleted == [(0,), (1,)]
+
+
+def test_values_page_returns_exact_typed_rows_and_advances_by_row_number(tmp_path):
+    _, _, client, _, headers = setup(tmp_path)
+    file_id, _ = prepared(client, headers, raw=RAW, columns=COLUMNS)
+    digest = snapshot(client, headers, file_id).json()["snapshot_hash"]
+    report = bind(client, headers, file_id, digest, (0, 1, 2, 3, 4)).json()
+    artifact = report["artifact"]
+
+    first = read_values(client, headers, file_id, artifact["artifact_id"], digest, limit=2)
+    assert first.status_code == 200, first.text
+    page = first.json()
+    assert page["reader"] == "gda-xlsx-analysis-values-v1"
+    assert page["artifact_id"] == artifact["artifact_id"]
+    assert page["artifact_hash"] == artifact["content_hash"]
+    assert page["snapshot_hash"] == digest
+    assert page["status"] == "current"
+    assert page["values"] == "typed-exact-declared-columns-only"
+    assert page["dlp"] == "artifact-rescanned-before-return"
+    assert page["storage"] == "dlp-scanned-creator-artifact"
+    assert page["row_scope"] == "present-value-only"
+    assert page["roles"] == "not-assigned"
+    assert page["target"] == "not-designated"
+    assert page["dataset_snapshot"] is False
+    assert page["certified_metric_source"] is False
+    assert [column["analysis_type"] for column in page["columns"]] == [
+        "string",
+        "integer",
+        "boolean",
+        "string",
+        "string",
+    ]
+    assert [(row["row"], row["values"]) for row in page["rows"]] == [
+        (2, ["001", 2, True, "2.5", "2023-03-15"]),
+        (3, ["002", 3, False, "-0.1", "2023-03-16"]),
+    ]
+    assert type(page["rows"][0]["values"][1]) is int
+    assert type(page["rows"][0]["values"][2]) is bool
+    assert (page["after"], page["more"], page["next"], page["retained_rows"]) == (None, True, 3, 3)
+
+    second = read_values(
+        client, headers, file_id, artifact["artifact_id"], digest, after=3, limit=2
+    ).json()
+    assert [row["row"] for row in second["rows"]] == [4]
+    assert (second["after"], second["more"], second["next"]) == (3, False, None)
+    assert "xlsx.analysis_values_read" in (tmp_path / "audit.jsonl").read_text()
+
+
+def test_values_page_is_creator_scoped_and_expires(tmp_path):
+    now = [datetime(2026, 11, 18, 1, 0, tzinfo=UTC)]
+    intake, _, client, _, headers = setup(tmp_path, clock=lambda: now[0], retention=60)
+    file_id, _ = prepared(client, headers, raw=RAW, columns=COLUMNS)
+    digest = snapshot(client, headers, file_id).json()["snapshot_hash"]
+    artifact_id = bind(client, headers, file_id, digest, (0,)).json()["artifact"]["artifact_id"]
+    assert read_values(client, headers, file_id, artifact_id, digest).status_code == 200
+    other = actor().model_copy(update={"user_id": "other", "tenant_id": "tenant-2"})
+    _, other_headers = credentials(intake.broker, other)
+    assert read_values(client, other_headers, file_id, artifact_id, digest).status_code == 404
+    now[0] += timedelta(seconds=61)
+    assert read_values(client, headers, file_id, artifact_id, digest).status_code == 404
+
+
+def test_values_page_requires_the_exact_current_snapshot_and_task(tmp_path):
+    _, _, client, _, headers = setup(tmp_path)
+    file_id, declared = prepared(client, headers, raw=RAW, columns=COLUMNS)
+    digest = snapshot(client, headers, file_id).json()["snapshot_hash"]
+    artifact_id = bind(client, headers, file_id, digest, (0,)).json()["artifact"]["artifact_id"]
+
+    unknown = read_values(client, headers, file_id, UUID(int=0), digest)
+    assert unknown.status_code == 404
+    changed = read_values(client, headers, file_id, artifact_id, "sha256:" + "0" * 64)
+    assert changed.status_code == 409
+    assert changed.json()["detail"] == "xlsx_snapshot_changed"
+
+    second = client.post(
+        "/v1/analysis/files/xlsx",
+        headers=headers | {"content-type": XLSX, "idempotency-key": "xlsx-2"},
+        content=RAW,
+    ).json()
+    other_file = second["file"]["file_id"]
+    confirmed = confirm(client, headers, other_file, confirm_body(second)).json()
+    assert (
+        declare(
+            client, headers, other_file, declaration_body(confirmed, columns=COLUMNS)
+        ).status_code
+        == 200
+    )
+    other_digest = snapshot(client, headers, other_file).json()["snapshot_hash"]
+    assert read_values(client, headers, other_file, artifact_id, other_digest).status_code == 404
+
+    response = declare(client, headers, file_id, declaration_body(declared, columns=[COLUMNS[0]]))
+    assert response.status_code == 200, response.text
+    stale = read_values(client, headers, file_id, artifact_id, digest)
+    assert stale.status_code == 409
+    assert stale.json()["detail"] == "xlsx_snapshot_stale"
+    new_digest = snapshot(client, headers, file_id).json()["snapshot_hash"]
+    old_artifact = read_values(client, headers, file_id, artifact_id, new_digest)
+    assert old_artifact.status_code == 409
+    assert old_artifact.json()["detail"] == "xlsx_snapshot_changed"
+
+
+def test_values_page_rescans_the_artifact_before_return(tmp_path):
+    class LateScanner:
+        def __init__(self):
+            self.deny = False
+
+        def check(self, content: bytes) -> None:
+            if self.deny and b"2023-03-15" in content:
+                raise DLPDeniedError("dlp_personal_data")
+
+    scanner = LateScanner()
+    _, _, client, _, headers = setup(tmp_path, scanner=scanner)
+    file_id, _ = prepared(client, headers, raw=RAW, columns=COLUMNS)
+    digest = snapshot(client, headers, file_id).json()["snapshot_hash"]
+    artifact_id = bind(client, headers, file_id, digest, (0, 3, 4)).json()["artifact"][
+        "artifact_id"
+    ]
+    scanner.deny = True
+    response = read_values(client, headers, file_id, artifact_id, digest)
+    assert response.status_code == 404
+    assert response.json()["detail"] == "xlsx_file_unavailable"
+    assert "xlsx.analysis_values_read" not in (tmp_path / "audit.jsonl").read_text()
+
+
+def test_values_page_contracts_enforce_types_order_and_the_character_budget():
+    column = XlsxAnalysisColumn(
+        index=0,
+        header="label",
+        declared_type="text",
+        analysis_type="string",
+        conversion="exact-text",
+    )
+    digest = "sha256:" + "0" * 64
+    large = XlsxAnalysisArtifact(
+        file_id=UUID(int=1),
+        task_id=UUID(int=2),
+        source_hash=digest,
+        preview_hash=digest,
+        confirmation_hash=digest,
+        interpretation_hash=digest,
+        snapshot_hash=digest,
+        date_system="1900",
+        duplicate_rows="reject",
+        duplicate_row_count=0,
+        columns=(column,),
+        row_numbers=tuple(range(1, 201)),
+        rows=tuple(("x" * 12000,) for _ in range(200)),
+    )
+    with pytest.raises(XlsxAnalysisRefused) as limit:
+        analysis_page(large, artifact_id=UUID(int=3), artifact_hash=digest, limit=0)
+    assert limit.value.code == "xlsx_analysis_page_limit_invalid"
+    with pytest.raises(XlsxAnalysisRefused) as characters:
+        analysis_page(large, artifact_id=UUID(int=3), artifact_hash=digest, limit=500)
+    assert characters.value.code == "xlsx_analysis_page_char_limit"
+
+    small = large.model_copy(update={"row_numbers": (1, 2), "rows": (("a",), ("b",))})
+    page = analysis_page(small, artifact_id=UUID(int=3), artifact_hash=digest)
+    for rows in (
+        ({"schema_version": "1.0", "row": 2, "values": [2]},),
+        (
+            {"schema_version": "1.0", "row": 2, "values": ["a"]},
+            {"schema_version": "1.0", "row": 1, "values": ["b"]},
+        ),
+        ({"schema_version": "1.0", "row": 1, "values": ["a", "extra"]},),
+    ):
+        with pytest.raises(ValidationError, match="xlsx_analysis_page_invalid"):
+            XlsxAnalysisValuePage.model_validate(page.model_dump() | {"rows": rows})
+
+
+def test_artifact_lookup_is_exact_and_creator_scoped(tmp_path):
+    intake, _, client, _, headers = setup(tmp_path)
+    file_id, _ = prepared(client, headers, raw=RAW, columns=COLUMNS)
+    digest = snapshot(client, headers, file_id).json()["snapshot_hash"]
+    artifact = ArtifactRef.model_validate(
+        bind(client, headers, file_id, digest, (0,)).json()["artifact"]
+    )
+    store = reader(intake, tmp_path)
+    assert (
+        store.find_task_artifact(artifact.task_id, artifact.artifact_id, "xlsx_analysis_dataset")
+        == artifact
+    )
+    assert store.find_task_artifact(artifact.task_id, artifact.artifact_id, "other_type") is None
+    assert (
+        store.find_task_artifact(UUID(int=0), artifact.artifact_id, "xlsx_analysis_dataset") is None
+    )
+    other = actor().model_copy(update={"user_id": "other"})
+    assert (
+        reader(intake, tmp_path, other).find_task_artifact(
+            artifact.task_id, artifact.artifact_id, "xlsx_analysis_dataset"
+        )
+        is None
+    )
+    with pytest.raises(ValueError, match="artifact lookup requires"):
+        store.find_task_artifact(artifact.task_id, artifact.artifact_id, "")
