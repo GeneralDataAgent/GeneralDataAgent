@@ -1,4 +1,5 @@
 import json
+import sqlite3
 from datetime import UTC, date, datetime, timedelta
 from uuid import UUID
 
@@ -433,3 +434,40 @@ def test_app_rejects_a_binder_for_another_intake_or_without_intake(tmp_path):
         create_app(session_broker=intake.broker, xlsx_intake=intake, xlsx_analysis=binder)
     with pytest.raises(ValueError, match="xlsx_analysis_must_share_intake"):
         create_app(session_broker=intake.broker, xlsx_analysis=binder)
+
+
+@pytest.mark.parametrize("failure", ["audit", "revision", "revocation"])
+def test_failed_binding_discards_only_its_new_artifact(tmp_path, monkeypatch, failure):
+    intake, _, client, token, headers = setup(tmp_path)
+    file_id, declared = prepared(client, headers, raw=RAW, columns=COLUMNS)
+    digest = snapshot(client, headers, file_id).json()["snapshot_hash"]
+    first = bind(client, headers, file_id, digest, (0,))
+    assert first.status_code == 201
+    existing = ArtifactRef.model_validate(first.json()["artifact"])
+    artifacts = reader(intake, tmp_path)
+    original = artifacts.read_bytes(existing)
+    files = set((tmp_path / "artifacts").glob("*/*.json"))
+    emitter = intake.audit.emit
+
+    def fail_before_delivery(event):
+        if event.event_type == "xlsx.analysis_dataset_bound":
+            if failure == "audit":
+                raise OSError("audit unavailable")
+            if failure == "revision":
+                revised = declaration_body(declared, columns=[COLUMNS[0]])
+                assert declare(client, headers, file_id, revised).status_code == 200
+            if failure == "revocation":
+                intake.broker.revoke(token)
+        emitter(event)
+
+    monkeypatch.setattr(intake.audit, "emit", fail_before_delivery)
+    response = bind(client, headers, file_id, digest, (0,))
+    assert response.status_code == {"audit": 503, "revision": 409, "revocation": 404}[failure]
+    assert set((tmp_path / "artifacts").glob("*/*.json")) == files
+    assert artifacts.find_task_artifacts(existing.task_id, existing.artifact_type) == (existing,)
+    assert artifacts.read_bytes(existing) == original
+    with sqlite3.connect(tmp_path / "artifact-index.db") as db:
+        deleted = db.execute(
+            "SELECT deleted FROM governed_artifacts_v2 ORDER BY deleted"
+        ).fetchall()
+    assert deleted == [(0,), (1,)]
