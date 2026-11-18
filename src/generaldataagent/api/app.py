@@ -37,6 +37,7 @@ from generaldataagent.data_science.sandbox import SandboxError
 from generaldataagent.data_science.tracking import ExperimentTrackingError
 from generaldataagent.data_science.workbench import DataScienceWorkbench, ScienceGateError
 from generaldataagent.datasets.csv_intake import CsvIntakeService
+from generaldataagent.datasets.xlsx_analysis import XlsxAnalysisBinder
 from generaldataagent.datasets.xlsx_intake import XlsxIntakeService
 from generaldataagent.datasets.xlsx_quality import XlsxQualityService
 from generaldataagent.observability.alerts import CriticalAlertRouter
@@ -107,6 +108,7 @@ def create_app(
     csv_intake: CsvIntakeService | None = None,
     xlsx_intake: XlsxIntakeService | None = None,
     xlsx_quality: XlsxQualityService | None = None,
+    xlsx_analysis: XlsxAnalysisBinder | None = None,
     business_context: BusinessContextService | None = None,
     mcp_read: McpReadService | None = None,
 ) -> FastAPI:
@@ -122,6 +124,8 @@ def create_app(
             raise ValueError("xlsx_intake_must_share_identity_broker")
     if xlsx_quality is not None and xlsx_quality.intake is not xlsx_intake:
         raise ValueError("xlsx_quality_must_share_intake")
+    if xlsx_analysis is not None and xlsx_analysis.intake is not xlsx_intake:
+        raise ValueError("xlsx_analysis_must_share_intake")
     if display_preferences is not None:
         if production_mode:
             raise ValueError("local_display_preferences_not_qualified_for_production")
@@ -548,7 +552,9 @@ def create_app(
     application.include_router(display_preference_router(display_preferences, task_credentials))
     application.include_router(business_context_router(business_context, task_credentials))
     application.include_router(csv_intake_router(csv_intake, task_credentials))
-    application.include_router(xlsx_intake_router(xlsx_intake, task_credentials, xlsx_quality))
+    application.include_router(
+        xlsx_intake_router(xlsx_intake, task_credentials, xlsx_quality, xlsx_analysis)
+    )
     if mcp_read is not None:
         application.include_router(mcp_read_router(mcp_read, task_credentials))
 
