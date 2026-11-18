@@ -10,6 +10,12 @@ from starlette.concurrency import run_in_threadpool
 from starlette.requests import ClientDisconnect
 
 from generaldataagent.contracts import ArtifactRef
+from generaldataagent.datasets.xlsx_analysis import (
+    BindXlsxAnalysis,
+    XlsxAnalysisBinder,
+    XlsxAnalysisDataset,
+    XlsxAnalysisRefused,
+)
 from generaldataagent.datasets.xlsx_conformance import XlsxConformanceReader, XlsxConformanceResult
 from generaldataagent.datasets.xlsx_declarations import XlsxDeclarationListing, XlsxDeclarationPage
 from generaldataagent.datasets.xlsx_formats import XlsxFormatReader, XlsxFormatReport
@@ -47,6 +53,7 @@ def xlsx_intake_router(
     service: XlsxIntakeService | None,
     credentials: Callable,
     quality: XlsxQualityService | None = None,
+    analysis: XlsxAnalysisBinder | None = None,
 ) -> APIRouter:
     router = APIRouter()
 
@@ -60,6 +67,8 @@ def xlsx_intake_router(
             return exc
         if isinstance(exc, XlsxIntakeLimit):
             return HTTPException(status_code=413, detail=str(exc))
+        if isinstance(exc, XlsxAnalysisRefused):
+            return HTTPException(status_code=422, detail=exc.code)
         if isinstance(exc, PermissionError):
             return HTTPException(status_code=404, detail="xlsx_file_unavailable")
         if isinstance(exc, XlsxIntakeConflict):
@@ -330,6 +339,29 @@ def xlsx_intake_router(
             return XlsxSnapshotReader(port).profile(
                 file_id, actor, token, expected_snapshot_hash=snapshot_hash
             )
+        except Exception as exc:
+            raise denied(exc) from exc
+
+    @router.post(
+        "/v1/analysis/files/xlsx/{file_id}/snapshot/analysis",
+        response_model=XlsxAnalysisDataset,
+        status_code=201,
+    )
+    async def bind_analysis(file_id: UUID, request: Request):
+        if analysis is None:
+            raise HTTPException(status_code=503, detail="xlsx_analysis_not_configured")
+        actor, token = credentials(request)
+        if request.headers.get("content-type", "").lower() != "application/json":
+            raise HTTPException(status_code=415, detail="xlsx_analysis_json_required")
+        try:
+            body, _ = await collect(request, configured(), actor, token, 4096)
+            try:
+                binding = BindXlsxAnalysis.model_validate_json(body)
+            except ValueError as exc:
+                raise HTTPException(
+                    status_code=422, detail="xlsx_analysis_request_invalid"
+                ) from exc
+            return await run_in_threadpool(analysis.bind, file_id, actor, token, binding)
         except Exception as exc:
             raise denied(exc) from exc
 
