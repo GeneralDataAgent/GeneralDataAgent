@@ -17,9 +17,11 @@ from typing import Any, Protocol
 
 from generaldataagent.contracts import McpDiscovery, McpServerProfile, McpToolCandidate
 from generaldataagent.contracts.mcp import (
+    LoopbackEndpoint,
     gateway_tool_name,
     mcp_description_hash,
     mcp_schema_hash,
+    parse_loopback_endpoint,
     validate_mcp_schema,
 )
 from generaldataagent.security.dlp import DLPDeniedError, TextDLPScanner
@@ -28,6 +30,16 @@ SUPPORTED_PROTOCOL_VERSIONS = frozenset({"2025-06-18"})
 _MAX_TOOLS = 64
 _MAX_DESCRIPTION = 2000
 _MAX_ERROR_TEXT = 500
+_MAX_HTTP_LINE_BYTES = 8_192
+_MAX_HTTP_HEAD_BYTES = 16_384
+_MAX_HTTP_HEADERS = 64
+_MAX_SSE_EVENTS = 64
+_MAX_REQUEST_BYTES = 262_144
+_RESPONSE_MEDIA_TYPES = frozenset({"application/json", "text/event-stream"})
+_IDENTITY_ENCODINGS = frozenset({"", "identity"})
+_SESSION_ID = re.compile(r"^[A-Za-z0-9._~-]{1,128}$")
+_HEADER_NAME = re.compile(r"^[!#$%&'*+.^_`|~0-9a-z-]{1,64}$")
+_CREDENTIAL = re.compile(r"^[\x21-\x7e]{1,4096}$")
 _REMOTE_TOOL = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
 
 
@@ -366,6 +378,377 @@ class StdioMcpTransport:
     async def close(self) -> None:
         async with self._lock:
             await self._close_locked()
+
+
+class HttpMcpTransport:
+    """Streamable HTTP JSON-RPC over one validated loopback endpoint.
+
+    One request is in flight at a time, each request uses its own connection and
+    only the two MCP media types are accepted. Redirects, proxies, compressed
+    bodies and oversized frames are refused before any payload is decoded. The
+    session owner enforces the deadline; cancellation or ``close`` closes the
+    socket under the in-flight request so a stalled read cannot outlive it.
+    """
+
+    def __init__(
+        self,
+        endpoint: str,
+        *,
+        credential: str | None = None,
+        max_response_bytes: int = 1_048_576,
+    ) -> None:
+        self._endpoint: LoopbackEndpoint = parse_loopback_endpoint(endpoint)
+        if type(max_response_bytes) is not int or max_response_bytes < 1024:
+            raise ValueError("mcp_response_limit_invalid")
+        if credential is not None and (
+            not isinstance(credential, str) or not _CREDENTIAL.fullmatch(credential)
+        ):
+            raise ValueError("mcp_credential_invalid")
+        self.endpoint = endpoint
+        self.max_response_bytes = max_response_bytes
+        self._credential = credential
+        self._session_id: str | None = None
+        self._protocol_version: str | None = None
+        self._lock = asyncio.Lock()
+        self._count = 0
+        self._writer: asyncio.StreamWriter | None = None
+        self._closed = True
+
+    @property
+    def closed(self) -> bool:
+        return self._closed
+
+    async def start(self) -> None:
+        if not self._closed:
+            raise McpProtocolError("mcp_transport_already_started")
+        self._session_id = None
+        self._protocol_version = None
+        self._count = 0
+        self._closed = False
+
+    async def request(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
+        async with self._lock:
+            if self._closed:
+                raise McpProtocolError("mcp_transport_closed")
+            self._count += 1
+            request_id = self._count
+            message = {"jsonrpc": "2.0", "id": request_id, "method": method, "params": params}
+            response = await self._exchange(message)
+            if not isinstance(response, dict) or response.get("id") != request_id:
+                raise McpProtocolError("mcp_response_mismatched")
+            return response
+
+    async def notify(self, method: str) -> None:
+        async with self._lock:
+            if self._closed:
+                raise McpProtocolError("mcp_transport_closed")
+            await self._exchange({"jsonrpc": "2.0", "method": method})
+
+    async def close(self) -> None:
+        async with self._lock:
+            self._closed = True
+            writer, self._writer = self._writer, None
+            if writer is not None:
+                writer.close()
+                with suppress(Exception, asyncio.CancelledError):
+                    await asyncio.wait_for(writer.wait_closed(), timeout=1)
+
+    async def _exchange(self, message: dict[str, Any]) -> Any:
+        try:
+            body = _canonical(message).encode("utf-8")
+        except (TypeError, ValueError) as exc:
+            raise McpRequestRejected("mcp_request_not_serializable", str(exc)) from exc
+        if len(body) > _MAX_REQUEST_BYTES:
+            raise McpRequestRejected("mcp_request_too_large")
+        request_id = message.get("id")
+        head = [
+            f"POST {self._endpoint.path} HTTP/1.1",
+            f"Host: {self._endpoint.host_header}",
+            "Content-Type: application/json",
+            "Accept: application/json, text/event-stream",
+            f"Content-Length: {len(body)}",
+            "Connection: close",
+        ]
+        if self._credential is not None:
+            head.append(f"Authorization: Bearer {self._credential}")
+        if request_id is not None and self._session_id is not None:
+            head.append(f"Mcp-Session-Id: {self._session_id}")
+        if request_id is not None and self._protocol_version is not None:
+            head.append(f"MCP-Protocol-Version: {self._protocol_version}")
+        frame = ("\r\n".join(head) + "\r\n\r\n").encode("ascii") + body
+
+        reader, writer = await self._connect()
+        try:
+            try:
+                writer.write(frame)
+                await writer.drain()
+            except (BrokenPipeError, ConnectionResetError) as exc:
+                raise McpServerUnavailable("mcp_server_closed", str(exc)) from exc
+            status, headers = await self._read_head(reader)
+            self._check_status(status)
+            if request_id is None:
+                await self._discard_body(reader, headers)
+                return {}
+            if status != 200:
+                raise McpProtocolError("mcp_response_missing", f"http_{status}")
+            if message.get("method") == "initialize":
+                self._remember(headers, message.get("params"))
+            encoding = headers.get("content-encoding", "").strip().lower()
+            if encoding not in _IDENTITY_ENCODINGS:
+                raise McpProtocolError("mcp_content_encoding_invalid")
+            media_type = _media_type(headers.get("content-type"))
+            payload = await self._read_body(reader, headers)
+            if media_type == "text/event-stream":
+                return _parse_sse(payload, request_id)
+            return _parse_json(payload)
+        finally:
+            await _release_writer(writer)
+
+    def _remember(self, headers: Mapping[str, str], params: Any) -> None:
+        session_id = headers.get("mcp-session-id")
+        if session_id is not None:
+            if not _SESSION_ID.fullmatch(session_id):
+                raise McpProtocolError("mcp_session_id_invalid")
+            self._session_id = session_id
+        if isinstance(params, dict):
+            version = params.get("protocolVersion")
+            if isinstance(version, str) and 0 < len(version) <= 32:
+                self._protocol_version = version
+
+    async def _connect(self) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
+        try:
+            reader, writer = await asyncio.open_connection(
+                self._endpoint.host,
+                self._endpoint.port,
+                limit=_MAX_HTTP_LINE_BYTES + 1,
+            )
+        except OSError as exc:
+            raise McpServerUnavailable("mcp_server_unavailable", str(exc)) from exc
+        if self._closed:
+            await _release_writer(writer)
+            raise McpProtocolError("mcp_transport_closed")
+        self._writer = writer
+        return reader, writer
+
+    @staticmethod
+    def _check_status(status: int) -> None:
+        if 300 <= status < 400:
+            raise McpServerUnavailable("mcp_redirect_refused", f"http_{status}")
+        if status in {401, 403}:
+            raise McpAuthFailed("mcp_auth_failed", f"http_{status}")
+        if status == 429 or 500 <= status < 600:
+            raise McpServerUnavailable("mcp_server_unavailable", f"http_{status}")
+        if status not in {200, 202, 204}:
+            raise McpProtocolError("mcp_http_status", f"http_{status}")
+
+    async def _read_head(self, reader: asyncio.StreamReader) -> tuple[int, dict[str, str]]:
+        line = await _readline(reader)
+        try:
+            version, status_text, *_rest = line.decode("latin-1").rstrip("\r\n").split(" ")
+            if (
+                not version.startswith("HTTP/1.")
+                or not status_text.isdigit()
+                or len(status_text) != 3
+            ):
+                raise ValueError
+            status = int(status_text)
+        except (UnicodeDecodeError, ValueError) as exc:
+            raise McpProtocolError("mcp_http_status_line_invalid") from exc
+        headers: dict[str, str] = {}
+        total = len(line)
+        for _ in range(_MAX_HTTP_HEADERS):
+            raw = await _readline(reader)
+            total += len(raw)
+            if total > _MAX_HTTP_HEAD_BYTES:
+                raise McpProtocolError("mcp_http_headers_too_large")
+            if raw in {b"\r\n", b"\n"}:
+                return status, headers
+            if raw[:1] in {b" ", b"\t"}:
+                raise McpProtocolError("mcp_http_header_folded")
+            name, _, value = raw.decode("latin-1").partition(":")
+            name = name.strip().lower()
+            value = value.strip()
+            if not _HEADER_NAME.fullmatch(name) or any(char in value for char in "\r\n\x00"):
+                raise McpProtocolError("mcp_http_header_invalid")
+            if name == "content-length":
+                if not value.isdigit() or (name in headers and headers[name] != value):
+                    raise McpProtocolError("mcp_http_content_length_invalid")
+                headers[name] = value
+                continue
+            headers[name] = value if name not in headers else f"{headers[name]}, {value}"
+        raise McpProtocolError("mcp_http_headers_too_many")
+
+    async def _read_body(self, reader: asyncio.StreamReader, headers: Mapping[str, str]) -> bytes:
+        transfer = headers.get("transfer-encoding", "").lower()
+        if transfer:
+            codings = [part.strip() for part in transfer.split(",") if part.strip()]
+            if codings != ["chunked"]:
+                raise McpProtocolError("mcp_transfer_encoding_invalid")
+            return await self._read_chunked(reader)
+        length = headers.get("content-length")
+        if length is None:
+            return await self._read_until_eof(reader)
+        if not length.isdigit():
+            raise McpProtocolError("mcp_http_content_length_invalid")
+        size = int(length)
+        if size > self.max_response_bytes:
+            raise McpResponseTooLarge("mcp_response_too_large")
+        return await self._read_exact(reader, size)
+
+    async def _discard_body(self, reader: asyncio.StreamReader, headers: Mapping[str, str]) -> None:
+        if headers.get("transfer-encoding") or "content-length" in headers:
+            await self._read_body(reader, headers)
+
+    async def _read_exact(self, reader: asyncio.StreamReader, size: int) -> bytes:
+        try:
+            return await reader.readexactly(size)
+        except asyncio.IncompleteReadError as exc:
+            raise McpServerUnavailable("mcp_server_closed", str(exc)) from exc
+        except (ConnectionResetError, BrokenPipeError) as exc:
+            raise McpServerUnavailable("mcp_server_closed", str(exc)) from exc
+
+    async def _read_until_eof(self, reader: asyncio.StreamReader) -> bytes:
+        chunks = bytearray()
+        try:
+            while True:
+                chunk = await reader.read(65_536)
+                if not chunk:
+                    return bytes(chunks)
+                chunks.extend(chunk)
+                if len(chunks) > self.max_response_bytes:
+                    raise McpResponseTooLarge("mcp_response_too_large")
+        except (ConnectionResetError, BrokenPipeError) as exc:
+            raise McpServerUnavailable("mcp_server_closed", str(exc)) from exc
+
+    async def _read_chunked(self, reader: asyncio.StreamReader) -> bytes:
+        chunks = bytearray()
+        while True:
+            line = await _readline(reader)
+            try:
+                size = int(line.split(b";", 1)[0].strip(), 16)
+            except ValueError as exc:
+                raise McpProtocolError("mcp_chunk_size_invalid", str(exc)) from exc
+            if size < 0:
+                raise McpProtocolError("mcp_chunk_size_invalid")
+            if size == 0:
+                for _ in range(_MAX_HTTP_HEADERS):
+                    if (await _readline(reader)) in {b"\r\n", b"\n"}:
+                        return bytes(chunks)
+                raise McpProtocolError("mcp_chunk_trailer_invalid")
+            if len(chunks) + size > self.max_response_bytes:
+                raise McpResponseTooLarge("mcp_response_too_large")
+            chunks.extend(await self._read_exact(reader, size))
+            terminator = await _readline(reader)
+            if terminator not in {b"\r\n", b"\n"}:
+                raise McpProtocolError("mcp_chunk_terminator_invalid")
+
+
+def http_transport_factory(profile: McpServerProfile, credential: str | None) -> HttpMcpTransport:
+    """Build the loopback HTTP transport fixed by one server profile."""
+
+    if profile.transport != "http" or profile.endpoint is None:
+        raise McpProtocolError("mcp_http_profile_required")
+    return HttpMcpTransport(
+        profile.endpoint,
+        credential=credential,
+        max_response_bytes=profile.max_response_bytes,
+    )
+
+
+async def _release_writer(writer: asyncio.StreamWriter) -> None:
+    writer.close()
+    with suppress(Exception, asyncio.CancelledError):
+        await asyncio.wait_for(writer.wait_closed(), timeout=1)
+
+
+async def _readline(reader: asyncio.StreamReader) -> bytes:
+    try:
+        raw = await reader.readline()
+    except (ValueError, asyncio.LimitOverrunError) as exc:
+        raise McpProtocolError("mcp_http_line_too_long", str(exc)) from exc
+    except (ConnectionResetError, BrokenPipeError) as exc:
+        raise McpServerUnavailable("mcp_server_closed", str(exc)) from exc
+    if not raw:
+        raise McpServerUnavailable("mcp_server_closed")
+    if len(raw) > _MAX_HTTP_LINE_BYTES:
+        raise McpProtocolError("mcp_http_line_too_long")
+    return raw
+
+
+def _media_type(value: str | None) -> str:
+    if not value:
+        raise McpProtocolError("mcp_content_type_invalid")
+    parts = [part.strip() for part in value.split(";")]
+    media = parts[0].lower()
+    if media not in _RESPONSE_MEDIA_TYPES:
+        raise McpProtocolError("mcp_content_type_invalid", media[:64])
+    for parameter in parts[1:]:
+        if parameter.lower() not in {"charset=utf-8", 'charset="utf-8"'}:
+            raise McpProtocolError("mcp_content_type_invalid", parameter[:64])
+    return media
+
+
+def _parse_json(payload: bytes) -> dict[str, Any]:
+    if not payload:
+        raise McpProtocolError("mcp_response_invalid")
+    try:
+        value = json.loads(payload.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise McpProtocolError("mcp_response_invalid", str(exc)) from exc
+    if not isinstance(value, dict):
+        raise McpProtocolError("mcp_response_invalid")
+    return value
+
+
+def _parse_sse(payload: bytes, request_id: int) -> dict[str, Any]:
+    try:
+        text = payload.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise McpProtocolError("mcp_response_invalid", str(exc)) from exc
+    events: list[tuple[str, list[str]]] = []
+    event, data = "message", []
+    for raw in text.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
+        if raw == "":
+            if data:
+                if len(events) >= _MAX_SSE_EVENTS:
+                    raise McpProtocolError("mcp_event_count_invalid")
+                events.append((event, data))
+            event, data = "message", []
+            continue
+        if raw.startswith(":"):
+            continue
+        field, _, value = raw.partition(":")
+        if value.startswith(" "):
+            value = value[1:]
+        if field == "event":
+            event = value
+        elif field == "data":
+            data.append(value)
+        elif field not in {"id", "retry"}:
+            raise McpProtocolError("mcp_event_invalid")
+    if data:
+        if len(events) >= _MAX_SSE_EVENTS:
+            raise McpProtocolError("mcp_event_count_invalid")
+        events.append((event, data))
+    if not events or len(events) > _MAX_SSE_EVENTS:
+        raise McpProtocolError("mcp_event_count_invalid")
+    for name, lines in events:
+        if name != "message":
+            raise McpProtocolError("mcp_event_type_invalid", name[:64])
+        try:
+            message = json.loads("\n".join(lines))
+        except json.JSONDecodeError as exc:
+            raise McpProtocolError("mcp_response_invalid", str(exc)) from exc
+        if not isinstance(message, dict):
+            raise McpProtocolError("mcp_response_invalid")
+        if "id" not in message:
+            if "method" in message:
+                continue
+            raise McpProtocolError("mcp_response_invalid")
+        if message.get("id") != request_id:
+            raise McpProtocolError("mcp_response_mismatched")
+        return message
+    raise McpProtocolError("mcp_response_missing")
 
 
 def _error(response: dict[str, Any]) -> McpError:

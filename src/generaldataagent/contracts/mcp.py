@@ -10,7 +10,8 @@ import hashlib
 import json
 import re
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, Literal, NamedTuple
+from urllib.parse import urlsplit
 from uuid import UUID
 
 from pydantic import Field, model_validator
@@ -20,6 +21,8 @@ from generaldataagent.contracts.types import AgentRole, RiskLevel
 
 _REMOTE_TOOL = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
 _SERVER_ID = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
+_ENDPOINT_PATH = re.compile(r"^/[A-Za-z0-9._~/-]{0,255}$")
+_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1"})
 _DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 _MAX_SCHEMA_BYTES = 16_384
 _MAX_SCHEMA_DEPTH = 16
@@ -55,6 +58,52 @@ def gateway_tool_name(tool_prefix: str, remote_tool: str) -> str:
     if not _REMOTE_TOOL.fullmatch(remote_tool):
         raise ValueError("mcp_remote_tool_invalid")
     return f"{tool_prefix}.{remote_tool.replace('-', '_')}"
+
+
+class LoopbackEndpoint(NamedTuple):
+    """One validated loopback HTTP endpoint; never contains credentials."""
+
+    host: str
+    port: int
+    host_header: str
+    path: str
+
+
+def parse_loopback_endpoint(value: str) -> LoopbackEndpoint:
+    """Accept only plain `http://` endpoints on an IP loopback address.
+
+    Hostnames such as ``localhost`` are refused on purpose: resolving them can
+    reach a proxy, search domain or edited hosts file. The remote MCP server and
+    its credential rotation stay outside this slice.
+    """
+
+    if not isinstance(value, str) or not value or len(value) > 512:
+        raise ValueError("mcp_endpoint_invalid")
+    if any(ord(char) < 0x21 or ord(char) > 0x7E for char in value):
+        raise ValueError("mcp_endpoint_invalid")
+    try:
+        parsed = urlsplit(value)
+        port = parsed.port
+    except ValueError as exc:
+        raise ValueError("mcp_endpoint_invalid") from exc
+    if parsed.scheme != "http" or not parsed.netloc:
+        raise ValueError("mcp_endpoint_scheme_invalid")
+    if parsed.username is not None or parsed.password is not None:
+        raise ValueError("mcp_endpoint_credentials_forbidden")
+    if parsed.hostname not in _LOOPBACK_HOSTS:
+        raise ValueError("mcp_endpoint_not_loopback")
+    if port is None or port < 1:
+        raise ValueError("mcp_endpoint_port_required")
+    if parsed.query or parsed.fragment:
+        raise ValueError("mcp_endpoint_query_forbidden")
+    path = parsed.path or "/"
+    if not _ENDPOINT_PATH.fullmatch(path) or path.startswith("//"):
+        raise ValueError("mcp_endpoint_path_invalid")
+    if any(segment in {".", ".."} for segment in path.split("/")):
+        raise ValueError("mcp_endpoint_path_invalid")
+    host = parsed.hostname
+    host_header = f"[{host}]:{port}" if ":" in host else f"{host}:{port}"
+    return LoopbackEndpoint(host=host, port=port, host_header=host_header, path=path)
 
 
 def _validate_schema(schema: Any, *, depth: int = 0) -> None:
@@ -124,7 +173,8 @@ class McpServerProfile(ContractModel):
     """
 
     server_id: str
-    transport: Literal["stdio"] = "stdio"
+    transport: Literal["stdio", "http"] = "stdio"
+    endpoint: str | None = None
     version: str = Field(pattern=r"^v[1-9][0-9]*$")
     tool_prefix: str = Field(pattern=r"^mcp\.[a-z][a-z0-9_]{0,31}$")
     timeout_seconds: float = Field(gt=0, le=60)
@@ -137,6 +187,12 @@ class McpServerProfile(ContractModel):
             raise ValueError("mcp_server_id_invalid")
         if self.tool_prefix != f"mcp.{self.server_id}":
             raise ValueError("mcp_tool_prefix_mismatch")
+        if self.transport == "http":
+            if self.endpoint is None:
+                raise ValueError("mcp_endpoint_required")
+            parse_loopback_endpoint(self.endpoint)
+        elif self.endpoint is not None:
+            raise ValueError("mcp_endpoint_unexpected")
         return self
 
 

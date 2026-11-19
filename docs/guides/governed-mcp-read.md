@@ -6,9 +6,12 @@ route, and the local adapter is rejected in production mode.
 
 ## Admission order
 
-1. **Fixed deployment profile** (`McpServerProfile`): server ID, `stdio` transport, tool prefix
-   `mcp.<server_id>`, server version, timeout, response-size limit and the environment variable that
-   names the credential. The credential value is read at use time and never stored in a contract.
+1. **Fixed deployment profile** (`McpServerProfile`): server ID, transport (`stdio` or loopback
+   `http`), tool prefix `mcp.<server_id>`, server version, timeout, response-size limit and the
+   environment variable that names the credential. An HTTP profile also pins an absolute endpoint;
+   only `http://127.0.0.1:<port>/<path>` and `http://[::1]:<port>/<path>` are accepted, with no
+   userinfo, query or fragment. The credential value is read at use time and never stored in a
+   contract.
 2. **Discovery** (`discover_tools`) opens one bounded session and returns `McpDiscovery`: candidates
    with canonical input schemas and description hashes. Descriptions and remote annotations are
    untrusted text; they never assign risk or permission.
@@ -38,11 +41,44 @@ A successful read is written as an `mcp_read_result` artifact scoped to the crea
 response is `McpReadEvidence` — server/version/schema/admission hashes, argument and response hashes
 and the artifact reference. Raw content is not returned inline and is not copied into audit.
 
+## HTTP transport (loopback)
+
+`HttpMcpTransport` speaks streamable HTTP to one repository-selected loopback endpoint and implements
+the same `start/request/notify/close` contract as the stdio transport. It is not wired into
+`create_app()`; deployment code still chooses the transport factory, and the local adapter remains
+rejected in production mode.
+
+- Each JSON-RPC message is one `POST` with `Content-Type: application/json`,
+  `Accept: application/json, text/event-stream` and `Connection: close`; the response must be exactly
+  one of those two media types, optionally with `charset=utf-8`. Any other type, parameters,
+  `Content-Encoding` other than identity, redirect status or non-MCP status fails closed.
+- Bodies are bounded by `max_response_bytes` while streaming, both for `Content-Length`, chunked and
+  read-until-close framing. Truncated bodies, invalid chunk framing, folded or oversized headers and
+  malformed status lines raise deterministic adapter errors; nothing is decoded past the cap.
+- `text/event-stream` responses are parsed as `event: message` frames. Server notifications without an
+  id are skipped up to a fixed count; a non-message event, malformed frame or mismatched id fails the
+  exchange.
+- The transport opens one connection per request, serializes requests under one lock and keeps at most
+  one request in flight. `McpSessionManager` still admits only one active session per server and
+  refuses a second tenant or scope.
+- `Mcp-Session-Id` returned by `initialize` is validated and replayed on later requests, together with
+  `MCP-Protocol-Version`. A request timeout or cancellation closes the socket under the in-flight
+  read; `close()` is idempotent.
+- The endpoint is validated again when the transport is built. A credential containing control
+  characters is refused before a header is written. Environment proxy variables are never consulted
+  because the client uses a direct socket, and redirects are never followed.
+
+`http_transport_factory(profile, credential)` builds this transport from an HTTP profile; it refuses a
+stdio profile. Because the admission digest covers the whole profile, choosing a transport or
+changing an endpoint requires a fresh local admission and capability enrollment. Real servers, TLS
+termination and credential rotation remain outside this slice.
+
 ## Deterministic failures
 
 | Condition | Adapter error | HTTP |
 | --- | --- | --- |
-| child process cannot start | `McpServerUnavailable` | 502 |
+| child process cannot start, or loopback connection refused | `McpServerUnavailable` | 502 |
+| redirect returned by the endpoint | `McpServerUnavailable` (`mcp_redirect_refused`) | 502 |
 | credential missing or rejected | `McpAuthFailed` | 503 |
 | initialize version differs from profile | `McpVersionMismatch` | 409 |
 | tool list/schema/description changed | `McpSchemaDrift` | 409 |
@@ -54,23 +90,31 @@ and the artifact reference. Raw content is not returned inline and is not copied
 | timeout | `McpTimeout` | 504 |
 | cancel | `CancelledError` after closing the session | — |
 | another tenant tries to reuse the active session | `McpSessionScopeError` | 409 |
-| malformed/mismatched JSON-RPC | `McpProtocolError` | 502 |
+| malformed/mismatched JSON-RPC, media type, header or chunk framing | `McpProtocolError` | 502 |
 
 Timeout and cancellation close the session before the error leaves the adapter. Application shutdown
 closes the active session. This slice performs **no automatic retries**; a future retry may apply only
 to a tool admitted as idempotent.
 
-## Local fixture
+## Local fixtures
 
 `tests/mcp_fixture_server.py` is a repository-owned newline-delimited JSON-RPC server with synthetic
 data. Tests cover discovery, admission, an actual read through the API, schema drift, malicious
 descriptions, name conflicts, auth/version failures, oversized and DLP-denied returns, argument
-rejection, cross-tenant reuse, timeout, cancellation and shutdown. It is a protocol fixture, not a
-connection to any enterprise system.
+rejection, cross-tenant reuse, timeout, cancellation and shutdown.
+
+`tests/mcp_http_fixture_server.py` is a synthetic `ThreadingHTTPServer` bound to `127.0.0.1` with
+modes for SSE, redirects, wrong media types, compression, oversized `Content-Length` and chunked
+bodies, truncated bodies, slow responses, auth failures, session headers and malformed framing. Tests
+also assert one in-flight request per session, cancellation closing the socket, and that proxy
+environment variables are ignored. Both are protocol fixtures, not connections to any enterprise
+system.
 
 ## Boundaries
 
 - No write, mutation, shell or filesystem tool is admitted.
+- The HTTP transport accepts only repository-chosen loopback endpoints; real server addresses,
+  TLS, credential rotation and independent review are still external gates.
 - The local adapter is not qualified for production; `create_app(production_mode=True, mcp_read=...)`
   raises `local_mcp_read_not_qualified_for_production`.
 - Session reuse is intentionally strict: while one actor scope holds the active session, another
