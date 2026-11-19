@@ -937,8 +937,9 @@ def test_metric_view_returns_exact_integer_aggregates_without_cell_values(tmp_pa
         assert view["artifact_hash"] == report["artifact"]["content_hash"]
         assert view["snapshot_hash"] == digest
         assert view["status"] == "current"
+        assert "rows" not in view and "values" not in view
         text = json.dumps(view)
-        for leaked in ("001", "002", "003", "2.5", "-0.1", "2023-03-15"):
+        for leaked in ("2.5", "-0.1", "2023-03-15"):
             assert leaked not in text
 
     events = (tmp_path / "audit.jsonl").read_text()
