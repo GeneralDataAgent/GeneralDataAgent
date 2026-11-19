@@ -29,11 +29,17 @@ from generaldataagent.connectors.mcp import (
     discover_tools,
     http_transport_factory,
 )
-from generaldataagent.contracts import McpServerAdmission, McpServerProfile, McpToolAdmission
+from generaldataagent.contracts import (
+    Budget,
+    McpServerAdmission,
+    McpServerProfile,
+    McpToolAdmission,
+)
 from generaldataagent.contracts.mcp import gateway_tool_name, parse_loopback_endpoint
 from generaldataagent.observability.audit import JsonlAuditSink
 from generaldataagent.orchestration.mcp import McpReadService
 from generaldataagent.policy import InMemoryApprovalStore
+from generaldataagent.policy.budgets import BudgetExceededError, TaskBudgetLedger
 
 TOOL = "lookup_metric"
 ARGS = {"metric": "synthetic.revenue"}
@@ -72,7 +78,7 @@ def admission_from(discovery, server_profile):
     )
 
 
-def setup(tmp_path, endpoint, **overrides):
+def setup(tmp_path, endpoint, *, budgets=None, **overrides):
     server_profile = http_profile(endpoint, **overrides)
     discovery = asyncio.run(
         discover_tools(server_profile, transport_factory=http_transport_factory)
@@ -102,6 +108,7 @@ def setup(tmp_path, endpoint, **overrides):
         transport_factory=http_transport_factory,
         audit=JsonlAuditSink(tmp_path / "audit.jsonl"),
         approvals=InMemoryApprovalStore(),
+        budgets=budgets,
     )
     return service, admission, store
 
@@ -418,3 +425,80 @@ def test_connection_refused_is_server_unavailable():
                 transport_factory=http_transport_factory,
             )
         )
+
+
+def test_a_no_response_failure_is_retried_once_for_an_idempotent_read(tmp_path):
+    with http_fixture(fail_once_method="tools/call") as (server, endpoint):
+        service, _admission, _store = setup(tmp_path, endpoint)
+        evidence = read(service)
+
+    assert evidence.remote_tool == TOOL
+    assert server.requests >= 5  # initialize, initialized, list, failed call, retried call
+    events = [json.loads(line) for line in (tmp_path / "audit.jsonl").read_text().splitlines()]
+    retried = [event for event in events if event["event_type"] == "mcp.transport.retried"]
+    assert len(retried) == 1
+    assert retried[0]["payload"]["reason"] == "mcp_server_closed"
+    assert retried[0]["payload"]["attempt"] == 1
+    completed = [event for event in events if event["event_type"] == "mcp.read.completed"]
+    assert completed[0]["payload"]["retry_count"] == 1
+
+
+def test_retries_are_bounded_to_one_attempt():
+    with (
+        http_fixture("close_before_response") as (server, endpoint),
+        pytest.raises(McpServerUnavailable),
+    ):
+        asyncio.run(
+            discover_tools(http_profile(endpoint), transport_factory=http_transport_factory)
+        )
+    assert server.requests == 2
+
+
+@pytest.mark.parametrize(
+    ("mode", "error", "overrides"),
+    [
+        ("server_error", McpServerUnavailable, {}),
+        ("redirect", McpServerUnavailable, {}),
+        ("wrong_id", McpProtocolError, {}),
+        ("bad_json", McpProtocolError, {}),
+        ("http_404", McpProtocolError, {}),
+        ("disconnect", McpServerUnavailable, {}),
+        ("oversized", McpResponseTooLarge, {"max_response_bytes": 4096}),
+    ],
+)
+def test_failures_after_a_response_byte_or_an_http_status_are_not_retried(mode, error, overrides):
+    with http_fixture(mode) as (server, endpoint), pytest.raises(error):
+        asyncio.run(
+            discover_tools(
+                http_profile(endpoint, **overrides),
+                transport_factory=http_transport_factory,
+            )
+        )
+    assert server.requests == 1
+
+
+def test_a_timeout_is_not_retried():
+    with (
+        http_fixture("normal", delay=1.0, slow_method="initialize") as (server, endpoint),
+        pytest.raises(McpTimeout),
+    ):
+        asyncio.run(
+            discover_tools(
+                http_profile(endpoint, timeout_seconds=0.2),
+                transport_factory=http_transport_factory,
+            )
+        )
+    assert server.requests == 1
+
+
+def test_each_retry_is_charged_to_the_task_budget(tmp_path):
+    with http_fixture(fail_once_method="tools/call") as (_server, endpoint):
+        task_id = uuid4()
+        budgets = TaskBudgetLedger(tmp_path / "budgets.db")
+        budgets.register(task_id, actor(), Budget(max_tool_calls=1))
+        service, _admission, _store = setup(tmp_path, endpoint, budgets=budgets)
+        with pytest.raises(BudgetExceededError):
+            read(service, task_id=task_id)
+    assert list((tmp_path / "artifacts").rglob("*.json")) == []
+    events = [json.loads(line) for line in (tmp_path / "audit.jsonl").read_text().splitlines()]
+    assert "mcp.transport.retried" not in [event["event_type"] for event in events]

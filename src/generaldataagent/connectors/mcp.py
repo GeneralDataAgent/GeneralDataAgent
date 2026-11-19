@@ -35,6 +35,7 @@ _MAX_HTTP_HEAD_BYTES = 16_384
 _MAX_HTTP_HEADERS = 64
 _MAX_SSE_EVENTS = 64
 _MAX_REQUEST_BYTES = 262_144
+_MAX_TRANSPORT_ATTEMPTS = 2
 _RESPONSE_MEDIA_TYPES = frozenset({"application/json", "text/event-stream"})
 _IDENTITY_ENCODINGS = frozenset({"", "identity"})
 _SESSION_ID = re.compile(r"^[A-Za-z0-9._~-]{1,128}$")
@@ -53,7 +54,18 @@ class McpError(RuntimeError):
 
 
 class McpServerUnavailable(McpError):
-    pass
+    """The server could not complete the exchange.
+
+    ``retry_safe`` is true only when no response byte was received: the
+    connection failed, the write failed, or the connection closed before the
+    status line. Only an idempotent read may be retried in that case; a failure
+    after any response byte, an HTTP error status, authentication, protocol,
+    size, DLP or timeout failure is never retried.
+    """
+
+    def __init__(self, code: str, detail: str = "", *, retry_safe: bool = False) -> None:
+        super().__init__(code, detail)
+        self.retry_safe = retry_safe
 
 
 class McpAuthFailed(McpError):
@@ -483,7 +495,7 @@ class HttpMcpTransport:
                 writer.write(frame)
                 await writer.drain()
             except (BrokenPipeError, ConnectionResetError) as exc:
-                raise McpServerUnavailable("mcp_server_closed", str(exc)) from exc
+                raise McpServerUnavailable("mcp_server_closed", str(exc), retry_safe=True) from exc
             status, headers = await self._read_head(reader)
             self._check_status(status)
             if request_id is None:
@@ -523,7 +535,7 @@ class HttpMcpTransport:
                 limit=_MAX_HTTP_LINE_BYTES + 1,
             )
         except OSError as exc:
-            raise McpServerUnavailable("mcp_server_unavailable", str(exc)) from exc
+            raise McpServerUnavailable("mcp_server_unavailable", str(exc), retry_safe=True) from exc
         if self._closed:
             await _release_writer(writer)
             raise McpProtocolError("mcp_transport_closed")
@@ -542,7 +554,7 @@ class HttpMcpTransport:
             raise McpProtocolError("mcp_http_status", f"http_{status}")
 
     async def _read_head(self, reader: asyncio.StreamReader) -> tuple[int, dict[str, str]]:
-        line = await _readline(reader)
+        line = await _readline(reader, retry_safe_empty=True)
         try:
             version, status_text, *_rest = line.decode("latin-1").rstrip("\r\n").split(" ")
             if (
@@ -661,7 +673,7 @@ async def _release_writer(writer: asyncio.StreamWriter) -> None:
         await asyncio.wait_for(writer.wait_closed(), timeout=1)
 
 
-async def _readline(reader: asyncio.StreamReader) -> bytes:
+async def _readline(reader: asyncio.StreamReader, *, retry_safe_empty: bool = False) -> bytes:
     try:
         raw = await reader.readline()
     except (ValueError, asyncio.LimitOverrunError) as exc:
@@ -669,7 +681,7 @@ async def _readline(reader: asyncio.StreamReader) -> bytes:
     except (ConnectionResetError, BrokenPipeError) as exc:
         raise McpServerUnavailable("mcp_server_closed", str(exc)) from exc
     if not raw:
-        raise McpServerUnavailable("mcp_server_closed")
+        raise McpServerUnavailable("mcp_server_closed", retry_safe=retry_safe_empty)
     if len(raw) > _MAX_HTTP_LINE_BYTES:
         raise McpProtocolError("mcp_http_line_too_long")
     return raw
@@ -767,14 +779,28 @@ def _error(response: dict[str, Any]) -> McpError:
 
 
 class McpSession:
-    """One explicit MCP connection; timeout or cancellation closes it."""
+    """One explicit MCP connection; timeout or cancellation closes it.
 
-    def __init__(self, profile: McpServerProfile, transport: McpTransport) -> None:
+    A read that fails before any response byte was received may be attempted
+    once more. The retry is only for the transport-level unavailable case; the
+    caller supplies an optional notice callback so every attempt can be audited
+    and charged to the task budget.
+    """
+
+    def __init__(
+        self,
+        profile: McpServerProfile,
+        transport: McpTransport,
+        *,
+        retry_notice: Callable[[str], None] | None = None,
+    ) -> None:
         self.profile = profile
         self.transport = transport
         self.server_name = ""
         self.server_version = ""
         self.protocol_version = ""
+        self.retry_count = 0
+        self._retry_notice = retry_notice
         self._started = False
         self._closed = False
 
@@ -793,6 +819,7 @@ class McpSession:
         if self._started or self._closed:
             raise McpProtocolError("mcp_session_already_started")
         self._started = True
+        self.retry_count = 0
         try:
             await self.transport.start()
             result = await self._request(
@@ -854,17 +881,28 @@ class McpSession:
     async def _request(self, method: str, params: dict[str, Any]) -> Any:
         if self._closed or not self._started:
             raise McpProtocolError("mcp_session_closed")
-        try:
-            response = await asyncio.wait_for(
-                self.transport.request(method, params),
-                timeout=self.profile.timeout_seconds,
-            )
-        except TimeoutError as exc:
-            await self.close()
-            raise McpTimeout("mcp_timeout") from exc
-        except asyncio.CancelledError:
-            await self.close()
-            raise
+        attempt = 0
+        while True:
+            attempt += 1
+            try:
+                response = await asyncio.wait_for(
+                    self.transport.request(method, params),
+                    timeout=self.profile.timeout_seconds,
+                )
+            except TimeoutError as exc:
+                await self.close()
+                raise McpTimeout("mcp_timeout") from exc
+            except asyncio.CancelledError:
+                await self.close()
+                raise
+            except McpServerUnavailable as exc:
+                if attempt >= _MAX_TRANSPORT_ATTEMPTS or not exc.retry_safe or self._closed:
+                    raise
+                self.retry_count += 1
+                if self._retry_notice is not None:
+                    self._retry_notice(exc.code)
+                continue
+            break
         if "error" in response:
             raise _error(response)
         if "result" not in response:
@@ -924,6 +962,7 @@ class McpSessionManager:
         tenant_id: str,
         project_id: str,
         user_id: str,
+        retry_notice: Callable[[str], None] | None = None,
     ) -> AsyncIterator[McpSession]:
         scope = (tenant_id, project_id, user_id)
         async with self._lock:
@@ -933,7 +972,11 @@ class McpSessionManager:
                 if self._scope != scope:
                     raise McpSessionScopeError("mcp_session_scope_mismatch")
                 raise McpSessionBusy("mcp_session_busy")
-            session = McpSession(profile, self.transport_factory(profile, credential))
+            session = McpSession(
+                profile,
+                self.transport_factory(profile, credential),
+                retry_notice=retry_notice,
+            )
             try:
                 await session.start()
             except BaseException:
