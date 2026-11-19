@@ -121,6 +121,12 @@ class _Handler(BaseHTTPRequestHandler):
         if "id" not in request:
             self._send(202, b"")
             return
+        if server.consume_failure(method):
+            self.close_connection = True
+            return
+        if server.mode == "close_before_response":
+            self.close_connection = True
+            return
         if server.slow_method is not None and method == server.slow_method:
             time.sleep(server.delay)
         if server.mode == "disconnect":
@@ -326,18 +332,31 @@ class FixtureServer(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = True
 
-    def __init__(self, address, handler, *, mode, token, version, delay, slow_method):
+    def __init__(
+        self, address, handler, *, mode, token, version, delay, slow_method, fail_once_method
+    ):
         super().__init__(address, handler)
         self.mode = mode
         self.token = token
         self.version = version
         self.delay = delay
         self.slow_method = slow_method
+        self.fail_once_method = fail_once_method
         self.session_id = "sess-abc"
         self._lock = threading.Lock()
+        self._failed_once = False
         self.inflight = 0
         self.max_inflight = 0
         self.requests = 0
+
+    def consume_failure(self, method):
+        with self._lock:
+            if self.fail_once_method is None or self._failed_once:
+                return False
+            if method != self.fail_once_method:
+                return False
+            self._failed_once = True
+            return True
 
     @contextmanager
     def track(self):
@@ -360,6 +379,7 @@ def http_fixture(
     version="v1",
     delay=0.0,
     slow_method="tools/call",
+    fail_once_method=None,
 ):
     server = FixtureServer(
         ("127.0.0.1", 0),
@@ -369,6 +389,7 @@ def http_fixture(
         version=version,
         delay=delay,
         slow_method=slow_method,
+        fail_once_method=fail_once_method,
     )
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()

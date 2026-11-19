@@ -64,6 +64,12 @@ rejected in production mode.
 - `Mcp-Session-Id` returned by `initialize` is validated and replayed on later requests, together with
   `MCP-Protocol-Version`. A request timeout or cancellation closes the socket under the in-flight
   read; `close()` is idempotent.
+- A read that fails before any response byte is received (connection refused, write failure, or a
+  connection closed before the status line) is attempted once more, and only once. The retry applies
+  to the idempotent `initialize`, `tools/list` and `tools/call` exchanges; every retry emits
+  `mcp.transport.retried` and reserves one additional task tool call, so a retry can fail closed on
+  budget. HTTP error statuses, authentication, redirects, protocol or framing errors, oversized
+  bodies, DLP denial, timeouts and cancellation are never retried.
 - The endpoint is validated again when the transport is built. A credential containing control
   characters is refused before a header is written. Environment proxy variables are never consulted
   because the client uses a direct socket, and redirects are never followed.
@@ -93,8 +99,9 @@ termination and credential rotation remain outside this slice.
 | malformed/mismatched JSON-RPC, media type, header or chunk framing | `McpProtocolError` | 502 |
 
 Timeout and cancellation close the session before the error leaves the adapter. Application shutdown
-closes the active session. This slice performs **no automatic retries**; a future retry may apply only
-to a tool admitted as idempotent.
+closes the active session. The only automatic retry is the single no-response-byte retry described
+above; it applies only to idempotent reads and is audited and budgeted. A future broader retry policy
+must still be limited to tools admitted as idempotent.
 
 ## Local fixtures
 
@@ -105,10 +112,11 @@ rejection, cross-tenant reuse, timeout, cancellation and shutdown.
 
 `tests/mcp_http_fixture_server.py` is a synthetic `ThreadingHTTPServer` bound to `127.0.0.1` with
 modes for SSE, redirects, wrong media types, compression, oversized `Content-Length` and chunked
-bodies, truncated bodies, slow responses, auth failures, session headers and malformed framing. Tests
-also assert one in-flight request per session, cancellation closing the socket, and that proxy
-environment variables are ignored. Both are protocol fixtures, not connections to any enterprise
-system.
+bodies, truncated bodies, slow responses, auth failures, session headers, a connection closed before
+any response byte (once or always) and malformed framing. Tests also assert one in-flight request per
+session, cancellation closing the socket, the single retry on a no-response-byte failure, no retry
+after a response byte or HTTP status, retry budget charging, and that proxy environment variables are
+ignored. Both are protocol fixtures, not connections to any enterprise system.
 
 ## Boundaries
 

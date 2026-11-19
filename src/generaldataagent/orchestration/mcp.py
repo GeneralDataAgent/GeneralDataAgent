@@ -91,6 +91,7 @@ class McpReadService:
         self.registry = registry
         self.store = store
         self.audit = audit
+        self.budgets = budgets
         self.scanner = scanner or TextDLPScanner()
         self.agent_role = role
         self.clock = clock or (lambda: datetime.now(UTC))
@@ -258,12 +259,33 @@ class McpReadService:
 
         self._require_admission(actor)
         credential = resolve_credential(self.profile)
+        retries = 0
+
+        def retry_notice(code: str) -> None:
+            nonlocal retries
+            if self.budgets is not None:
+                self.budgets.reserve(task_id, actor)
+            retries += 1
+            self._emit(
+                "mcp.transport.retried",
+                actor=actor,
+                task_id=task_id,
+                payload={
+                    "server_id": self.profile.server_id,
+                    "remote_tool": entry.remote_tool,
+                    "gateway_tool": entry.gateway_tool,
+                    "attempt": retries,
+                    "reason": code,
+                },
+            )
+
         async with self.sessions.lease(
             self.profile,
             credential,
             tenant_id=actor.tenant_id,
             project_id=actor.project_id,
             user_id=actor.user_id,
+            retry_notice=retry_notice,
         ) as session:
             discovery = build_discovery(
                 self.profile,
@@ -281,10 +303,12 @@ class McpReadService:
                     "server_version": self.profile.version,
                     "schema_sha256": discovery.schema_sha256,
                     "tool_count": len(discovery.tools),
+                    "retry_count": session.retry_count,
                 },
             )
             result = await session.call_tool(entry.remote_tool, remote_arguments)
             protocol_version = session.protocol_version
+            retries = session.retry_count
 
         try:
             content = _canonical(
@@ -344,6 +368,7 @@ class McpReadService:
                 "artifact_id": str(artifact.artifact_id),
                 "artifact_hash": artifact.content_hash,
                 "size_bytes": len(content),
+                "retry_count": retries,
             },
         )
         return evidence
