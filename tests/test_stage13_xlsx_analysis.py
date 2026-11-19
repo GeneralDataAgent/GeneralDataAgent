@@ -28,10 +28,12 @@ from generaldataagent.artifacts.governed import ArtifactReadPolicy, GovernedArti
 from generaldataagent.contracts import ArtifactRef
 from generaldataagent.datasets.xlsx_analysis import (
     BindXlsxAnalysis,
+    ReadXlsxAnalysisMetric,
     XlsxAnalysisArtifact,
     XlsxAnalysisBinder,
     XlsxAnalysisColumn,
     XlsxAnalysisColumnProfile,
+    XlsxAnalysisMetric,
     XlsxAnalysisProfile,
     XlsxAnalysisRefused,
     XlsxAnalysisValuePage,
@@ -40,6 +42,7 @@ from generaldataagent.datasets.xlsx_analysis import (
     load_xlsx_analysis_artifact,
 )
 from generaldataagent.datasets.xlsx_intake_contracts import XlsxSnapshotColumnData
+from generaldataagent.policy.budgets import TaskBudgetLedger
 from generaldataagent.security.dlp import DLPDeniedError
 
 HEADERS = ("code", "count", "active", "price", "day")
@@ -93,6 +96,7 @@ def setup(tmp_path, **kwargs):
     intake = build_service(tmp_path, **kwargs)
     binder = XlsxAnalysisBinder(
         intake=intake,
+        budgets=TaskBudgetLedger(tmp_path / "analysis-budgets.db", clock=intake.store.clock),
         artifact_root=tmp_path / "artifacts",
         artifact_index=tmp_path / "artifact-index.db",
     )
@@ -427,13 +431,18 @@ def test_binding_requires_an_explicitly_configured_port(tmp_path):
 
 def test_binder_state_must_stay_outside_the_artifact_tree(tmp_path):
     intake = build_service(tmp_path)
+    budgets = TaskBudgetLedger(tmp_path / "budgets.db", clock=intake.store.clock)
     with pytest.raises(ValueError, match="xlsx_analysis_state_must_be_outside"):
         XlsxAnalysisBinder(
-            intake=intake, artifact_root=tmp_path, artifact_index=tmp_path / "index.db"
+            intake=intake,
+            budgets=budgets,
+            artifact_root=tmp_path,
+            artifact_index=tmp_path / "index.db",
         )
     with pytest.raises(ValueError, match="xlsx_analysis_state_must_be_outside"):
         XlsxAnalysisBinder(
             intake=intake,
+            budgets=budgets,
             artifact_root=tmp_path / "artifacts",
             artifact_index=tmp_path / "artifacts" / "index.db",
         )
@@ -444,6 +453,7 @@ def test_app_rejects_a_binder_for_another_intake_or_without_intake(tmp_path):
     other = build_service(tmp_path / "other")
     binder = XlsxAnalysisBinder(
         intake=other,
+        budgets=TaskBudgetLedger(tmp_path / "budgets.db", clock=other.store.clock),
         artifact_root=tmp_path / "artifacts",
         artifact_index=tmp_path / "artifact-index.db",
     )
@@ -862,5 +872,305 @@ def test_profile_requires_an_explicitly_configured_port(tmp_path):
     file_id, _ = prepared(client, headers, raw=RAW, columns=COLUMNS)
     digest = snapshot(client, headers, file_id).json()["snapshot_hash"]
     response = read_profile(client, headers, file_id, UUID(int=0), digest)
+    assert response.status_code == 503
+    assert response.json()["detail"] == "xlsx_analysis_not_configured"
+
+
+def read_metric(client, headers, file_id, artifact_id, digest, metric, column=None):
+    params = {"snapshot_hash": digest, "metric": metric}
+    if column is not None:
+        params["column"] = column
+    return client.get(
+        f"/v1/analysis/files/xlsx/{file_id}/snapshot/analysis/{artifact_id}/metric",
+        headers=headers,
+        params=params,
+    )
+
+
+def test_metric_view_returns_exact_integer_aggregates_without_cell_values(tmp_path):
+    _, _, client, _, headers = setup(tmp_path)
+    file_id, _ = prepared(client, headers, raw=RAW, columns=COLUMNS)
+    digest = snapshot(client, headers, file_id).json()["snapshot_hash"]
+    report = bind(client, headers, file_id, digest, (0, 1, 2, 3, 4)).json()
+    artifact_id = report["artifact"]["artifact_id"]
+
+    rows = read_metric(client, headers, file_id, artifact_id, digest, "row-count")
+    assert rows.status_code == 200, rows.text
+    body = rows.json()
+    assert body["reader"] == "gda-xlsx-analysis-metric-v1"
+    assert body["metric"] == "row-count"
+    assert body["column"] is None
+    assert body["value"] == 3
+    assert body["row_count"] == 3
+    assert body["dlp"] == "no-text-disclosed"
+
+    expected = {
+        ("distinct-count", 0): 3,
+        ("distinct-count", 1): 3,
+        ("distinct-count", 2): 2,
+        ("distinct-count", 3): 3,
+        ("distinct-count", 4): 3,
+        ("integer-sum", 1): 1,
+        ("integer-min", 1): -4,
+        ("integer-max", 1): 3,
+    }
+    for (metric, column), value in expected.items():
+        response = read_metric(client, headers, file_id, artifact_id, digest, metric, column)
+        assert response.status_code == 200, response.text
+        view = response.json()
+        assert view["value"] == value
+        assert view["column"]["index"] == column
+        assert view["dlp"] == "header-text-rescanned-before-return"
+        assert view["scope"] == "one-creator-bound-analysis-artifact"
+        assert view["aggregation"] == "exact-integer-single-pass"
+        assert view["qualification"] == "non-certified-analysis-view"
+        assert view["metric_catalog"] == "not-registered"
+        assert view["metric_definition"] == "not-resolved"
+        assert view["result_view"] == "analysis-metric-view-not-metric-result"
+        assert view["storage"] == "dlp-scanned-creator-artifact"
+        assert view["row_scope"] == "present-value-only"
+        assert view["roles"] == "not-assigned"
+        assert view["target"] == "not-designated"
+        assert view["dataset_snapshot"] is False
+        assert view["certified_metric_source"] is False
+        assert view["artifact_id"] == artifact_id
+        assert view["artifact_hash"] == report["artifact"]["content_hash"]
+        assert view["snapshot_hash"] == digest
+        assert view["status"] == "current"
+        assert "rows" not in view and "values" not in view
+        text = json.dumps(view)
+        for leaked in ("2.5", "-0.1", "2023-03-15"):
+            assert leaked not in text
+
+    events = (tmp_path / "audit.jsonl").read_text()
+    assert "xlsx.analysis_metric_read" in events
+
+
+def test_metric_view_refuses_non_integer_extremes_and_unbound_columns(tmp_path):
+    _, _, client, _, headers = setup(tmp_path)
+    file_id, _ = prepared(client, headers, raw=RAW, columns=COLUMNS)
+    digest = snapshot(client, headers, file_id).json()["snapshot_hash"]
+    artifact_id = bind(client, headers, file_id, digest, (0, 1, 3)).json()["artifact"][
+        "artifact_id"
+    ]
+
+    for metric in ("integer-sum", "integer-min", "integer-max"):
+        refused = read_metric(client, headers, file_id, artifact_id, digest, metric, 0)
+        assert refused.status_code == 422
+        assert refused.json()["detail"] == "xlsx_analysis_metric_type_invalid"
+        decimal = read_metric(client, headers, file_id, artifact_id, digest, metric, 3)
+        assert decimal.status_code == 422
+        assert decimal.json()["detail"] == "xlsx_analysis_metric_type_invalid"
+
+    unbound = read_metric(client, headers, file_id, artifact_id, digest, "distinct-count", 2)
+    assert unbound.status_code == 422
+    assert unbound.json()["detail"] == "xlsx_analysis_metric_column_not_bound"
+
+    for params in (
+        {"metric": "row-count", "column": 1},
+        {"metric": "integer-sum"},
+    ):
+        response = client.get(
+            f"/v1/analysis/files/xlsx/{file_id}/snapshot/analysis/{artifact_id}/metric",
+            headers=headers,
+            params={"snapshot_hash": digest, **params},
+        )
+        assert response.status_code == 422
+        assert response.json()["detail"] == "xlsx_input_invalid"
+
+    assert "xlsx.analysis_metric_read" not in (tmp_path / "audit.jsonl").read_text()
+
+
+def test_metric_view_is_creator_scoped_and_expires(tmp_path):
+    now = [datetime(2026, 11, 19, 1, 0, tzinfo=UTC)]
+    intake, _, client, _, headers = setup(tmp_path, clock=lambda: now[0], retention=60)
+    file_id, _ = prepared(client, headers, raw=RAW, columns=COLUMNS)
+    digest = snapshot(client, headers, file_id).json()["snapshot_hash"]
+    artifact_id = bind(client, headers, file_id, digest, (0, 1)).json()["artifact"]["artifact_id"]
+    assert (
+        read_metric(client, headers, file_id, artifact_id, digest, "integer-sum", 1).status_code
+        == 200
+    )
+    other = actor().model_copy(update={"user_id": "other", "tenant_id": "tenant-2"})
+    _, other_headers = credentials(intake.broker, other)
+    assert (
+        read_metric(
+            client, other_headers, file_id, artifact_id, digest, "integer-sum", 1
+        ).status_code
+        == 404
+    )
+    now[0] += timedelta(seconds=61)
+    assert (
+        read_metric(client, headers, file_id, artifact_id, digest, "integer-sum", 1).status_code
+        == 404
+    )
+
+
+def test_metric_view_requires_the_exact_current_snapshot_and_task(tmp_path):
+    _, _, client, _, headers = setup(tmp_path)
+    file_id, declared = prepared(client, headers, raw=RAW, columns=COLUMNS)
+    digest = snapshot(client, headers, file_id).json()["snapshot_hash"]
+    artifact_id = bind(client, headers, file_id, digest, (0, 1)).json()["artifact"]["artifact_id"]
+
+    unknown = read_metric(client, headers, file_id, UUID(int=0), digest, "row-count")
+    assert unknown.status_code == 404
+    changed = read_metric(client, headers, file_id, artifact_id, "sha256:" + "0" * 64, "row-count")
+    assert changed.status_code == 409
+    assert changed.json()["detail"] == "xlsx_snapshot_changed"
+
+    second = client.post(
+        "/v1/analysis/files/xlsx",
+        headers=headers | {"content-type": XLSX, "idempotency-key": "xlsx-metric-2"},
+        content=RAW,
+    ).json()
+    other_file = second["file"]["file_id"]
+    confirmed = confirm(client, headers, other_file, confirm_body(second)).json()
+    assert (
+        declare(
+            client, headers, other_file, declaration_body(confirmed, columns=COLUMNS)
+        ).status_code
+        == 200
+    )
+    other_digest = snapshot(client, headers, other_file).json()["snapshot_hash"]
+    assert (
+        read_metric(client, headers, other_file, artifact_id, other_digest, "row-count").status_code
+        == 404
+    )
+
+    response = declare(client, headers, file_id, declaration_body(declared, columns=[COLUMNS[0]]))
+    assert response.status_code == 200, response.text
+    stale = read_metric(client, headers, file_id, artifact_id, digest, "row-count")
+    assert stale.status_code == 409
+    assert stale.json()["detail"] == "xlsx_snapshot_stale"
+    new_digest = snapshot(client, headers, file_id).json()["snapshot_hash"]
+    old_artifact = read_metric(client, headers, file_id, artifact_id, new_digest, "row-count")
+    assert old_artifact.status_code == 409
+    assert old_artifact.json()["detail"] == "xlsx_snapshot_changed"
+
+
+def test_metric_view_rescans_the_disclosed_header_before_return(tmp_path):
+    class HeaderScanner:
+        def __init__(self):
+            self.deny = False
+
+        def check(self, content: bytes) -> None:
+            if self.deny and content == b"count":
+                raise DLPDeniedError("dlp_personal_data")
+
+    scanner = HeaderScanner()
+    _, _, client, _, headers = setup(tmp_path, scanner=scanner)
+    file_id, _ = prepared(client, headers, raw=RAW, columns=COLUMNS)
+    digest = snapshot(client, headers, file_id).json()["snapshot_hash"]
+    artifact_id = bind(client, headers, file_id, digest, (0, 1)).json()["artifact"]["artifact_id"]
+    scanner.deny = True
+
+    denied = read_metric(client, headers, file_id, artifact_id, digest, "integer-sum", 1)
+    assert denied.status_code == 404
+    assert denied.json()["detail"] == "xlsx_file_unavailable"
+    assert "xlsx.analysis_metric_read" not in (tmp_path / "audit.jsonl").read_text()
+
+    rows = read_metric(client, headers, file_id, artifact_id, digest, "row-count")
+    assert rows.status_code == 200, rows.text
+    assert rows.json()["value"] == 3
+    assert rows.json()["dlp"] == "no-text-disclosed"
+
+
+@pytest.mark.parametrize("failure", ["audit", "revision"])
+def test_failed_metric_view_does_not_return_a_value(tmp_path, monkeypatch, failure):
+    intake, _, client, _, headers = setup(tmp_path)
+    file_id, declared = prepared(client, headers, raw=RAW, columns=COLUMNS)
+    digest = snapshot(client, headers, file_id).json()["snapshot_hash"]
+    artifact_id = bind(client, headers, file_id, digest, (0, 1)).json()["artifact"]["artifact_id"]
+    emitter = intake.audit.emit
+
+    def fail_before_delivery(event):
+        if event.event_type == "xlsx.analysis_metric_read":
+            if failure == "audit":
+                raise OSError("audit unavailable")
+            revised = declaration_body(declared, columns=[COLUMNS[0]])
+            assert declare(client, headers, file_id, revised).status_code == 200
+        emitter(event)
+
+    monkeypatch.setattr(intake.audit, "emit", fail_before_delivery)
+    response = read_metric(client, headers, file_id, artifact_id, digest, "integer-sum", 1)
+    assert response.status_code == {"audit": 503, "revision": 409}[failure]
+    assert "value" not in response.json()
+
+
+def test_metric_view_is_charged_to_the_task_budget(tmp_path):
+    _, binder, client, _, headers = setup(tmp_path)
+    file_id, _ = prepared(client, headers, raw=RAW, columns=COLUMNS)
+    digest = snapshot(client, headers, file_id).json()["snapshot_hash"]
+    report = bind(client, headers, file_id, digest, (0, 1)).json()
+    artifact_id = report["artifact"]["artifact_id"]
+    task_id = UUID(report["task_id"])
+
+    first = read_metric(client, headers, file_id, artifact_id, digest, "row-count")
+    assert first.status_code == 200, first.text
+    for _ in range(29):
+        binder.budgets.reserve(task_id, actor(), scan_bytes=0)
+
+    denied = read_metric(client, headers, file_id, artifact_id, digest, "row-count")
+    assert denied.status_code == 429
+    assert denied.json()["detail"] == "xlsx_budget_exceeded"
+    events = (tmp_path / "audit.jsonl").read_text()
+    assert events.count("xlsx.analysis_metric_read") == 1
+
+
+def test_metric_contracts_reject_incoherent_columns_and_values():
+    digest = "sha256:" + "0" * 64
+    integer = XlsxAnalysisColumn(
+        index=1,
+        header="count",
+        declared_type="integer",
+        analysis_type="integer",
+        conversion="exact-integer",
+    )
+    decimal = XlsxAnalysisColumn(
+        index=3,
+        header="price",
+        declared_type="decimal",
+        analysis_type="string",
+        conversion="exact-decimal-text",
+    )
+    for request in (
+        {"metric": "row-count", "column": 1},
+        {"metric": "distinct-count"},
+    ):
+        with pytest.raises(ValidationError, match="xlsx_analysis_metric_column_invalid"):
+            ReadXlsxAnalysisMetric(snapshot_hash=digest, **request)
+
+    base = {
+        "file_id": UUID(int=1),
+        "task_id": UUID(int=2),
+        "artifact_id": UUID(int=3),
+        "artifact_hash": digest,
+        "snapshot_hash": digest,
+        "metric": "distinct-count",
+        "column": integer,
+        "value": 1,
+        "row_count": 2,
+        "dlp": "header-text-rescanned-before-return",
+    }
+    assert XlsxAnalysisMetric(**base).value == 1
+    for update in (
+        {"value": 0},
+        {"metric": "row-count"},
+        {"column": None},
+        {"dlp": "no-text-disclosed"},
+        {"metric": "integer-sum", "column": decimal, "value": 1},
+        {"metric": "row-count", "column": None, "value": 1},
+    ):
+        with pytest.raises(ValidationError, match="xlsx_analysis_metric_invalid"):
+            XlsxAnalysisMetric.model_validate(base | update)
+
+
+def test_metric_view_requires_an_explicitly_configured_port(tmp_path):
+    intake = build_service(tmp_path)
+    _, headers = credentials(intake.broker)
+    client = client_for(intake)
+    file_id, _ = prepared(client, headers, raw=RAW, columns=COLUMNS)
+    digest = snapshot(client, headers, file_id).json()["snapshot_hash"]
+    response = read_metric(client, headers, file_id, UUID(int=0), digest, "row-count")
     assert response.status_code == 503
     assert response.json()["detail"] == "xlsx_analysis_not_configured"

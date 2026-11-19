@@ -3,6 +3,7 @@
 import asyncio
 import re
 from collections.abc import Callable
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request
@@ -11,9 +12,11 @@ from starlette.requests import ClientDisconnect
 
 from generaldataagent.contracts import ArtifactRef
 from generaldataagent.datasets.xlsx_analysis import (
+    AnalysisMetric,
     BindXlsxAnalysis,
     XlsxAnalysisBinder,
     XlsxAnalysisDataset,
+    XlsxAnalysisMetric,
     XlsxAnalysisProfile,
     XlsxAnalysisRefused,
     XlsxAnalysisValuePage,
@@ -31,6 +34,7 @@ from generaldataagent.datasets.xlsx_intake_contracts import (
 from generaldataagent.datasets.xlsx_intake_store import XlsxIntakeConflict
 from generaldataagent.datasets.xlsx_interpretation import XlsxInterpretationResult
 from generaldataagent.datasets.xlsx_listing import XlsxFileListing, XlsxFilePage
+from generaldataagent.datasets.xlsx_preview import PREVIEW_COLUMNS
 from generaldataagent.datasets.xlsx_quality import (
     QUALITY_INTENT_PATTERN,
     SNAPSHOT_HASH_PATTERN,
@@ -47,6 +51,7 @@ from generaldataagent.datasets.xlsx_snapshot import (
     XlsxSnapshotResult,
     XlsxSnapshotWriter,
 )
+from generaldataagent.policy.budgets import BudgetExceededError
 
 XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
@@ -71,6 +76,8 @@ def xlsx_intake_router(
             return HTTPException(status_code=413, detail=str(exc))
         if isinstance(exc, XlsxAnalysisRefused):
             return HTTPException(status_code=422, detail=exc.code)
+        if isinstance(exc, BudgetExceededError):
+            return HTTPException(status_code=429, detail="xlsx_budget_exceeded")
         if isinstance(exc, PermissionError):
             return HTTPException(status_code=404, detail="xlsx_file_unavailable")
         if isinstance(exc, XlsxIntakeConflict):
@@ -410,6 +417,34 @@ def xlsx_intake_router(
         actor, token = credentials(request)
         try:
             return analysis.profile(file_id, artifact_id, actor, token, snapshot_hash=snapshot_hash)
+        except Exception as exc:
+            raise denied(exc) from exc
+
+    @router.get(
+        "/v1/analysis/files/xlsx/{file_id}/snapshot/analysis/{artifact_id}/metric",
+        response_model=XlsxAnalysisMetric,
+    )
+    def analysis_metric_view(
+        file_id: UUID,
+        artifact_id: UUID,
+        request: Request,
+        metric: Annotated[AnalysisMetric, Query()],
+        snapshot_hash: str = Query(pattern=SNAPSHOT_HASH_PATTERN),
+        column: int | None = Query(default=None, ge=0, lt=PREVIEW_COLUMNS),
+    ):
+        if analysis is None:
+            raise HTTPException(status_code=503, detail="xlsx_analysis_not_configured")
+        actor, token = credentials(request)
+        try:
+            return analysis.metric(
+                file_id,
+                artifact_id,
+                actor,
+                token,
+                snapshot_hash=snapshot_hash,
+                metric=metric,
+                column=column,
+            )
         except Exception as exc:
             raise denied(exc) from exc
 
