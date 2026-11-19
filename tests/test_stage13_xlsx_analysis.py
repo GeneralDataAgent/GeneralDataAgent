@@ -735,8 +735,11 @@ def test_profile_returns_exact_counts_and_integer_extremes_without_values(tmp_pa
         if column["analysis_type"] != "integer"
     )
     body = json.dumps(profile)
-    for value in ("001", "2023-03-15", '"2.5"', '"10"'):
+    # Match quoted JSON strings, not bare digit runs: task/artifact ids and hashes are random
+    # UUIDs/hex and can legitimately contain substrings such as "001".
+    for value in ('"001"', "2023-03-15", '"2.5"', '"10"'):
         assert value not in body
+    assert [column["header"] for column in profile["columns"]] == list(HEADERS)
     assert "xlsx.analysis_profile_read" in (tmp_path / "audit.jsonl").read_text()
 
 
