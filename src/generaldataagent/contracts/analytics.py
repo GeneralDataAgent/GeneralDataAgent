@@ -63,6 +63,40 @@ class MetricCandidate(ContractModel):
     matched_alias: str
 
 
+class CertifiedMetricResolutionRequest(ContractModel):
+    """A question for catalog resolution only; query options are not accepted."""
+
+    question: str = Field(min_length=1, max_length=2_000)
+    metric_version: str | None = Field(default=None, pattern=r"^v[1-9][0-9]*$")
+
+
+class CertifiedMetricResolution(ContractModel):
+    """A read-only catalog resolution with explicit non-execution boundaries."""
+
+    status: Literal["resolved", "ambiguous", "not_found"]
+    candidates: tuple[MetricCandidate, ...] = ()
+    clarification_question: str | None = None
+    scope: Literal["certified-metric-catalog-read-only"] = "certified-metric-catalog-read-only"
+    execution: Literal["not-started"] = "not-started"
+    task_created: Literal[False] = False
+    query_compiled: Literal[False] = False
+    artifacts_created: Literal[False] = False
+    budget_charged: Literal[False] = False
+    model_invoked: Literal[False] = False
+
+    @model_validator(mode="after")
+    def status_matches_candidates(self) -> "CertifiedMetricResolution":
+        if self.status == "resolved" and len(self.candidates) != 1:
+            raise ValueError("resolved metric requires exactly one candidate")
+        if self.status == "ambiguous" and len(self.candidates) < 2:
+            raise ValueError("ambiguous metric requires multiple candidates")
+        if self.status == "not_found" and self.candidates:
+            raise ValueError("not_found metric cannot include candidates")
+        if self.status != "resolved" and not self.clarification_question:
+            raise ValueError("unresolved metric requires a clarification question")
+        return self
+
+
 class MetricResolution(ContractModel):
     status: Literal["resolved", "ambiguous", "not_found"]
     question: str

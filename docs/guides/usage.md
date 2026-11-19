@@ -193,7 +193,9 @@ deterministic baseline must be evaluated separately from real-model behavior, va
 collected human review, and latency; see the [Stage 1 record](../../../docs/validation/stage1-trusted-reporting.md).
 
 The API also exposes `POST /v1/analysis/questions` for deterministic natural-language metric
-resolution and analysis, and `POST /v1/analysis/tasks/questions` for durable acceptance that
+resolution and analysis, `POST /v1/analysis/metrics/resolve` for a read-only resolution
+pre-contract that creates no task, query, artifact, budget charge or model call, and
+`POST /v1/analysis/tasks/questions` for durable acceptance that
 resolves to one certified query before queueing without persisting the question text
 (see [task submission](task-submission.md#question-acceptance)). `POST /v1/reviews` appends a
 scored review and `GET /v1/reviews/{task_id}/summary` evaluates the review gate. Runtime

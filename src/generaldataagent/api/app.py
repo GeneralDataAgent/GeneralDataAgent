@@ -26,6 +26,8 @@ from generaldataagent.business.schedules import ReportScheduler
 from generaldataagent.catalog import MetricNotFoundError
 from generaldataagent.contracts import (
     ActorContext,
+    CertifiedMetricResolution,
+    CertifiedMetricResolutionRequest,
     DatasetSnapshot,
     ExperimentSpec,
     HumanReview,
@@ -47,6 +49,7 @@ from generaldataagent.orchestration import MetricAnalysisRuntime
 from generaldataagent.orchestration.business_context import BusinessContextService
 from generaldataagent.orchestration.checkpoints import CheckpointBusyError, CheckpointLeaseLostError
 from generaldataagent.orchestration.mcp import McpReadService
+from generaldataagent.orchestration.metric_resolution import CertifiedMetricResolver
 from generaldataagent.orchestration.task_events import TaskEventJournal, TaskEventPage
 from generaldataagent.orchestration.task_presentation import MetricDisplayPreferenceService
 from generaldataagent.orchestration.task_questions import (
@@ -111,6 +114,7 @@ def create_app(
     xlsx_analysis: XlsxAnalysisBinder | None = None,
     business_context: BusinessContextService | None = None,
     mcp_read: McpReadService | None = None,
+    metric_resolution: CertifiedMetricResolver | None = None,
 ) -> FastAPI:
     if csv_intake is not None:
         if production_mode:
@@ -141,6 +145,13 @@ def create_app(
             raise ValueError("local_mcp_read_not_qualified_for_production")
         if session_broker is None:
             raise ValueError("mcp_read_requires_authenticated_sessions")
+    if metric_resolution is not None:
+        if production_mode:
+            raise ValueError("local_metric_resolution_not_qualified_for_production")
+        if session_broker is None:
+            raise ValueError("metric_resolution_requires_authenticated_sessions")
+        if metric_runtime is None or metric_resolution.catalog is not metric_runtime.catalog:
+            raise ValueError("metric_resolution_must_share_runtime_catalog")
     if (
         feedback_registry is not None
         and metric_tasks is not None
@@ -425,6 +436,7 @@ def create_app(
         return {
             "agents": [spec.name for spec in SPECIALIST_SPECS],
             "certified_metric_analysis": metric_runtime is not None,
+            "certified_metric_resolution": metric_resolution is not None,
             "human_review": review_store is not None,
             "data_science_workbench": science_workbench is not None,
             "feedback_curation": feedback_registry is not None,
@@ -781,6 +793,23 @@ def create_app(
             "delivery": result.get("delivery_package"),
             "errors": result.get("errors", []),
         }
+
+    @application.post(
+        "/v1/analysis/metrics/resolve",
+        response_model=CertifiedMetricResolution,
+    )
+    def resolve_certified_metric(
+        query: CertifiedMetricResolutionRequest, request: Request
+    ) -> CertifiedMetricResolution:
+        if metric_resolution is None:
+            raise HTTPException(status_code=503, detail="metric_resolution_not_configured")
+        actor = authenticated_actor(request).model_copy(
+            update={"data_domains": tuple(request.headers.getlist("x-data-domain"))}
+        )
+        try:
+            return metric_resolution.resolve(query, actor)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail="invalid_metric_resolution") from exc
 
     @application.post("/v1/actions/{thread_id}/resume")
     def resume_action(thread_id: str, request: Request) -> dict[str, Any]:

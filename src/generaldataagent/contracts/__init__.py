@@ -2,6 +2,8 @@
 
 from generaldataagent.contracts.analytics import (
     ActorContext,
+    CertifiedMetricResolution,
+    CertifiedMetricResolutionRequest,
     MetricCandidate,
     MetricQuery,
     MetricResolution,
@@ -115,6 +117,8 @@ __all__ = [
     "ArtifactRef",
     "AuditEvent",
     "Budget",
+    "CertifiedMetricResolution",
+    "CertifiedMetricResolutionRequest",
     "ChartSpec",
     "ColumnChange",
     "ColumnProfile",

@@ -16,6 +16,7 @@ Status vocabulary:
 |---|---|---|
 | Certified metric query over an approved relation | `POST /v1/analysis/metrics`, `MetricAnalysisRuntime.run` | Opt-in (needs a metric runtime) |
 | Natural-language metric resolution with explicit ambiguity | `POST /v1/analysis/questions`, `catalog/resolver.py` | Opt-in |
+| Read-only certified-catalog resolution before query construction | `POST /v1/analysis/metrics/resolve`, `orchestration/metric_resolution.py`, [ADR 0037](../adr/0037-read-only-certified-catalog-resolution.md) | Opt-in local adapter; explicit no-task/no-query/no-artifact/no-budget/no-model markers, question text not persisted, no production qualification |
 | Fixed five-node workflow `discover → plan → analyze → validate → deliver` | `orchestration/workflow.py` | Available |
 | Read-only SQL guard (single statement, no mutation/locking, relation allowlist) | `tools/sql_guard.py` | Available |
 | Immutable, content-addressed artifacts; governed store with DLP, retention, holds | `artifacts/` | Available |
