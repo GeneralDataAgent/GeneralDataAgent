@@ -25,7 +25,7 @@ from uuid import UUID
 from pydantic import AwareDatetime, Field, StrictInt, model_validator
 
 from generaldataagent.artifacts.governed import ArtifactReadPolicy, GovernedArtifactStore
-from generaldataagent.contracts import ActorContext, ArtifactRef
+from generaldataagent.contracts import ActorContext, ArtifactRef, Budget
 from generaldataagent.contracts.models import ContractModel
 from generaldataagent.datasets.xlsx_intake import XlsxIntakeService
 from generaldataagent.datasets.xlsx_intake_contracts import (
@@ -45,11 +45,13 @@ from generaldataagent.datasets.xlsx_snapshot import (
     SCAN_CHUNK_CHARS,
     SnapshotHash,
 )
+from generaldataagent.policy.budgets import TaskBudgetLedger
 
 _ARTIFACT_TYPE = "xlsx_analysis_dataset"
 _READER = "gda-xlsx-analysis-dataset-v1"
 _BINDING_READER = "gda-xlsx-analysis-binding-v1"
 _VALUES_READER = "gda-xlsx-analysis-values-v1"
+_METRIC_READER = "gda-xlsx-analysis-metric-v1"
 _CONVERSIONS: dict[str, tuple[str, str]] = {
     "text": ("string", "exact-text"),
     "integer": ("integer", "exact-integer"),
@@ -352,6 +354,82 @@ class XlsxAnalysisProfile(ContractModel):
         return self
 
 
+AnalysisMetric = Literal[
+    "row-count",
+    "distinct-count",
+    "integer-sum",
+    "integer-min",
+    "integer-max",
+]
+
+
+class ReadXlsxAnalysisMetric(ContractModel):
+    """One explicit exact aggregate over one immutable analysis dataset."""
+
+    schema_version: Literal["1.0"] = "1.0"
+    snapshot_hash: SnapshotHash
+    metric: AnalysisMetric
+    column: StrictInt | None = Field(default=None, ge=0, lt=PREVIEW_COLUMNS)
+
+    @model_validator(mode="after")
+    def column_matches_metric(self) -> "ReadXlsxAnalysisMetric":
+        if (self.metric == "row-count") != (self.column is None):
+            raise ValueError("xlsx_analysis_metric_column_invalid")
+        return self
+
+
+class XlsxAnalysisMetric(ContractModel):
+    """One exact integer aggregate; explicitly not a certified metric query or result."""
+
+    schema_version: Literal["1.0"] = "1.0"
+    reader: Literal["gda-xlsx-analysis-metric-v1"] = _METRIC_READER
+    file_id: UUID
+    task_id: UUID
+    artifact_id: UUID
+    artifact_hash: SnapshotHash
+    snapshot_hash: SnapshotHash
+    status: Literal["current"] = "current"
+    metric: AnalysisMetric
+    column: XlsxAnalysisColumn | None = None
+    value: StrictInt
+    row_count: int = Field(ge=2, le=MAX_ROWS, strict=True)
+    scope: Literal["one-creator-bound-analysis-artifact"] = "one-creator-bound-analysis-artifact"
+    aggregation: Literal["exact-integer-single-pass"] = "exact-integer-single-pass"
+    qualification: Literal["non-certified-analysis-view"] = "non-certified-analysis-view"
+    metric_catalog: Literal["not-registered"] = "not-registered"
+    metric_definition: Literal["not-resolved"] = "not-resolved"
+    result_view: Literal["analysis-metric-view-not-metric-result"] = (
+        "analysis-metric-view-not-metric-result"
+    )
+    dlp: Literal["header-text-rescanned-before-return", "no-text-disclosed"]
+    storage: Literal["dlp-scanned-creator-artifact"] = "dlp-scanned-creator-artifact"
+    row_scope: Literal["present-value-only"] = "present-value-only"
+    roles: Literal["not-assigned"] = "not-assigned"
+    target: Literal["not-designated"] = "not-designated"
+    dataset_snapshot: Literal[False] = False
+    certified_metric_source: Literal[False] = False
+
+    @model_validator(mode="after")
+    def metric_is_coherent(self) -> "XlsxAnalysisMetric":
+        if (self.metric == "row-count") != (self.column is None):
+            raise ValueError("xlsx_analysis_metric_invalid")
+        if (
+            self.column is not None
+            and self.metric != "distinct-count"
+            and self.column.analysis_type != "integer"
+        ):
+            raise ValueError("xlsx_analysis_metric_invalid")
+        if self.dlp != (
+            "no-text-disclosed" if self.column is None else "header-text-rescanned-before-return"
+        ):
+            raise ValueError("xlsx_analysis_metric_invalid")
+        if self.metric == "row-count" and self.value != self.row_count:
+            raise ValueError("xlsx_analysis_metric_invalid")
+        if self.metric == "distinct-count" and not 1 <= self.value <= self.row_count:
+            raise ValueError("xlsx_analysis_metric_invalid")
+        return self
+
+
 def _analysis_column(column: XlsxSnapshotColumnData) -> XlsxAnalysisColumn:
     analysis_type, conversion = _CONVERSIONS[column.type]
     return XlsxAnalysisColumn(
@@ -454,6 +532,50 @@ def analysis_profile(
     )
 
 
+def analysis_metric(
+    artifact: XlsxAnalysisArtifact,
+    *,
+    artifact_id: UUID,
+    artifact_hash: str,
+    request: ReadXlsxAnalysisMetric,
+) -> XlsxAnalysisMetric:
+    """Compute one exact integer aggregate without disclosing any cell value."""
+    request = ReadXlsxAnalysisMetric.model_validate(request.model_dump())
+    column = None
+    value = len(artifact.row_numbers)
+    if request.column is not None:
+        position = next(
+            (index for index, item in enumerate(artifact.columns) if item.index == request.column),
+            None,
+        )
+        if position is None:
+            raise XlsxAnalysisRefused("xlsx_analysis_metric_column_not_bound")
+        column = artifact.columns[position]
+        values = [row[position] for row in artifact.rows]
+        if request.metric == "distinct-count":
+            value = len(set(values))
+        elif column.analysis_type != "integer":
+            raise XlsxAnalysisRefused("xlsx_analysis_metric_type_invalid")
+        elif request.metric == "integer-sum":
+            value = sum(values)
+        elif request.metric == "integer-min":
+            value = min(values)
+        else:
+            value = max(values)
+    return XlsxAnalysisMetric(
+        file_id=artifact.file_id,
+        task_id=artifact.task_id,
+        artifact_id=artifact_id,
+        artifact_hash=artifact_hash,
+        snapshot_hash=artifact.snapshot_hash,
+        metric=request.metric,
+        column=column,
+        value=value,
+        row_count=len(artifact.row_numbers),
+        dlp="no-text-disclosed" if column is None else "header-text-rescanned-before-return",
+    )
+
+
 def _scan_page_values(
     rows: tuple[XlsxAnalysisValueRow, ...], scanner, check: Callable[[], None]
 ) -> None:
@@ -481,6 +603,13 @@ def _scan_headers(columns: tuple[XlsxAnalysisColumnProfile, ...], scanner, check
     check()
 
 
+def _scan_metric_header(column: XlsxAnalysisColumn, scanner, check) -> None:
+    """Rescan the one disclosed header before returning its aggregate."""
+    check()
+    scanner.check(column.header.encode())
+    check()
+
+
 class XlsxAnalysisBinder:
     """Write one immutable analysis dataset per explicit creator request.
 
@@ -492,13 +621,18 @@ class XlsxAnalysisBinder:
         self,
         *,
         intake: XlsxIntakeService,
+        budgets: TaskBudgetLedger,
         artifact_root: Path,
         artifact_index: Path,
     ):
         root = artifact_root.resolve()
-        if any(path.resolve().is_relative_to(root) for path in (intake.store.path, artifact_index)):
+        if any(
+            path.resolve().is_relative_to(root)
+            for path in (intake.store.path, budgets.path, artifact_index)
+        ):
             raise ValueError("xlsx_analysis_state_must_be_outside_artifact_content")
-        self.intake, self.artifact_root, self.artifact_index = intake, artifact_root, artifact_index
+        self.intake, self.budgets = intake, budgets
+        self.artifact_root, self.artifact_index = artifact_root, artifact_index
 
     def _current(
         self,
@@ -762,6 +896,72 @@ class XlsxAnalysisBinder:
             raise XlsxIntakeConflict("xlsx_snapshot_changed")
         return profile
 
+    def metric(
+        self,
+        file_id: UUID,
+        artifact_id: UUID,
+        actor: ActorContext,
+        token: str,
+        *,
+        snapshot_hash: str,
+        metric: str,
+        column: int | None = None,
+        deadline: float | None = None,
+    ) -> XlsxAnalysisMetric:
+        """Return one exact aggregate from one creator-bound analysis artifact."""
+        request = ReadXlsxAnalysisMetric(snapshot_hash=snapshot_hash, metric=metric, column=column)
+        deadline = (
+            self.intake.monotonic() + self.intake.limits.max_seconds
+            if deadline is None
+            else deadline
+        )
+        payload, snapshot, check = self._current(
+            file_id, actor, token, request.snapshot_hash, deadline
+        )
+        artifacts = self._store(actor)
+        reference = artifacts.find_task_artifact(payload.file.task_id, artifact_id, _ARTIFACT_TYPE)
+        if reference is None:
+            raise PermissionError("xlsx_analysis_artifact_unavailable")
+        self.budgets.register(
+            payload.file.task_id,
+            payload.actor,
+            Budget(max_runtime_seconds=self.intake.limits.max_seconds),
+        )
+        self.budgets.reserve(payload.file.task_id, payload.actor, scan_bytes=reference.size_bytes)
+        check()
+        parsed = load_xlsx_analysis_artifact(artifacts.read_bytes(reference), artifact=reference)
+        check()
+        if parsed.file_id != file_id or parsed.snapshot_hash != snapshot.snapshot_hash:
+            raise XlsxIntakeConflict("xlsx_snapshot_changed")
+        view = analysis_metric(
+            parsed,
+            artifact_id=reference.artifact_id,
+            artifact_hash=reference.content_hash,
+            request=request,
+        )
+        if view.column is not None:
+            _scan_metric_header(view.column, self.intake.scanner, check)
+        self.intake._audit(
+            "xlsx.analysis_metric_read",
+            payload,
+            {
+                "snapshot_hash": snapshot.snapshot_hash,
+                "artifact_id": str(reference.artifact_id),
+                "metric": view.metric,
+                "column": view.column.index if view.column is not None else None,
+                "value": view.value,
+                "rows": view.row_count,
+            },
+        )
+        check()
+        current, _, after_check = self._current(
+            file_id, actor, token, request.snapshot_hash, deadline
+        )
+        after_check()
+        if current.snapshot is None or current.snapshot.snapshot_hash != snapshot.snapshot_hash:
+            raise XlsxIntakeConflict("xlsx_snapshot_changed")
+        return view
+
 
 def load_xlsx_analysis_artifact(content: bytes, *, artifact: ArtifactRef) -> XlsxAnalysisArtifact:
     """Validate one already-authorized artifact body against its reference."""
@@ -776,16 +976,20 @@ def load_xlsx_analysis_artifact(content: bytes, *, artifact: ArtifactRef) -> Xls
 
 
 __all__ = [
+    "AnalysisMetric",
     "BindXlsxAnalysis",
+    "ReadXlsxAnalysisMetric",
     "XlsxAnalysisArtifact",
     "XlsxAnalysisBinder",
     "XlsxAnalysisColumn",
     "XlsxAnalysisColumnProfile",
     "XlsxAnalysisDataset",
+    "XlsxAnalysisMetric",
     "XlsxAnalysisProfile",
     "XlsxAnalysisRefused",
     "XlsxAnalysisValuePage",
     "XlsxAnalysisValueRow",
+    "analysis_metric",
     "analysis_page",
     "analysis_profile",
     "load_xlsx_analysis_artifact",
