@@ -67,7 +67,8 @@ The response carries fixed non-execution markers: `scope=certified-metric-catalo
 artifact or budget reservation is created. Resolution does not certify query options or execute a
 metric; call `POST /v1/analysis/metrics` or the durable question path for that. The resolver is a
 local adapter: production assembly rejects it, and construction requires an authenticated session
-broker plus the exact runtime catalog. See
+broker plus the exact catalog shared by the configured metric runtime and/or durable question
+service. See
 [ADR 0037](../adr/0037-read-only-certified-catalog-resolution.md).
 
 ## Question acceptance
