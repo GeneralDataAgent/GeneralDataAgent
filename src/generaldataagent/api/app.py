@@ -150,8 +150,13 @@ def create_app(
             raise ValueError("local_metric_resolution_not_qualified_for_production")
         if session_broker is None:
             raise ValueError("metric_resolution_requires_authenticated_sessions")
-        if metric_runtime is None or metric_resolution.catalog is not metric_runtime.catalog:
-            raise ValueError("metric_resolution_must_share_runtime_catalog")
+        catalogs = []
+        if metric_runtime is not None:
+            catalogs.append(metric_runtime.catalog)
+        if metric_tasks is not None and metric_tasks.question_catalog is not None:
+            catalogs.append(metric_tasks.question_catalog)
+        if not catalogs or any(catalog is not metric_resolution.catalog for catalog in catalogs):
+            raise ValueError("metric_resolution_must_share_certified_catalog")
     if (
         feedback_registry is not None
         and metric_tasks is not None

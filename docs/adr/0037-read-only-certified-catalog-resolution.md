@@ -31,8 +31,9 @@ clarification text. It does not echo or persist the question. Fixed boundary mar
 `task_created`, `query_compiled`, `artifacts_created`, `budget_charged` and `model_invoked` all
 `false`.
 
-Assembly requires the resolver and the metric runtime to share the exact catalog instance. The
-endpoint is rejected in production mode with the other local adapters.
+Assembly requires the resolver to share the exact catalog instance with every configured certified
+catalog source: the metric runtime and/or the durable question service. At least one such source
+must exist. The endpoint is rejected in production mode with the other local adapters.
 
 ## Consequences
 

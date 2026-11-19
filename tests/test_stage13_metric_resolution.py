@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 from test_metric_analysis import build_runtime
+from test_stage11_task_submission import assembly, credentials
 
 from generaldataagent.api.app import create_app
 from generaldataagent.catalog import InMemoryMetricCatalog, MetricDefinition
@@ -264,6 +265,31 @@ def test_resolution_is_disabled_unless_explicitly_configured(tmp_path) -> None:
     assert_no_execution_side_effects(tmp_path)
 
 
+def test_resolution_can_use_the_durable_question_catalog_without_a_runtime(tmp_path) -> None:
+    original = build_runtime(tmp_path)
+    with assembly(tmp_path, original, question_catalog=original.catalog) as (service, _):
+        _, headers = credentials(service.broker)
+        api = TestClient(
+            create_app(
+                session_broker=service.broker,
+                task_events=service.events,
+                metric_tasks=service,
+                metric_resolution=CertifiedMetricResolver(service.question_catalog),
+            )
+        )
+
+        response = api.post(
+            "/v1/analysis/metrics/resolve",
+            headers=headers,
+            json={"question": "订单量"},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "resolved"
+        assert response.json()["candidates"][0]["metric_name"] == "order_count"
+        assert response.json()["task_created"] is False
+
+
 def test_resolution_configuration_fails_closed(tmp_path) -> None:
     runtime = build_runtime(tmp_path)
     resolver = CertifiedMetricResolver(runtime.catalog)
@@ -296,9 +322,19 @@ def test_resolution_configuration_fails_closed(tmp_path) -> None:
             metric_resolution=CertifiedMetricResolver(other),
         )
     except ValueError as exc:
-        assert str(exc) == "metric_resolution_must_share_runtime_catalog"
+        assert str(exc) == "metric_resolution_must_share_certified_catalog"
     else:
-        raise AssertionError("the resolver must share the runtime catalog")
+        raise AssertionError("the resolver must share the certified catalog")
+
+    try:
+        create_app(
+            session_broker=broker,
+            metric_resolution=CertifiedMetricResolver(runtime.catalog),
+        )
+    except ValueError as exc:
+        assert str(exc) == "metric_resolution_must_share_certified_catalog"
+    else:
+        raise AssertionError("resolution requires a configured certified catalog source")
 
     try:
         CertifiedMetricResolver({})
