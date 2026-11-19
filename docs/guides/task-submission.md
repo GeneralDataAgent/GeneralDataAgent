@@ -36,6 +36,7 @@ comes from the JSON body. Supply every task domain using repeated `x-data-domain
 | `GET /v1/analysis/tasks/{task_id}` | Creator-scoped metadata; unknown/expired/inaccessible tasks return 404 after authentication |
 | `GET /v1/analysis/tasks` | Bounded exact-domain-view [task listing](task-results.md) with opaque cursors |
 | `GET /v1/analysis/tasks/{task_id}/result` | Guarded completed [delivery read](task-results.md), without resuming work |
+| `GET /v1/analysis/tasks/{task_id}/artifacts/{artifact_id}` | One validated same-task [evidence artifact](task-results.md#downloading-one-evidence-artifact), never an arbitrary stored object |
 | `POST /v1/analysis/tasks/{task_id}/cancel` | HTTP 202 with requested/confirmed [cancellation](task-cancellation.md) state |
 | `POST /v1/analysis/tasks/{task_id}/retry` | HTTP 202 for an interrupted task below its attempt limit, using a freshly checked session |
 | `GET /v1/analysis/tasks/{task_id}/events` | Existing [progress replay](task-events.md), immediately usable after acceptance |

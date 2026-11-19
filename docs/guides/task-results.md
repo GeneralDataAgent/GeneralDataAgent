@@ -32,8 +32,8 @@ reads are consistent within each page. The current queue uses schema v2; existin
 `thread_id`, `status=completed`, `validation` and `delivery`. The existing typed delivery includes
 the table, chart instructions, narrative and evidence references. A v1 package keeps `chart` as its
 canonical first chart and may add up to six `charts`; every entry references the same task evidence
-and no chart embeds rows. Artifact references are not public download URLs; this endpoint does not
-add an attachment download route.
+and no chart embeds rows. Artifact references are not public links; the separate evidence download
+route described below accepts only a task ID and an evidence artifact ID.
 
 The queue must say completed, its encrypted context must authorize the current creator/scope, and
 the protected checkpoint must have no pending nodes. Task ID, original actor, full MetricQuery,
@@ -58,8 +58,25 @@ The factory receives a `MetricTaskExecution` whose `claim` can be a read-only `M
 these common bindings to construct a runtime and attach the provided guard. Existing worker claims
 retain their extra lease/grant fields. The read path does not call execution methods on that runtime.
 
+## Downloading one evidence artifact
+
+`GET /v1/analysis/tasks/{task_id}/artifacts/{artifact_id}` returns the exact bytes of one JSON
+artifact referenced by the validated delivery evidence. The route runs the same completed-result
+checks first, then requires the identifier to match exactly one `DeliveryPackage.evidence`
+reference. Governed stores keep their export authorization and DLP scan. A same-task artifact outside
+that set, an unknown identifier, another user/tenant/project or a different domain all return the
+same fixed 404; incomplete, inconsistent or corrupt evidence returns 409.
+
+Only evidence types admitted by result reads are reachable (`metric_query_result`, `chart_spec` and
+`llm_narrative`). Uploaded CSV/XLSX sources and arbitrary stored objects are not downloadable through
+this route. The response is an `application/json` attachment with `X-Content-Type-Options: nosniff`
+and `Cache-Control: no-store`. A successful read emits one bounded `artifact.downloaded` audit event
+with only the artifact type and byte size; a missing or failing audit sink denies the download.
+Downloads do not invoke the graph, rerun SQL, reserve budget or change task attempts.
+
 These are producer evidence integrity checks, not independent correctness acceptance. No production
-qualification, cross-project sharing or raw artifact download is added here.
+qualification, cross-project sharing, artifact listing or general content-addressed download API is
+added here.
 [Cancellation](task-cancellation.md) is a separate creator-authorized command. The separate
 [bounded SSE endpoint](task-streaming.md) streams metadata and persisted progress, never result rows.
 

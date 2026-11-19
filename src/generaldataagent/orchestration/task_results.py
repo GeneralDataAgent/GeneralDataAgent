@@ -5,7 +5,7 @@ from typing import Literal
 from uuid import UUID
 
 from generaldataagent.artifacts.governed import GovernedArtifactStore, require_artifact_scope
-from generaldataagent.contracts import DeliveryPackage, ValidationResult
+from generaldataagent.contracts import ArtifactRef, DeliveryPackage, ValidationResult
 from generaldataagent.contracts.models import ContractModel
 from generaldataagent.orchestration.metric_analysis import MetricAnalysisRuntime
 
@@ -19,8 +19,10 @@ class MetricTaskResult(ContractModel):
     delivery: DeliveryPackage
 
 
-def read_metric_result(runtime, context, guard) -> MetricTaskResult:
-    """Caller has live creator authorization; checkpoint and artifacts must still agree.
+def _read_checked_result(
+    runtime, context, guard
+) -> tuple[MetricTaskResult, dict[str, tuple[str, bytes]]]:
+    """Validate the completed result and retain each evidence artifact's exact bytes.
 
     This performs producer evidence integrity checks, not independent truth validation.
     No model call, graph invoke/resume, budget reservation or data-source query occurs.
@@ -47,6 +49,7 @@ def read_metric_result(runtime, context, guard) -> MetricTaskResult:
         if delivery.model_dump(mode="json") != expected:
             raise ValueError("task_result_delivery_mismatch")
         bodies = {}
+        raw: dict[str, tuple[str, bytes]] = {}
         for ref in delivery.evidence:
             guard()
             if (
@@ -64,6 +67,7 @@ def read_metric_result(runtime, context, guard) -> MetricTaskResult:
             if len(content) != ref.size_bytes:
                 raise ValueError("task_result_evidence_size_mismatch")
             bodies[ref.uri] = (ref.artifact_type, json.loads(content))
+            raw[ref.uri] = (ref.artifact_type, content)
         data_kind, data = bodies[delivery.table.data_artifact_uri]
         wire = delivery.model_dump(mode="json")
         chart_specs = delivery.chart_specs
@@ -92,6 +96,29 @@ def read_metric_result(runtime, context, guard) -> MetricTaskResult:
         ):
             raise ValueError("task_result_narrative_mismatch")
         guard()
-        return MetricTaskResult(
-            task_id=task_id, thread_id=thread_id, validation=validation, delivery=delivery
+        return (
+            MetricTaskResult(
+                task_id=task_id, thread_id=thread_id, validation=validation, delivery=delivery
+            ),
+            raw,
         )
+
+
+def read_metric_result(runtime, context, guard) -> MetricTaskResult:
+    """Return the checked completed result without exposing raw evidence bodies."""
+    result, _ = _read_checked_result(runtime, context, guard)
+    return result
+
+
+def read_metric_artifact(runtime, context, guard, artifact_id: UUID) -> tuple[ArtifactRef, bytes]:
+    """Return one same-task evidence artifact after the full result check.
+
+    The artifact must be exactly one reference in the validated delivery evidence. A
+    same-task artifact outside that set is indistinguishable from an unknown artifact.
+    """
+    result, raw = _read_checked_result(runtime, context, guard)
+    matches = [ref for ref in result.delivery.evidence if ref.artifact_id == artifact_id]
+    if len(matches) != 1:
+        raise PermissionError("task_artifact_unavailable")
+    ref = matches[0]
+    return ref, raw[ref.uri][1]

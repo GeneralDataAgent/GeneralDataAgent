@@ -5,7 +5,14 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from generaldataagent.catalog import InMemoryMetricCatalog
-from generaldataagent.contracts import ActorContext, Budget, MetricQuery, NaturalLanguageMetricQuery
+from generaldataagent.contracts import (
+    ActorContext,
+    ArtifactRef,
+    AuditEvent,
+    Budget,
+    MetricQuery,
+    NaturalLanguageMetricQuery,
+)
 from generaldataagent.orchestration.checkpoints import ProtectedSqliteSaver
 from generaldataagent.orchestration.metric_analysis import MetricAnalysisRuntime
 from generaldataagent.orchestration.questions import certified_query, resolve_question
@@ -25,7 +32,11 @@ from generaldataagent.orchestration.task_queue import (
     TaskQueueConflict,
     canonical_actor,
 )
-from generaldataagent.orchestration.task_results import MetricTaskResult, read_metric_result
+from generaldataagent.orchestration.task_results import (
+    MetricTaskResult,
+    read_metric_artifact,
+    read_metric_result,
+)
 from generaldataagent.policy.budgets import BudgetExceededError, TaskBudgetLedger
 from generaldataagent.security.identity import SessionBroker
 
@@ -161,6 +172,48 @@ class MetricTaskService:
                 task_id, actor, content_hash(result.delivery.model_dump(mode="json"))
             )
         return result
+
+    def artifact(
+        self, task_id: UUID, artifact_id: UUID, actor: ActorContext, token: str
+    ) -> tuple[ArtifactRef, bytes]:
+        """Read one same-task evidence artifact; never an arbitrary stored object.
+
+        The full result check runs first, so an incomplete, tampered or revoked task
+        cannot expose bytes. Downloads require a working audit sink and record a
+        bounded event after the content check but before the response is returned.
+        """
+        reference = self._reference(token, actor)
+        context = self.queue.result_context(task_id, actor)
+
+        def guard():
+            self._authorize_reference(reference, actor)
+            if self.queue.result_context(task_id, actor) != context:
+                raise PermissionError("task_artifact_context_changed")
+
+        try:
+            runtime = self._runtime(MetricTaskExecution(context, guard))
+            ref, content = read_metric_artifact(runtime, context, guard, artifact_id)
+            if runtime.audit is None:
+                raise ValueError("task_artifact_audit_unavailable")
+            runtime.audit.emit(
+                AuditEvent(
+                    event_type="artifact.downloaded",
+                    task_id=task_id,
+                    actor_id=actor.user_id,
+                    tenant_id=actor.tenant_id,
+                    trace_id=str(task_id),
+                    payload={
+                        "artifact_type": ref.artifact_type,
+                        "size_bytes": len(content),
+                    },
+                )
+            )
+        except PermissionError:
+            raise
+        except Exception as exc:
+            raise TaskQueueConflict("task_artifact_unavailable") from exc
+        guard()
+        return ref, content
 
     def _runtime(self, execution: MetricTaskExecution) -> MetricAnalysisRuntime:
         runtime = self.runtime_factory(execution)

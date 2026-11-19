@@ -6,7 +6,7 @@ from time import monotonic
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import FastAPI, Header, HTTPException, Query, Request
+from fastapi import FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict
 
@@ -650,6 +650,41 @@ def create_app(
             raise HTTPException(status_code=404, detail="task_result_unavailable") from exc
         except TaskQueueConflict as exc:
             raise HTTPException(status_code=409, detail="task_result_unavailable") from exc
+
+    @application.get(
+        "/v1/analysis/tasks/{task_id}/artifacts/{artifact_id}",
+        response_class=Response,
+        responses={
+            200: {
+                "content": {"application/json": {}},
+                "description": "One same-task evidence artifact.",
+            }
+        },
+    )
+    def download_metric_task_artifact(
+        task_id: UUID, artifact_id: UUID, request: Request
+    ) -> Response:
+        if metric_tasks is None:
+            raise HTTPException(status_code=503, detail="metric_tasks_not_configured")
+        actor, token = task_credentials(request)
+        try:
+            ref, content = metric_tasks.artifact(task_id, artifact_id, actor, token)
+        except PermissionError as exc:
+            raise HTTPException(status_code=404, detail="task_artifact_unavailable") from exc
+        except TaskQueueConflict as exc:
+            raise HTTPException(status_code=409, detail="task_artifact_unavailable") from exc
+        return Response(
+            content=content,
+            media_type="application/json",
+            headers={
+                "Cache-Control": "no-store",
+                "Content-Disposition": (
+                    f'attachment; filename="{ref.artifact_type}-{ref.artifact_id}.json"'
+                ),
+                "Content-Length": str(len(content)),
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
 
     @application.get("/v1/analysis/tasks/{task_id}", response_model=MetricTaskRecord)
     def read_metric_task(task_id: UUID, request: Request) -> MetricTaskRecord:
