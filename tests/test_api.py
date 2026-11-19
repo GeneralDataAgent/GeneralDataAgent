@@ -51,6 +51,15 @@ def test_question_endpoint_is_fail_closed_when_not_configured() -> None:
     assert response.status_code == 503
 
 
+def test_metric_resolution_endpoint_is_fail_closed_when_not_configured() -> None:
+    response = client.post(
+        "/v1/analysis/metrics/resolve",
+        json={"question": "How many orders?"},
+    )
+    assert response.status_code == 503
+    assert response.json()["detail"] == "metric_resolution_not_configured"
+
+
 def test_science_endpoint_runs_only_configured_fixed_workbench(tmp_path: Path) -> None:
     task_id = uuid4()
     store = LocalArtifactStore(tmp_path / "artifacts")

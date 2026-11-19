@@ -52,6 +52,24 @@ a missing journal registration. Existing synchronous endpoints remain compatible
 resume takes thread ID; queue retry takes task ID. Workers own queue retries; do not invoke legacy
 resume concurrently for a queued task.
 
+## Read-only resolution
+
+`POST /v1/analysis/metrics/resolve` resolves a `CertifiedMetricResolutionRequest` (`question` and
+an optional `metric_version`) without accepting dimensions or a time range. Authentication and
+`analysis:run` are checked first, and resolution considers only the data domains declared on the
+request within the session's authorized domains. The response (`CertifiedMetricResolution` v1)
+returns `resolved`, `ambiguous` or `not_found` with bounded candidates and a clarification question
+for unresolved statuses. It never echoes or persists the question.
+
+The response carries fixed non-execution markers: `scope=certified-metric-catalog-read-only`,
+`execution=not-started`, and `task_created`, `query_compiled`, `artifacts_created`,
+`budget_charged` and `model_invoked` all `false`. No task, queue record, checkpoint, audit entry,
+artifact or budget reservation is created. Resolution does not certify query options or execute a
+metric; call `POST /v1/analysis/metrics` or the durable question path for that. The resolver is a
+local adapter: production assembly rejects it, and construction requires an authenticated session
+broker plus the exact runtime catalog. See
+[ADR 0037](../adr/0037-read-only-certified-catalog-resolution.md).
+
 ## Question acceptance
 
 `POST /v1/analysis/tasks/questions` accepts a `NaturalLanguageMetricQuery` with the same
