@@ -20,6 +20,8 @@ class BusinessContextService:
 
     def __init__(self, *, tasks: MetricTaskService, store: ConfirmedBusinessContextStore):
         self.tasks, self.store = tasks, store
+        if getattr(tasks, "business_context", None) is None:
+            tasks.business_context = self
 
     def _guard(self, actor: ActorContext, token: str):
         reference = self.tasks._reference(token, actor)

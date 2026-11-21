@@ -97,6 +97,7 @@ from generaldataagent.contracts.receipt import (
     load_receipt,
 )
 from generaldataagent.contracts.review import HumanReview, HumanReviewSummary
+from generaldataagent.contracts.task_context import TaskContextBinding
 from generaldataagent.contracts.types import (
     AgentRole,
     ArtifactClassification,
@@ -182,6 +183,7 @@ __all__ = [
     "SourceBinding",
     "SplitSpec",
     "SubgroupEvaluation",
+    "TaskContextBinding",
     "TaskPlan",
     "TaskStatus",
     "TaskStep",

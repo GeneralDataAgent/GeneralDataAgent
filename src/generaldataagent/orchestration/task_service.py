@@ -12,6 +12,7 @@ from generaldataagent.contracts import (
     Budget,
     MetricQuery,
     NaturalLanguageMetricQuery,
+    TaskContextBinding,
 )
 from generaldataagent.orchestration.checkpoints import ProtectedSqliteSaver
 from generaldataagent.orchestration.metric_analysis import MetricAnalysisRuntime
@@ -64,6 +65,7 @@ class MetricTaskService:
         runtime_factory: Callable[[MetricTaskExecution], MetricAnalysisRuntime],
         feedback=None,
         question_catalog: InMemoryMetricCatalog | None = None,
+        business_context=None,
     ):
         if feedback is not None:
             from generaldataagent.business.governance import FeedbackRegistry
@@ -75,6 +77,22 @@ class MetricTaskService:
         self.queue, self.broker, self.events = queue, broker, events
         self.budgets, self.runtime_factory, self.feedback = budgets, runtime_factory, feedback
         self.question_catalog = question_catalog
+        self.business_context = business_context
+
+    def _verify_binding(self, actor: ActorContext, binding: TaskContextBinding, guard) -> None:
+        if self.business_context is None:
+            raise PermissionError("task_context_binding_unavailable")
+        actor = canonical_actor(actor)
+        state = self.business_context.store.current(actor)
+        guard()
+        if (
+            state.status != "active"
+            or state.version != binding.context_version
+            or state.record is None
+            or state.record.version != binding.context_version
+            or state.record.actor != actor
+        ):
+            raise PermissionError("task_context_binding_invalid")
 
     def _authorize_reference(self, reference: str, actor: ActorContext) -> None:
         identity = self.broker.authenticate_reference(reference)
@@ -93,11 +111,22 @@ class MetricTaskService:
         return reference
 
     def submit(
-        self, query: MetricQuery, actor: ActorContext, token: str, idempotency_key: str
+        self,
+        query: MetricQuery,
+        actor: ActorContext,
+        token: str,
+        idempotency_key: str,
+        context_binding: TaskContextBinding | None = None,
     ) -> MetricTaskRecord:
+        if context_binding is None:
+            context_binding = query.context_binding
         actor = canonical_actor(actor)
         reference = self._reference(token, actor)
-        record = self.queue.submit(query, actor, reference, idempotency_key)
+        if context_binding is not None:
+            self._verify_binding(
+                actor, context_binding, lambda: self._authorize_reference(reference, actor)
+            )
+        record = self.queue.submit(query, actor, reference, idempotency_key, context_binding)
         # Two durable databases are intentionally not advertised as one transaction.
         # A retry or the worker repairs a missing event registration after acceptance.
         self.events.ensure_started(record.task_id, actor)
@@ -109,22 +138,29 @@ class MetricTaskService:
         actor: ActorContext,
         token: str,
         idempotency_key: str,
+        context_binding: TaskContextBinding | None = None,
     ) -> MetricQuestionTask:
         """Accept only an unambiguous, authorized certified query derived from the question.
-
         Authorization is checked before resolution so an unauthenticated caller learns nothing
         about the catalog. The question itself is never persisted: the durable payload is the
         resolved MetricQuery, and the idempotency request hash covers that query.
+
         """
         if self.question_catalog is None:
             raise QuestionAcceptanceUnavailable("question_acceptance_not_configured")
+        if context_binding is None:
+            context_binding = request.context_binding
         actor = canonical_actor(actor)
         reference = self._reference(token, actor)
+        if context_binding is not None:
+            self._verify_binding(
+                actor, context_binding, lambda: self._authorize_reference(reference, actor)
+            )
         resolution = resolve_question(self.question_catalog, request, actor)
         if resolution.status != "resolved":
             raise QuestionNotResolved(resolution.status, resolution.candidates)
         query, metric = certified_query(self.question_catalog, resolution, request)
-        record = self.queue.submit(query, actor, reference, idempotency_key)
+        record = self.queue.submit(query, actor, reference, idempotency_key, context_binding)
         self.events.ensure_started(record.task_id, actor)
         return MetricQuestionTask(task=record, metric=metric)
 
@@ -154,6 +190,12 @@ class MetricTaskService:
 
         def guard():
             self._authorize_reference(reference, actor)
+            if context.context_binding is not None:
+                self._verify_binding(
+                    actor,
+                    context.context_binding,
+                    lambda: self._authorize_reference(reference, actor),
+                )
             if self.queue.result_context(task_id, actor) != context:
                 raise PermissionError("task_result_context_changed")
 
@@ -187,6 +229,12 @@ class MetricTaskService:
 
         def guard():
             self._authorize_reference(reference, actor)
+            if context.context_binding is not None:
+                self._verify_binding(
+                    actor,
+                    context.context_binding,
+                    lambda: self._authorize_reference(reference, actor),
+                )
             if self.queue.result_context(task_id, actor) != context:
                 raise PermissionError("task_artifact_context_changed")
 
@@ -244,6 +292,12 @@ class MetricTaskService:
                 def guard():
                     check_lease()
                     self._authorize_reference(claim.session_reference, claim.actor)
+                    if claim.context_binding is not None:
+                        self._verify_binding(
+                            claim.actor,
+                            claim.context_binding,
+                            lambda: self._authorize_reference(claim.session_reference, claim.actor),
+                        )
 
                 guard()
                 self.events.ensure_started(claim.record.task_id, claim.actor)
@@ -251,7 +305,7 @@ class MetricTaskService:
                 # or the deadline. Queue wait time does not start the execution budget.
                 self.budgets.register(claim.record.task_id, claim.actor, Budget())
                 self.budgets.ensure_active(claim.record.task_id, claim.actor)
-                runtime = self._runtime(MetricTaskExecution(claim, guard))
+                runtime = self._runtime(MetricTaskExecution(claim.context, guard))
                 result = runtime.run(
                     claim.query,
                     claim.actor,

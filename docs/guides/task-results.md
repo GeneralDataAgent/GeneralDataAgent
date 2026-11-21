@@ -5,7 +5,7 @@ It reuses the local durable task service and remains rejected by production asse
 
 ## Listing an exact domain view
 
-`GET /v1/analysis/tasks?limit=50` returns `MetricTaskPage` v2 with `tasks` and `next_cursor`.
+`GET /v1/analysis/tasks?limit=50` returns `MetricTaskPage` v2.1 with `tasks` and `next_cursor`.
 The existing bearer, user, tenant, project and requested domain headers apply. `analysis:run` is
 required. List membership is **the exact canonical domain set requested**, scoped to the creator,
 tenant and project. A broader domain view is not a union of narrower views. Individual status/result

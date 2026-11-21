@@ -19,7 +19,7 @@ from uuid import UUID, uuid4
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from pydantic import AwareDatetime, Field, model_validator
 
-from generaldataagent.contracts import ActorContext, MetricQuery
+from generaldataagent.contracts import ActorContext, MetricQuery, TaskContextBinding
 from generaldataagent.contracts.models import ContractModel
 
 JobStatus = Literal[
@@ -54,13 +54,14 @@ class TaskCancellationRequested(RuntimeError):
 
 
 class MetricTaskRecord(ContractModel):
-    schema_version: Literal["2.0"] = "2.0"
+    schema_version: Literal["2.1"] = "2.1"
     task_id: UUID
     thread_id: UUID
     status: JobStatus
     attempts: int = Field(ge=0, le=10)
     created_at: AwareDatetime
     expires_at: AwareDatetime
+    context_binding: TaskContextBinding | None = None
     failure_code: FailureCode | None = None
     cancel_requested_at: AwareDatetime | None = None
     cancelled_at: AwareDatetime | None = None
@@ -78,7 +79,7 @@ class MetricTaskRecord(ContractModel):
 
 
 class MetricTaskPage(ContractModel):
-    schema_version: Literal["2.0"] = "2.0"
+    schema_version: Literal["2.1"] = "2.1"
     tasks: tuple[MetricTaskRecord, ...]
     next_cursor: str | None = None
 
@@ -99,6 +100,7 @@ class _Payload(ContractModel):
     actor: ActorContext
     query: MetricQuery
     session_reference: str = Field(pattern=r"^[0-9a-f]{64}$")
+    context_binding: TaskContextBinding | None = None
     created_at: AwareDatetime
     expires_at: AwareDatetime
 
@@ -108,12 +110,30 @@ class MetricTaskContext:
     record: MetricTaskRecord
     actor: ActorContext
     query: MetricQuery
+    context_binding: TaskContextBinding | None = None
 
 
 @dataclass(frozen=True)
-class MetricTaskClaim(MetricTaskContext):
+class MetricTaskClaim:
+    context: MetricTaskContext
     session_reference: str
     lease_token: str
+
+    @property
+    def record(self):
+        return self.context.record
+
+    @property
+    def actor(self):
+        return self.context.actor
+
+    @property
+    def query(self):
+        return self.context.query
+
+    @property
+    def context_binding(self):
+        return self.context.context_binding
 
 
 def canonical_actor(actor: ActorContext) -> ActorContext:
@@ -294,6 +314,7 @@ class MetricTaskQueue:
             attempts=row["attempts"],
             created_at=payload.created_at,
             expires_at=payload.expires_at,
+            context_binding=payload.context_binding,
             failure_code=row["failure_code"],
             cancel_requested_at=(
                 datetime.fromtimestamp(value, UTC)
@@ -317,7 +338,12 @@ class MetricTaskQueue:
             yield db
 
     def submit(
-        self, query: MetricQuery, actor: ActorContext, session_reference: str, idempotency_key: str
+        self,
+        query: MetricQuery,
+        actor: ActorContext,
+        session_reference: str,
+        idempotency_key: str,
+        context_binding: TaskContextBinding | None = None,
     ) -> MetricTaskRecord:
         if not isinstance(idempotency_key, str) or not re.fullmatch(
             r"[A-Za-z0-9._:-]{1,128}", idempotency_key
@@ -351,6 +377,7 @@ class MetricTaskQueue:
                 actor=actor,
                 query=query,
                 session_reference=session_reference,
+                context_binding=context_binding,
                 created_at=now,
                 expires_at=datetime.fromtimestamp(now.timestamp() + self.retention_seconds, UTC),
             )
@@ -393,7 +420,7 @@ class MetricTaskQueue:
             record = self._record(row, payload)
             if record.status != "completed":
                 raise TaskQueueConflict("task_result_not_ready")
-            return MetricTaskContext(record, payload.actor, payload.query)
+            return MetricTaskContext(record, payload.actor, payload.query, payload.context_binding)
 
     def _encode_cursor(self, cursor: _ListCursor) -> str:
         nonce = os.urandom(12)
@@ -532,7 +559,9 @@ class MetricTaskQueue:
                 payload,
             )
             return MetricTaskClaim(
-                record, payload.actor, payload.query, payload.session_reference, token
+                MetricTaskContext(record, payload.actor, payload.query, payload.context_binding),
+                payload.session_reference,
+                token,
             )
 
     def _leased(self, db, claim: MetricTaskClaim):
@@ -552,6 +581,7 @@ class MetricTaskQueue:
         if (
             payload.actor != claim.actor
             or payload.query != claim.query
+            or payload.context_binding != claim.context_binding
             or payload.thread_id != claim.record.thread_id
             or payload.session_reference != claim.session_reference
         ):

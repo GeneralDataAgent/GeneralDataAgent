@@ -6,7 +6,7 @@ from time import monotonic
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import FastAPI, Header, HTTPException, Query, Request, Response
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict
 
@@ -33,6 +33,7 @@ from generaldataagent.contracts import (
     HumanReview,
     MetricQuery,
     NaturalLanguageMetricQuery,
+    TaskContextBinding,
     TaskPlan,
 )
 from generaldataagent.data_science.sandbox import SandboxError
@@ -87,6 +88,9 @@ class ScienceExperimentRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     snapshot: DatasetSnapshot
     experiment: ExperimentSpec
+
+
+CONTEXT_BINDING_DEPENDENCY = Depends(lambda: None)
 
 
 def create_app(
@@ -580,12 +584,13 @@ def create_app(
         query: MetricQuery,
         request: Request,
         idempotency_key: Annotated[str, Header(min_length=1, max_length=128)],
+        context_binding: TaskContextBinding | None = CONTEXT_BINDING_DEPENDENCY,
     ) -> MetricTaskRecord:
         if metric_tasks is None:
             raise HTTPException(status_code=503, detail="metric_tasks_not_configured")
         actor, token = task_credentials(request)
         try:
-            return metric_tasks.submit(query, actor, token, idempotency_key)
+            return metric_tasks.submit(query, actor, token, idempotency_key, context_binding)
         except TaskQueueConflict as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         except PermissionError as exc:
@@ -603,12 +608,15 @@ def create_app(
         query: NaturalLanguageMetricQuery,
         request: Request,
         idempotency_key: Annotated[str, Header(min_length=1, max_length=128)],
+        context_binding: TaskContextBinding | None = CONTEXT_BINDING_DEPENDENCY,
     ) -> MetricQuestionTask | JSONResponse:
         if metric_tasks is None:
             raise HTTPException(status_code=503, detail="metric_tasks_not_configured")
         actor, token = task_credentials(request)
         try:
-            return metric_tasks.submit_question(query, actor, token, idempotency_key)
+            return metric_tasks.submit_question(
+                query, actor, token, idempotency_key, context_binding
+            )
         except QuestionAcceptanceUnavailable as exc:
             raise HTTPException(
                 status_code=503, detail="question_acceptance_not_configured"

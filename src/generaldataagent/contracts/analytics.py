@@ -6,6 +6,7 @@ from typing import Literal
 from pydantic import Field, model_validator
 
 from generaldataagent.contracts.models import ContractModel
+from generaldataagent.contracts.task_context import TaskContextBinding
 
 
 class MetricQuery(ContractModel):
@@ -14,6 +15,7 @@ class MetricQuery(ContractModel):
     dimensions: tuple[str, ...] = ()
     start_time: datetime | None = None
     end_time: datetime | None = None
+    context_binding: TaskContextBinding | None = None
 
     @model_validator(mode="after")
     def validate_time_range(self) -> "MetricQuery":
@@ -41,6 +43,7 @@ class NaturalLanguageMetricQuery(ContractModel):
     dimensions: tuple[str, ...] = ()
     start_time: datetime | None = None
     end_time: datetime | None = None
+    context_binding: TaskContextBinding | None = None
 
     @model_validator(mode="after")
     def validate_time_range(self) -> "NaturalLanguageMetricQuery":

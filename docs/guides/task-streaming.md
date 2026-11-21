@@ -9,7 +9,7 @@ No raw LangGraph events, model reasoning, prompts, SQL, result rows or credentia
 
 | Event | Payload | SSE ID |
 |---|---|---|
-| `task` | `MetricTaskRecord` v2, initial/current queue status and attempts | None |
+| `task` | `MetricTaskRecord` v2.1, initial/current queue status and attempts | None |
 | `progress` | `TaskEvent` v1, persisted phase history | `{task_id}:{sequence}` |
 | `stream_end` | `TaskStreamEnd` v1: `reason` and last delivered `after` | None |
 
