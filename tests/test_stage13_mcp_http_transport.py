@@ -304,6 +304,13 @@ def test_protocol_version_and_session_header_travel_with_each_request():
     assert server.requests >= 3
 
 
+def test_governed_read_keeps_negotiated_headers_on_notifications_and_tool_calls(tmp_path):
+    with http_fixture("session") as (_server, endpoint):
+        service, _admission, store = setup(tmp_path, endpoint)
+        evidence = read(service)
+    assert json.loads(store.export_bytes(evidence.artifact))["result"]["structuredContent"]
+
+
 def test_wrong_ids_missing_responses_and_bad_json_fail_closed():
     for mode in ("wrong_id", "sse_wrong_id", "no_content", "bad_json", "server_error"):
         with http_fixture(mode) as (_server, endpoint):
