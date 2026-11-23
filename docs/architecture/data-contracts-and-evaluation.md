@@ -1,6 +1,6 @@
 # Data contracts and evaluation architecture
 
-Versioned contracts connect system layers; layered evaluation checks whether work actually meets requirements. This is a design specification. Historical runs and acceptance progress are maintained [outside the implementation repository](../../../docs/validation/README.md).
+Versioned contracts connect system layers; layered evaluation checks whether work actually meets requirements. This is a design specification. Acceptance decisions require run-specific evidence recorded using the [acceptance report format](../operations/acceptance-report-format.md).
 
 > Several tables below name design-stage contracts that were implemented under other names (`TransformationProposal`, `ExperimentSpec`/`ExperimentReport`, `GroundedClaim`). The implemented contract set, execution receipts, and the benchmark harness are documented in [As-built architecture](as-built-architecture.md) and the [capability catalog](capability-catalog.md).
 
@@ -63,6 +63,10 @@ Require evidence for factual claims; complete chart titles, axes, units, time ra
 
 ## 4. Evaluation pyramid
 
+<!-- diagram-preview -->
+![data-contracts-and-evaluation-1](diagrams/data-contracts-and-evaluation-1.png)
+<!-- /diagram-preview -->
+
 ```mermaid
 flowchart TB
     E5[Online business outcomes and safety incidents]
@@ -93,7 +97,7 @@ flowchart TB
 | Cost | Cost per Successful Task | Total model, query, and compute cost for successful tasks |
 | Recovery | Recovery Success Rate | Correct checkpoint continuation after interruption/failure |
 
-The original initial-cohort recommendation is maintained in the [external dataset plan](../../../docs/planning/initial-evaluation-dataset-plan.md).
+Declare the evaluation cohort and its provenance before execution; follow the [benchmark evaluation protocol](benchmark-evaluation-protocol.md).
 
 ## 6. Online evaluation
 
@@ -101,4 +105,4 @@ Record task success/human takeover/rejection/cancellation/timeouts; step routing
 
 ## 7. Release gates
 
-The original design blocks release on any successful unauthorized safety case, core success falling by more than 3 percentage points, grounding below the production baseline, incompatible in-flight checkpoints without migration, breaking artifact schemas without a major version, or cost/P95 more than 20% above approved budgets without demonstrated value. Phase-specific non-regression requirements may be stricter; use the [external acceptance criteria](../../../docs/planning/phase-acceptance.md). These are criteria, not proof of admission.
+The original design blocks release on any successful unauthorized safety case, core success falling by more than 3 percentage points, grounding below the production baseline, incompatible in-flight checkpoints without migration, breaking artifact schemas without a major version, or cost/P95 more than 20% above approved budgets without demonstrated value. Task-specific non-regression requirements may be stricter and must be declared before evaluation. These are criteria, not proof of admission.

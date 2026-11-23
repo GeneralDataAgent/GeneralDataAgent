@@ -162,8 +162,7 @@ service; the approval records the actual verified human ID, never invented indep
 smoke; it cannot provide production admission or the required independent multi-party qualification.
 
 Store private receiver IDs and runtime databases under the ignored `.state/` directory. Keep bearer
-tokens and app secrets outside the repository. Record actual live smoke outcomes in the
-[external validation records](../../../docs/progress/development-history.md).
+tokens and app secrets outside the repository. Record actual live smoke outcomes in an access-controlled run report.
 
 ## Fresh periodic reports
 
@@ -233,7 +232,7 @@ existing Stage 4 release verifier, plus the clean-tree/local regression checks. 
 proof it can return `passed`; missing, stale, changed, untrusted or below-target evidence remains
 `incomplete`. `--require-production` exits according to those actual blockers rather than
 always failing. This verifies admission evidence; it does not deploy or widen runtime permissions.
-Record the actual decision and missing evidence in the [external Stage 5 record](../../../docs/validation/stage5-business-loop.md).
+Record the actual decision and missing evidence using the [acceptance report format](acceptance-report-format.md).
 
 For production narration with a configured output-token cap, bind the cap on the model's forced
 Narrative tool request. Verify provider-side invocation separately from returned-usage checks.

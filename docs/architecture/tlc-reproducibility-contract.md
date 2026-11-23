@@ -12,4 +12,4 @@ The preparation command records:
 Downloaded and generated data remain outside Git. Code, metric definitions, tests and this source
 ledger remain versioned.
 
-Dataset selection and source limitations are recorded in the [external planning document](../../../docs/research/open-dataset-selection.md).
+Record dataset selection and source limitations in each run manifest; preparation metadata does not establish independent or production acceptance.

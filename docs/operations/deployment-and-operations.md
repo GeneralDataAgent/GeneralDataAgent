@@ -1,6 +1,6 @@
 # Deployment and operations reference
 
-This guide defines target environments, rollout, observability, SLOs, and incident handling. Deployment ADRs specify actual cloud and network choices. Design objectives do not imply production acceptance; phase progress is tracked [outside this repository](../../../docs/validation/README.md).
+This guide defines target environments, rollout, observability, SLOs, and incident handling. Deployment ADRs specify actual cloud and network choices. Design objectives do not imply production acceptance; require an explicit evidence-backed admission decision.
 
 ## 1. Environments
 
@@ -14,6 +14,10 @@ This guide defines target environments, rollout, observability, SLOs, and incide
 Never copy production credentials into local/dev. Isolate state, artifacts, memory, and secrets across environments.
 
 ## 2. Production components
+
+<!-- diagram-preview -->
+![deployment-and-operations-1](diagrams/deployment-and-operations-1.png)
+<!-- /diagram-preview -->
 
 ```mermaid
 flowchart TB
@@ -146,4 +150,4 @@ Exercise recovery, permission denials, and deletion samples. Review model/prompt
 - [ ] Rollback and kill switches verified in a production-equivalent environment.
 - [ ] Pilot users understand boundaries, approval responsibilities, and feedback.
 
-This checklist is an operator reference. Actual approvals and test outcomes belong in the [external acceptance records](../../../docs/validation/README.md).
+This checklist is an operator reference. Record actual approvals and test outcomes using the [acceptance report format](acceptance-report-format.md).

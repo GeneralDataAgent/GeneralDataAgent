@@ -2,6 +2,8 @@
 
 This directory contains English documentation for system architecture, design decisions, usage, and operations.
 
+Use the [capability catalog](architecture/capability-catalog.md) and guides below for current implementation entry points. Historical architecture snapshots and target designs remain separately labeled. Documentation links and examples must work from this repository without a separate planning checkout.
+
 ## Architecture and design
 
 - [As-built architecture](architecture/as-built-architecture.md) — the code as it exists, with diagrams
@@ -31,6 +33,13 @@ This directory contains English documentation for system architecture, design de
 - [Reviewed display history maintenance](guides/preference-history-maintenance.md)
 - [Private confirmed CSV text profiling](guides/private-csv-intake.md)
 - [XLSX analysis metric view (non-certified)](guides/xlsx-analysis-metric-view.md)
+- [Private XLSX intake and declarations](guides/private-xlsx-intake.md)
+- [Governed MCP reads](guides/governed-mcp-read.md)
+- [Evidence rubrics](guides/evidence-rubrics.md)
+- [Product routing snapshots](guides/product-routing-snapshot.md)
+- [Parent/child budgets](guides/parent-child-budgets.md)
+- [Bounded child concurrency](guides/bounded-child-concurrency.md)
+- [Resource and experience measurement](guides/resource-experience.md)
 - [Evaluation receipts](guides/evaluation-receipts.md)
 - [Rule recomputation](guides/rule-recomputation.md)
 - [Dataset extensions](guides/dataset-extensions.md)

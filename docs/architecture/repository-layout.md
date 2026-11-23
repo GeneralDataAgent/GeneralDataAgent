@@ -44,7 +44,8 @@ GeneralDataAgent/
 
 ## Ownership rules
 
-- Plans, progress matrices, and run outcomes live in the workspace-level `../docs/` (Chinese).
+- Documentation links and runnable examples must be self-contained within this repository or use public upstream sources. Do not require a separate checkout for architecture, usage, or operations.
+- Keep non-public planning, review material, and evaluation records out of documentation links, example output paths, and published assets.
 - Architecture contracts, ADRs, usage, and operations live here (English). Split a mixed document
   instead of duplicating it.
 - `data/`, `.artifacts/`, `.state/`, and credentials stay out of Git. Frozen cohort declarations are

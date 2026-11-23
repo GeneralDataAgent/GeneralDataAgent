@@ -28,7 +28,7 @@ output.
 Prompt-only coordination permits an invented task identifier or completion before Reporter runs.
 Binding Verifier and Reporter to the controller-owned candidate prevents identifier substitution.
 A fixed Reporter node guarantees assembly after validation without another open-ended model loop.
-The [historical validation record](../../../docs/progress/development-history.md) retains the experiments that motivated this decision.
+Use the [evaluation protocol](../architecture/benchmark-evaluation-protocol.md) to assess this design with reproducible run evidence.
 
 ## Consequences
 

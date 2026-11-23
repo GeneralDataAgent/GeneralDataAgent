@@ -1,6 +1,6 @@
 # ADR 0007: Approval-bound business drafts
 
-Status: accepted for local development. External qualification is recorded in the [Stage 5 evidence](../../../docs/validation/stage5-business-loop.md).
+Status: accepted for local development. External qualification requires independently verified evidence; local acceptance does not grant production admission.
 
 The business-draft design supports six independently configured destinations: Dashboard, ticket, scheduling PR,
 model-registration application, enterprise-IM message and periodic report. These are strict

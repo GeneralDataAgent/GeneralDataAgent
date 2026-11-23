@@ -1,6 +1,6 @@
 # Controlled pilot runbook
 
-This runbook describes configuration, rollout, and recovery. See the [external validation record](../../../docs/validation/stage4-production-readiness.md) for admission status.
+This runbook describes configuration, rollout, and recovery. Determine admission status from current signed qualification evidence, not from this procedure.
 
 ## Deployment prerequisites and trust boundaries
 

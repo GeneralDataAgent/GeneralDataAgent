@@ -1,10 +1,14 @@
 # Multi-agent collaboration design
 
-This reference design defines roles, collaboration contracts, context boundaries, and failure handling for analytics, data engineering, and data science. Planned implementation and actual qualification are tracked in the [external phase plans](../../../docs/planning/development-roadmap.md).
+This reference design defines roles, collaboration contracts, context boundaries, and failure handling for analytics, data engineering, and data science. See the [capability catalog](capability-catalog.md) for implemented entry points; this role design does not establish deployment qualification.
 
 > Implemented names differ in places: the delivery role is `reporter`, engineering output is `TransformationProposal`, and science contracts are `ExperimentSpec`/`ExperimentReport`. For the assembled roles, ordering, and contracts in code, see [As-built architecture](as-built-architecture.md) and the [capability catalog](capability-catalog.md).
 
 ## 1. Organization
+
+<!-- diagram-preview -->
+![multi-agent-design-1](diagrams/multi-agent-design-1.png)
+<!-- /diagram-preview -->
 
 ```mermaid
 flowchart TB

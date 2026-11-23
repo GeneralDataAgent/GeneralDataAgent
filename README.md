@@ -22,5 +22,5 @@ startup, data-science and data-engineering examples, provider configuration, and
 
 - [System documentation](docs/README.md): English architecture, ADRs, usage, and operations.
 - [System architecture](docs/architecture/system-architecture.md).
-- [Workspace planning and progress](../docs/README.md): phase plans, development status, and acceptance records.
-- [Validation records](../docs/validation/README.md): historical runs and machine-readable evidence.
+- [Capability catalog](docs/architecture/capability-catalog.md): implementation entry points and enablement boundaries.
+- [Acceptance report format](docs/operations/acceptance-report-format.md): how to record evidence and qualification decisions.

@@ -1,5 +1,7 @@
 # As-built architecture
 
+> Historical architecture snapshot (2026-10-28). For later implementation entry points, see the [capability catalog](capability-catalog.md), [task submission](../guides/task-submission.md), [business context](../guides/confirmed-business-context.md), and [XLSX intake](../guides/private-xlsx-intake.md). PNG previews below illustrate this snapshot, not a new revalidation of every statement.
+
 This document describes what the repository actually builds, traced from `src/generaldataagent/` at
 commit `66139e5` (2026-10-28): 213 modules, roughly 40,500 lines, 19 packages. It is the companion to
 [System architecture](system-architecture.md), which states the design target. Where the two differ,
@@ -12,6 +14,10 @@ Related: [Governance and security](governance-and-security.md), [Multi-agent col
 ## 1. Assembly and runtime topology
 
 There are exactly three ways to start the system, and they differ in what they require.
+
+<!-- diagram-preview -->
+![as-built-architecture-1](diagrams/as-built-architecture-1.png)
+<!-- /diagram-preview -->
 
 ```mermaid
 flowchart LR
@@ -71,6 +77,10 @@ variables that do take effect are read by tests: `GDA_TEST_POSTGRES_PORT` and
 The governed path is a fixed LangGraph graph; the model proposes inside nodes, the code decides which
 node runs next.
 
+<!-- diagram-preview -->
+![as-built-architecture-2](diagrams/as-built-architecture-2.png)
+<!-- /diagram-preview -->
+
 ```mermaid
 sequenceDiagram
     autonumber
@@ -121,6 +131,10 @@ Stage 5 feedback registry.
 
 There is one execution path, and it is not optional.
 
+<!-- diagram-preview -->
+![as-built-architecture-3](diagrams/as-built-architecture-3.png)
+<!-- /diagram-preview -->
+
 ```mermaid
 flowchart TD
     REQ["ToolRequest<br/>(tool, action, actor, params)"] --> POL{"PolicyEngine.evaluate<br/>static table, 22 rules"}
@@ -155,6 +169,10 @@ Implemented in `tools/gateway.py:47-140`. Properties worth stating precisely:
   audit and approval rules as metric delivery.
 
 ## 4. Agent topology
+
+<!-- diagram-preview -->
+![as-built-architecture-4](diagrams/as-built-architecture-4.png)
+<!-- /diagram-preview -->
 
 ```mermaid
 flowchart TB
@@ -228,6 +246,10 @@ spreadsheets.
 
 ## 6. Control, data, artifact, and observability planes (as built)
 
+<!-- diagram-preview -->
+![as-built-architecture-5](diagrams/as-built-architecture-5.png)
+<!-- /diagram-preview -->
+
 ```mermaid
 flowchart LR
     subgraph control["Control plane"]
@@ -269,6 +291,10 @@ stores them), and no component other than the audit sink may append audit events
 The evaluation path is a pipeline of separate, replayable steps. Nothing in it shares state with the
 product API.
 
+<!-- diagram-preview -->
+![as-built-architecture-6](diagrams/as-built-architecture-6.png)
+<!-- /diagram-preview -->
+
 ```mermaid
 flowchart LR
     PREP["prepare_stage6.py<br/>pin sources, manifest hash"] --> RUN["run_stage6.py<br/>one arm, one protocol"]
@@ -292,6 +318,10 @@ Rules the code enforces, not just documents:
   that changed since the freeze, and a `held_out` claim without a frozen file hash is rejected.
 
 ## 8. Business loop
+
+<!-- diagram-preview -->
+![as-built-architecture-7](diagrams/as-built-architecture-7.png)
+<!-- /diagram-preview -->
 
 ```mermaid
 stateDiagram-v2

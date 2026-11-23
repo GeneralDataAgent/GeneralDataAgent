@@ -1,6 +1,6 @@
 # Acceptance report format
 
-Use this format when recording a phase acceptance decision. It is a reporting procedure, not a completed report. Store filled reports and machine evidence in the [external validation directory](../../../docs/validation/README.md); apply the [shared criteria](../../../docs/planning/phase-acceptance.md) and the relevant phase plan.
+Use this format when recording a phase acceptance decision. It is a reporting procedure, not a completed report. Store filled reports and machine evidence in an access-controlled location selected by the operator; declare the applicable criteria before evaluation.
 
 ```text
 Phase and version:

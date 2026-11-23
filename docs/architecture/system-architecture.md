@@ -1,6 +1,6 @@
 # Data intelligence multi-agent architecture
 
-The target architecture brings analytics, data engineering, and data science into one auditable task plane. Specialists collaborate under deterministic semantic, authorization, execution, and verification controls to produce reproducible results. This is an architecture specification, not a claim that every integration is implemented; see the [implementation inventory](../../../docs/progress/implementation-status.md).
+The target architecture brings analytics, data engineering, and data science into one auditable task plane. Specialists collaborate under deterministic semantic, authorization, execution, and verification controls to produce reproducible results. This is an architecture specification, not a claim that every integration is implemented; see the [capability catalog](capability-catalog.md).
 
 > For the architecture as it exists in the code — assembly topology, request paths, governance pipeline, agent ordering, evaluation chain — read [As-built architecture](as-built-architecture.md). Where the two differ, this page is the intent and that page is what runs.
 
@@ -15,9 +15,13 @@ The target architecture brings analytics, data engineering, and data science int
 
 ### 1.2 Initial access boundary
 
-Agents do not autonomously modify production tables, pipelines, or models. Arbitrary shell access, network access, and software installation require separate review. LLM output cannot establish authorization, data quality, or compliance. Ambiguous questions need clarification or an explicit fallback. Delivery milestones belong in the [phase plans](../../../docs/planning/development-roadmap.md).
+Agents do not autonomously modify production tables, pipelines, or models. Arbitrary shell access, network access, and software installation require separate review. LLM output cannot establish authorization, data quality, or compliance. Ambiguous questions need clarification or an explicit fallback. Delivery milestones require explicit scope and independently verified exit criteria.
 
 ## 2. Overall architecture
+
+<!-- diagram-preview -->
+![system-architecture-1](diagrams/system-architecture-1.png)
+<!-- /diagram-preview -->
 
 ```mermaid
 flowchart TB
@@ -117,6 +121,10 @@ Governance applies throughout: SSO and service identity; tenant/project context;
 
 ## 4. Control, data, artifact, and observability planes
 
+<!-- diagram-preview -->
+![system-architecture-2](diagrams/system-architecture-2.png)
+<!-- /diagram-preview -->
+
 ```mermaid
 flowchart LR
     CP[Control: identity, policy, orchestration, resources, approval]
@@ -134,6 +142,10 @@ flowchart LR
 The control plane handles metadata and summaries. Compute near the data and minimize cross-domain raw-data transfer. Artifact storage holds authorized reproducibility evidence. Engineering telemetry and compliance audit remain distinct; agents cannot edit audit records.
 
 ## 5. End-to-end task sequence
+
+<!-- diagram-preview -->
+![system-architecture-3](diagrams/system-architecture-3.png)
+<!-- /diagram-preview -->
 
 ```mermaid
 sequenceDiagram

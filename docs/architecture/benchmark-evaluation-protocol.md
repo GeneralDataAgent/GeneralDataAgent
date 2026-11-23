@@ -1,6 +1,6 @@
 # Benchmark evaluation protocol design
 
-This reference separates evaluator invariants from the system being tested. Dataset choice, pinned source revisions, planned milestones, and historical results remain in the [Stage 6 plan](../../../docs/planning/stage6-benchmark-plan.md) and [validation records](../../../docs/validation/README.md). Execution commands belong in the [runbook](../operations/benchmark-evaluation-runbook.md).
+This reference separates evaluator invariants from the system being tested. Each evaluation must declare dataset choice, pinned source revisions, and acceptance targets in its run manifest. Execution commands belong in the [runbook](../operations/benchmark-evaluation-runbook.md).
 
 ## Provenance and environment qualification
 
@@ -16,7 +16,7 @@ Workers receive only the public Task, authorized schema, one bounded sample row,
 
 ## Execution and resource policy
 
-Fingerprint action limits, token policy, request/process/query deadlines, and preview limits for every run. Keep the effective resource policy identical across paired arms. Historical configurations are retained in the [Stage 6 plan](../../../docs/planning/stage6-benchmark-plan.md).
+Fingerprint action limits, token policy, request/process/query deadlines, and preview limits for every run. Keep the effective resource policy identical across paired arms. Preserve each effective configuration with its run artifacts.
 
 Cumulative and per-call output token limits are unset by default. Both arms must share the effective policy; optional explicit finite limits are fingerprinted. Record observed input, output, and total usage. Provider context limits still apply. Existing action/time, SQL, authorization, cost, and side-effect controls remain separately governed. No automatic SDK retries, arbitrary code, shell, database writes, or expanded source privileges are granted by removing token caps.
 
@@ -36,4 +36,4 @@ Report task pass@1, subanswer accuracy, difficulty slices, failure types, P50/P9
 
 Reject missing/duplicate tasks, incompatible protocols, altered hashes/summaries, and nonfinite telemetry. Fresh-baseline regressions and original historical-correct regressions are tracked separately. Severe incidents cannot be offset by accuracy. Missing cost, repeat stability, independent review, product-Supervisor qualification, and shadow/canary evidence remain explicit open gates.
 
-Version phase-specific targets in the [external plan](../../../docs/planning/stage6-benchmark-plan.md). Evaluate each track separately; project targets do not establish benchmark-author requirements or production guarantees.
+Version task-specific targets in the evaluation manifest before execution. Evaluate each track separately; project targets do not establish benchmark-author requirements or production guarantees.

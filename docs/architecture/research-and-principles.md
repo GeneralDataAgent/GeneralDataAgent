@@ -1,6 +1,6 @@
 # Research findings and design principles
 
-This document separates tutorial observations, target architecture, and engineering decisions. Framework features do not establish application capabilities or production guarantees. It describes the design baseline researched on 2026-10-13; implementation and acceptance status live in the [external progress records](../../../docs/validation/README.md).
+This document separates tutorial observations, target architecture, and engineering decisions. Framework features do not establish application capabilities or production guarantees. It describes the design baseline researched on 2026-10-13; current implementation entry points are listed in the [capability catalog](capability-catalog.md).
 
 ## Reviewed material
 
@@ -69,4 +69,4 @@ The query generator does not approve its own query; the trainer does not decide 
 
 ## Facts, design decisions, and open questions
 
-Virtual filesystems, subagents, middleware, pluggable backends, and HITL are tutorial-described features. Supervisor coordination, fixed high-risk graphs, and artifact storage as the large-object bus are application design decisions. Organization-specific discovery and validation tasks are tracked separately in the [design validation backlog](../../../docs/progress/design-validation-backlog.md).
+Virtual filesystems, subagents, middleware, pluggable backends, and HITL are tutorial-described features. Supervisor coordination, fixed high-risk graphs, and artifact storage as the large-object bus are application design decisions. Organization-specific discovery and validation require separately scoped acceptance evidence.

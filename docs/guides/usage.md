@@ -1,6 +1,6 @@
 # Usage guide
 
-Run commands from the `GeneralDataAgent/` repository root. The examples use local or explicitly configured services. For implementation progress, historical results, and unclosed acceptance gates, see the [external records](../../../docs/validation/README.md).
+Run commands from the `GeneralDataAgent/` repository root. The examples use local or explicitly configured services. For implemented entry points and enablement boundaries, see the [capability catalog](../architecture/capability-catalog.md).
 
 ## Development
 
@@ -165,8 +165,7 @@ records their SHA-256 hashes, creates `data/tlc/tlc-2025-01.sqlite`, executes a 
 metric, and asks the selected model for an evidence-bounded structured narrative. The `data/`
 directory, model credentials, local artifacts, and audit state are ignored by Git.
 
-See [the dataset selection](../../../docs/research/open-dataset-selection.md) and
-[the acceptance record](../../../docs/validation/tlc-llm-acceptance.md) for scope and limitations.
+See the [TLC reproducibility contract](../architecture/tlc-reproducibility-contract.md) for source metadata requirements; one demo run is not independent acceptance.
 
 ## Run the real multi-agent validation
 
@@ -179,7 +178,7 @@ uv run python examples/tlc_multi_agent_demo.py --app-type codex --provider-id <p
 The Supervisor dynamically delegates semantic discovery, certified metric execution, and
 independent verification. The control layer then invokes a fixed Reporter node that can only read a
 validated delivery package. The run fails closed if the required role order is violated.
-Model-specific quality and latency observations belong in [the multi-agent acceptance record](../../../docs/validation/tlc-multi-agent-acceptance.md).
+Record model-specific quality and latency observations in the corresponding run report.
 
 ## Run the certified-metric regression baseline
 
@@ -190,7 +189,7 @@ uv run python evals/run_stage1.py
 The frozen baseline contains 60 execution cases plus 26 semantic-resolution cases. The runner
 executes them against the curated TLC snapshot and emits case-level pass reports. This
 deterministic baseline must be evaluated separately from real-model behavior, value-level SQL,
-collected human review, and latency; see the [Stage 1 record](../../../docs/validation/stage1-trusted-reporting.md).
+collected human review, and latency.
 
 The API also exposes `POST /v1/analysis/questions` for deterministic natural-language metric
 resolution and analysis, `POST /v1/analysis/metrics/resolve` for a read-only resolution
@@ -203,7 +202,7 @@ construction must explicitly configure the metric runtime and review store; the 
 development app keeps both disabled by default.
 
 Stage 2 production admission requires five real-environment evidence bundles, independent
-signatures, and acceptance through the durable evidence ledger. See [implementation status](../../../docs/progress/implementation-status.md) for the recorded outcome.
+signatures, and acceptance through the durable evidence ledger. Determine acceptance from the complete signed evidence set for that deployment.
 
 ## Run the data-science workbench
 
@@ -218,13 +217,12 @@ uv run --frozen python evals/run_stage3_sandbox_probe.py --image-ref NAME@sha256
 The demo creates an immutable synthetic snapshot and runs the fixed majority-classification
 template. The frozen gate covers 20 cases across classification, regression,
 random, temporal, and group splits. Unsafe inputs fail before experiment execution. See the
-[Stage 3 validation record](../../../docs/validation/stage3-data-science-workbench.md) and
 [sandbox decision](../adr/0005-fixed-template-data-science-sandbox.md).
 
 The local process sandbox provides development isolation. The OCI path requires a digest-pinned
 image and independent hardening review for production admission. Model deployment is unavailable.
 Use the aggregate acceptance runner to verify a content-hashed hardened-sandbox review signed by
-at least two distinct trusted reviewers; see the [validation record](../../../docs/validation/stage3-data-science-workbench.md).
+at least two distinct trusted reviewers.
 
 When a workbench is explicitly configured, `POST /v1/science/experiments` runs an existing immutable
 snapshot. The endpoint is disabled by default, accepts no code or command, and requires the caller's
@@ -252,8 +250,7 @@ uv run python examples/stage2_data_engineering_demo.py
 The demo creates isolated SQLite and DuckDB sources, profiles the DuckDB relation, proposes
 evidence-bound quality rules, executes a not-null rule, compares the two schemas, proposes a
 read-only transformation, analyzes downstream impact, and persists every result as a local
-immutable artifact. It does not register any write tool. See the
-[Stage 2 validation record](../../../docs/validation/stage2-foundation.md) for the current acceptance boundary.
+immutable artifact. It does not register any write tool; demonstration success does not establish production qualification.
 
 For execution paths that depend on a frozen schema, `require_compatible_schema` allows additive
 columns but raises a structured `SchemaDriftError` for removals, type changes, or nullability
@@ -533,7 +530,7 @@ src/generaldataagent/
   api/              FastAPI assembly and the two consoles
 ```
 
-System architecture and operations are documented in the [internal documentation index](../README.md). Planning and acceptance records are maintained in the [workspace documentation](../../../docs/README.md).
+System architecture and operations are documented in the [internal documentation index](../README.md).
 
 ## Controlled production runtime
 
@@ -542,8 +539,7 @@ short-lived PostgreSQL native RLS/column-ACL enforcement, governed text artifact
 DLP and retention, encrypted checkpoints with concurrent-resume fencing, independent signed audit
 collection and recovery verification, task budgets, background retries/cleanup, SLO/alerts, and live signed release
 admission. These are repository controls; production acceptance requires independent real-environment
-evidence. See [implementation/validation](../../../docs/validation/stage4-production-readiness.md) and the
-[rollout/recovery runbook](../operations/controlled-pilot-runbook.md).
+evidence. See the [rollout/recovery runbook](../operations/controlled-pilot-runbook.md).
 
 Run the local baseline with `uv run --frozen python evals/run_stage4_acceptance.py`. Add
 `--require-production` in a release pipeline to fail while signed independent admission evidence
@@ -592,8 +588,7 @@ Production mode still rejects the local business/feedback pilot. Separate qualif
 provide conditional single-host assembly with remote approvals, signed independent audit/state and
 live release/per-destination qualification; real operator enrollment and evidence are required.
 A report worker process entry point and disabled Linux service templates support reviewed deployment.
-See the [runbook](../operations/business-loop-runbook.md) and
-[development/acceptance evidence](../../../docs/validation/stage5-business-loop.md). Run the local matrix with
+See the [runbook](../operations/business-loop-runbook.md). Run the local matrix with
 `uv run --frozen python evals/run_stage5_acceptance.py`; missing independent external evidence keeps
 aggregate production acceptance incomplete.
 
@@ -626,7 +621,7 @@ The evaluator uses pinned BIRD Mini-Dev, InfiAgent-DABench and DABstep inputs, a
 SQL/statistical tools, case-level evidence, model-free replay, paired comparisons, and explicit
 release gates. Select one cohort, model, and resource policy per run; see the
 [evaluation runbook](../operations/benchmark-evaluation-runbook.md) for preparation and reproduction.
-Historical scores and qualification decisions are maintained in the [external validation index](../../../docs/validation/README.md).
+Preserve scores, configuration and qualification decisions with the corresponding run artifacts.
 
 ### Treat one run as one observation
 

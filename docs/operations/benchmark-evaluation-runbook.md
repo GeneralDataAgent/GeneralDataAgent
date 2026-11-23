@@ -1,6 +1,6 @@
 # Benchmark evaluation runbook
 
-Run commands from the implementation repository root with the frozen uv environment. Raw datasets and generated artifacts remain outside Git by default. This guide documents procedures; phase plans, historical results, and acceptance progress live in the [external documentation](../../../docs/validation/README.md).
+Run commands from the implementation repository root with the frozen uv environment. Raw datasets and generated artifacts remain outside Git by default. This guide documents procedures; acceptance decisions require the complete run evidence and declared qualification criteria.
 
 ## Data and scorer qualification
 
@@ -417,7 +417,7 @@ Shared pacing accepts 0–60 seconds and still consumes case time. Different lim
 
 Run a six-case real-context calibration before a full batch and pass `--preflight-report`. Calibration requires at least six complete attempted cases, observed replies for all cases, service failures at most 5%, and complete token telemetry. It does not select by answer accuracy. Benchmark, protocol, route, and source snapshot must match. An invalid preflight writes a rejection with exit 2 before workers or model calls start. Passing calibration does not guarantee later capacity, answer quality, or production readiness.
 
-`sql-precision` supplies declared primary/foreign-key context only on SQL-output tracks. Reproduce read-only schema qualification with `evals/qualify_stage6_sql_schema.py --output PATH`. Historical calibration failures and results remain in the [external iteration summary](../../../docs/validation/stage6-iteration-summary-2026-10-20.md). The commands below intentionally illustrate finite per-call calibration; use identical explicit options in both arms.
+`sql-precision` supplies declared primary/foreign-key context only on SQL-output tracks. Reproduce read-only schema qualification with `evals/qualify_stage6_sql_schema.py --output PATH`. Preserve calibration failures and results with the corresponding run artifacts. The commands below intentionally illustrate finite per-call calibration; use identical explicit options in both arms.
 
 ```bash
 LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/run_stage6.py --benchmark bird --limit 6 --workers 1 --app-type claude --provider-id PROVIDER_ID --model nvidia/nemotron-3-super-120b-a12b --transport openai-chat --thinking off --json-mode --max-output-tokens 1024 --request-interval-seconds 16 --csv-importer identifier-v2 --tool-profile sql-precision --bird-databases data/stage6/bird/databases --output .artifacts/stage6/calibration-fresh
@@ -996,13 +996,13 @@ scored-report ingestion, unseen-task benefit and production qualification remain
 
 ## Historical v7 reproduction
 
-The following examples came from the historical v7 development record. Use the matching pinned source to reproduce that run; current defaults and protocol hashes differ. All commands run from the implementation repository and use fresh output paths. The report builder verifies summary digests, paired protocols, and stored prediction scoring without calling a model. Its manifest contains report locations, not credentials or answer labels. Historical results remain [outside the runbook](../../../docs/progress/stage6-iteration-v7.md).
+The following examples came from the historical v7 development record. Use the matching pinned source to reproduce that run; current defaults and protocol hashes differ. All commands run from the implementation repository and use fresh output paths. The report builder verifies summary digests, paired protocols, and stored prediction scoring without calling a model. Its manifest contains report locations, not credentials or answer labels. Historical examples do not establish current quality or qualification.
 
 ```bash
 LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/run_stage6.py --benchmark infi --limit 60 --workers 1 --app-type claude --provider-id PROVIDER_ID --model nvidia/nemotron-3-super-120b-a12b --transport openai-chat --thinking off --json-mode --request-interval-seconds 3.5 --csv-importer identifier-v2 --tool-profile sql-repair --output .artifacts/stage6/infi-repair-fresh
 LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/qualify_stage6_supervisor.py --provider-id PROVIDER_ID --model nvidia/nemotron-3-super-120b-a12b --bound-tools --output .artifacts/stage6/supervisor-bound-fresh/report.json
 UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/qualify_stage6_repair.py --report .artifacts/stage6/dabstep-nvidia-enhanced-v5/report.json --output .artifacts/stage6/feedback-replay-fresh.json
-UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/build_stage6_iteration_report.py --manifest evals/stage6_iteration_v7.json --output ../docs/validation/stage6-iteration-v7-results
+UV_CACHE_DIR=/tmp/deepagents-uv-cache uv run --frozen python evals/build_stage6_iteration_report.py --manifest evals/stage6_iteration_v7.json --output .artifacts/stage6-iteration-v7-results
 ```
 
 Documents are opt-in and are exercised only when `search_documents` is called. In a paired run,
