@@ -68,6 +68,40 @@ citation only and must not be treated as current context. Reopening state and is
 preserves the same revision. Updating context affects a later read, while an old citation carries its
 original immutable revision and hashes.
 
+## Explicit frozen task reference
+
+Task submission can opt into one already confirmed version with the task-only envelope:
+
+```json
+{
+  "schema_version": "1.0",
+  "metric_name": "order_count",
+  "metric_version": "v1",
+  "context_binding": { "schema_version": "1.0", "context_version": 1 }
+}
+```
+
+Use `POST /v1/analysis/tasks` (or the question-task submission envelope). The binding is
+part of the idempotent request: reusing a key with a different or omitted reference returns
+409. `MetricTaskRecord` and task pages use schema 2.1, with an explicit nullable binding.
+The executable metric/question query contracts remain unchanged.
+
+The API and every worker must configure `BusinessContextService` against the same context
+database and encryption key. `create_app` checks that its context service is the same instance
+used by its task service. Each worker process reopens the shared store and attaches its own
+service. A bound task with no configured context service is denied.
+
+Acceptance, execution and result/evidence access require the selected version to remain
+the current active version in the exact private scope. Replacement, revocation or expiry
+denies these operations, without substituting another version. Task metadata remains readable
+for diagnosis/citation. The pointer is never added to executable queries, graph state, prompts,
+SQL, tool policy, approvals or budgets; full layered context loading remains later work.
+
+The workspace consumer lets users read, review and explicitly select a version when creating
+a metric task. It freezes that selection and the intent key on first submission, checks the
+accepted pointer and displays the task's reference. Reading the context alone does not select
+it, and receipt recovery never silently changes it.
+
 ## Audit and limits
 
 DLP checks typed content before persistence. Change-intent audit is required before commit, and the
