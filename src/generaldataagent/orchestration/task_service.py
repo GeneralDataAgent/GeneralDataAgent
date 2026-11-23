@@ -118,8 +118,6 @@ class MetricTaskService:
         idempotency_key: str,
         context_binding: TaskContextBinding | None = None,
     ) -> MetricTaskRecord:
-        if context_binding is None:
-            context_binding = query.context_binding
         actor = canonical_actor(actor)
         reference = self._reference(token, actor)
         if context_binding is not None:
@@ -148,8 +146,6 @@ class MetricTaskService:
         """
         if self.question_catalog is None:
             raise QuestionAcceptanceUnavailable("question_acceptance_not_configured")
-        if context_binding is None:
-            context_binding = request.context_binding
         actor = canonical_actor(actor)
         reference = self._reference(token, actor)
         if context_binding is not None:

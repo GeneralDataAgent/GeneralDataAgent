@@ -6,7 +6,7 @@ from time import monotonic
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
+from fastapi import FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict
 
@@ -90,7 +90,16 @@ class ScienceExperimentRequest(BaseModel):
     experiment: ExperimentSpec
 
 
-CONTEXT_BINDING_DEPENDENCY = Depends(lambda: None)
+class MetricTaskSubmission(MetricQuery):
+    """Accept task metadata without extending the executable metric query."""
+
+    context_binding: TaskContextBinding | None = None
+
+
+class MetricQuestionTaskSubmission(NaturalLanguageMetricQuery):
+    """Bind a durable question task without changing synchronous question resolution."""
+
+    context_binding: TaskContextBinding | None = None
 
 
 def create_app(
@@ -142,7 +151,11 @@ def create_app(
     if business_context is not None:
         if production_mode:
             raise ValueError("local_business_context_not_qualified_for_production")
-        if metric_tasks is None or business_context.tasks is not metric_tasks:
+        if (
+            metric_tasks is None
+            or business_context.tasks is not metric_tasks
+            or metric_tasks.business_context is not business_context
+        ):
             raise ValueError("business_context_must_share_task_service")
     if mcp_read is not None:
         if production_mode:
@@ -581,16 +594,18 @@ def create_app(
 
     @application.post("/v1/analysis/tasks", status_code=202, response_model=MetricTaskRecord)
     def submit_metric_task(
-        query: MetricQuery,
+        query: MetricTaskSubmission,
         request: Request,
         idempotency_key: Annotated[str, Header(min_length=1, max_length=128)],
-        context_binding: TaskContextBinding | None = CONTEXT_BINDING_DEPENDENCY,
     ) -> MetricTaskRecord:
         if metric_tasks is None:
             raise HTTPException(status_code=503, detail="metric_tasks_not_configured")
         actor, token = task_credentials(request)
         try:
-            return metric_tasks.submit(query, actor, token, idempotency_key, context_binding)
+            executable = MetricQuery.model_validate(query.model_dump(exclude={"context_binding"}))
+            return metric_tasks.submit(
+                executable, actor, token, idempotency_key, query.context_binding
+            )
         except TaskQueueConflict as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         except PermissionError as exc:
@@ -605,17 +620,19 @@ def create_app(
         responses={409: {"model": MetricQuestionRejection}},
     )
     def submit_metric_question_task(
-        query: NaturalLanguageMetricQuery,
+        query: MetricQuestionTaskSubmission,
         request: Request,
         idempotency_key: Annotated[str, Header(min_length=1, max_length=128)],
-        context_binding: TaskContextBinding | None = CONTEXT_BINDING_DEPENDENCY,
     ) -> MetricQuestionTask | JSONResponse:
         if metric_tasks is None:
             raise HTTPException(status_code=503, detail="metric_tasks_not_configured")
         actor, token = task_credentials(request)
         try:
+            question = NaturalLanguageMetricQuery.model_validate(
+                query.model_dump(exclude={"context_binding"})
+            )
             return metric_tasks.submit_question(
-                query, actor, token, idempotency_key, context_binding
+                question, actor, token, idempotency_key, query.context_binding
             )
         except QuestionAcceptanceUnavailable as exc:
             raise HTTPException(

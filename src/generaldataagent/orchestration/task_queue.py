@@ -271,8 +271,12 @@ class MetricTaskQueue:
         ).hex()
 
     @staticmethod
-    def _query_hash(query: MetricQuery) -> str:
-        raw = json.dumps(query.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))
+    def _query_hash(query: MetricQuery, context_binding: TaskContextBinding | None = None) -> str:
+        value = query.model_dump(mode="json")
+        # Preserve the pre-binding hash for unbound tasks and historical v2 payloads.
+        if context_binding is not None:
+            value["context_binding"] = context_binding.model_dump(mode="json")
+        raw = json.dumps(value, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(raw.encode()).hexdigest()
 
     @staticmethod
@@ -297,7 +301,7 @@ class MetricTaskQueue:
             if (
                 str(payload.task_id) != row["task_id"]
                 or self._scope(payload.actor) != row["scope"]
-                or self._query_hash(payload.query) != row["request_hash"]
+                or self._query_hash(payload.query, payload.context_binding) != row["request_hash"]
                 or payload.expires_at.timestamp() != row["expires"]
             ):
                 raise ValueError("binding")
@@ -350,7 +354,7 @@ class MetricTaskQueue:
         ):
             raise ValueError("invalid_task_idempotency_key")
         actor = canonical_actor(actor)
-        scope, request_hash = self._scope(actor), self._query_hash(query)
+        scope, request_hash = self._scope(actor), self._query_hash(query, context_binding)
         idem = hmac.digest(self.scope_key, idempotency_key.encode(), "sha256").hex()
         now = self._now()
         with self._db(write=True) as db:
