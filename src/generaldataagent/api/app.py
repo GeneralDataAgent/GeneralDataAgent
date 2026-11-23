@@ -33,6 +33,7 @@ from generaldataagent.contracts import (
     HumanReview,
     MetricQuery,
     NaturalLanguageMetricQuery,
+    TaskContextBinding,
     TaskPlan,
 )
 from generaldataagent.data_science.sandbox import SandboxError
@@ -89,6 +90,18 @@ class ScienceExperimentRequest(BaseModel):
     experiment: ExperimentSpec
 
 
+class MetricTaskSubmission(MetricQuery):
+    """Accept task metadata without extending the executable metric query."""
+
+    context_binding: TaskContextBinding | None = None
+
+
+class MetricQuestionTaskSubmission(NaturalLanguageMetricQuery):
+    """Bind a durable question task without changing synchronous question resolution."""
+
+    context_binding: TaskContextBinding | None = None
+
+
 def create_app(
     metric_runtime: MetricAnalysisRuntime | None = None,
     review_store: LocalHumanReviewStore | ScopedHumanReviewStore | None = None,
@@ -138,7 +151,11 @@ def create_app(
     if business_context is not None:
         if production_mode:
             raise ValueError("local_business_context_not_qualified_for_production")
-        if metric_tasks is None or business_context.tasks is not metric_tasks:
+        if (
+            metric_tasks is None
+            or business_context.tasks is not metric_tasks
+            or metric_tasks.business_context is not business_context
+        ):
             raise ValueError("business_context_must_share_task_service")
     if mcp_read is not None:
         if production_mode:
@@ -577,7 +594,7 @@ def create_app(
 
     @application.post("/v1/analysis/tasks", status_code=202, response_model=MetricTaskRecord)
     def submit_metric_task(
-        query: MetricQuery,
+        query: MetricTaskSubmission,
         request: Request,
         idempotency_key: Annotated[str, Header(min_length=1, max_length=128)],
     ) -> MetricTaskRecord:
@@ -585,7 +602,10 @@ def create_app(
             raise HTTPException(status_code=503, detail="metric_tasks_not_configured")
         actor, token = task_credentials(request)
         try:
-            return metric_tasks.submit(query, actor, token, idempotency_key)
+            executable = MetricQuery.model_validate(query.model_dump(exclude={"context_binding"}))
+            return metric_tasks.submit(
+                executable, actor, token, idempotency_key, query.context_binding
+            )
         except TaskQueueConflict as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         except PermissionError as exc:
@@ -600,7 +620,7 @@ def create_app(
         responses={409: {"model": MetricQuestionRejection}},
     )
     def submit_metric_question_task(
-        query: NaturalLanguageMetricQuery,
+        query: MetricQuestionTaskSubmission,
         request: Request,
         idempotency_key: Annotated[str, Header(min_length=1, max_length=128)],
     ) -> MetricQuestionTask | JSONResponse:
@@ -608,7 +628,12 @@ def create_app(
             raise HTTPException(status_code=503, detail="metric_tasks_not_configured")
         actor, token = task_credentials(request)
         try:
-            return metric_tasks.submit_question(query, actor, token, idempotency_key)
+            question = NaturalLanguageMetricQuery.model_validate(
+                query.model_dump(exclude={"context_binding"})
+            )
+            return metric_tasks.submit_question(
+                question, actor, token, idempotency_key, query.context_binding
+            )
         except QuestionAcceptanceUnavailable as exc:
             raise HTTPException(
                 status_code=503, detail="question_acceptance_not_configured"

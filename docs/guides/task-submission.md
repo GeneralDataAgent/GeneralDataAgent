@@ -41,9 +41,18 @@ comes from the JSON body. Supply every task domain using repeated `x-data-domain
 | `POST /v1/analysis/tasks/{task_id}/retry` | HTTP 202 for an interrupted task below its attempt limit, using a freshly checked session |
 | `GET /v1/analysis/tasks/{task_id}/events` | Existing [progress replay](task-events.md), immediately usable after acceptance |
 
-`MetricTaskRecord` v2 contains task/thread IDs, status, attempts, creation/expiry timestamps and a
-fixed failure code, plus nullable cancellation request/stop timestamps. Initial status is queued, attempts zero; server-generated IDs persist across
-retries. Same normalized actor scope/key returns the same task; a changed query returns 409.
+`MetricTaskRecord` v2.1 contains task/thread IDs, status, attempts, creation/expiry timestamps, an
+optional frozen `TaskContextBinding` and a fixed failure code, plus nullable cancellation
+request/stop timestamps. Initial status is queued, attempts zero; server-generated IDs persist across
+retries. Same normalized actor scope/key returns the same task; a changed query or context binding returns 409.
+
+Only the durable task submission bodies accept an optional `context_binding`, for example
+`{"schema_version":"1.0","context_version":1}`. It is stored separately from the executable
+`MetricQuery`; synchronous metric/question contracts and persisted graph queries do not gain a
+context field. Both direct and question-task idempotency hashes cover the binding, while unbound
+tasks retain their existing hashes and historical queue/checkpoint compatibility. The binding must
+refer to the actor's current active business-context version; later replacement, expiry or
+revocation denies bound execution/result/artifact reads instead of silently rebinding the task.
 Completed tasks are returned without rerunning. Keys permit 1–128 ASCII letters, digits, dot,
 underscore, colon and dash. Payloads are capped at 64 KiB. Running and terminal tasks cannot retry.
 

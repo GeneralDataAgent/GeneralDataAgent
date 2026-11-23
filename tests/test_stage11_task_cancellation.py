@@ -41,7 +41,7 @@ def test_inactive_cancel_is_durable_idempotent_and_never_claimed(tmp_path, initi
         claim = queue.claim()
         queue.settle(claim, "interrupted", "execution_interrupted")
     result = queue.cancel(record.task_id, actor())
-    assert result.schema_version == "2.0"
+    assert result.schema_version == "2.1"
     assert result.status == "cancelled"
     assert result.cancel_requested_at == result.cancelled_at
     assert result.failure_code is None
@@ -140,7 +140,7 @@ def test_api_cancel_requires_live_grant_and_sse_ends_on_cancelled(tmp_path):
         assert client.post(url + "/cancel", headers=headers).json()["status"] == "cancelled"
         response = client.get(url + "/stream", headers=headers)
         frames = parse_frames(response.text)
-        assert frames[0]["data"]["schema_version"] == "2.0"
+        assert frames[0]["data"]["schema_version"] == "2.1"
         assert frames[0]["data"]["status"] == "cancelled"
         assert frames[-1]["data"]["reason"] == "terminal"
         assert client.post(url + "/retry", headers=headers).status_code == 409
