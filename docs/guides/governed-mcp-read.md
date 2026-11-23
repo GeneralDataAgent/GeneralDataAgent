@@ -61,7 +61,8 @@ rejected in production mode.
 - The transport opens one connection per request, serializes requests under one lock and keeps at most
   one request in flight. `McpSessionManager` still admits only one active session per server and
   refuses a second tenant or scope.
-- `Mcp-Session-Id` returned by `initialize` is validated and replayed on later requests, together with
+- `Mcp-Session-Id` returned by `initialize` is validated and replayed on later HTTP messages,
+  including the ID-less `notifications/initialized` notification, together with
   `MCP-Protocol-Version`. A request timeout or cancellation closes the socket under the in-flight
   read; `close()` is idempotent.
 - A read that fails before any response byte is received (connection refused, write failure, or a

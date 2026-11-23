@@ -118,6 +118,16 @@ class _Handler(BaseHTTPRequestHandler):
 
     def _handle(self, server, request):
         method = request.get("method")
+        if (
+            server.mode == "session"
+            and method != "initialize"
+            and (
+                self.headers.get("mcp-session-id") != server.session_id
+                or self.headers.get("mcp-protocol-version") != "2025-06-18"
+            )
+        ):
+            self._send(400, b'{"error":"negotiated headers required"}')
+            return
         if "id" not in request:
             self._send(202, b"")
             return
@@ -211,13 +221,8 @@ class _Handler(BaseHTTPRequestHandler):
                 {"Content-Type": "text/event-stream"},
             )
             return
-        if server.mode == "session":
-            if method != "initialize":
-                if self.headers.get("mcp-session-id") != server.session_id:
-                    self._send(400, b'{"error":"session required"}')
-                    return
-            else:
-                return self._send_json(server, request, {"Mcp-Session-Id": server.session_id})
+        if server.mode == "session" and method == "initialize":
+            return self._send_json(server, request, {"Mcp-Session-Id": server.session_id})
         if server.mode == "no_content" and method != "initialize":
             self._send(204, b"")
             return

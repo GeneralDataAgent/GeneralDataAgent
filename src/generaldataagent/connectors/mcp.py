@@ -483,9 +483,9 @@ class HttpMcpTransport:
         ]
         if self._credential is not None:
             head.append(f"Authorization: Bearer {self._credential}")
-        if request_id is not None and self._session_id is not None:
+        if self._session_id is not None:
             head.append(f"Mcp-Session-Id: {self._session_id}")
-        if request_id is not None and self._protocol_version is not None:
+        if self._protocol_version is not None:
             head.append(f"MCP-Protocol-Version: {self._protocol_version}")
         frame = ("\r\n".join(head) + "\r\n\r\n").encode("ascii") + body
 
